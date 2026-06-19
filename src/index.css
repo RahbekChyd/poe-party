@@ -1,0 +1,222 @@
+@import 'tailwindcss';
+@import '@heroui/styles';
+@config '../tailwind.config.ts';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-content1: var(--surface);
+  --color-content2: var(--surface-secondary);
+  --color-content3: var(--surface-tertiary);
+  --color-content4: var(--overlay);
+  --color-divider: var(--separator);
+
+  --color-primary: var(--accent);
+  --color-primary-50: var(--accent-soft);
+  --color-primary-100: var(--accent-soft);
+  --color-primary-200: color-mix(in oklab, var(--accent) 24%, transparent);
+  --color-primary-300: color-mix(in oklab, var(--accent) 38%, transparent);
+  --color-primary-400: color-mix(in oklab, var(--accent) 72%, var(--accent-foreground) 8%);
+  --color-primary-500: var(--accent);
+  --color-primary-600: var(--accent-hover);
+  --color-primary-700: color-mix(in oklab, var(--accent) 82%, var(--foreground) 18%);
+  --color-primary-800: color-mix(in oklab, var(--accent) 72%, var(--foreground) 28%);
+  --color-primary-900: color-mix(in oklab, var(--accent) 62%, var(--foreground) 38%);
+
+  --color-currency: var(--currency);
+  --color-currency-50: var(--currency-soft);
+  --color-currency-100: var(--currency-soft);
+  --color-currency-300: color-mix(in oklab, var(--currency) 42%, transparent);
+  --color-currency-600: color-mix(in oklab, var(--currency) 78%, var(--foreground) 22%);
+
+  --color-arcane: var(--arcane);
+  --color-arcane-50: var(--arcane-soft);
+  --color-arcane-100: var(--arcane-soft);
+  --color-arcane-300: color-mix(in oklab, var(--arcane) 42%, transparent);
+  --color-arcane-600: color-mix(in oklab, var(--arcane) 78%, var(--foreground) 22%);
+
+  --color-secondary: var(--arcane);
+  --color-secondary-50: color-mix(in oklab, var(--color-secondary) 12%, transparent);
+  --color-secondary-100: color-mix(in oklab, var(--color-secondary) 18%, transparent);
+  --color-secondary-200: color-mix(in oklab, var(--color-secondary) 28%, transparent);
+  --color-secondary-300: color-mix(in oklab, var(--color-secondary) 42%, transparent);
+  --color-secondary-400: color-mix(in oklab, var(--color-secondary) 72%, var(--foreground) 4%);
+  --color-secondary-500: var(--color-secondary);
+  --color-secondary-600: color-mix(in oklab, var(--color-secondary) 82%, var(--foreground) 18%);
+  --color-secondary-700: color-mix(in oklab, var(--color-secondary) 72%, var(--foreground) 28%);
+
+  --color-default-50: color-mix(in oklab, var(--default) 55%, var(--background) 45%);
+  --color-default-100: var(--default);
+  --color-default-200: color-mix(in oklab, var(--default) 82%, var(--default-foreground) 18%);
+  --color-default-300: color-mix(in oklab, var(--default) 72%, var(--default-foreground) 28%);
+  --color-default-400: color-mix(in oklab, var(--default) 58%, var(--default-foreground) 42%);
+  --color-default-500: var(--muted);
+  --color-default-600: color-mix(in oklab, var(--muted) 72%, var(--foreground) 28%);
+  --color-default-700: color-mix(in oklab, var(--muted) 50%, var(--foreground) 50%);
+  --color-default-800: color-mix(in oklab, var(--muted) 34%, var(--foreground) 66%);
+
+  --color-foreground-50: color-mix(in oklab, var(--foreground) 6%, transparent);
+  --color-foreground-100: color-mix(in oklab, var(--foreground) 12%, transparent);
+  --color-foreground-200: color-mix(in oklab, var(--foreground) 22%, transparent);
+  --color-foreground-300: color-mix(in oklab, var(--foreground) 34%, transparent);
+  --color-foreground-400: color-mix(in oklab, var(--foreground) 48%, transparent);
+  --color-foreground-500: color-mix(in oklab, var(--foreground) 62%, transparent);
+  --color-foreground-600: color-mix(in oklab, var(--foreground) 76%, transparent);
+  --color-foreground-700: color-mix(in oklab, var(--foreground) 86%, transparent);
+
+  --color-success-50: var(--success-soft);
+  --color-success-100: var(--success-soft);
+  --color-success-300: color-mix(in oklab, var(--success) 42%, transparent);
+  --color-success-600: color-mix(in oklab, var(--success) 78%, var(--foreground) 22%);
+  --color-warning-50: var(--warning-soft);
+  --color-warning-100: var(--warning-soft);
+  --color-warning-300: color-mix(in oklab, var(--warning) 42%, transparent);
+  --color-warning-700: color-mix(in oklab, var(--warning) 68%, var(--foreground) 32%);
+  --color-danger-300: color-mix(in oklab, var(--danger) 42%, transparent);
+  --color-danger-600: color-mix(in oklab, var(--danger) 78%, var(--foreground) 22%);
+
+  --radius-small: 0.5rem;
+  --radius-medium: 0.75rem;
+  --radius-large: 0.875rem;
+  --text-tiny: 0.75rem;
+  --text-tiny--line-height: 1rem;
+  --shadow-small: var(--surface-shadow);
+  --shadow-medium: var(--surface-shadow);
+  --shadow-large: var(--overlay-shadow);
+  --shadow-primary: 0 14px 40px color-mix(in oklab, var(--accent) 24%, transparent);
+  --shadow-warning: 0 14px 40px color-mix(in oklab, var(--warning) 20%, transparent);
+}
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --accent: #f5a524;
+  --accent-foreground: var(--eclipse, oklch(21.03% 0.0059 285.89));
+  --accent-hover: color-mix(in oklab, var(--accent) 90%, var(--accent-foreground) 10%);
+  --accent-soft: color-mix(in oklab, var(--accent) 15%, transparent);
+  --currency: #177a4a;
+  --currency-soft: color-mix(in oklab, var(--currency) 13%, transparent);
+  --currency-border: color-mix(in oklab, var(--currency) 30%, var(--separator) 70%);
+  --arcane: #315f9d;
+  --arcane-soft: color-mix(in oklab, var(--arcane) 12%, transparent);
+  --arcane-border: color-mix(in oklab, var(--arcane) 30%, var(--separator) 70%);
+  --success: var(--currency);
+  --success-soft: var(--currency-soft);
+  --warning: #a65f08;
+  --warning-soft: color-mix(in oklab, var(--warning) 13%, transparent);
+  --danger: #b13b31;
+  --danger-soft: color-mix(in oklab, var(--danger) 12%, transparent);
+  --atlas-grid-major: color-mix(in oklab, var(--separator) 16%, transparent);
+  --atlas-grid-minor: color-mix(in oklab, var(--separator) 10%, transparent);
+  --atlas-wash: color-mix(in oklab, var(--accent) 4%, transparent);
+  --surface-card-top: color-mix(in oklab, var(--surface) 97%, var(--foreground) 3%);
+  --surface-card-bottom: color-mix(in oklab, var(--surface) 95%, var(--background) 5%);
+  --surface-card-shadow: color-mix(in oklab, var(--background) 18%, transparent);
+  --focus: var(--accent);
+  --field-border-width: 1px;
+  --field-border: color-mix(in oklab, var(--separator) 86%, transparent);
+  --field-background: color-mix(in oklab, var(--surface) 92%, var(--background) 8%);
+  --field-shadow: 0 0 0 0 transparent;
+  --overlay-shadow:
+    0 18px 48px color-mix(in oklab, var(--background) 42%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--separator) 88%, transparent);
+}
+
+.dark {
+  --currency: #55d68d;
+  --currency-soft: color-mix(in oklab, var(--currency) 14%, transparent);
+  --currency-border: color-mix(in oklab, var(--currency) 28%, var(--separator) 72%);
+  --arcane: #86a9ff;
+  --arcane-soft: color-mix(in oklab, var(--arcane) 13%, transparent);
+  --arcane-border: color-mix(in oklab, var(--arcane) 27%, var(--separator) 73%);
+  --warning: #f5b84b;
+  --warning-soft: color-mix(in oklab, var(--warning) 13%, transparent);
+  --danger: #ff7d70;
+  --danger-soft: color-mix(in oklab, var(--danger) 12%, transparent);
+  --atlas-grid-major: color-mix(in oklab, var(--accent) 9%, transparent);
+  --atlas-grid-minor: color-mix(in oklab, var(--arcane) 7%, transparent);
+  --atlas-wash: color-mix(in oklab, var(--accent) 6%, transparent);
+  --surface-card-top: color-mix(in oklab, var(--surface) 94%, var(--accent) 6%);
+  --surface-card-bottom: color-mix(in oklab, var(--surface) 95%, var(--background) 5%);
+  --surface-card-shadow: color-mix(in oklab, black 24%, transparent);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, var(--atlas-wash), transparent 24rem),
+    linear-gradient(90deg, var(--atlas-grid-major) 1px, transparent 1px) 0 0 / 48px 48px,
+    linear-gradient(180deg, var(--atlas-grid-minor) 1px, transparent 1px) 0 0 / 48px 48px,
+    var(--background);
+  color: var(--foreground);
+}
+
+@layer components {
+  .card {
+    border: 1px solid color-mix(in oklab, var(--separator) 80%, transparent);
+    background: linear-gradient(180deg, var(--surface-card-top), var(--surface-card-bottom));
+    box-shadow:
+      0 10px 28px var(--surface-card-shadow),
+      inset 0 1px 0 color-mix(in oklab, var(--foreground) 6%, transparent);
+  }
+
+  .card:has(a:focus-visible),
+  .card:focus-within {
+    border-color: color-mix(in oklab, var(--accent) 38%, var(--separator) 62%);
+  }
+
+  .button,
+  .select__trigger,
+  .input,
+  .input-group,
+  .textarea {
+    transition:
+      border-color 150ms ease,
+      background-color 150ms ease,
+      box-shadow 150ms ease,
+      color 150ms ease;
+  }
+
+  .input,
+  .input-group,
+  .select__trigger,
+  .textarea {
+    border-color: color-mix(in oklab, var(--separator) 86%, transparent);
+  }
+
+  .select__trigger {
+    align-items: center;
+  }
+
+  .input-group__prefix,
+  .input-group__suffix {
+    border-color: color-mix(in oklab, var(--separator) 72%, transparent);
+  }
+
+  .input-group__prefix {
+    border-right-color: transparent;
+  }
+
+  .dropdown__popover,
+  .select__popover,
+  .modal__dialog,
+  .popover__content {
+    border: 1px solid color-mix(in oklab, var(--separator) 88%, transparent);
+    background: var(--overlay);
+  }
+
+  .modal__body {
+    @apply flex flex-col;
+    padding: 0.125rem;
+  }
+
+  .toggle-button-group {
+    align-items: stretch;
+  }
+
+  .toggle-button-group .toggle-button {
+    min-height: 2.25rem;
+  }
+}

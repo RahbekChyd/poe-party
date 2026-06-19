@@ -1,0 +1,4 @@
+interface:
+  display_name: "PoE Party Release Security"
+  short_description: "Check releases, secrets, and safety gates"
+  default_prompt: "Use $poe-party-release-security to prepare or review a PoE Party release or security-sensitive change."

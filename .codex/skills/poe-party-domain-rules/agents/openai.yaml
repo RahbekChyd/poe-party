@@ -1,0 +1,4 @@
+interface:
+  display_name: "PoE Party Domain Rules"
+  short_description: "Apply PoE Party product domain rules"
+  default_prompt: "Use $poe-party-domain-rules to make a product change involving PoE1, PoE2, groups, economy, strategies, or services."

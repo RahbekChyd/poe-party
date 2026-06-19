@@ -1,0 +1,20 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/ninja/:path*",
+      "destination": "https://poe.ninja/:path*"
+    },
+    {
+      "source": "/api/poedb/:path*",
+      "destination": "https://poedb.tw/:path*"
+    },
+    {
+      "source": "/api/poe/:path*",
+      "destination": "/api/poe-proxy?proxyPath=:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

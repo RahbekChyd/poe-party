@@ -1,0 +1,4 @@
+interface:
+  display_name: "PoE Party Frontend Patterns"
+  short_description: "Follow PoE Party frontend conventions"
+  default_prompt: "Use $poe-party-frontend-patterns to change a PoE Party page or component."

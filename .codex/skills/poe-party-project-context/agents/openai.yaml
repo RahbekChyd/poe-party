@@ -1,0 +1,4 @@
+interface:
+  display_name: "PoE Party Project Context"
+  short_description: "Onboard to PoE Party repo conventions"
+  default_prompt: "Use $poe-party-project-context to orient yourself before working in the PoE Party repo."

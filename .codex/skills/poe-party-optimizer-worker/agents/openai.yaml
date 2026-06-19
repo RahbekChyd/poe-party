@@ -1,0 +1,4 @@
+interface:
+  display_name: "PoE Party Optimizer Worker"
+  short_description: "Work on the optimizer worker safely"
+  default_prompt: "Use $poe-party-optimizer-worker to debug or change the PoE Party optimizer worker."

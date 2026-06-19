@@ -1,0 +1,49 @@
+# PoE Party
+
+> PoE Party is an independent Path of Exile web app for group economy tracking, stash snapshots, public strategies, service listings, gear planning, and upgrade analysis for PoE 1 and Path of Exile 2.
+
+PoE Party is built for Path of Exile players who coordinate groups, track shared wealth, plan farming strategies, publish service listings, compare character progress, and organize upgrades. It is not affiliated with or endorsed by Grinding Gear Games.
+
+## Core Pages
+
+- [Path of Exile group economy and planning tool](https://poe-party.com/preview): Preview PoE Party, a Path of Exile group tool for shared stash snapshots, party wealth tracking, strategy coordination, gear planning, and upgrade analysis.
+- [PoE economy tracker for groups](https://poe-party.com/preview/economy): See how PoE Party tracks Path of Exile group wealth, stash snapshots, member contributions, priced items, and strategy-linked economy history.
+- [PoE gear optimizer and upgrade analysis](https://poe-party.com/preview/analysis): Preview Path of Exile upgrade analysis for gear, gems, passive tree alignment, and Path of Building informed recommendations.
+- [PoE gear planning workspace](https://poe-party.com/preview/gear): Preview Path of Exile gear suggestions, target items, upgrade notes, and group planning workflows in PoE Party.
+- [PoE party roster and character coordination](https://poe-party.com/preview/members): Preview Path of Exile member and character coordination for party groups, public profiles, roles, and build progress.
+
+## Public Community Tools
+
+- [Public PoE character and group directory](https://poe-party.com/preview/search): Search public Path of Exile characters and groups in PoE Party by game and league, then open shared previews before signing in.
+- [Path of Exile service listings](https://poe-party.com/preview/services): Browse public Path of Exile service listings in PoE Party, including boss carries, map carries, 5-way hosts, gold rotas, prices, and whisper-ready contacts.
+- [Public PoE farming strategies](https://poe-party.com/preview/strategies): Browse public Path of Exile farming strategies in PoE Party with league context, map cost, benchmark currency per hour, and group planning summaries.
+
+## Policies and Trust
+
+- [PoE Party FAQ](https://poe-party.com/legal/faq): Answers about PoE Party Supporter billing, snapshot limits, upgrade-analysis queues, group wealth, strategy currency per hour, and PoE support.
+- [Security and trust](https://poe-party.com/legal/security): Security and trust details for PoE Party, including Path of Exile OAuth access, tokens, group visibility, stored app data, and responsible disclosure.
+- [Privacy policy](https://poe-party.com/legal/privacy): PoE Party privacy policy for account, character, stash, group, public listing, and analytics data.
+- [Terms of service](https://poe-party.com/legal/terms): Terms for using PoE Party, an independent Path of Exile web app for group economy, strategy, service, and gear planning workflows.
+- [Cookie policy](https://poe-party.com/legal/cookies): Cookie, local storage, session, preference, and analytics information for PoE Party.
+
+## SEO Tool Pages
+
+- [PoE wealth tracker for stash and party progress](https://poe-party.com/tools/poe-wealth-tracker): Track Path of Exile wealth with stash snapshots, member totals, value history, and strategy context for solo players and parties.
+- [PoE stash tracker for snapshots and priced items](https://poe-party.com/tools/poe-stash-tracker): Use PoE Party as a Path of Exile stash tracker for selected stash tabs, priced item snapshots, exclusions, and wealth movement over time.
+- [PoE group economy tracker for parties](https://poe-party.com/tools/poe-group-economy-tracker): Coordinate a Path of Exile group economy with shared workspaces, member wealth, stash snapshot history, public discovery, and strategy-linked results.
+- [PoE farming strategy tracker](https://poe-party.com/tools/poe-farming-strategy-tracker): Plan Path of Exile farming strategies with map cost, difficulty, public sharing, subscriptions, and strategy-linked snapshot results.
+- [PoE service listings for carries and rotas](https://poe-party.com/tools/poe-service-listings): Browse and publish Path of Exile service listings for boss carries, map carries, 5-way hosts, gold rotas, pricing, availability, and whisper-ready contact.
+- [PoE gear upgrade planner](https://poe-party.com/tools/poe-gear-upgrade-planner): Plan Path of Exile gear upgrades with group suggestions, item targets, trade links, recommendation notes, and Path of Building informed analysis.
+
+## Strategy Pages
+
+- [PoE Harvest farming strategy tracker](https://poe-party.com/poe-strategies/harvest-farming): Track a Path of Exile Harvest farming strategy with setup notes, map costs, party roles, snapshot history, and currency per hour context.
+- [PoE Essence farming strategy tracker](https://poe-party.com/poe-strategies/essence-farming): Plan and track a Path of Exile Essence farming strategy with map cost, difficulty, stash snapshot outcomes, and public strategy discovery.
+- [PoE Strongbox farming strategy tracker](https://poe-party.com/poe-strategies/strongbox-farming): Track Path of Exile Strongbox farming with investment notes, map cost context, scarab planning where supported, and strategy-linked results.
+- [PoE boss rush strategy tracker](https://poe-party.com/poe-strategies/boss-rush): Plan and track a Path of Exile boss rush strategy with public strategy sharing, map investment, service context, and profit snapshots.
+- [PoE Ultimatum farming strategy tracker](https://poe-party.com/poe-strategies/ultimatum-farming): Track a Path of Exile Ultimatum farming strategy with setup notes, party suitability, snapshot outcomes, and currency per hour context.
+
+## Contact
+
+- Contact: support@poe-party.com
+- Discord: https://discord.gg/hSMV2r83mU

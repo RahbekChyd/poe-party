@@ -1,0 +1,243 @@
+{
+  "lastmod": "2026-06-19",
+  "routes": [
+    {
+      "path": "/preview",
+      "title": "Path of Exile group economy and planning tool",
+      "description": "Preview PoE Party, a Path of Exile group tool for shared stash snapshots, party wealth tracking, strategy coordination, gear planning, and upgrade analysis.",
+      "priority": 1.0,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "Core Pages"
+    },
+    {
+      "path": "/preview/economy",
+      "title": "PoE economy tracker for groups",
+      "description": "See how PoE Party tracks Path of Exile group wealth, stash snapshots, member contributions, priced items, and strategy-linked economy history.",
+      "priority": 0.9,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "Core Pages"
+    },
+    {
+      "path": "/preview/analysis",
+      "title": "PoE gear optimizer and upgrade analysis",
+      "description": "Preview Path of Exile upgrade analysis for gear, gems, passive tree alignment, and Path of Building informed recommendations.",
+      "priority": 0.9,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "Core Pages"
+    },
+    {
+      "path": "/preview/gear",
+      "title": "PoE gear planning workspace",
+      "description": "Preview Path of Exile gear suggestions, target items, upgrade notes, and group planning workflows in PoE Party.",
+      "priority": 0.9,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "Core Pages"
+    },
+    {
+      "path": "/preview/members",
+      "title": "PoE party roster and character coordination",
+      "description": "Preview Path of Exile member and character coordination for party groups, public profiles, roles, and build progress.",
+      "priority": 0.8,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "Core Pages"
+    },
+    {
+      "path": "/preview/search",
+      "title": "Public PoE character and group directory",
+      "description": "Search public Path of Exile characters and groups in PoE Party by game and league, then open shared previews before signing in.",
+      "priority": 0.9,
+      "changefreq": "daily",
+      "prerender": true,
+      "llmsSection": "Public Community Tools"
+    },
+    {
+      "path": "/preview/services",
+      "title": "Path of Exile service listings",
+      "description": "Browse public Path of Exile service listings in PoE Party, including boss carries, map carries, 5-way hosts, gold rotas, prices, and whisper-ready contacts.",
+      "priority": 0.9,
+      "changefreq": "daily",
+      "prerender": true,
+      "llmsSection": "Public Community Tools"
+    },
+    {
+      "path": "/preview/strategies",
+      "title": "Public PoE farming strategies",
+      "description": "Browse public Path of Exile farming strategies in PoE Party with league context, map cost, benchmark currency per hour, and group planning summaries.",
+      "priority": 0.9,
+      "changefreq": "daily",
+      "prerender": true,
+      "llmsSection": "Public Community Tools"
+    },
+    {
+      "path": "/legal/faq",
+      "title": "PoE Party FAQ",
+      "description": "Answers about PoE Party Supporter billing, snapshot limits, upgrade-analysis queues, group wealth, strategy currency per hour, and PoE support.",
+      "priority": 0.6,
+      "changefreq": "monthly",
+      "prerender": true,
+      "llmsSection": "Policies and Trust"
+    },
+    {
+      "path": "/legal/security",
+      "title": "Security and trust",
+      "description": "Security and trust details for PoE Party, including Path of Exile OAuth access, tokens, group visibility, stored app data, and responsible disclosure.",
+      "priority": 0.5,
+      "changefreq": "monthly",
+      "prerender": true,
+      "llmsSection": "Policies and Trust"
+    },
+    {
+      "path": "/legal/privacy",
+      "title": "Privacy policy",
+      "description": "PoE Party privacy policy for account, character, stash, group, public listing, and analytics data.",
+      "priority": 0.5,
+      "changefreq": "monthly",
+      "prerender": true,
+      "llmsSection": "Policies and Trust"
+    },
+    {
+      "path": "/legal/terms",
+      "title": "Terms of service",
+      "description": "Terms for using PoE Party, an independent Path of Exile web app for group economy, strategy, service, and gear planning workflows.",
+      "priority": 0.5,
+      "changefreq": "monthly",
+      "prerender": true,
+      "llmsSection": "Policies and Trust"
+    },
+    {
+      "path": "/legal/cookies",
+      "title": "Cookie policy",
+      "description": "Cookie, local storage, session, preference, and analytics information for PoE Party.",
+      "priority": 0.5,
+      "changefreq": "monthly",
+      "prerender": true,
+      "llmsSection": "Policies and Trust"
+    },
+    {
+      "path": "/tools/poe-wealth-tracker",
+      "title": "PoE wealth tracker for stash and party progress",
+      "description": "Track Path of Exile wealth with stash snapshots, member totals, value history, and strategy context for solo players and parties.",
+      "priority": 0.95,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "SEO Tool Pages",
+      "contentType": "tool",
+      "slug": "poe-wealth-tracker"
+    },
+    {
+      "path": "/tools/poe-stash-tracker",
+      "title": "PoE stash tracker for snapshots and priced items",
+      "description": "Use PoE Party as a Path of Exile stash tracker for selected stash tabs, priced item snapshots, exclusions, and wealth movement over time.",
+      "priority": 0.95,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "SEO Tool Pages",
+      "contentType": "tool",
+      "slug": "poe-stash-tracker"
+    },
+    {
+      "path": "/tools/poe-group-economy-tracker",
+      "title": "PoE group economy tracker for parties",
+      "description": "Coordinate a Path of Exile group economy with shared workspaces, member wealth, stash snapshot history, public discovery, and strategy-linked results.",
+      "priority": 0.95,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "SEO Tool Pages",
+      "contentType": "tool",
+      "slug": "poe-group-economy-tracker"
+    },
+    {
+      "path": "/tools/poe-farming-strategy-tracker",
+      "title": "PoE farming strategy tracker",
+      "description": "Plan Path of Exile farming strategies with map cost, difficulty, public sharing, subscriptions, and strategy-linked snapshot results.",
+      "priority": 0.9,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "SEO Tool Pages",
+      "contentType": "tool",
+      "slug": "poe-farming-strategy-tracker"
+    },
+    {
+      "path": "/tools/poe-service-listings",
+      "title": "PoE service listings for carries and rotas",
+      "description": "Browse and publish Path of Exile service listings for boss carries, map carries, 5-way hosts, gold rotas, pricing, availability, and whisper-ready contact.",
+      "priority": 0.9,
+      "changefreq": "daily",
+      "prerender": true,
+      "llmsSection": "SEO Tool Pages",
+      "contentType": "tool",
+      "slug": "poe-service-listings"
+    },
+    {
+      "path": "/tools/poe-gear-upgrade-planner",
+      "title": "PoE gear upgrade planner",
+      "description": "Plan Path of Exile gear upgrades with group suggestions, item targets, trade links, recommendation notes, and Path of Building informed analysis.",
+      "priority": 0.9,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "SEO Tool Pages",
+      "contentType": "tool",
+      "slug": "poe-gear-upgrade-planner"
+    },
+    {
+      "path": "/poe-strategies/harvest-farming",
+      "title": "PoE Harvest farming strategy tracker",
+      "description": "Track a Path of Exile Harvest farming strategy with setup notes, map costs, party roles, snapshot history, and currency per hour context.",
+      "priority": 0.85,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "Strategy Pages",
+      "contentType": "strategy",
+      "slug": "harvest-farming"
+    },
+    {
+      "path": "/poe-strategies/essence-farming",
+      "title": "PoE Essence farming strategy tracker",
+      "description": "Plan and track a Path of Exile Essence farming strategy with map cost, difficulty, stash snapshot outcomes, and public strategy discovery.",
+      "priority": 0.85,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "Strategy Pages",
+      "contentType": "strategy",
+      "slug": "essence-farming"
+    },
+    {
+      "path": "/poe-strategies/strongbox-farming",
+      "title": "PoE Strongbox farming strategy tracker",
+      "description": "Track Path of Exile Strongbox farming with investment notes, map cost context, scarab planning where supported, and strategy-linked results.",
+      "priority": 0.85,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "Strategy Pages",
+      "contentType": "strategy",
+      "slug": "strongbox-farming"
+    },
+    {
+      "path": "/poe-strategies/boss-rush",
+      "title": "PoE boss rush strategy tracker",
+      "description": "Plan and track a Path of Exile boss rush strategy with public strategy sharing, map investment, service context, and profit snapshots.",
+      "priority": 0.85,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "Strategy Pages",
+      "contentType": "strategy",
+      "slug": "boss-rush"
+    },
+    {
+      "path": "/poe-strategies/ultimatum-farming",
+      "title": "PoE Ultimatum farming strategy tracker",
+      "description": "Track a Path of Exile Ultimatum farming strategy with setup notes, party suitability, snapshot outcomes, and currency per hour context.",
+      "priority": 0.85,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "Strategy Pages",
+      "contentType": "strategy",
+      "slug": "ultimatum-farming"
+    }
+  ]
+}

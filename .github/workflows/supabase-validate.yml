@@ -1,0 +1,76 @@
+name: Supabase Validate
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/supabase-validate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SUPABASE_CLI_VERSION: 2.76.11
+  SUPABASE_IMAGE_CACHE: /tmp/supabase-db-images.tar
+  SUPABASE_PROJECT_ID: poe-group-tool
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Restore Supabase Docker image cache
+        id: supabase-image-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.SUPABASE_IMAGE_CACHE }}
+          key: ${{ runner.os }}-supabase-db-images-cli-${{ env.SUPABASE_CLI_VERSION }}-${{ hashFiles('supabase/config.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-supabase-db-images-cli-${{ env.SUPABASE_CLI_VERSION }}-
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Load cached Supabase Docker images
+        if: steps.supabase-image-cache.outputs.cache-hit == 'true'
+        run: docker load --input "$SUPABASE_IMAGE_CACHE"
+
+      - name: Start local Supabase database
+        run: supabase db start
+
+      - name: Lint database schema
+        run: supabase db lint --local
+
+      - name: Replay migrations from scratch
+        run: supabase db reset --local
+
+      - name: Export Supabase Docker images for cache
+        if: steps.supabase-image-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          mapfile -t images < <(
+            {
+              docker ps -a \
+                --filter "label=com.docker.compose.project=$SUPABASE_PROJECT_ID" \
+                --format '{{.Image}}'
+              docker ps -a --format '{{.Names}} {{.Image}}' | awk '$1 ~ project { print $2 }' project="$SUPABASE_PROJECT_ID"
+            } | grep -v '^$' | sort -u
+          )
+          if [ "${#images[@]}" -eq 0 ]; then
+            echo "No Supabase Docker images were found for project $SUPABASE_PROJECT_ID; skipping image cache export."
+            exit 0
+          fi
+          docker save --output "$SUPABASE_IMAGE_CACHE" "${images[@]}"
+
+      - name: Save Supabase Docker image cache
+        if: steps.supabase-image-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.SUPABASE_IMAGE_CACHE }}
+          key: ${{ steps.supabase-image-cache.outputs.cache-primary-key }}

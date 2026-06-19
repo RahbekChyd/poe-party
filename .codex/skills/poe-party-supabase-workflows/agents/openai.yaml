@@ -1,0 +1,4 @@
+interface:
+  display_name: "PoE Party Supabase Workflows"
+  short_description: "Handle PoE Party database and functions"
+  default_prompt: "Use $poe-party-supabase-workflows to change Supabase migrations, RLS, or Edge Functions."

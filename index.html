@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/poe-party-logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="PoE Party is a Path of Exile group tool for party economy tracking, stash snapshots, public strategies, service listings, gear planning, and upgrade analysis for PoE 1 and Path of Exile 2."
+    />
+    <meta property="og:site_name" content="PoE Party" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="PoE Party - Path of Exile group tools" />
+    <meta
+      property="og:description"
+      content="Track Path of Exile group wealth, stash snapshots, public strategies, service listings, gear planning, and upgrade analysis in one web app."
+    />
+    <meta property="og:image" content="https://poe-party.com/poe-party-logo.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PoE Party - Path of Exile group tools" />
+    <meta
+      name="twitter:description"
+      content="A Path of Exile group tool for party economy tracking, stash snapshots, public strategies, service listings, gear planning, and upgrade analysis."
+    />
+    <meta name="twitter:image" content="https://poe-party.com/poe-party-logo.png" />
+    <script>
+      ;(function () {
+        var STORAGE_KEY = 'theme'
+        var theme = null
+
+        try {
+          var raw = window.localStorage.getItem(STORAGE_KEY)
+          if (raw) {
+            var parsed = JSON.parse(raw)
+            var storedTheme = parsed && parsed.state && parsed.state.theme
+            if (storedTheme === 'light' || storedTheme === 'dark') {
+              theme = storedTheme
+            }
+          }
+        } catch {}
+
+        if (!theme) {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        }
+
+        document.documentElement.classList.toggle('dark', theme === 'dark')
+        document.documentElement.style.colorScheme = theme
+      })()
+    </script>
+    <title>PoE Party - Path of Exile group tools</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

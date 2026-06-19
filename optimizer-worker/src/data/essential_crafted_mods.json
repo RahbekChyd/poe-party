@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "description": "Manually curated crafted modifiers that are considered build-essential. If ignore_crafted_mods is enabled and a recommended item is missing one of these crafts that the target had, the recommendation surfaces a warning so the user knows the craft needs to be re-added post-purchase.",
+  "crafts": [
+    {
+      "id": "total_mana_cost_skills",
+      "label": "-# to Total Mana Cost of Skills",
+      "match_any": [
+        "Non-Channelling Skills have -# to Total Mana Cost",
+        "Channelling Skills have -# to Total Mana Cost"
+      ]
+    }
+  ]
+}
