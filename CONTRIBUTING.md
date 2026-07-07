@@ -23,6 +23,38 @@ npm exec --yes pnpm@10.33.2 -- build
 
 Run `npm exec --yes pnpm@10.33.2 -- generate` after changing TanStack route files if generated route metadata is not updated automatically.
 
+## Commit Messages
+
+Use Conventional Commits for commit subjects:
+
+```text
+<type>(optional-scope): short summary
+```
+
+Keep the subject concise, lower-case the type, and do not end it with a period.
+
+Common types:
+
+- `feat`: user-facing feature or product behavior
+- `fix`: bug fix
+- `docs`: documentation, public copy, SEO text, or policy copy
+- `refactor`: code change that preserves behavior
+- `test`: test coverage or test infrastructure
+- `build`: build system, dependencies, or generated build metadata
+- `ci`: GitHub Actions or CI configuration
+- `chore`: maintenance without user-facing behavior
+
+Examples:
+
+```text
+feat(optimizer): queue authenticated upgrade analysis
+fix(auth): preserve return path after OAuth callback
+docs: add open-source trust links
+ci: validate Supabase migrations
+```
+
+Use `!` after the type or scope for breaking changes, and explain the break in the commit body.
+
 ## Security And Privacy
 
 - Do not commit `.env`, `.env.local`, `supabase/functions/.env`, service-role keys, Stripe secrets, PoE OAuth secrets, worker tokens, logs, or production exports.

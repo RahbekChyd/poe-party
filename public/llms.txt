@@ -20,8 +20,8 @@ PoE Party is built for Path of Exile players who coordinate groups, track shared
 
 ## Policies and Trust
 
-- [PoE Party FAQ](https://poe-party.com/legal/faq): Answers about PoE Party Supporter billing, snapshot limits, upgrade-analysis queues, group wealth, strategy currency per hour, and PoE support.
-- [Security and trust](https://poe-party.com/legal/security): Security and trust details for PoE Party, including Path of Exile OAuth access, tokens, group visibility, stored app data, and responsible disclosure.
+- [PoE Party FAQ](https://poe-party.com/legal/faq): Answers about PoE Party open-source status, Supporter billing, snapshot limits, upgrade-analysis queues, group wealth, and PoE support.
+- [Security and trust](https://poe-party.com/legal/security): Security and trust details for PoE Party, including open-source code, Path of Exile OAuth access, tokens, group visibility, stored app data, and disclosure.
 - [Privacy policy](https://poe-party.com/legal/privacy): PoE Party privacy policy for account, character, stash, group, public listing, and analytics data.
 - [Terms of service](https://poe-party.com/legal/terms): Terms for using PoE Party, an independent Path of Exile web app for group economy, strategy, service, and gear planning workflows.
 - [Cookie policy](https://poe-party.com/legal/cookies): Cookie, local storage, session, preference, and analytics information for PoE Party.

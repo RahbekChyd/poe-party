@@ -1,8 +1,8 @@
-import { CONTACT_EMAIL, CONTACT_MAILTO } from '../../lib/seo'
+import { CONTACT_EMAIL, CONTACT_MAILTO, GITHUB_URL } from '../../lib/seo'
 import { LegalLayout } from './LegalLayout'
 export function SecurityTrustPage() {
   return (
-    <LegalLayout title="Security & Trust" lastUpdated="June 19, 2026">
+    <LegalLayout title="Security & Trust" lastUpdated="July 7, 2026">
       <p>
         This page explains how PoE Party handles Path of Exile authentication, what data the product
         accesses, what it stores, and the current limits of its security posture.
@@ -18,13 +18,26 @@ export function SecurityTrustPage() {
 
       <h2>2. Transparency &amp; Source Availability</h2>
       <p>
-        PoE Party is prepared for public source availability under Apache-2.0, with the application,
-        Supabase schema/functions, and optimizer worker available for review and contribution.
+        PoE Party is open source under Apache-2.0. The{' '}
+        <a
+          href={GITHUB_URL}
+          className="text-primary hover:underline"
+          target="_blank"
+          rel="noreferrer"
+        >
+          public GitHub repository
+        </a>{' '}
+        includes the frontend application, Supabase schema/functions, optimizer worker,
+        analyser/scoring logic, local tooling, and validation workflows for review and contribution.
       </p>
       <p>
         Production secrets, operator scripts, comp grants, incident response, abuse-sensitive
         runbooks, and hosted-service automation are private operations material. The open-source
         repo should stay useful without exposing those production controls.
+      </p>
+      <p>
+        Source availability improves transparency, but it is not the same as an independent security
+        audit. The current audit status remains described above.
       </p>
 
       <h2>3. What We Never Ask For</h2>

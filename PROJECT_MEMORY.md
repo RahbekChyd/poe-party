@@ -4,7 +4,9 @@ Purpose: low-context handoff for the next Codex session. Keep this file short, c
 
 ## Latest Conclusions
 
-- PoE Party is being prepared as an Apache-2.0 open-source app. The public repo should include the frontend, Supabase schema/functions, optimizer worker, analyser/scoring logic, local tooling, and validation workflows.
+- PoE Party is an Apache-2.0 open-source app at `https://github.com/RahbekChyd/poe-party`. Public trust copy should link GitHub, mention source availability as transparency, and avoid implying open source equals an independent audit.
+- The public repo should include the frontend, Supabase schema/functions, optimizer worker, analyser/scoring logic, local tooling, and validation workflows.
+- Commits should use Conventional Commits, documented in `CONTRIBUTING.md`, for example `docs: add open-source trust links` or `fix(auth): preserve OAuth return path`.
 - Hosted production operations stay private: production deploy automation, preview-domain automation, comp grants, billing repair, incident response, abuse-sensitive tooling, secrets, logs, and user exports do not belong in this public repo.
 - Subscription copy remains Community/Supporter. Supporter is hosted support funding for higher retention, scheduling, queue capacity, and support; do not introduce a closed analyser core by default. Internal billing identifiers can still use `pro` for Stripe/database continuity.
 - Public validation workflows remain in `.github/workflows/app-validate.yml` and `.github/workflows/supabase-validate.yml`. Production deploy workflows are private operations outside the public repo.
@@ -35,6 +37,7 @@ Purpose: low-context handoff for the next Codex session. Keep this file short, c
 ## Latest Verification
 
 - OSS-readiness source checks have passed with `npm exec --yes pnpm@10.33.2 -- generate:seo`, `type-check`, `lint`, `build`, and `node --check` for `scripts/generate-public-seo.mjs`, `optimizer-worker/src/lib/poe-trade-client.mjs`, and `optimizer-worker/src/lib/poe-wiki-icons.mjs`.
+- Open-source trust-copy update on July 7, 2026: `npm exec --yes pnpm@10.33.2 -- generate:seo`, `type-check`, `lint`, and `build` passed. Build still emitted the known HeroUI CSS minifier warnings and Rollup large chunk warning. Playwright verified `/legal/security` and `/legal/faq` on desktop and mobile against local Vite with browser-safe Supabase env values.
 - Local-demo removal checks on June 19, 2026: `npm exec --yes pnpm@10.33.2 -- type-check`, `lint`, and `build` passed. Build still emits the known upstream HeroUI CSS minifier warnings and existing large Rollup chunk warning.
 - `npm exec --yes pnpm@10.33.2 -- supabase status` confirmed the local Supabase stack is running. `supabase db reset` was not run because it would wipe the local development database.
 - `git diff --check` passes; it only prints existing Windows LF-to-CRLF warnings.

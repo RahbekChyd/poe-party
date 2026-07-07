@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
+import { Github } from 'lucide-react'
 import { trackPublicEvent } from '../../lib/analytics'
-import { CONTACT_MAILTO, DISCORD_URL } from '../../lib/seo'
+import { CONTACT_MAILTO, DISCORD_URL, GITHUB_URL } from '../../lib/seo'
 type ProductLink =
   | {
       type: 'route'
@@ -59,7 +60,10 @@ export function Footer() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <nav aria-label="Product pages" className="flex flex-wrap items-center gap-3">
             {productLinks.map((link, index) => (
-              <span key={link.type === 'route' ? link.to : link.href} className="inline-flex items-center gap-3">
+              <span
+                key={link.type === 'route' ? link.to : link.href}
+                className="inline-flex items-center gap-3"
+              >
                 {index > 0 ? <span className="text-default-300">|</span> : null}
                 {link.type === 'route' ? (
                   <Link to={link.to} className="hover:text-foreground transition-colors">
@@ -81,7 +85,7 @@ export function Footer() {
               </span>
             ))}
           </nav>
-          <span>&copy; {new Date().getFullYear()} PoE Party. Source licensed Apache-2.0.</span>
+          <span>&copy; {new Date().getFullYear()} PoE Party. Open source under Apache-2.0.</span>
         </div>
         <nav aria-label="Legal and support pages" className="flex flex-wrap items-center gap-3">
           {legalLinks.map((link, index) => (
@@ -97,11 +101,18 @@ export function Footer() {
             </span>
           ))}
           <span className="text-default-300">|</span>
-          <a
-            href={CONTACT_MAILTO}
-            className="text-default-400 hover:text-foreground text-xs"
-          >
+          <a href={CONTACT_MAILTO} className="text-default-400 hover:text-foreground text-xs">
             Contact
+          </a>
+          <span className="text-default-300">|</span>
+          <a
+            href={GITHUB_URL}
+            className="text-default-400 hover:text-foreground inline-flex items-center gap-1 text-xs"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <Github size={12} className="relative top-px" />
+            GitHub
           </a>
           <span className="text-default-300">|</span>
           <a

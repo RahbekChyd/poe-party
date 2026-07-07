@@ -7,6 +7,7 @@ import {
   PLAN_PRICE_LABELS,
   SNAPSHOT_LIMITS,
 } from '../../lib/billing'
+import { GITHUB_URL } from '../../lib/seo'
 type FaqItem = {
   id: string
   question: string
@@ -27,6 +28,32 @@ const FAQ_ITEMS: FaqItem[] = [
         <p>
           Public preview pages let guests browse parts of the product, including community
           strategies, service listings, and discovery views, before signing in.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'open-source',
+    question: 'Is PoE Party open source?',
+    answer: (
+      <>
+        <p>
+          Yes. PoE Party is open source under Apache-2.0, and the source is available on{' '}
+          <a
+            href={GITHUB_URL}
+            className="text-primary hover:underline"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub
+          </a>
+          .
+        </p>
+        <p>
+          The public repo includes the application, Supabase schema/functions, optimizer worker,
+          analyser/scoring logic, local tooling, and validation workflows. Hosted production data,
+          secrets, deploy automation, billing repair tools, and abuse-sensitive operations material
+          stay private.
         </p>
       </>
     ),
@@ -205,7 +232,7 @@ const FAQ_ITEMS: FaqItem[] = [
       <>
         <p>
           Supporter costs {PLAN_PRICE_LABELS.pro}. It helps pay for hosting, optimizer worker
-          capacity, public tools, and ongoing development, and currently includes:
+          capacity, public tools, and ongoing open-source development, and currently includes:
         </p>
         <ul>
           <li>
@@ -294,7 +321,7 @@ const FAQ_ITEMS: FaqItem[] = [
 
 export function FaqPage() {
   return (
-    <LegalLayout title="FAQ" lastUpdated="June 19, 2026">
+    <LegalLayout title="FAQ" lastUpdated="July 7, 2026">
       <p>
         Short answers about PoE Party, the Path of Exile group tools, public previews, economy
         tracking, strategy planning, Supporter billing, and capacity limits.
