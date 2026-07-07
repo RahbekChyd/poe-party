@@ -6,6 +6,7 @@
 - Keep memory concise: latest conclusions, concrete next steps, active blockers/assumptions, and verification last run.
 - Only update broader instructions when the session produced durable knowledge future agents should not rediscover.
 - Do not use memory for one-off task history, verbose logs, or duplicate documentation.
+- Use Conventional Commits for commits you create, for example `docs: add open-source trust links` or `fix(auth): preserve OAuth return path`.
 - Do not interact with production services automatically. For production Supabase, Vercel, Stripe, worker, or other hosted-service changes, double-verify the exact target and ask for explicit confirmation first, or provide manual steps for the user to run.
 
 ## Agent Routing

@@ -6,6 +6,7 @@ Purpose: low-context handoff for the next Codex session. Keep this file short, c
 
 - PoE Party is an Apache-2.0 open-source app at `https://github.com/RahbekChyd/poe-party`. Public trust copy should link GitHub, mention source availability as transparency, and avoid implying open source equals an independent audit.
 - The public repo should include the frontend, Supabase schema/functions, optimizer worker, analyser/scoring logic, local tooling, and validation workflows.
+- Commits should use Conventional Commits, documented in `CONTRIBUTING.md`, for example `docs: add open-source trust links` or `fix(auth): preserve OAuth return path`.
 - Hosted production operations stay private: production deploy automation, preview-domain automation, comp grants, billing repair, incident response, abuse-sensitive tooling, secrets, logs, and user exports do not belong in this public repo.
 - Subscription copy remains Community/Supporter. Supporter is hosted support funding for higher retention, scheduling, queue capacity, and support; do not introduce a closed analyser core by default. Internal billing identifiers can still use `pro` for Stripe/database continuity.
 - Public validation workflows remain in `.github/workflows/app-validate.yml` and `.github/workflows/supabase-validate.yml`. Production deploy workflows are private operations outside the public repo.
