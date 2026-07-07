@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { FaqPage } from '../../components/legal/FaqPage'
 import { createPublicSeoHead } from '../../lib/public-seo-head'
+import { GITHUB_URL } from '../../lib/seo'
 const faqJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'FAQPage',
@@ -11,6 +12,14 @@ const faqJsonLd = {
       acceptedAnswer: {
         '@type': 'Answer',
         text: 'PoE Party is an independent Path of Exile tool for solo or party economy tracking, stash snapshots, strategy coordination, service listings, gear planning, and upgrade analysis.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'Is PoE Party open source?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: `Yes. PoE Party is open source under Apache-2.0, and the source is available on GitHub at ${GITHUB_URL}. The public repo includes the application, Supabase schema/functions, optimizer worker, analyser/scoring logic, local tooling, and validation workflows. Hosted production data, secrets, deploy automation, billing repair tools, and abuse-sensitive operations material stay private.`,
       },
     },
     {
@@ -66,7 +75,7 @@ const faqJsonLd = {
       name: 'What changes if I become a Supporter?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Supporter costs $5/month and helps fund hosting, optimizer worker capacity, public tools, and ongoing development. It includes up to 15 retained raw snapshots, interval/Mix snapshot scheduling, and no app-enforced daily authenticated upgrade-analysis queue cap. Community includes 5 retained raw snapshots and 3 authenticated upgrade-analysis queues per UTC day.',
+        text: 'Supporter costs $5/month and helps fund hosting, optimizer worker capacity, public tools, and ongoing open-source development. It includes up to 15 retained raw snapshots, interval/Mix snapshot scheduling, and no app-enforced daily authenticated upgrade-analysis queue cap. Community includes 5 retained raw snapshots and 3 authenticated upgrade-analysis queues per UTC day.',
       },
     },
     {

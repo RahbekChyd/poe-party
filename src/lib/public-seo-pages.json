@@ -1,5 +1,5 @@
 {
-  "lastmod": "2026-06-19",
+  "lastmod": "2026-07-07",
   "routes": [
     {
       "path": "/preview",
@@ -76,7 +76,7 @@
     {
       "path": "/legal/faq",
       "title": "PoE Party FAQ",
-      "description": "Answers about PoE Party Supporter billing, snapshot limits, upgrade-analysis queues, group wealth, strategy currency per hour, and PoE support.",
+      "description": "Answers about PoE Party open-source status, Supporter billing, snapshot limits, upgrade-analysis queues, group wealth, and PoE support.",
       "priority": 0.6,
       "changefreq": "monthly",
       "prerender": true,
@@ -85,7 +85,7 @@
     {
       "path": "/legal/security",
       "title": "Security and trust",
-      "description": "Security and trust details for PoE Party, including Path of Exile OAuth access, tokens, group visibility, stored app data, and responsible disclosure.",
+      "description": "Security and trust details for PoE Party, including open-source code, Path of Exile OAuth access, tokens, group visibility, stored app data, and disclosure.",
       "priority": 0.5,
       "changefreq": "monthly",
       "prerender": true,

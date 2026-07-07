@@ -30,15 +30,12 @@ const PLAN_FEATURES = {
     `${SNAPSHOT_LIMITS.pro} retained raw snapshots across all groups`,
     'Interval and Mix snapshot scheduling',
     'No app-enforced daily authenticated upgrade-analysis queue cap',
-    'Support for hosting, optimizer worker capacity, public tools, and ongoing development',
+    'Support for hosting, optimizer worker capacity, public tools, and ongoing open-source development',
     'Everything included in Community',
   ],
 } as const
 
-const RAW_SNAPSHOT_FEATURES = new Set<string>([
-  PLAN_FEATURES.free[0],
-  PLAN_FEATURES.pro[0],
-])
+const RAW_SNAPSHOT_FEATURES = new Set<string>([PLAN_FEATURES.free[0], PLAN_FEATURES.pro[0]])
 
 const CHECKOUT_CONFIRMATION_POLL_MS = 2000
 const CHECKOUT_CONFIRMATION_TIMEOUT_MS = 60_000
@@ -118,7 +115,7 @@ export function SupportPage() {
         title="Support PoE Party"
         eyebrow="Community-funded capacity"
         tone="warning"
-        description="PoE Party stays useful for Community users. Optional Supporter subscriptions help pay for hosting, optimizer worker capacity, public tools, and ongoing development."
+        description="PoE Party stays useful for Community users. Optional Supporter subscriptions help pay for the hosted service, optimizer worker capacity, public tools, and ongoing open-source development."
         actions={
           <Chip className="px-2" color={isPro ? 'warning' : 'default'} variant="soft">
             Current: {isPro ? 'Supporter' : 'Community'}
@@ -213,8 +210,8 @@ export function SupportPage() {
             <div>
               <p className="text-foreground text-sm font-semibold">Support development</p>
               <p className="text-default-400 mt-1 text-sm">
-                Supporter subscriptions fund hosting, optimizer worker capacity, public tools, and
-                the next round of PoE Party development.
+                Supporter subscriptions fund the hosted service, optimizer worker capacity, public
+                tools, and the next round of open-source PoE Party development.
               </p>
             </div>
           </div>

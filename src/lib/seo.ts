@@ -5,6 +5,7 @@ export const SITE_LOGO_URL = `${SITE_URL}/poe-party-logo.png`
 export const CONTACT_EMAIL = 'support@poe-party.com'
 export const CONTACT_MAILTO = `mailto:${CONTACT_EMAIL}`
 export const DISCORD_URL = 'https://discord.gg/hSMV2r83mU'
+export const GITHUB_URL = 'https://github.com/RahbekChyd/poe-party'
 
 export const DEFAULT_SEO_DESCRIPTION =
   'PoE Party is a Path of Exile group tool for party economy tracking, stash snapshots, public strategies, service listings, gear planning, and upgrade analysis for PoE 1 and Path of Exile 2.'
@@ -76,7 +77,7 @@ export const organizationJsonLd = {
   name: SITE_NAME,
   url: SITE_URL,
   logo: SITE_LOGO_URL,
-  sameAs: [DISCORD_URL],
+  sameAs: [DISCORD_URL, GITHUB_URL],
 }
 
 export const softwareApplicationJsonLd = {
