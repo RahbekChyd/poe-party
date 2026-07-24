@@ -1,4 +1,4 @@
-import type { User } from 'https://esm.sh/@supabase/supabase-js@2'
+import type { User } from 'https://esm.sh/@supabase/supabase-js@2.110.7'
 import { createAdminClient } from './supabase-admin.ts'
 import { createStripeClient } from './stripe.ts'
 
@@ -82,10 +82,7 @@ function getSubscriptionPriceId(subscription: StripeSubscriptionLike): string | 
   return null
 }
 
-function resolvePlanKey(subscription: StripeSubscriptionLike, priceId: string | null): string {
-  const metadataPlanKey = subscription.metadata?.plan_key?.trim()
-  if (metadataPlanKey) return metadataPlanKey
-
+function resolvePlanKey(priceId: string | null): string {
   const proPriceId = Deno.env.get('STRIPE_PRO_PRICE_ID')
   return priceId && proPriceId && priceId === proPriceId ? 'pro' : 'unknown'
 }
@@ -352,7 +349,7 @@ export async function syncStripeSubscription(
   )
   const priceId = getSubscriptionPriceId(subscription)
   const firstItem = getFirstSubscriptionItem(subscription)
-  const planKey = resolvePlanKey(subscription, priceId)
+  const planKey = resolvePlanKey(priceId)
 
   const { error: upsertCustomerError } = await adminClient
     .from('billing_customers')

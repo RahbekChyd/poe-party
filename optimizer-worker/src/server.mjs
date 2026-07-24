@@ -1,199 +1,153 @@
-import http from 'node:http'
-import crypto from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { createWorkerHttpServer } from './http-server.mjs'
 import { createJobRunner } from './job-runner.mjs'
 import { createSupabaseRestClient } from './lib/supabase.mjs'
 import { setTradeStatPersistence } from './lib/poe-trade-client.mjs'
-
-const PORT = Number(process.env.PORT || 8788)
-const SUPABASE_URL = process.env.SUPABASE_URL
-const SUPABASE_ADMIN_KEY =
-  process.env.SUPABASE_SECRET_KEY || process.env.SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
-const WORKER_AUTH_TOKEN = process.env.WORKER_AUTH_TOKEN || ''
-const POE_NINJA_BASE_URL = process.env.POE_NINJA_BASE_URL || 'https://poe.ninja'
-const WORKER_POLL_INTERVAL_MS = Number(process.env.WORKER_POLL_INTERVAL_MS || 5000)
-const WORKER_MAX_CONCURRENT_RUNS = Number(process.env.WORKER_MAX_CONCURRENT_RUNS || 1)
-const WORKER_HEARTBEAT_INTERVAL_MS = Number(process.env.WORKER_HEARTBEAT_INTERVAL_MS || 15000)
-const WORKER_STALE_RUNNING_AFTER_MS = Number(process.env.WORKER_STALE_RUNNING_AFTER_MS || 180000)
-
-if (!SUPABASE_URL || !SUPABASE_ADMIN_KEY) {
-  throw new Error(
-    'Missing SUPABASE_URL and Supabase admin key. Set SUPABASE_SECRET_KEY (preferred), SECRET_KEY, or SUPABASE_SERVICE_ROLE_KEY.',
-  )
-}
-
-const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8' }
-const startedAt = Date.now()
-
-const supabase = createSupabaseRestClient({
-  url: SUPABASE_URL,
-  adminKey: SUPABASE_ADMIN_KEY,
-})
+import { loadWorkerConfig } from './lib/worker-config.mjs'
+import { createWorkerLogger } from './lib/worker-logger.mjs'
+import { closeHttpServer, createShutdownCoordinator } from './lib/worker-shutdown.mjs'
 
 const TRADE_STATS_BUNDLED_FALLBACK_PATH = join(
   dirname(fileURLToPath(import.meta.url)),
   'lib',
   'poe-trade-stats-fallback.json',
 )
-let bundledTradeStatsPayload = null
-let bundledTradeStatsLoadAttempted = false
 
-setTradeStatPersistence({
-  async load() {
-    const row = await supabase.selectSingle(
-      'poe_trade_stats_cache',
-      { id: 'default' },
-      'payload,fetched_at',
-    )
-    if (!row?.payload) return null
-    return { payload: row.payload, fetchedAt: row.fetched_at ?? null }
-  },
-  async save({ payload }) {
-    const existing = await supabase.selectSingle('poe_trade_stats_cache', { id: 'default' }, 'id')
-    const body = { payload, fetched_at: new Date().toISOString() }
-    if (existing) {
-      await supabase.updateRows('poe_trade_stats_cache', { id: 'default' }, body, {
-        returning: 'minimal',
-      })
-    } else {
-      await supabase.insertRow('poe_trade_stats_cache', { id: 'default', ...body })
-    }
-  },
-  bundledFallback() {
-    if (bundledTradeStatsPayload) return { payload: bundledTradeStatsPayload }
-    if (bundledTradeStatsLoadAttempted) return null
-    bundledTradeStatsLoadAttempted = true
-    try {
-      const data = readFileSync(TRADE_STATS_BUNDLED_FALLBACK_PATH, 'utf8')
-      bundledTradeStatsPayload = JSON.parse(data)
-      return { payload: bundledTradeStatsPayload }
-    } catch (error) {
-      console.error('Failed to read bundled trade stats fallback:', error)
-      return null
-    }
-  },
-})
+function configureTradeStatPersistence(supabase, logger) {
+  let bundledTradeStatsPayload = null
+  let bundledTradeStatsLoadAttempted = false
 
-// Surface a clear log line at startup so a missing bundled fallback in the
-// deployed image is obvious instead of only showing up during an outage.
-try {
-  const parsed = JSON.parse(readFileSync(TRADE_STATS_BUNDLED_FALLBACK_PATH, 'utf8'))
-  const groupCount = Array.isArray(parsed?.result) ? parsed.result.length : 0
-  console.log(`Trade stats bundled fallback ready (${groupCount} stat groups)`)
-} catch (error) {
-  console.warn('Trade stats bundled fallback not available:', error?.message ?? error)
+  setTradeStatPersistence({
+    async load() {
+      const row = await supabase.selectSingle(
+        'poe_trade_stats_cache',
+        { id: 'default' },
+        'payload,fetched_at',
+      )
+      if (!row?.payload) return null
+      return { payload: row.payload, fetchedAt: row.fetched_at ?? null }
+    },
+    async save({ payload }) {
+      const existing = await supabase.selectSingle('poe_trade_stats_cache', { id: 'default' }, 'id')
+      const body = { payload, fetched_at: new Date().toISOString() }
+      if (existing) {
+        await supabase.updateRows('poe_trade_stats_cache', { id: 'default' }, body, {
+          returning: 'minimal',
+        })
+      } else {
+        await supabase.insertRow('poe_trade_stats_cache', { id: 'default', ...body })
+      }
+    },
+    bundledFallback() {
+      if (bundledTradeStatsPayload) return { payload: bundledTradeStatsPayload }
+      if (bundledTradeStatsLoadAttempted) return null
+      bundledTradeStatsLoadAttempted = true
+      try {
+        const data = readFileSync(TRADE_STATS_BUNDLED_FALLBACK_PATH, 'utf8')
+        bundledTradeStatsPayload = JSON.parse(data)
+        return { payload: bundledTradeStatsPayload }
+      } catch (error) {
+        logger.error('trade_stats_bundled_fallback_read_failed', { error })
+        return null
+      }
+    },
+  })
+
+  try {
+    const parsed = JSON.parse(readFileSync(TRADE_STATS_BUNDLED_FALLBACK_PATH, 'utf8'))
+    const groupCount = Array.isArray(parsed?.result) ? parsed.result.length : 0
+    logger.info('trade_stats_bundled_fallback_ready', { groupCount })
+  } catch (error) {
+    logger.warn('trade_stats_bundled_fallback_unavailable', { error })
+  }
 }
 
-const jobRunner = createJobRunner({
-  supabase,
-  poeNinjaBaseUrl: POE_NINJA_BASE_URL,
-  pollIntervalMs: Number.isFinite(WORKER_POLL_INTERVAL_MS) ? WORKER_POLL_INTERVAL_MS : 5000,
-  maxConcurrentRuns:
-    Number.isFinite(WORKER_MAX_CONCURRENT_RUNS) && WORKER_MAX_CONCURRENT_RUNS > 0
-      ? Math.floor(WORKER_MAX_CONCURRENT_RUNS)
-      : 1,
-  heartbeatIntervalMs:
-    Number.isFinite(WORKER_HEARTBEAT_INTERVAL_MS) && WORKER_HEARTBEAT_INTERVAL_MS > 0
-      ? Math.floor(WORKER_HEARTBEAT_INTERVAL_MS)
-      : 15000,
-  staleRunningAfterMs:
-    Number.isFinite(WORKER_STALE_RUNNING_AFTER_MS) && WORKER_STALE_RUNNING_AFTER_MS > 0
-      ? Math.floor(WORKER_STALE_RUNNING_AFTER_MS)
-      : 180000,
-})
+export async function startWorker({
+  env = process.env,
+  logger = createWorkerLogger(),
+  exit = (code) => process.exit(code),
+} = {}) {
+  const config = loadWorkerConfig(env)
+  const startedAt = Date.now()
+  const supabase = createSupabaseRestClient({
+    url: config.supabaseUrl,
+    adminKey: config.supabaseAdminKey,
+  })
+  configureTradeStatPersistence(supabase, logger.child('trade-stats'))
 
-const MAX_REQUEST_BODY_BYTES = 1024 * 1024 // 1 MB
+  const jobRunner = createJobRunner({
+    supabase,
+    poeNinjaBaseUrl: config.poeNinjaBaseUrl,
+    pollIntervalMs: config.pollIntervalMs,
+    maxConcurrentRuns: config.maxConcurrentRuns,
+    heartbeatIntervalMs: config.heartbeatIntervalMs,
+    staleRunningAfterMs: config.staleRunningAfterMs,
+    maxStashItems: config.maxStashItems,
+    logger: logger.child('job-runner'),
+  })
 
-function readJsonBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = []
-    let totalBytes = 0
+  let healthEnabled = false
+  const server = createWorkerHttpServer({
+    workerAuthToken: config.workerAuthToken,
+    jobRunner,
+    logger: logger.child('http'),
+    isReady: () => healthEnabled && jobRunner.isReady(),
+    startedAt,
+  })
+  const shutdownCoordinator = createShutdownCoordinator({
+    markReady(value) {
+      healthEnabled = value
+    },
+    stopPolling: () => jobRunner.stopPolling(),
+    closeServer: () => closeHttpServer(server),
+    drain: () => jobRunner.waitForIdle(),
+    forceClose: () => server.closeAllConnections?.(),
+    timeoutMs: config.shutdownTimeoutMs,
+    logger: logger.child('lifecycle'),
+  })
 
-    req.on('error', reject)
-    req.on('data', (chunk) => {
-      totalBytes += chunk.length
-      if (totalBytes > MAX_REQUEST_BODY_BYTES) {
-        req.destroy()
-        reject(new Error(`Request body exceeds ${MAX_REQUEST_BODY_BYTES} bytes`))
-        return
-      }
-      chunks.push(chunk)
-    })
-    req.on('end', () => {
-      try {
-        if (chunks.length === 0) {
-          resolve({})
-          return
-        }
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')))
-      } catch (error) {
-        reject(error)
-      }
+  await new Promise((resolveListen, rejectListen) => {
+    const onError = (error) => rejectListen(error)
+    server.once('error', onError)
+    server.listen(config.port, () => {
+      server.off('error', onError)
+      resolveListen()
     })
   })
+
+  jobRunner.startPolling()
+  healthEnabled = true
+  server.on('error', (error) => logger.error('http_server_error', { error }))
+  logger.info('worker_listening', {
+    port: config.port,
+    maxConcurrentRuns: config.maxConcurrentRuns,
+    maxStashItems: config.maxStashItems,
+    shutdownTimeoutMs: config.shutdownTimeoutMs,
+  })
+
+  const handleSignal = (signal) => {
+    if (shutdownCoordinator.isShuttingDown()) return
+    void shutdownCoordinator
+      .shutdown(signal)
+      .then((result) => exit(result.timedOut ? 1 : 0))
+      .catch((error) => {
+        logger.error('shutdown_failed', { signal, error })
+        exit(1)
+      })
+  }
+  process.once('SIGTERM', handleSignal)
+  process.once('SIGINT', handleSignal)
+
+  return { config, server, jobRunner, shutdownCoordinator }
 }
 
-const server = http.createServer(async (req, res) => {
-  try {
-    if (req.method === 'GET' && req.url === '/health') {
-      res.writeHead(200, JSON_HEADERS)
-      res.end(
-        JSON.stringify({
-          ok: true,
-          uptime_seconds: Math.round((Date.now() - startedAt) / 1000),
-          ...jobRunner.getDiagnostics(),
-        }),
-      )
-      return
-    }
-
-    if (req.method === 'POST' && req.url === '/jobs') {
-      if (WORKER_AUTH_TOKEN) {
-        const authHeader = req.headers.authorization || ''
-        const expected = `Bearer ${WORKER_AUTH_TOKEN}`
-        const a = Buffer.from(authHeader)
-        const b = Buffer.from(expected)
-        if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-          res.writeHead(401, JSON_HEADERS)
-          res.end(JSON.stringify({ error: 'Unauthorized' }))
-          return
-        }
-      }
-
-      const body = await readJsonBody(req)
-      const runId = body.run_id
-      if (!runId) {
-        res.writeHead(400, JSON_HEADERS)
-        res.end(JSON.stringify({ error: 'Missing run_id' }))
-        return
-      }
-
-      const runType = body.run_type === 'guest_upgrade_analysis' ? 'guest_upgrade_analysis' : undefined
-      const accepted = jobRunner.startRunTask(runId, runType)
-      res.writeHead(202, JSON_HEADERS)
-      res.end(
-        JSON.stringify({
-          ok: true,
-          accepted,
-          run_id: runId,
-          run_type: runType ?? 'upgrade_analysis',
-          ...jobRunner.getDiagnostics(),
-        }),
-      )
-      return
-    }
-
-    res.writeHead(404, JSON_HEADERS)
-    res.end(JSON.stringify({ error: 'Not found' }))
-  } catch (error) {
-    res.writeHead(500, JSON_HEADERS)
-    res.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }))
-  }
-})
-
-server.listen(PORT, () => {
-  jobRunner.startPolling()
-  console.log(`optimizer worker listening on ${PORT}`)
-})
+const isMainModule = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+if (isMainModule) {
+  const logger = createWorkerLogger()
+  startWorker({ logger }).catch((error) => {
+    logger.error('worker_startup_failed', { error })
+    process.exitCode = 1
+  })
+}

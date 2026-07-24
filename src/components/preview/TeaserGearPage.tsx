@@ -54,7 +54,7 @@ export function TeaserGearPage() {
                 className="flex flex-col gap-3 rounded-medium px-4 py-3 sm:flex-row sm:items-center"
               >
                 {itemImage ? (
-                  <img src={itemImage} className="h-8 w-8 object-contain bg-transparent" />
+                  <img src={itemImage} alt="" className="h-8 w-8 bg-transparent object-contain" />
                 ) : (
                   <Avatar
                     size="sm"

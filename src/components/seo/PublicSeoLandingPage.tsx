@@ -5,6 +5,11 @@ import { Link, Navigate } from '@tanstack/react-router'
 import { BarChart3, Coins, Handshake, LineChart, Search, ShieldCheck, Target, Users } from 'lucide-react'
 import { findSeoRouteBySlug, strategySeoRoutes, toolSeoRoutes, type PublicSeoRoute } from '../../lib/public-seo-pages'
 import { trackPublicEvent } from '../../lib/analytics'
+import {
+  buildStrategyContentMetadata,
+  findPublicStrategyContentBySlug,
+} from '../../lib/public-strategy-content'
+import { StrategyMetadataBadges, StrategySourceLinks } from '../strategies/StrategyMetadataBadges'
 interface ToolPageContent {
   eyebrow: string
   headline: string
@@ -19,13 +24,6 @@ interface ToolPageContent {
     | '/preview/search'
   primaryLabel: string
   points: string[]
-}
-
-interface StrategyPageContent {
-  headline: string
-  intro: string
-  tags: string[]
-  tracking: string[]
 }
 
 const toolContent: Record<string, ToolPageContent> = {
@@ -105,64 +103,6 @@ const toolContent: Record<string, ToolPageContent> = {
       'Suggest gear upgrades for yourself or party members.',
       'Track item targets, importance, notes, and status.',
       'Use optimizer analysis for PoE1 characters when the worker is configured.',
-    ],
-  },
-}
-
-const strategyContent: Record<string, StrategyPageContent> = {
-  'harvest-farming': {
-    headline: 'Track Harvest farming as a measured league strategy.',
-    intro:
-      'Harvest farming benefits from consistent map setup, clear cost tracking, and snapshot history because returns often come from many small decisions across a session.',
-    tags: ['Harvest', 'Lifeforce', 'Map investment', 'Group review'],
-    tracking: [
-      'Record map device and scarab investment where PoE1 strategy planning supports it.',
-      'Link snapshots to the active strategy after farming sessions.',
-      'Compare currency per hour against other public or private strategies.',
-    ],
-  },
-  'essence-farming': {
-    headline: 'Track Essence farming with map costs and repeatable snapshots.',
-    intro:
-      'Essence farming is easy to start but still needs clean tracking if you want to compare map speed, investment, and stash growth over time.',
-    tags: ['Essence', 'League start', 'Map speed', 'Low setup'],
-    tracking: [
-      'Use difficulty and setup notes to separate casual and high-investment variants.',
-      'Track active strategy snapshots instead of relying on memory.',
-      'Share a public summary when the strategy is useful for other groups.',
-    ],
-  },
-  'strongbox-farming': {
-    headline: 'Track Strongbox farming with investment and result context.',
-    intro:
-      'Strongbox strategies can vary heavily by atlas setup and scarab investment, so a workspace should keep setup notes close to the wealth history.',
-    tags: ['Strongboxes', 'Scarab planning', 'Atlas setup', 'T17 context'],
-    tracking: [
-      'Keep PoE1 atlas and scarab details attached to the strategy.',
-      'Record map cost and benchmark samples from completed sessions.',
-      'Use public strategy discovery to compare approaches across groups.',
-    ],
-  },
-  'boss-rush': {
-    headline: 'Track boss rush sessions by speed, cost, and party role.',
-    intro:
-      'Boss rush strategies need more than a stash total: map source, invitation flow, carry context, and service overlap all affect the final read.',
-    tags: ['Boss rush', 'Invitations', 'Service overlap', 'Profit snapshots'],
-    tracking: [
-      'Keep boss route, invitation, and service notes close to the strategy.',
-      'Use snapshots to measure value changes after boss-focused runs.',
-      'Connect strategy work to service listings when the group sells carries.',
-    ],
-  },
-  'ultimatum-farming': {
-    headline: 'Track Ultimatum farming with party suitability and outcome history.',
-    intro:
-      'Ultimatum runs can be build-sensitive, so tracking works best when strategy notes, roster context, and economy snapshots live together.',
-    tags: ['Ultimatum', 'Catalysts', 'Build checks', 'Repeat sessions'],
-    tracking: [
-      'Capture setup notes and difficulty before running the strategy.',
-      'Review member readiness and public character context.',
-      'Compare snapshot-linked results across multiple sessions.',
     ],
   },
 }
@@ -280,8 +220,9 @@ function ToolLandingPage({ route }: { route: PublicSeoRoute }) {
 }
 
 function StrategyLandingPage({ route }: { route: PublicSeoRoute }) {
-  const content = route.slug ? strategyContent[route.slug] : null
+  const content = route.slug ? findPublicStrategyContentBySlug(route.slug) : null
   if (!content) return <Navigate to="/preview/strategies" replace />
+  const metadata = buildStrategyContentMetadata(content)
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
@@ -295,6 +236,9 @@ function StrategyLandingPage({ route }: { route: PublicSeoRoute }) {
               {content.headline}
             </h1>
             <p className="mt-4 text-base leading-relaxed text-default-500">{content.intro}</p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <StrategyMetadataBadges metadata={metadata} />
+            </div>
           </div>
           <Link to="/preview/strategies">
             <Button
@@ -310,16 +254,10 @@ function StrategyLandingPage({ route }: { route: PublicSeoRoute }) {
             </Button>
           </Link>
         </div>
-        <div className="mt-5 flex flex-wrap gap-2">
-          {content.tags.map((tag) => (
-            <Chip key={tag} variant="soft">
-              {tag}
-            </Chip>
-          ))}
-        </div>
       </section>
 
       <FeatureGrid points={content.tracking} />
+      <StrategySourceLinks metadata={metadata} />
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>

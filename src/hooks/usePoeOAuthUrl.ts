@@ -5,14 +5,8 @@ import {
   POE_OAUTH_CODE_VERIFIER_KEY,
   POE_OAUTH_STATE_KEY,
 } from '../lib/poe-oauth'
+import { POE_OAUTH_SCOPES } from '../lib/poe-oauth-scopes'
 const POE_AUTH_BASE = 'https://www.pathofexile.com/oauth/authorize'
-const SCOPES = [
-  'account:characters',
-  'account:stashes',
-  'account:league_accounts',
-  'account:leagues',
-  'account:item_filter',
-]
 const DEFAULT_CLIENT_ID = 'poeparty'
 const DEFAULT_REDIRECT_URI = 'https://poe-party.com/auth/callback'
 
@@ -44,7 +38,7 @@ export function usePoeOAuthUrl() {
     const params = new URLSearchParams({
       client_id: clientId,
       response_type: 'code',
-      scope: SCOPES.join(' '),
+      scope: POE_OAUTH_SCOPES.join(' '),
       state,
       redirect_uri: redirectUri,
       code_challenge: codeChallenge,

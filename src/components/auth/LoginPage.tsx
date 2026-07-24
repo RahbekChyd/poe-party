@@ -5,63 +5,75 @@ import { Separator } from '@heroui/react/separator'
 import { Spinner } from '@heroui/react/spinner'
 import {
   AlertCircle,
+  ArrowLeft,
   CheckCircle,
   Coins,
   Cookie,
   Eye,
   EyeOff,
+  Github,
   Shield,
   Sparkles,
   Swords,
 } from 'lucide-react'
 import { useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import logo from '../../assets/poe-party-logo.png'
 import { fetchPoeCharacters } from '../../lib/poe-cookie-client'
-import { invokePublicFunction } from '../../lib/supabase-functions'
 import { supabase } from '../../lib/supabase'
 import { storePostLoginTarget, takeStoredPostLoginTarget } from '../../lib/auth-redirect'
 import { usePoeOAuthUrl } from '../../hooks/usePoeOAuthUrl'
 import { usePoeSession } from '../../store/poe-session-store'
 import { FieldInput } from '../ui/heroui-native'
-function isLocalSupabase(): boolean {
-  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
-  return !!url && /127\.0\.0\.1|localhost/.test(url)
-}
+import { GITHUB_URL } from '../../lib/seo'
+import { trackPublicEvent } from '../../lib/analytics'
 
-function isCookieAuthEnabled(): boolean {
-  const raw = import.meta.env.VITE_ENABLE_COOKIE_AUTH as string | undefined
-  if (raw != null) {
-    return ['1', 'true', 'yes', 'on'].includes(raw.trim().toLowerCase())
+function isLocalUrl(value: string | undefined): boolean {
+  if (!value) return false
+  try {
+    const hostname = new URL(value).hostname
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+  } catch {
+    return false
   }
-
-  return import.meta.env.DEV
 }
 
-const allowCookieAuth = isCookieAuthEnabled()
+function isLocalCookieTransportEnabled(): boolean {
+  if (!import.meta.env.DEV || typeof window === 'undefined') return false
+  if (!isLocalUrl(window.location.origin)) return false
+  if (!isLocalUrl(import.meta.env.VITE_SUPABASE_URL as string | undefined)) return false
+
+  const configured = import.meta.env.VITE_ENABLE_COOKIE_AUTH as string | undefined
+  if (configured == null) return true
+  return ['1', 'true', 'yes', 'on'].includes(configured.trim().toLowerCase())
+}
+
+const allowLocalCookieTransport = isLocalCookieTransportEnabled()
 
 const teaserItems = [
   {
     icon: Coins,
-    title: 'Stash economy tracking',
-    description: 'Track stash value, snapshots, and wealth movement over time.',
+    title: 'Measure the outcome',
+    description: 'Track PoE1 stash snapshots and wealth movement across a run.',
   },
   {
     icon: Swords,
-    title: 'Strategy ROI tracking',
-    description: 'Associate snapshots with strategies to compare returns and map efficiency.',
+    title: 'Keep the plan together',
+    description: 'Carry strategies, characters, and party context into the next decision.',
   },
   {
     icon: Sparkles,
-    title: 'Organized run tracking',
-    description: 'Turn scattered notes and memory into a persistent dashboard for the run.',
+    title: 'Choose the next upgrade',
+    description: 'Turn build analysis into recommendations your workspace can revisit.',
   },
-]
+] as const
 
 export function LoginPage() {
   const { getOAuthUrl } = usePoeOAuthUrl()
   const { setSession } = usePoeSession()
   const getRequestedTarget = () => new URLSearchParams(window.location.search).get('next')
 
+  const [oauthStatus, setOauthStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [accountName, setAccountName] = useState('')
   const [sessId, setSessId] = useState('')
   const [showSessId, setShowSessId] = useState(false)
@@ -69,16 +81,24 @@ export function LoginPage() {
   const [sessIdError, setSessIdError] = useState('')
 
   const handleLogin = async () => {
+    setOauthStatus('loading')
     storePostLoginTarget(getRequestedTarget())
-    const url = await getOAuthUrl()
-    window.location.href = url
+    trackPublicEvent('oauth_started', { source: 'login' })
+
+    try {
+      const url = await getOAuthUrl()
+      window.location.assign(url)
+    } catch {
+      setOauthStatus('error')
+    }
   }
 
   const handleSessIdConnect = async () => {
-    if (!accountName.trim() || !sessId.trim()) return
+    if (!allowLocalCookieTransport || !accountName.trim() || !sessId.trim()) return
     storePostLoginTarget(getRequestedTarget())
     setSessIdStatus('loading')
     setSessIdError('')
+
     try {
       await fetchPoeCharacters(accountName.trim(), sessId.trim(), '')
       setSession(accountName.trim(), sessId.trim(), '')
@@ -86,20 +106,13 @@ export function LoginPage() {
       const slug = accountName.trim().toLowerCase().replace(/[^a-z0-9]/g, '_')
       const internalEmail = `${slug}@cookie.poe-party.app`
       const internalPassword = 'poe-party-cookie-auth-v1'
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: internalEmail,
+        password: internalPassword,
+      })
 
-      if (isLocalSupabase()) {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email: internalEmail,
-          password: internalPassword,
-        })
-
-        if (signUpError && !signUpError.message.toLowerCase().includes('already')) {
-          throw signUpError
-        }
-      } else {
-        await invokePublicFunction('cookie-auth', {
-          accountName: accountName.trim(),
-        })
+      if (signUpError && !signUpError.message.toLowerCase().includes('already')) {
+        throw signUpError
       }
 
       const result = await supabase.auth.signInWithPassword({
@@ -111,6 +124,7 @@ export function LoginPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser()
+
       if (user) {
         const { data: existingProfile, error: profileReadError } = await supabase
           .from('users')
@@ -121,97 +135,77 @@ export function LoginPage() {
         if (profileReadError) throw profileReadError
 
         if (existingProfile) {
-          const { error: updateProfileError } = await supabase
+          const { error } = await supabase
             .from('users')
             .update({ display_name: accountName.trim() })
             .eq('id', user.id)
-          if (updateProfileError) throw updateProfileError
+          if (error) throw error
         } else {
-          const { error: insertProfileError } = await supabase.from('users').insert({
+          const { error } = await supabase.from('users').insert({
             id: user.id,
             poe_account_name: accountName.trim(),
             display_name: accountName.trim(),
           })
-          if (insertProfileError) throw insertProfileError
+          if (error) throw error
         }
       }
 
       setSessIdStatus('ok')
       setTimeout(() => window.location.replace(takeStoredPostLoginTarget()), 600)
-    } catch (err) {
+    } catch {
       setSessIdStatus('error')
-      setSessIdError(err instanceof Error ? err.message : 'Connection failed')
+      setSessIdError('The local connection failed. Check the account name and session value.')
     }
   }
 
-  const resetStatus = () => setSessIdStatus('idle')
+  const resetCookieStatus = () => setSessIdStatus('idle')
 
   return (
-    <div className="from-background via-background to-warning/5 flex min-h-screen justify-center bg-gradient-to-br px-4 py-6 md:py-10">
-      <section className="flex w-full max-w-4xl flex-col gap-6 self-start">
-        <div className="flex flex-col gap-4">
+    <div className="from-background via-background to-warning/5 min-h-screen bg-gradient-to-br px-4 py-5 md:py-10">
+      <main className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="PoE Party" className="h-14 w-14 rounded-2xl shadow-sm" />
+            <img src={logo} alt="" className="h-12 w-12 rounded-2xl shadow-sm md:h-14 md:w-14" />
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-foreground text-2xl font-bold tracking-tight md:text-4xl">
-                  PoE Party
+                  Connect to PoE Party
                 </h1>
-                <Chip size="sm" color="warning" variant="soft">
+                <Chip size="sm" color="warning" variant="soft" className="hidden sm:inline-flex">
                   Early access
                 </Chip>
               </div>
               <p className="text-default-500 mt-1 text-sm md:text-base">
-                Tracking and planning for Path of Exile, solo or with a party.
+                Plan, play, snapshot, and learn in one league workspace.
               </p>
             </div>
           </div>
-
-          <div className="max-w-2xl space-y-4">
-            <p className="text-foreground text-lg font-semibold leading-tight md:text-2xl">
-              Track stash value, strategies, and upgrades in one dashboard.
-            </p>
-            <p className="text-default-500 text-sm leading-relaxed md:text-base">
-              Track stash economy, strategies, and upgrade planning from one dashboard
-              instead of splitting everything across chats, spreadsheets, and memory.
-            </p>
-          </div>
+          <Link
+            to="/"
+            activeOptions={{ exact: true }}
+            className="button button--sm button--tertiary"
+          >
+            <ArrowLeft size={16} aria-hidden="true" /> Back to explore
+          </Link>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-3">
-          {teaserItems.map(({ icon: Icon, title, description }) => (
-            <Card key={title} className="border border-divider/70 bg-content1/80">
-              <Card.Content className="gap-3 p-5">
-                <div className="bg-warning/15 flex h-11 w-11 items-center justify-center rounded-2xl">
-                  <Icon size={18} className="text-warning" />
-                </div>
-                <div>
-                  <p className="text-foreground text-sm font-semibold">{title}</p>
-                  <p className="text-default-500 mt-1 text-sm leading-relaxed">{description}</p>
-                </div>
-              </Card.Content>
-            </Card>
-          ))}
-        </div>
-
-        <Card className="w-full border border-divider/70 bg-content1/80">
-          <Card.Content className="gap-4 p-6">
+        <Card className="border-warning/20 bg-content1/90 w-full border">
+          <Card.Content className="gap-4 p-5 sm:p-6">
             <div className="flex flex-col gap-1">
-              <h2 className="text-foreground text-xl font-semibold">Connect your account</h2>
-              <p className="text-default-400 text-sm">
-                Sign in with your Path of Exile account to start syncing stash, characters,
-                leagues, and item-filter data.
+              <h2 className="text-foreground text-xl font-semibold">Connect your PoE account</h2>
+              <p className="text-default-500 text-sm">
+                Continue through Path of Exile OAuth. PoE Party never asks for your game password.
               </p>
             </div>
 
-            <div className="bg-warning/10 rounded-2xl border border-warning/20 px-4 py-3">
+            <div className="bg-warning/8 rounded-2xl border border-warning/20 px-4 py-3">
               <div className="flex items-start gap-3">
-                <Shield size={16} className="text-warning mt-0.5 shrink-0" />
+                <Shield size={17} className="text-warning mt-0.5 shrink-0" aria-hidden="true" />
                 <div>
-                  <p className="text-foreground text-sm font-medium">Built for trust</p>
+                  <p className="text-foreground text-sm font-medium">Read-only game access</p>
                   <p className="text-default-500 mt-1 text-sm leading-relaxed">
-                    We never store your PoE password. OAuth is handled server-side and access is
-                    limited to read-only game data needed by the app.
+                    OAuth is exchanged server-side and is limited to account, character, league,
+                    and PoE1 stash data used by the app.
                   </p>
                 </div>
               </div>
@@ -219,71 +213,88 @@ export function LoginPage() {
 
             <Button
               onPress={handleLogin}
-              className="w-full"
+              isPending={oauthStatus === 'loading'}
+              isDisabled={oauthStatus === 'loading'}
+              className="min-h-12 w-full"
               size="lg"
             >
-              Connect with PoE Account
+              {({ isPending }) => (
+                <>
+                  {isPending ? <Spinner color="current" size="sm" /> : null}
+                  Connect with PoE Account
+                </>
+              )}
             </Button>
 
+            {oauthStatus === 'error' ? (
+              <div role="alert" className="text-danger flex items-center justify-center gap-2 text-sm">
+                <AlertCircle size={15} aria-hidden="true" />
+                Could not start OAuth. Check this deployment&apos;s configuration and try again.
+              </div>
+            ) : null}
+
             <p className="text-default-400 text-center text-xs">
-              First login takes you through PoE OAuth, then back into your dashboard.
+              You will return to the page or workspace you were trying to open.
             </p>
 
-            {allowCookieAuth && (
+            {allowLocalCookieTransport ? (
               <>
                 <Separator />
-
                 <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-2">
-                    <Cookie size={14} className="text-default-400" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Cookie size={14} className="text-default-400" aria-hidden="true" />
                     <p className="text-default-500 text-xs font-medium uppercase tracking-wide">
-                      Session cookie
+                      Local development transport
                     </p>
+                    <Chip size="sm" variant="soft">Current tab only</Chip>
                   </div>
-                  <p className="text-default-400 text-xs">
-                    Uses the old session-cookie flow for local or staging environments. Copy values
-                    from <span className="text-default-500">Application -&gt; Cookies -&gt; pathofexile.com</span>.
+                  <p className="text-default-400 text-xs leading-relaxed">
+                    Available only when both the app and Supabase run locally. The session value is
+                    kept in this browser tab and is not a production sign-in method.
                   </p>
                   <FieldInput
+                    aria-label="Path of Exile account name for local development"
                     size="sm"
-                    placeholder="Account name (e.g. Name#1234)"
+                    placeholder="AccountName#1234"
                     value={accountName}
                     onValueChange={(value) => {
                       setAccountName(value)
-                      resetStatus()
+                      resetCookieStatus()
                     }}
                   />
                   <FieldInput
+                    aria-label="POESESSID for local development"
                     size="sm"
                     placeholder="POESESSID"
                     value={sessId}
                     onValueChange={(value) => {
                       setSessId(value)
-                      resetStatus()
+                      resetCookieStatus()
                     }}
                     type={showSessId ? 'text' : 'password'}
                     endContent={
                       <button
                         type="button"
                         onClick={() => setShowSessId((previous) => !previous)}
-                        className="text-default-400 hover:text-default-600"
+                        className="text-default-400 hover:text-default-700 rounded-md p-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                        aria-label={showSessId ? 'Hide POESESSID' : 'Show POESESSID'}
                       >
                         {showSessId ? <EyeOff size={14} /> : <Eye size={14} />}
                       </button>
                     }
                   />
-                  {sessIdStatus === 'error' && (
-                    <div className="flex items-center gap-2 text-danger">
-                      <AlertCircle size={13} />
+                  {sessIdStatus === 'error' ? (
+                    <div role="alert" className="text-danger flex items-center gap-2">
+                      <AlertCircle size={13} aria-hidden="true" />
                       <p className="text-xs">{sessIdError}</p>
                     </div>
-                  )}
-                  {sessIdStatus === 'ok' && (
-                    <div className="flex items-center gap-2 text-success">
-                      <CheckCircle size={13} />
-                      <p className="text-xs">Connected - redirecting...</p>
+                  ) : null}
+                  {sessIdStatus === 'ok' ? (
+                    <div role="status" className="text-success flex items-center gap-2">
+                      <CheckCircle size={13} aria-hidden="true" />
+                      <p className="text-xs">Connected — redirecting…</p>
                     </div>
-                  )}
+                  ) : null}
                   <Button
                     onPress={handleSessIdConnect}
                     isPending={sessIdStatus === 'loading'}
@@ -295,20 +306,48 @@ export function LoginPage() {
                     {({ isPending }) => (
                       <>
                         {isPending ? <Spinner color="current" size="sm" /> : null}
-                        Connect with session cookies
+                        Connect to local Supabase
                       </>
                     )}
                   </Button>
                 </div>
               </>
-            )}
+            ) : null}
           </Card.Content>
         </Card>
 
+        <section aria-labelledby="why-connect-title">
+          <h2 id="why-connect-title" className="sr-only">What a connected workspace adds</h2>
+          <div className="grid gap-3 md:grid-cols-3">
+            {teaserItems.map(({ icon: Icon, title, description }) => (
+              <Card key={title} className="border-divider/70 bg-content1/80 border">
+                <Card.Content className="gap-3 p-5">
+                  <div className="bg-warning/12 flex h-10 w-10 items-center justify-center rounded-xl">
+                    <Icon size={18} className="text-warning" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h3 className="text-foreground text-sm font-semibold">{title}</h3>
+                    <p className="text-default-500 mt-1 text-sm leading-relaxed">{description}</p>
+                  </div>
+                </Card.Content>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        <nav aria-label="Login help and trust" className="text-default-400 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs">
+          <Link to="/legal/privacy" activeOptions={{ exact: true }} className="hover:text-foreground">Privacy</Link>
+          <Link to="/legal/security" activeOptions={{ exact: true }} className="hover:text-foreground">Security &amp; Trust</Link>
+          <Link to="/legal/terms" activeOptions={{ exact: true }} className="hover:text-foreground">Terms</Link>
+          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="hover:text-foreground inline-flex items-center gap-1">
+            <Github size={12} aria-hidden="true" /> GitHub
+          </a>
+        </nav>
+
         <p className="text-default-400 text-center text-xs">
-          This product isn&apos;t affiliated with or endorsed by Grinding Gear Games in any way.
+          PoE Party is independent and is not affiliated with or endorsed by Grinding Gear Games.
         </p>
-      </section>
+      </main>
     </div>
   )
 }

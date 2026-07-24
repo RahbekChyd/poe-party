@@ -23,6 +23,7 @@ export const Route = createRootRoute({
     } = await supabase.auth.getSession()
 
     const isPublicRoute =
+      location.pathname === '/' ||
       location.pathname.startsWith('/auth') ||
       location.pathname.startsWith('/legal') ||
       location.pathname.startsWith('/preview') ||

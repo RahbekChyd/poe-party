@@ -6,7 +6,13 @@ export function usePreviewLeague(canUsePoe2 = false) {
   const selectedGame = usePreviewStore((state) => state.selectedGame)
   const setSelectedGame = usePreviewStore((state) => state.setSelectedGame)
   const effectiveGame: PoeGame = canUsePoe2 && selectedGame === 'poe2' ? 'poe2' : 'poe1'
-  const { data: leagues = [], isLoading, isError } = usePoeLeagues(effectiveGame)
+  const {
+    data: leagues = [],
+    isLoading,
+    isError,
+    isFetching,
+    refetch,
+  } = usePoeLeagues(effectiveGame)
   const selectedLeague = usePreviewStore((state) => state.selectedLeague)
   const setSelectedLeague = usePreviewStore((state) => state.setSelectedLeague)
 
@@ -37,5 +43,7 @@ export function usePreviewLeague(canUsePoe2 = false) {
     setSelectedLeague,
     isLoading,
     isError,
+    isFetching,
+    refetch,
   }
 }

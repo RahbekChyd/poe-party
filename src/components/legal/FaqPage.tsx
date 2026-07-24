@@ -41,7 +41,7 @@ const FAQ_ITEMS: FaqItem[] = [
           Yes. PoE Party is open source under Apache-2.0, and the source is available on{' '}
           <a
             href={GITHUB_URL}
-            className="text-primary hover:underline"
+            className="text-primary underline underline-offset-2 hover:no-underline"
             target="_blank"
             rel="noreferrer"
           >
@@ -64,14 +64,14 @@ const FAQ_ITEMS: FaqItem[] = [
     answer: (
       <>
         <p>
-          PoE Party currently supports Path of Exile 1. Path of Exile 2 support is under development
-          and is not available in the public app yet.
+          PoE Party supports Path of Exile 1 and has a capability-limited Path of Exile 2 beta for
+          accounts included in the current rollout. PoE2 workspaces support character sync, market
+          overview, public discovery, strategy basics, and shared planning.
         </p>
         <p>
-          The PoE 2 rollout depends on the available integrations and still needs dedicated work
-          before it is ready for general use. Until then, stash snapshots, atlas tools, optimizer
-          flows, economy tracking, and related workspace features should be treated as PoE 1
-          features.
+          PoE2 does not currently support PoE1 stash snapshots, group wealth history, atlas and
+          scarab planning, or optimizer and trade-analysis workflows. Those features remain PoE1
+          only unless upstream integrations are separately validated.
         </p>
       </>
     ),
@@ -321,7 +321,7 @@ const FAQ_ITEMS: FaqItem[] = [
 
 export function FaqPage() {
   return (
-    <LegalLayout title="FAQ" lastUpdated="July 7, 2026">
+    <LegalLayout title="FAQ" lastUpdated="July 20, 2026">
       <p>
         Short answers about PoE Party, the Path of Exile group tools, public previews, economy
         tracking, strategy planning, Supporter billing, and capacity limits.

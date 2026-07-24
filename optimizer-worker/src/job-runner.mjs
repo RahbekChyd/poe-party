@@ -21,6 +21,13 @@ import {
 } from './lib/essential-crafts.mjs'
 import { getBaseItemIconUrls } from './lib/poe-wiki-icons.mjs'
 import { resolveTargetContext } from './lib/target-context.mjs'
+import { createWorkerLogger } from './lib/worker-logger.mjs'
+import {
+  createAttemptLeaseOwner,
+  createRunLifecycleClient,
+  isRetryableAnalysisError,
+  RunAttemptOwnershipLostError,
+} from './lib/run-lifecycle.mjs'
 
 // Decode a PoB share code (url-safe base64 + raw deflate) into XML.
 // Inflate inside the Lua HeadlessWrapper is a stub (always returns ""), so we must
@@ -80,13 +87,22 @@ export function createJobRunner({
   maxConcurrentRuns = DEFAULT_MAX_CONCURRENT_RUNS,
   heartbeatIntervalMs = DEFAULT_HEARTBEAT_INTERVAL_MS,
   staleRunningAfterMs = DEFAULT_STALE_RUNNING_AFTER_MS,
+  maxStashItems = 50000,
   workerId = process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || randomUUID(),
+  logger = createWorkerLogger({ component: 'optimizer-worker:job-runner' }),
 }) {
   let isPollLoopActive = false
+  let isAcceptingTasks = false
   let isPollingTickRunning = false
   let isImmediatePollScheduled = false
   let pollTimer = null
+  let lastPollSucceededAt = null
+  let lastPollFailedAt = null
   const activeRunTasks = new Map()
+  const runLifecycle = createRunLifecycleClient({
+    supabase,
+    leaseDurationSeconds: Math.min(3600, Math.max(30, Math.ceil(staleRunningAfterMs / 1000))),
+  })
 
   function normalizeRunType(value) {
     return value === RUN_TYPE_GUEST ? RUN_TYPE_GUEST : RUN_TYPE_AUTHENTICATED
@@ -751,17 +767,20 @@ export function createJobRunner({
       rare_trade_rate_limited: true,
     }
 
-    await supabase.updateRows(
-      runTablesForRun(run).runs,
-      { id: run.id },
-      {
-        status: 'running',
-        summary: nextSummary,
-        partial_reason: `Live rare trade search is waiting for the trade API cooldown${retryAfterText ? ` (${retryAfterText} remaining)` : ''}. The worker will resume this run automatically.`,
-        completed_at: null,
-        error_detail: null,
-      },
-    )
+    const partialReason = `Live rare trade search is waiting for the trade API cooldown${retryAfterText ? ` (${retryAfterText} remaining)` : ''}. The worker will resume this run automatically.`
+    const deferred = await runLifecycle.defer({
+      runKind: run.__run_type,
+      runId: run.id,
+      leaseOwner: run.__lease_owner,
+      summary: nextSummary,
+      partialReason,
+    })
+    if (!deferred) {
+      return { ok: true, skipped: true, reason: 'run-ownership-lost' }
+    }
+    run.summary = nextSummary
+    run.partial_reason = partialReason
+    run.__lease_owner = null
 
     return {
       ok: true,
@@ -860,19 +879,16 @@ export function createJobRunner({
   }
 
   async function claimQueuedRun(runId, runType = RUN_TYPE_AUTHENTICATED) {
-    const rows = await supabase.updateRows(
-      runTablesForType(runType).runs,
-      { id: runId, status: 'queued' },
-      {
-        status: 'running',
-        started_at: new Date().toISOString(),
-        completed_at: null,
-        stale_reason: null,
-        partial_reason: null,
-        error_detail: null,
-      },
-    )
-    return withRunType(rows[0] ?? null, runType)
+    const leaseOwner = createAttemptLeaseOwner(workerId)
+    const result = await runLifecycle.claim({
+      runKind: runType,
+      runId,
+      leaseOwner,
+      resumeWaiting: false,
+    })
+    return result?.claimed
+      ? withRunType({ ...result.run, __lease_owner: leaseOwner }, runType)
+      : null
   }
 
   function sanitizeAnalysisRecommendationPayloads(analysis) {
@@ -908,29 +924,24 @@ export function createJobRunner({
     }
   }
 
-  async function claimRunningRun(run, { resetStartedAt = false, clearTradeWait = false } = {}) {
-    const nextStartedAt = resetStartedAt || !run?.started_at ? new Date().toISOString() : run.started_at
-    const nextPayload = {
-      status: 'running',
-      started_at: nextStartedAt,
-      completed_at: null,
-      partial_reason: null,
-      error_detail: null,
-    }
-
-    if (clearTradeWait) {
-      nextPayload.summary = clearTradeRateLimitWaitInfo(run?.summary)
-    }
-
-    const rows = await supabase.updateRows(
-      runTablesForRun(run).runs,
-      { id: run.id, status: 'running', updated_at: run.updated_at },
-      nextPayload,
-    )
-    return withRunType(rows[0] ?? null, run?.__run_type)
+  async function claimRunningRun(run, { clearTradeWait = false } = {}) {
+    const leaseOwner = createAttemptLeaseOwner(workerId)
+    const result = await runLifecycle.claim({
+      runKind: run?.__run_type,
+      runId: run.id,
+      leaseOwner,
+      resumeWaiting: clearTradeWait,
+    })
+    return result?.claimed
+      ? withRunType({ ...result.run, __lease_owner: leaseOwner }, run?.__run_type)
+      : null
   }
 
   async function writeRunPhase(run, phaseId, extra = {}) {
+    if (run?.__ownership_lost) {
+      throw new RunAttemptOwnershipLostError()
+    }
+
     const currentSummary =
       run?.summary && typeof run.summary === 'object' && !Array.isArray(run.summary)
         ? run.summary
@@ -944,10 +955,20 @@ export function createJobRunner({
       },
     }
     try {
-      await supabase.updateRows(runTablesForRun(run).runs, { id: run.id }, { summary: nextSummary })
+      const heartbeatAccepted = await runLifecycle.heartbeat({
+        runKind: run.__run_type,
+        runId: run.id,
+        leaseOwner: run.__lease_owner,
+        summary: nextSummary,
+      })
+      if (!heartbeatAccepted) {
+        run.__ownership_lost = true
+        throw new RunAttemptOwnershipLostError()
+      }
       run.summary = nextSummary
     } catch (error) {
-      console.warn('Optimizer worker failed to write run phase', phaseId, error)
+      if (error instanceof RunAttemptOwnershipLostError) throw error
+      logger.warn('run_phase_write_failed', { runId: run.id, phaseId, error })
     }
   }
 
@@ -1257,54 +1278,34 @@ export function createJobRunner({
     }
   }
 
-  function clearTradeRateLimitWaitInfo(summary) {
-    const nextSummary = asRecord(summary)
-    const rareTradeSearch = asRecord(nextSummary.rare_trade_search)
-    if (Object.keys(rareTradeSearch).length === 0) {
-      return nextSummary
-    }
-
-    return {
-      ...nextSummary,
-      rare_trade_search: {
-        ...rareTradeSearch,
-        waiting_for_retry: false,
-        retry_at: null,
-        retry_after_ms: null,
-      },
-      rare_trade_rate_limited: false,
-    }
-  }
-
   function isRunningRunStalled(run, nowMs = Date.now()) {
     if (!run || run.status !== 'running') return false
     if (getTradeRateLimitWaitInfo(run)) return false
 
+    const leaseExpiresAtMs = normalizeIsoMs(run.lease_expires_at)
+    if (leaseExpiresAtMs != null) return leaseExpiresAtMs <= nowMs
     const updatedAtMs = normalizeIsoMs(run.updated_at)
     if (updatedAtMs == null) return false
     return nowMs - updatedAtMs >= staleRunningAfterMs
   }
 
   async function touchRunningRunHeartbeat(run) {
-    if (!run?.id || !run?.started_at) return
+    if (!run?.id || !run?.__lease_owner) return
 
     try {
-      const rows = await supabase.updateRows(
-        runTablesForRun(run).runs,
-        { id: run.id, status: 'running' },
-        {
-          started_at: run.started_at,
-          completed_at: null,
-        },
-        { returning: 'minimal' },
-      )
-      if (rows[0]?.updated_at) {
-        run.updated_at = rows[0].updated_at
+      const accepted = await runLifecycle.heartbeat({
+        runKind: run.__run_type,
+        runId: run.id,
+        leaseOwner: run.__lease_owner,
+      })
+      if (!accepted) {
+        run.__ownership_lost = true
+        logger.warn('run_heartbeat_ownership_lost', { runId: run.id })
       }
     } catch (error) {
-      console.warn('Optimizer worker heartbeat update failed', {
+      logger.warn('run_heartbeat_failed', {
         runId: run.id,
-        error: error instanceof Error ? error.message : String(error),
+        error,
       })
     }
   }
@@ -1662,7 +1663,7 @@ export function createJobRunner({
                   )
                 }
               } catch (error) {
-                console.error('Optimizer worker unique trade-link enrichment failed', error)
+                logger.error('unique_trade_link_enrichment_failed', { error })
               }
             }
 
@@ -1695,7 +1696,7 @@ export function createJobRunner({
                   )
                 : item
             } catch (error) {
-              console.error('Optimizer worker trade-link enrichment failed', error)
+              logger.error('trade_link_enrichment_failed', { error })
               return item
             }
           }),
@@ -1709,60 +1710,15 @@ export function createJobRunner({
   }
 
   async function persistAnalysis(run, analysis) {
-    const tables = runTablesForRun(run)
-    await supabase.deleteRows(tables.items, { run_id: run.id })
-    await supabase.deleteRows(tables.plans, { run_id: run.id })
-
-    for (const plan of analysis.plans) {
-      const planPayload = {
-        run_id: run.id,
-        category: plan.category,
-        kind: plan.kind,
-        title: plan.title,
-        summary: plan.summary,
-        explanation: plan.explanation,
-        effective_cost_chaos: plan.effective_cost_chaos,
-        ask_price_chaos: plan.ask_price_chaos,
-        score: plan.score,
-        stage_progress_score: plan.stage_progress_score,
-        ranking_reason: plan.ranking_reason,
-        before_metrics: plan.before_metrics,
-        after_metrics: plan.after_metrics,
-        breaks_requirements: plan.breaks_requirements,
-        section: plan.section === 'overview' ? 'overview' : 'primary',
-      }
-      if (!isGuestRun(run)) {
-        planPayload.group_id = run.group_id
-        planPayload.target_user_id = run.target_user_id
-        planPayload.target_stage_id = run.target_stage_id
-      }
-      const insertedPlan = await supabase.insertRow(tables.plans, planPayload)
-
-      for (const item of plan.items ?? []) {
-        await supabase.insertRow(tables.items, {
-          plan_id: insertedPlan.id,
-          run_id: run.id,
-          slot: item.slot,
-          source: item.source,
-          item_name: item.item_name,
-          item_payload: item.item_payload,
-          trade_link: item.trade_link,
-          ask_price_chaos: item.ask_price_chaos,
-          effective_price_chaos: item.effective_price_chaos,
-        })
-      }
-    }
-
-    await supabase.updateRows(
-      tables.runs,
-      { id: run.id },
-      {
-        status: analysis.status,
-        summary: analysis.summary,
-        partial_reason: analysis.partialReason,
-        completed_at: new Date().toISOString(),
-      },
-    )
+    return runLifecycle.complete({
+      runKind: run.__run_type,
+      runId: run.id,
+      leaseOwner: run.__lease_owner,
+      status: analysis.status,
+      summary: analysis.summary,
+      partialReason: analysis.partialReason,
+      plans: analysis.plans,
+    })
   }
 
   async function resolvePartyBuilds(partyConfig) {
@@ -1778,7 +1734,7 @@ export function createJobRunner({
         // Decode share code → XML in Node (Lua's Inflate is a stub and always returns "")
         const xml = decodePobShareCode(code)
         if (!xml) {
-          console.error('Optimizer worker: failed to decode pob_code share code for party entry', entry.label)
+          logger.warn('party_build_code_decode_failed', { label: entry.label ?? null })
           continue
         }
         resolved.push({ kind: 'pob_code', pob_code: xml, label: entry.label ?? null })
@@ -1794,7 +1750,7 @@ export function createJobRunner({
             label: entry.label ?? bt.name ?? null,
           })
         } catch (error) {
-          console.error('Optimizer worker failed to resolve party build target', id, error)
+          logger.error('party_build_target_resolve_failed', { buildTargetId: id, error })
         }
       }
     }
@@ -1841,14 +1797,19 @@ export function createJobRunner({
       const partyBuilds = isGuestRun(run) ? [] : await resolvePartyBuilds(run.party_config)
       const latestItems = isGuestRun(run)
         ? []
-        : await supabase.selectMany(
+        : await supabase.selectAllPages(
             'latest_stash_items',
             { group_id: run.group_id },
             'id, user_id, name, type_line, base_type, item_class, frame_type, ilvl, icon_url, identified, corrupted, fractured, synthesised, price_chaos, mods, sockets, raw_data, is_excluded, excluded_reason, tab_name, tab_type',
+            {
+              orderBy: 'id',
+              ascending: true,
+              maxRows: maxStashItems,
+            },
           )
       const targetContext = resolveTargetContext({ buildTarget, targetStage })
       const analysisMode = normalizeAnalysisMode(run?.analysis_mode)
-      console.info('Optimizer worker input context', {
+      logger.info('run_input_context', {
         runId: run.id,
         inputHash: run.input_hash ?? null,
         analysisMode,
@@ -1967,7 +1928,7 @@ export function createJobRunner({
         fetchMarketUniques(group?.league ?? null, targetUniqueItems),
         fetchNinjaDivinePrice(group?.league ?? null),
       ])
-      console.info('Optimizer worker unique candidate context', {
+      logger.info('unique_candidate_context', {
         runId: run.id,
         league: group?.league ?? null,
         divineToChaosRate,
@@ -2015,9 +1976,9 @@ export function createJobRunner({
             incrementalRerunConfig,
           })
         } catch (error) {
-          console.warn('Optimizer worker rare slot planning prepass failed', {
+          logger.warn('rare_slot_prepass_failed', {
             runId: run.id,
-            error: error instanceof Error ? error.message : String(error),
+            error,
           })
         }
 
@@ -2089,7 +2050,7 @@ export function createJobRunner({
                 }
               : null
         } catch (error) {
-          console.error('Optimizer worker rare trade search failed', error)
+          logger.error('rare_trade_search_failed', { runId: run.id, error })
         }
 
         if (marketRareDiagnostics?.rate_limited === true) {
@@ -2131,7 +2092,7 @@ export function createJobRunner({
         analysis.plans = [...(analysis.plans ?? []), ...analysis.overview_plans]
         delete analysis.overview_plans
       }
-      console.info('Optimizer worker analysis returned', {
+      logger.info('analysis_returned', {
         runId: run.id,
         status: analysis?.status ?? null,
         partialReason: analysis?.partialReason ?? null,
@@ -2197,15 +2158,15 @@ export function createJobRunner({
           const basePlans = await loadPersistedRecommendationPlans(incrementalRerunConfig.baseRunId)
           mergedAnalysis = mergeIncrementalRerunAnalysis(run, displayReadyAnalysis, basePlans)
         } catch (error) {
-          console.warn('Optimizer worker failed to load base plans for incremental rerun', {
+          logger.warn('incremental_base_plans_load_failed', {
             runId: run.id,
             baseRunId: incrementalRerunConfig.baseRunId,
-            error: error instanceof Error ? error.message : String(error),
+            error,
           })
         }
       }
       mergedAnalysis = await enrichRecommendationIconUrls(mergedAnalysis)
-      console.info('Optimizer worker analysis ready to persist', {
+      logger.info('analysis_ready_to_persist', {
         runId: run.id,
         status: mergedAnalysis?.status ?? null,
         planCount: Array.isArray(mergedAnalysis?.plans) ? mergedAnalysis.plans.length : 0,
@@ -2223,29 +2184,49 @@ export function createJobRunner({
       })
 
       const latestRun = await supabase.selectSingle(runTablesForRun(run).runs, { id: run.id }, '*')
-      if (!latestRun || latestRun.status === 'stale') {
-        return { ok: true, skipped: true, reason: 'run-became-stale' }
+      if (
+        !latestRun ||
+        latestRun.status === 'stale' ||
+        latestRun.status === 'cancelled' ||
+        latestRun.lease_owner !== run.__lease_owner
+      ) {
+        return { ok: true, skipped: true, reason: 'run-ownership-lost-or-stale' }
       }
 
       await writeRunPhase(run, 'persisting_results')
-      await persistAnalysis(run, mergedAnalysis)
-      console.info('Optimizer worker analysis persisted', {
+      const persisted = await persistAnalysis(run, mergedAnalysis)
+      if (!persisted) {
+        return { ok: true, skipped: true, reason: 'run-ownership-lost-or-stale' }
+      }
+      logger.info('analysis_persisted', {
         runId: run.id,
         planCount: Array.isArray(mergedAnalysis?.plans) ? mergedAnalysis.plans.length : 0,
       })
       return { ok: true, skipped: false, planCount: mergedAnalysis.plans.length }
     } catch (error) {
-      console.error('Optimizer worker processClaimedRun failed', error)
-      await supabase.updateRows(
-        runTablesForRun(run).runs,
-        { id: run.id },
-        {
-          status: 'failed',
-          partial_reason: null,
-          error_detail: formatAnalysisFailureDetail(error),
-          completed_at: new Date().toISOString(),
-        },
-      )
+      logger.error('claimed_run_failed', { runId: run.id, error })
+      if (run.__lease_owner) {
+        try {
+          const failure = await runLifecycle.fail({
+            runKind: run.__run_type,
+            runId: run.id,
+            leaseOwner: run.__lease_owner,
+            errorDetail: formatAnalysisFailureDetail(error),
+            retryable: isRetryableAnalysisError(error),
+          })
+          logger.info('run_attempt_failure_recorded', {
+            runId: run.id,
+            accepted: failure?.accepted === true,
+            retryScheduled: failure?.retry_scheduled === true,
+            status: failure?.status ?? null,
+          })
+        } catch (lifecycleError) {
+          logger.error('run_attempt_failure_transition_failed', {
+            runId: run.id,
+            error: lifecycleError,
+          })
+        }
+      }
       throw error
     } finally {
       await stopHeartbeat()
@@ -2258,8 +2239,8 @@ export function createJobRunner({
       await supabase.selectSingle(runTablesForType(normalizedRunType).runs, { id: runId }, '*'),
       normalizedRunType,
     )
-    if (!run || run.status === 'stale') {
-      return { ok: true, skipped: true, reason: 'run-not-found-or-stale' }
+    if (!run || run.status === 'stale' || run.status === 'cancelled') {
+      return { ok: true, skipped: true, reason: 'run-not-found-stale-or-cancelled' }
     }
 
     if (run.status === 'running') {
@@ -2268,7 +2249,6 @@ export function createJobRunner({
         if (waitInfo.retryAtMs <= Date.now()) {
           const resumedRun = await claimRunningRun(run, {
             clearTradeWait: true,
-            resetStartedAt: false,
           })
           if (!resumedRun) {
             return { ok: true, skipped: true, reason: 'run-resume-lost' }
@@ -2288,7 +2268,6 @@ export function createJobRunner({
       if (isRunningRunStalled(run)) {
         const reclaimedRun = await claimRunningRun(run, {
           clearTradeWait: false,
-          resetStartedAt: true,
         })
         if (!reclaimedRun) {
           return { ok: true, skipped: true, reason: 'run-reclaim-lost' }
@@ -2323,12 +2302,13 @@ export function createJobRunner({
       try {
         await pollOnce()
       } catch (error) {
-        console.error('Optimizer worker immediate poll failed', error)
+        logger.error('immediate_poll_failed', { error })
       }
     })
   }
 
   function startRunTask(runId, runType = RUN_TYPE_AUTHENTICATED) {
+    if (!isAcceptingTasks) return false
     const normalizedRunType = normalizeRunType(runType)
     const normalizedRunId = String(runId ?? '').trim()
     if (!normalizedRunId) return false
@@ -2340,10 +2320,10 @@ export function createJobRunner({
       try {
         await processRunById(normalizedRunId, normalizedRunType)
       } catch (error) {
-        console.error('Optimizer worker run task failed', {
+        logger.error('run_task_failed', {
           runId: normalizedRunId,
           runType: normalizedRunType,
-          error: error instanceof Error ? error.message : String(error),
+          error,
         })
       } finally {
         activeRunTasks.delete(taskKey)
@@ -2355,7 +2335,7 @@ export function createJobRunner({
     return true
   }
 
-  async function pollOnce() {
+  async function pollOnceInternal() {
     if (isPollingTickRunning) {
       return { ok: true, skipped: true, reason: 'poll-already-running' }
     }
@@ -2371,7 +2351,7 @@ export function createJobRunner({
         supabase.selectMany(
           runTablesForType(RUN_TYPE_AUTHENTICATED).runs,
           { status: 'running' },
-          'id, status, summary, started_at, created_at, updated_at',
+          'id, status, summary, started_at, created_at, updated_at, lease_owner, lease_expires_at, attempt_number, max_attempts',
           {
             orderBy: 'updated_at',
             ascending: true,
@@ -2381,7 +2361,7 @@ export function createJobRunner({
         supabase.selectMany(
           runTablesForType(RUN_TYPE_GUEST).runs,
           { status: 'running' },
-          'id, status, summary, started_at, created_at, updated_at',
+          'id, status, summary, started_at, created_at, updated_at, lease_owner, lease_expires_at, attempt_number, max_attempts',
           {
             orderBy: 'updated_at',
             ascending: true,
@@ -2431,32 +2411,37 @@ export function createJobRunner({
         supabase.selectMany(
           runTablesForType(RUN_TYPE_AUTHENTICATED).runs,
           { status: 'queued' },
-          'id, created_at',
+          'id, created_at, retry_not_before',
           {
             orderBy: 'created_at',
             ascending: true,
-            limit: queuedRunLimit,
+            limit: 50,
           },
         ),
         supabase.selectMany(
           runTablesForType(RUN_TYPE_GUEST).runs,
           { status: 'queued' },
-          'id, created_at',
+          'id, created_at, retry_not_before',
           {
             orderBy: 'created_at',
             ascending: true,
-            limit: queuedRunLimit,
+            limit: 50,
           },
         ),
       ])
-      const queuedRuns = [
+      const allQueuedRuns = [
         ...authenticatedQueuedRuns.map((run) => withRunType(run, RUN_TYPE_AUTHENTICATED)),
         ...guestQueuedRuns.map((run) => withRunType(run, RUN_TYPE_GUEST)),
-      ]
-        .sort(
+      ].sort(
           (left, right) =>
             (normalizeIsoMs(left?.created_at) ?? 0) - (normalizeIsoMs(right?.created_at) ?? 0),
         )
+
+      const queuedRuns = allQueuedRuns
+        .filter((run) => {
+          const retryNotBeforeMs = normalizeIsoMs(run?.retry_not_before)
+          return retryNotBeforeMs == null || retryNotBeforeMs <= nowMs
+        })
         .slice(0, queuedRunLimit)
 
       for (const queuedRun of queuedRuns) {
@@ -2486,6 +2471,19 @@ export function createJobRunner({
         }
       }
 
+      const nextRetryRun = allQueuedRuns
+        .map((run) => ({ run, retryAtMs: normalizeIsoMs(run?.retry_not_before) }))
+        .filter((entry) => entry.retryAtMs != null && entry.retryAtMs > nowMs)
+        .sort((left, right) => left.retryAtMs - right.retryAtMs)[0]
+      if (nextRetryRun) {
+        return {
+          ok: true,
+          skipped: true,
+          reason: 'waiting-for-retry-backoff',
+          retry_at: new Date(nextRetryRun.retryAtMs).toISOString(),
+        }
+      }
+
       if (queuedRuns.length > 0) {
         return { ok: true, skipped: true, reason: 'local-capacity-full' }
       }
@@ -2496,13 +2494,26 @@ export function createJobRunner({
     }
   }
 
+  async function pollOnce() {
+    try {
+      const result = await pollOnceInternal()
+      if (result?.reason !== 'poll-already-running') {
+        lastPollSucceededAt = new Date().toISOString()
+      }
+      return result
+    } catch (error) {
+      lastPollFailedAt = new Date().toISOString()
+      throw error
+    }
+  }
+
   function scheduleNextPoll() {
     if (!isPollLoopActive) return
     pollTimer = setTimeout(async () => {
       try {
         await pollOnce()
       } catch (error) {
-        console.error('Optimizer worker poll failed', error)
+        logger.error('poll_failed', { error })
       } finally {
         scheduleNextPoll()
       }
@@ -2511,12 +2522,14 @@ export function createJobRunner({
 
   function startPolling() {
     if (isPollLoopActive) return
+    isAcceptingTasks = true
     isPollLoopActive = true
     requestImmediatePoll()
     scheduleNextPoll()
   }
 
   function stopPolling() {
+    isAcceptingTasks = false
     isPollLoopActive = false
     if (pollTimer) {
       clearTimeout(pollTimer)
@@ -2524,12 +2537,33 @@ export function createJobRunner({
     }
   }
 
+  async function waitForIdle() {
+    while (activeRunTasks.size > 0 || isPollingTickRunning) {
+      if (activeRunTasks.size > 0) {
+        await Promise.allSettled([...activeRunTasks.values()])
+      } else {
+        await new Promise((resolveWait) => setTimeout(resolveWait, 10))
+      }
+    }
+  }
+
+  function isReady() {
+    if (!isPollLoopActive || !isAcceptingTasks || !lastPollSucceededAt) return false
+    if (!lastPollFailedAt) return true
+    return Date.parse(lastPollSucceededAt) >= Date.parse(lastPollFailedAt)
+  }
+
   function getDiagnostics() {
     return {
       worker_id: workerId,
       poll_interval_ms: pollIntervalMs,
       poll_loop_active: isPollLoopActive,
+      accepting_tasks: isAcceptingTasks,
+      ready: isReady(),
+      last_poll_succeeded_at: lastPollSucceededAt,
+      last_poll_failed_at: lastPollFailedAt,
       max_concurrent_runs: maxConcurrentRuns,
+      max_stash_items: maxStashItems,
       active_run_count: activeRunTasks.size,
       heartbeat_interval_ms: heartbeatIntervalMs,
       stale_running_after_ms: staleRunningAfterMs,
@@ -2543,6 +2577,8 @@ export function createJobRunner({
     pollOnce,
     startPolling,
     stopPolling,
+    waitForIdle,
+    isReady,
     getDiagnostics,
   }
 }

@@ -22,27 +22,29 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('ErrorBoundary caught:', error, info.componentStack)
+    if (import.meta.env.DEV) {
+      console.error('ErrorBoundary caught:', error, info.componentStack)
+    }
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex h-full items-center justify-center p-12">
+        <div role="alert" className="flex min-h-80 items-center justify-center p-6 sm:p-12">
           <Card className="max-w-md">
             <Card.Content className="flex flex-col items-center gap-4 p-8 text-center">
               <AlertTriangle size={32} className="text-danger" />
               <div>
                 <p className="text-foreground text-lg font-semibold">Something went wrong</p>
                 <p className="text-default-400 mt-1 text-sm">
-                  {this.state.error?.message ?? 'An unexpected error occurred.'}
+                  The page hit an unexpected problem. Your account data was not changed.
                 </p>
               </div>
               <Button
                 variant="tertiary"
-                onPress={() => this.setState({ hasError: false, error: null })}
+                onPress={() => window.location.reload()}
               >
-                Try again
+                Reload page
               </Button>
             </Card.Content>
           </Card>

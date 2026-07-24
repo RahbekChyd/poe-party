@@ -9,6 +9,7 @@ import { getPoeGameCapabilities, getPoeGameShortLabel } from '../../lib/poe-game
 import { formatCurrencyAmount } from '../../lib/utils'
 import { Route } from '../../routes/preview/strategies/$strategyId'
 import { PreviewNotice, PreviewPageIntro } from './PreviewShared'
+import { StrategyMetadataBadges, StrategySourceLinks } from '../strategies/StrategyMetadataBadges'
 const divinePrice = 205
 
 export function GuestStrategyDetailPage() {
@@ -99,6 +100,7 @@ export function GuestStrategyDetailPage() {
           {strategy.benchmark_sample_count} benchmark sample
           {strategy.benchmark_sample_count === 1 ? '' : 's'}
         </Chip>
+        <StrategyMetadataBadges metadata={strategy.content_metadata} />
       </div>
 
       {strategy.description ? (
@@ -111,6 +113,8 @@ export function GuestStrategyDetailPage() {
 
       <Card>
         <Card.Content className="gap-4 p-5">
+          <StrategySourceLinks metadata={strategy.content_metadata} />
+
           {capabilities.supportsAtlasTree && strategy.atlas_tree_url ? (
             <div className="rounded-large border-divider bg-default-50/60 flex items-center justify-between gap-3 border p-4">
               <div>

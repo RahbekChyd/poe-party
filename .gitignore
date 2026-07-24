@@ -10,6 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+coverage/
+playwright-report/
+test-results/
 *.local
 
 # Environment variables
@@ -19,6 +22,8 @@ dist-ssr
 supabase/.branches
 supabase/.temp
 .tmp-pob-src/
+tmp_strategy_sources/
+tmp_strategy_seed_*.sql
 
 # Editor directories and files
 .vscode/*

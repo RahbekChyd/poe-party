@@ -21,29 +21,6 @@ type QueueUpgradeAnalysisBody = {
 
 const UPGRADE_ANALYSIS_INPUT_VERSION = 16
 const FREE_DAILY_UPGRADE_ANALYSIS_LIMIT = 3
-const UPGRADE_ANALYSIS_RUN_SELECT = [
-  'id',
-  'group_id',
-  'build_target_id',
-  'target_stage_id',
-  'target_user_id',
-  'character_id',
-  'queued_by',
-  'budget_chaos',
-  'analysis_mode',
-  'search_constraints',
-  'party_config',
-  'input_hash',
-  'status',
-  'stale_reason',
-  'partial_reason',
-  'error_detail',
-  'summary',
-  'started_at',
-  'completed_at',
-  'created_at',
-  'updated_at',
-].join(', ')
 
 const ALLOWED_TARGET_KEYS = new Set([
   'life',
@@ -63,16 +40,6 @@ const ALLOWED_TARGET_KEYS = new Set([
   'custom',
 ])
 
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === 'string') return error
-  try {
-    return JSON.stringify(error)
-  } catch {
-    return 'Unknown error'
-  }
-}
-
 function toBudgetChaos(value: number | string | null | undefined): number {
   const parsed = typeof value === 'number' ? value : Number(value ?? 0)
   if (!Number.isFinite(parsed) || parsed < 0) return 0
@@ -87,6 +54,12 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {}
+}
+
+function hasStringId(value: unknown): value is { id: string } {
+  return (
+    typeof value === 'object' && value !== null && 'id' in value && typeof value.id === 'string'
+  )
 }
 
 function normalizePositiveNumber(value: unknown): number | null {
@@ -380,6 +353,31 @@ Deno.serve(async (req) => {
       )
     }
 
+    const { data: group, error: groupError } = await adminClient
+      .from('groups')
+      .select('game')
+      .eq('id', group_id)
+      .maybeSingle()
+
+    if (groupError) throw groupError
+    if (!group) {
+      return new Response(JSON.stringify({ error: 'Group not found' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    if (group.game !== 'poe1') {
+      return new Response(
+        JSON.stringify({
+          error: 'Upgrade analysis is currently only supported for Path of Exile 1 groups.',
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      )
+    }
+
     const { data: buildTarget, error: buildTargetError } = await adminClient
       .from('build_targets')
       .select('id, group_id, user_id, character_id, selected_stage_id, updated_at')
@@ -553,113 +551,61 @@ Deno.serve(async (req) => {
       }),
     )
 
-    const { data: existingRun, error: existingRunError } = await adminClient
-      .from('upgrade_analysis_runs')
-      .select(UPGRADE_ANALYSIS_RUN_SELECT)
-      .eq('build_target_id', build_target_id)
-      .eq('input_hash', inputHash)
-      .maybeSingle()
+    const runSummary =
+      normalizedRerunBaseRunId && normalizedRerunChangedSlots.length > 0
+        ? {
+            incremental_rerun: true,
+            rerun_base_run_id: normalizedRerunBaseRunId,
+            rerun_changed_slots: normalizedRerunChangedSlots,
+          }
+        : {}
+    const { data: queueResult, error: queueError } = await adminClient.rpc(
+      'queue_upgrade_analysis_run_atomic',
+      {
+        p_group_id: group_id,
+        p_build_target_id: build_target_id,
+        p_target_stage_id: resolvedTargetStageId,
+        p_target_user_id: buildTarget.user_id,
+        p_character_id: resolvedCharacterId,
+        p_queued_by: authenticatedUser.id,
+        p_budget_chaos: normalizedBudgetChaos,
+        p_analysis_mode: normalizedAnalysisMode,
+        p_search_constraints: normalizedSearchConstraints,
+        p_party_config: normalizedPartyConfig,
+        p_input_hash: inputHash,
+        p_summary: runSummary,
+        p_usage_date: new Date().toISOString().slice(0, 10),
+        p_free_limit: FREE_DAILY_UPGRADE_ANALYSIS_LIMIT,
+      },
+    )
 
-    if (existingRunError) throw existingRunError
-
-    if (existingRun) {
+    if (queueError) throw queueError
+    const queuePayload = asRecord(queueResult)
+    if (queuePayload.rate_limited === true) {
       return new Response(
-        JSON.stringify({ reused: true, worker_notified: false, run: existingRun }),
+        JSON.stringify({
+          error: `Community analysis queue limit reached. Community accounts can queue up to ${FREE_DAILY_UPGRADE_ANALYSIS_LIMIT} authenticated upgrade analyses per UTC day. Supporter access has no app-enforced daily authenticated queue cap.`,
+          reset_at: queuePayload.reset_at ?? null,
+        }),
         {
+          status: 429,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         },
       )
     }
 
-    // Rate limit: Community users may queue at most 3 new analyses per UTC day.
-    const { data: userProfile } = await adminClient
-      .from('users')
-      .select('subscription_tier, subscription_expires_at')
-      .eq('id', authenticatedUser.id)
-      .maybeSingle()
-
-    const isPro =
-      userProfile?.subscription_tier === 'pro' &&
-      (!userProfile.subscription_expires_at ||
-        new Date(userProfile.subscription_expires_at) > new Date())
-
-    if (!isPro) {
-      const todayUtcMidnight = new Date()
-      todayUtcMidnight.setUTCHours(0, 0, 0, 0)
-
-      const { count: todayRunCount, error: countError } = await adminClient
-        .from('upgrade_analysis_runs')
-        .select('id', { count: 'exact', head: true })
-        .eq('queued_by', authenticatedUser.id)
-        .gte('created_at', todayUtcMidnight.toISOString())
-
-      if (countError) throw countError
-
-      if ((todayRunCount ?? 0) >= FREE_DAILY_UPGRADE_ANALYSIS_LIMIT) {
-        return new Response(
-          JSON.stringify({
-            error: `Community analysis queue limit reached. Community accounts can queue up to ${FREE_DAILY_UPGRADE_ANALYSIS_LIMIT} authenticated upgrade analyses per UTC day. Supporter access has no app-enforced daily authenticated queue cap.`,
-          }),
-          {
-            status: 429,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          },
-        )
-      }
+    const insertedRun = queuePayload.run
+    if (!hasStringId(insertedRun)) {
+      throw new Error('Upgrade analysis run insert returned no id')
     }
-
-    const { error: stalePreviousRunsError } = await adminClient
-      .from('upgrade_analysis_runs')
-      .update({
-        status: 'stale',
-        stale_reason: 'budget-or-target-updated',
-      })
-      .eq('group_id', group_id)
-      .eq('build_target_id', build_target_id)
-      .in('status', ['queued', 'running', 'completed', 'partial'])
-
-    if (stalePreviousRunsError) throw stalePreviousRunsError
-
-    const { data: insertedRun, error: insertRunError } = await adminClient
-      .from('upgrade_analysis_runs')
-      .insert({
-        group_id,
-        build_target_id,
-        target_stage_id: resolvedTargetStageId,
-        target_user_id: buildTarget.user_id,
-        character_id: resolvedCharacterId,
-        queued_by: authenticatedUser.id,
-        budget_chaos: normalizedBudgetChaos,
-        analysis_mode: normalizedAnalysisMode,
-        search_constraints: normalizedSearchConstraints,
-        party_config: normalizedPartyConfig,
-        input_hash: inputHash,
-        status: 'queued',
-        summary:
-          normalizedRerunBaseRunId && normalizedRerunChangedSlots.length > 0
-            ? {
-                incremental_rerun: true,
-                rerun_base_run_id: normalizedRerunBaseRunId,
-                rerun_changed_slots: normalizedRerunChangedSlots,
-              }
-            : {},
-      })
-      .select(UPGRADE_ANALYSIS_RUN_SELECT)
-      .single()
-
-    if (insertRunError) throw insertRunError
-
-    // History retention: keep at most 3 runs per build target (oldest are deleted along with
-    // their cascaded recommendation plans and items).
-    const { data: allRunIds } = await adminClient
-      .from('upgrade_analysis_runs')
-      .select('id')
-      .eq('build_target_id', build_target_id)
-      .order('created_at', { ascending: false })
-
-    if (allRunIds && allRunIds.length > 3) {
-      const idsToDelete = allRunIds.slice(3).map((r: { id: string }) => r.id)
-      await adminClient.from('upgrade_analysis_runs').delete().in('id', idsToDelete)
+    const reused = queuePayload.reused === true
+    if (reused) {
+      return new Response(
+        JSON.stringify({ reused: true, worker_notified: false, run: insertedRun }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      )
     }
 
     let workerNotified = false
@@ -695,7 +641,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ reused: false, worker_notified: workerNotified, run: insertedRun }),
+      JSON.stringify({ reused, worker_notified: workerNotified, run: insertedRun }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       },
@@ -705,7 +651,6 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         error: 'Failed to queue upgrade analysis',
-        detail: toErrorMessage(error),
       }),
       {
         status: 500,

@@ -1,163 +1,291 @@
 /**
- * poe-oauth-callback Edge Function
- *
- * Handles the GGG OAuth2 authorization_code flow:
- * 1. Receives the authorization code from the browser
- * 2. Exchanges it for access + refresh tokens (server-side, keeps secret secure)
- * 3. Fetches the PoE account profile
- * 4. Creates or updates the Supabase user
- * 5. Stores PoE OAuth tokens server-side for later refresh and sync actions
- * 6. Returns a Supabase session to the client
+ * Exchanges a GGG OAuth authorization code and binds the resulting identity to
+ * the provider's immutable UUID subject. Account names are display attributes,
+ * never identity lookup keys.
  */
-import { createAdminClient } from '../_shared/supabase-admin.ts'
 import { corsHeaders, handleCors } from '../_shared/cors.ts'
-import { upsertStoredPoeTokens } from '../_shared/poe-token-store.ts'
+import {
+  parsePoeAccountSubject,
+  requireEnvironmentValue,
+  resolveOauthReturnUrl,
+} from '../_shared/oauth-security.ts'
+import { POE_OAUTH_SCOPES } from '../_shared/poe-oauth-scopes.ts'
+import {
+  assertPoeTokenEncryptionConfigured,
+  upsertStoredPoeTokens,
+} from '../_shared/poe-token-store.ts'
+import { createAdminClient } from '../_shared/supabase-admin.ts'
 
 const POE_TOKEN_URL = 'https://www.pathofexile.com/oauth/token'
-const SCOPES = [
-  'account:characters',
-  'account:stashes',
-  'account:league_accounts',
-  'account:leagues',
-  'account:item_filter',
-]
+const responseHeaders = {
+  ...corsHeaders,
+  'Cache-Control': 'no-store',
+  'Content-Type': 'application/json',
+}
+
+type OAuthRequest = {
+  code?: unknown
+  state?: unknown
+  code_verifier?: unknown
+  redirect_to?: unknown
+}
+
+type PoeTokenResponse = {
+  access_token?: unknown
+  refresh_token?: unknown
+  expires_in?: unknown
+  username?: unknown
+  sub?: unknown
+}
+
+function jsonResponse(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: responseHeaders })
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0
+}
 
 Deno.serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
 
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...responseHeaders, Allow: 'POST' },
+    })
+  }
+
   try {
-    const { code, state, code_verifier, redirect_to } = await req.json() as {
-      code: string
-      state: string
-      code_verifier: string
-      redirect_to?: string
+    let payload: OAuthRequest
+    try {
+      payload = (await req.json()) as OAuthRequest
+    } catch {
+      return jsonResponse({ error: 'Invalid JSON request body' }, 400)
     }
 
-    if (!code || !state || !code_verifier) {
-      return new Response(
-        JSON.stringify({ error: 'Missing code, state, or code_verifier parameter' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      )
+    const { code, state, code_verifier: codeVerifier, redirect_to: redirectTo } = payload
+    if (!isNonEmptyString(code) || !isNonEmptyString(state) || !isNonEmptyString(codeVerifier)) {
+      return jsonResponse({ error: 'Missing OAuth callback parameters' }, 400)
     }
 
-    const clientId = Deno.env.get('POE_CLIENT_ID')!
-    const clientSecret = Deno.env.get('POE_CLIENT_SECRET')!
-    const redirectUri = Deno.env.get('POE_REDIRECT_URI')!
+    let allowedReturnUrl: string
+    try {
+      allowedReturnUrl = resolveOauthReturnUrl(redirectTo)
+    } catch (error) {
+      console.warn('Rejected OAuth return URL:', error instanceof Error ? error.message : 'invalid')
+      return jsonResponse({ error: 'Invalid OAuth return URL' }, 400)
+    }
 
-    // Exchange authorization code for tokens
+    const clientId = requireEnvironmentValue('POE_CLIENT_ID')
+    const clientSecret = requireEnvironmentValue('POE_CLIENT_SECRET')
+    const redirectUri = requireEnvironmentValue('POE_REDIRECT_URI')
+    await assertPoeTokenEncryptionConfigured()
+
     const tokenRes = await fetch(POE_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
-        code,
+        code: code.trim(),
         redirect_uri: redirectUri,
         client_id: clientId,
         client_secret: clientSecret,
-        scope: SCOPES.join(' '),
-        code_verifier,
+        scope: POE_OAUTH_SCOPES.join(' '),
+        code_verifier: codeVerifier.trim(),
       }),
     })
 
     if (!tokenRes.ok) {
-      const text = await tokenRes.text()
-      console.error('Token exchange failed:', text)
-      return new Response(
-        JSON.stringify({ error: 'Token exchange failed' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      )
+      console.warn('PoE OAuth token exchange rejected', { status: tokenRes.status })
+      return jsonResponse({ error: 'OAuth authorization code was rejected or expired' }, 400)
     }
 
-    const tokens = await tokenRes.json() as {
-      access_token: string
-      refresh_token: string
-      expires_in: number
-      scope?: string
-      username: string
-      sub?: string
+    let tokens: PoeTokenResponse
+    try {
+      tokens = (await tokenRes.json()) as PoeTokenResponse
+    } catch {
+      console.error('PoE OAuth token exchange returned invalid JSON')
+      return jsonResponse({ error: 'OAuth provider returned an invalid response' }, 502)
     }
 
-    if (!tokens.username) {
-      return new Response(
-        JSON.stringify({ error: 'Token exchange did not return a username' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      )
+    const accountName = isNonEmptyString(tokens.username) ? tokens.username.trim() : null
+    const subject = parsePoeAccountSubject(tokens.sub)
+    const expiresIn = typeof tokens.expires_in === 'number' ? tokens.expires_in : Number.NaN
+    if (
+      !accountName ||
+      !subject ||
+      !isNonEmptyString(tokens.access_token) ||
+      !isNonEmptyString(tokens.refresh_token) ||
+      !Number.isFinite(expiresIn) ||
+      expiresIn <= 0
+    ) {
+      console.error('PoE OAuth token exchange omitted required identity or token fields')
+      return jsonResponse({ error: 'OAuth provider returned an incomplete response' }, 502)
     }
 
     const adminClient = createAdminClient()
-
-    // Check if user already exists by poe_account_name
-    const { data: existingUser } = await adminClient
+    const { data: subjectUser, error: subjectLookupError } = await adminClient
       .from('users')
-      .select('id')
-      .eq('poe_account_name', tokens.username)
-      .single()
+      .select('id, poe_account_name')
+      .eq('poe_account_sub', subject)
+      .maybeSingle()
+
+    if (subjectLookupError) {
+      console.error('OAuth subject lookup failed', { code: subjectLookupError.code })
+      return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
+    }
 
     let userId: string
+    let authEmail: string
 
-    if (existingUser) {
-      userId = existingUser.id
-    } else {
-      // Create Supabase auth user
-      const { data: newAuthUser, error: authError } = await adminClient.auth.admin.createUser({
-        email: `${tokens.username}@poe.invalid`,
-        email_confirm: true,
-        user_metadata: { poe_account_name: tokens.username, poe_account_sub: tokens.sub ?? null },
+    if (subjectUser) {
+      userId = subjectUser.id
+
+      if (subjectUser.poe_account_name !== accountName) {
+        const { data: nameConflict, error: nameConflictError } = await adminClient
+          .from('users')
+          .select('id')
+          .eq('poe_account_name', accountName)
+          .neq('id', userId)
+          .maybeSingle()
+
+        if (nameConflictError) {
+          console.error('OAuth account-name conflict check failed', {
+            code: nameConflictError.code,
+          })
+          return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
+        }
+        if (nameConflict) {
+          return jsonResponse(
+            {
+              error: 'This Path of Exile account requires a manual identity migration',
+              code: 'oauth_identity_migration_required',
+            },
+            409,
+          )
+        }
+
+        const { error: renameError } = await adminClient
+          .from('users')
+          .update({ poe_account_name: accountName })
+          .eq('id', userId)
+        if (renameError) {
+          console.error('Verified OAuth account-name update failed', { code: renameError.code })
+          return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
+        }
+      }
+
+      const { data: authUserData, error: authUserError } =
+        await adminClient.auth.admin.getUserById(userId)
+      if (authUserError || !authUserData.user?.email) {
+        console.error('OAuth identity has no matching auth user')
+        return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
+      }
+      authEmail = authUserData.user.email
+
+      const { error: authMetadataError } = await adminClient.auth.admin.updateUserById(userId, {
+        app_metadata: {
+          ...authUserData.user.app_metadata,
+          poe_account_sub: subject,
+          identity_provider: 'pathofexile',
+        },
+        user_metadata: {
+          ...authUserData.user.user_metadata,
+          poe_account_name: accountName,
+        },
       })
+      if (authMetadataError) {
+        console.error('OAuth auth metadata update failed')
+        return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
+      }
+    } else {
+      const { data: legacyNameUser, error: legacyLookupError } = await adminClient
+        .from('users')
+        .select('id')
+        .eq('poe_account_name', accountName)
+        .maybeSingle()
 
-      if (authError || !newAuthUser.user) {
-        console.error('Failed to create auth user:', authError)
-        return new Response(
-          JSON.stringify({ error: 'Failed to create user' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      if (legacyLookupError) {
+        console.error('Legacy OAuth identity lookup failed', { code: legacyLookupError.code })
+        return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
+      }
+      if (legacyNameUser) {
+        return jsonResponse(
+          {
+            error: 'This Path of Exile account requires a manual identity migration',
+            code: 'oauth_identity_migration_required',
+          },
+          409,
         )
       }
 
-      userId = newAuthUser.user.id
-
-      // Create public user record
-      await adminClient.from('users').insert({
-        id: userId,
-        poe_account_name: tokens.username,
+      authEmail = `${subject}@oauth.poe.invalid`
+      const { data: newAuthUser, error: authError } = await adminClient.auth.admin.createUser({
+        email: authEmail,
+        email_confirm: true,
+        app_metadata: {
+          poe_account_sub: subject,
+          identity_provider: 'pathofexile',
+        },
+        user_metadata: { poe_account_name: accountName },
       })
-    }
 
-    const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString()
+      if (authError || !newAuthUser.user) {
+        console.error('OAuth auth-user creation failed')
+        return jsonResponse({ error: 'Unable to create account' }, 500)
+      }
+
+      userId = newAuthUser.user.id
+      const { error: profileError } = await adminClient.from('users').insert({
+        id: userId,
+        poe_account_name: accountName,
+        poe_account_sub: subject,
+      })
+
+      if (profileError) {
+        console.error('OAuth profile creation failed', { code: profileError.code })
+        const { error: cleanupError } = await adminClient.auth.admin.deleteUser(userId)
+        if (cleanupError) console.error('OAuth orphaned auth-user cleanup failed')
+        return jsonResponse(
+          profileError.code === '23505'
+            ? {
+                error: 'This Path of Exile account requires a manual identity migration',
+                code: 'oauth_identity_migration_required',
+              }
+            : { error: 'Unable to create account' },
+          profileError.code === '23505' ? 409 : 500,
+        )
+      }
+    }
 
     await upsertStoredPoeTokens(userId, {
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      expires_at: expiresAt,
+      access_token: tokens.access_token.trim(),
+      refresh_token: tokens.refresh_token.trim(),
+      expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
     })
 
-    // Create a session for the user
     const { data: sessionData, error: sessionError } = await adminClient.auth.admin.generateLink({
       type: 'magiclink',
-      email: `${tokens.username}@poe.invalid`,
-      options: redirect_to ? { redirectTo: redirect_to } : undefined,
+      email: authEmail,
+      options: { redirectTo: allowedReturnUrl },
     })
 
-    if (sessionError || !sessionData) {
-      console.error('Failed to generate session link:', sessionError)
-      return new Response(
-        JSON.stringify({ error: 'Failed to create session' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      )
+    const magicLink = sessionData?.properties?.action_link
+    if (sessionError || !magicLink) {
+      console.error('OAuth session-link generation failed')
+      return jsonResponse({ error: 'Unable to create session' }, 500)
     }
 
-    return new Response(
-      JSON.stringify({
-        magic_link: sessionData.properties?.action_link,
-        user: { id: userId, poe_account_name: tokens.username },
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
-  } catch (err) {
-    console.error('OAuth callback error:', err)
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
+    return jsonResponse({
+      magic_link: magicLink,
+      user: { id: userId, poe_account_name: accountName },
+    })
+  } catch (error) {
+    console.error('OAuth callback failed', {
+      name: error instanceof Error ? error.name : 'UnknownError',
+    })
+    return jsonResponse({ error: 'Internal server error' }, 500)
   }
 })

@@ -32,7 +32,15 @@ export function createSupabaseRestClient({ url, adminKey }) {
     const params = new URLSearchParams()
     for (const [key, value] of Object.entries(filters)) {
       if (value == null) continue
-      params.set(key, `eq.${value}`)
+      if (typeof value === 'object' && !Array.isArray(value)) {
+        const operator = value.operator
+        if (!['eq', 'gt', 'gte', 'lt', 'lte'].includes(operator)) {
+          throw new Error(`Unsupported Supabase filter operator for ${key}`)
+        }
+        params.set(key, `${operator}.${value.value}`)
+      } else {
+        params.set(key, `eq.${value}`)
+      }
     }
     return params
   }
@@ -56,6 +64,48 @@ export function createSupabaseRestClient({ url, adminKey }) {
     if (Number.isFinite(limit) && limit > 0) params.set('limit', String(limit))
     const rows = await request(`${table}?${params.toString()}`)
     return Array.isArray(rows) ? rows : []
+  }
+
+  async function selectAllPages(
+    table,
+    filters,
+    select = '*',
+    { orderBy = 'id', ascending = true, maxRows = 100000 } = {},
+  ) {
+    if (!Number.isSafeInteger(maxRows) || maxRows <= 0) {
+      throw new Error('selectAllPages maxRows must be a positive integer')
+    }
+
+    const pageSize = 500
+    const rows = []
+    let cursor = null
+
+    while (true) {
+      const pageFilters = cursor
+        ? {
+            ...filters,
+            [orderBy]: { operator: ascending ? 'gt' : 'lt', value: cursor },
+          }
+        : filters
+      const page = await selectMany(table, pageFilters, select, {
+        orderBy,
+        ascending,
+        limit: pageSize,
+      })
+
+      if (rows.length + page.length > maxRows) {
+        throw new Error(`Supabase ${table} query exceeded the configured ${maxRows}-row limit`)
+      }
+
+      rows.push(...page)
+      if (page.length < pageSize) return rows
+
+      const nextCursor = page[page.length - 1]?.[orderBy]
+      if (nextCursor == null || nextCursor === cursor) {
+        throw new Error(`Supabase ${table} pagination did not advance on ${orderBy}`)
+      }
+      cursor = nextCursor
+    }
   }
 
   async function updateRows(table, filters, payload, { returning = 'representation' } = {}) {
@@ -96,12 +146,24 @@ export function createSupabaseRestClient({ url, adminKey }) {
     })
   }
 
+  async function rpc(functionName, payload = {}) {
+    return request(`rpc/${encodeURIComponent(functionName)}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+  }
+
   return {
     request,
     selectSingle,
     selectMany,
+    selectAllPages,
     updateRows,
     insertRow,
     deleteRows,
+    rpc,
   }
 }

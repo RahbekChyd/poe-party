@@ -4,6 +4,10 @@ import { queryKeys } from '../lib/queryKeys'
 import type { PoeGame } from '../lib/poe-game'
 import { normalizeScarabs, type Scarab } from '../lib/strategy-scarabs'
 import type { MapRequirements } from './useStrategies'
+import {
+  normalizeStrategyContentMetadata,
+  type StrategyContentMetadata,
+} from '../lib/public-strategy-content'
 export interface GuestPublicStrategyPreview {
   id: string
   group_id: string
@@ -20,6 +24,8 @@ export interface GuestPublicStrategyPreview {
   map_trade_link: string | null
   map_requirements: MapRequirements
   map_cost: number | null
+  content_slug: string | null
+  content_metadata: StrategyContentMetadata | null
   benchmark_sample_count: number
   benchmark_chaos_per_hour: number | null
 }
@@ -75,6 +81,8 @@ function normalizeGuestStrategy(row: Record<string, unknown>): GuestPublicStrate
         ? (row.map_requirements as MapRequirements)
         : {},
     map_cost: row.map_cost == null ? null : Number(row.map_cost),
+    content_slug: typeof row.content_slug === 'string' ? row.content_slug : null,
+    content_metadata: normalizeStrategyContentMetadata(row.content_metadata),
     benchmark_sample_count: Number(row.benchmark_sample_count ?? 0),
     benchmark_chaos_per_hour:
       row.benchmark_chaos_per_hour == null ? null : Number(row.benchmark_chaos_per_hour),

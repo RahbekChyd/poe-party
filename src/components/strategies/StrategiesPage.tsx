@@ -34,7 +34,13 @@ import { StrategyCardsSkeleton } from '../layout/Skeletons'
 import { cn, formatCurrencyAmount } from '../../lib/utils'
 import { DashboardEmptyState, DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import { StrategyInfoSection } from './StrategyInfoSection'
+import { StrategyMetadataBadges } from './StrategyMetadataBadges'
+import {
+  STRATEGY_CONTENT_STAGE_OPTIONS,
+  type StrategyContentStage,
+} from '../../lib/public-strategy-content'
 type Mode = 'own' | 'public'
+type StageFilter = StrategyContentStage | 'all'
 type NativeChipColor = 'default' | 'accent' | 'success' | 'warning' | 'danger'
 
 function toNativeChipColor(color: string): NativeChipColor {
@@ -144,6 +150,10 @@ function OwnedStrategyCard({
               <Chip size="sm" variant="soft" color={rateColor}>
                 {strategyRate ? `${fmt(strategyRate.chaosPerHour)}/hr` : 'No data'}
               </Chip>
+              <StrategyMetadataBadges
+                metadata={strategy.content_metadata}
+                includeVerified={false}
+              />
             </div>
             {strategy.description ? (
               <p className="text-default-500 mt-1 text-sm leading-relaxed">
@@ -306,6 +316,10 @@ function PublicStrategyCard({
                   ~= {fmt(strategy.map_cost)}/map
                 </Chip>
               ) : null}
+              <StrategyMetadataBadges
+                metadata={strategy.content_metadata}
+                includeVerified={false}
+              />
               {isSubscribed ? (
                 <Chip size="sm" variant="soft" color="success">
                   Subscribed
@@ -421,6 +435,7 @@ export function StrategiesPage() {
   const { mutate: setCurrentStrategy, isPending: settingCurrent } = useSetCurrentStrategy()
   const { data: strategyEconomy } = useStrategyHourlyEstimates(activeGroupId)
   const [createOpen, setCreateOpen] = useState(false)
+  const [stageFilter, setStageFilter] = useState<StageFilter>('all')
   const { tab } = Route.useSearch()
   const mode = tab ?? 'own'
   const navigate = useNavigate()
@@ -455,6 +470,15 @@ export function StrategiesPage() {
         return new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
       }),
     [strategies],
+  )
+  const filteredPublicStrategies = useMemo(
+    () =>
+      stageFilter === 'all'
+        ? (publicStrategies ?? [])
+        : (publicStrategies ?? []).filter(
+            (strategy) => strategy.content_metadata?.stage === stageFilter,
+          ),
+    [publicStrategies, stageFilter],
   )
 
   const fmt = (chaos: number): string => formatCurrencyAmount(chaos, display, divinePrice)
@@ -540,6 +564,33 @@ export function StrategiesPage() {
                   Subscribe to bring one into your own strategy list as a locked copy that updates
                   while the publisher keeps it public.
                 </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <ToggleButtonGroup
+                    size="sm"
+                    className="flex max-w-full flex-wrap"
+                    selectionMode="single"
+                    disallowEmptySelection
+                    selectedKeys={new Set([stageFilter])}
+                    onSelectionChange={(keys) => {
+                      const [nextStage] = Array.from(keys)
+                      if (
+                        nextStage === 'all' ||
+                        STRATEGY_CONTENT_STAGE_OPTIONS.some(
+                          (option) => option.value === nextStage,
+                        )
+                      ) {
+                        setStageFilter(nextStage as StageFilter)
+                      }
+                    }}
+                  >
+                    <ToggleButton id="all">All</ToggleButton>
+                    {STRATEGY_CONTENT_STAGE_OPTIONS.map((option) => (
+                      <ToggleButton key={option.value} id={option.value}>
+                        {option.label}
+                      </ToggleButton>
+                    ))}
+                  </ToggleButtonGroup>
+                </div>
               </>
             )}
           </div>
@@ -609,9 +660,13 @@ export function StrategiesPage() {
         <DashboardEmptyState icon={Globe} tone="accent">
           No public strategies found for the {activeLeague ?? 'current'} league yet.
         </DashboardEmptyState>
+      ) : filteredPublicStrategies.length === 0 ? (
+        <DashboardEmptyState icon={Globe} tone="accent">
+          No public strategies matched this stage for the {activeLeague ?? 'current'} league.
+        </DashboardEmptyState>
       ) : (
         <div className="flex flex-col gap-4">
-          {publicStrategies.map((strategy) => (
+          {filteredPublicStrategies.map((strategy) => (
             <PublicStrategyCard
               key={strategy.id}
               strategy={strategy}

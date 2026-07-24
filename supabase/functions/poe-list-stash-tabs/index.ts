@@ -1,4 +1,3 @@
-import { createAdminClient } from '../_shared/supabase-admin.ts'
 import { PoeApiClient } from '../_shared/poe-api-client.ts'
 import { corsHeaders, handleCors } from '../_shared/cors.ts'
 import { ensureFreshPoeAccessToken } from '../_shared/poe-token-store.ts'
@@ -24,7 +23,7 @@ Deno.serve(async (req) => {
     const authenticatedUser = await requireAuthenticatedUser(req)
     if (authenticatedUser instanceof Response) return authenticatedUser
 
-    const { user_id, league } = await req.json() as {
+    const { user_id, league } = (await req.json()) as {
       user_id: string
       league: string
     }
@@ -43,23 +42,9 @@ Deno.serve(async (req) => {
       })
     }
 
-    const adminClient = createAdminClient()
     const accessToken = await ensureFreshPoeAccessToken(user_id)
     const poeClient = new PoeApiClient(accessToken)
-    const { data: userData } = await adminClient
-      .from('users')
-      .select('poe_account_name')
-      .eq('id', user_id)
-      .single()
-
-    if (!userData?.poe_account_name) {
-      return new Response(JSON.stringify({ error: 'User account name not found' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const { stashes } = await poeClient.listStashes(league, userData.poe_account_name)
+    const { stashes } = await poeClient.listStashes(league)
     const tabs = stashes
       .filter((stash) => !(stash as { hidden?: boolean }).hidden && stash.type !== 'Folder')
       .map((stash) => ({

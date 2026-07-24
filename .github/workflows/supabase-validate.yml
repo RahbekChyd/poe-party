@@ -21,11 +21,18 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan changed history for secrets
+        uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Restore Supabase Docker image cache
         id: supabase-image-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ env.SUPABASE_IMAGE_CACHE }}
           key: ${{ runner.os }}-supabase-db-images-cli-${{ env.SUPABASE_CLI_VERSION }}-${{ hashFiles('supabase/config.toml') }}
@@ -33,9 +40,14 @@ jobs:
             ${{ runner.os }}-supabase-db-images-cli-${{ env.SUPABASE_CLI_VERSION }}-
 
       - name: Set up Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb # v2.0.3
+        with:
+          deno-version: v2.5.6
 
       - name: Load cached Supabase Docker images
         if: steps.supabase-image-cache.outputs.cache-hit == 'true'
@@ -49,6 +61,47 @@ jobs:
 
       - name: Replay migrations from scratch
         run: supabase db reset --local
+
+      - name: Run database authorization tests
+        run: supabase test db
+
+      - name: Type-check security-critical Edge Functions
+        run: >-
+          deno check --node-modules-dir=none
+          supabase/functions/cookie-auth/index.ts
+          supabase/functions/create-checkout-session/index.ts
+          supabase/functions/guest-queue-upgrade-analysis/index.ts
+          supabase/functions/guest-upgrade-analysis-status/index.ts
+          supabase/functions/poe-account-leagues/index.ts
+          supabase/functions/poe-list-stash-tabs/index.ts
+          supabase/functions/poe-oauth-callback/index.ts
+          supabase/functions/poe-refresh-token/index.ts
+          supabase/functions/poe-snapshot/index.ts
+          supabase/functions/poe-sync-character-profile/index.ts
+          supabase/functions/poe-sync-characters/index.ts
+          supabase/functions/queue-upgrade-analysis/index.ts
+          supabase/functions/stripe-webhook/index.ts
+
+      - name: Test OAuth security helpers
+        run: >-
+          deno test
+          --allow-env=POE_REDIRECT_URI,POE_ALLOWED_RETURN_URLS
+          supabase/functions/_shared/oauth-security.test.ts
+
+      - name: Test OAuth token encryption helpers
+        run: deno test supabase/functions/_shared/poe-token-crypto.test.ts
+
+      - name: Reject floating Supabase Edge imports
+        shell: bash
+        run: |
+          if grep -RInE "esm\.sh/@supabase/supabase-js@2(['\"]|$)" supabase/functions; then
+            echo "Pin Supabase Edge imports to an exact package version."
+            exit 1
+          fi
+          if grep -RInE "from ['\"]npm:stripe['\"]" supabase/functions; then
+            echo "Pin Stripe Edge imports to an exact package version."
+            exit 1
+          fi
 
       - name: Export Supabase Docker images for cache
         if: steps.supabase-image-cache.outputs.cache-hit != 'true'
@@ -70,7 +123,7 @@ jobs:
 
       - name: Save Supabase Docker image cache
         if: steps.supabase-image-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ env.SUPABASE_IMAGE_CACHE }}
           key: ${{ steps.supabase-image-cache.outputs.cache-primary-key }}

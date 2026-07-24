@@ -50,7 +50,12 @@ function SuggestionCard({ s, showTarget = false }: { s: GearSuggestion; showTarg
   return (
     <div className="rounded-medium hover:bg-default-50 flex items-center gap-3 px-4 py-3">
       {s.item_data?.icon_url ? (
-        <img src={s.item_data.icon_url} className="h-8 w-8 object-contain" loading="lazy" />
+        <img
+          src={s.item_data.icon_url}
+          alt=""
+          className="h-8 w-8 object-contain"
+          loading="lazy"
+        />
       ) : (
         <UserAvatar
           src={s.target_user.avatar_url ?? undefined}

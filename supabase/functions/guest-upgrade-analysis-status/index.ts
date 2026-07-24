@@ -75,14 +75,10 @@ function jsonResponse(body: unknown, status = 200): Response {
   })
 }
 
-async function cleanupExpiredGuestRuns(adminClient: ReturnType<typeof createAdminClient>) {
-  const { error } = await adminClient
-    .from('guest_upgrade_analysis_runs')
-    .delete()
-    .lt('expires_at', new Date().toISOString())
-  if (error) {
-    console.warn('Failed to cleanup expired guest analysis runs', error)
-  }
+function hasStringId(value: unknown): value is { id: string } {
+  return (
+    typeof value === 'object' && value !== null && 'id' in value && typeof value.id === 'string'
+  )
 }
 
 Deno.serve(async (req) => {
@@ -98,7 +94,6 @@ Deno.serve(async (req) => {
     const includeResults = body.include_results !== false
 
     const adminClient = createAdminClient()
-    await cleanupExpiredGuestRuns(adminClient)
     const runTokenHash = await hmacSha256Hex(runToken, 'guest-analysis-run-token')
     const { data: run, error: runError } = await adminClient
       .from('guest_upgrade_analysis_runs')
@@ -116,6 +111,9 @@ Deno.serve(async (req) => {
         },
         404,
       )
+    }
+    if (!hasStringId(run)) {
+      throw new Error('Guest analysis lookup returned no run id')
     }
 
     if (!includeResults) {

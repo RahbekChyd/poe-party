@@ -105,14 +105,14 @@ Deno.serve(async (req) => {
     const authenticatedUser = await requireAuthenticatedUser(req)
     if (authenticatedUser instanceof Response) return authenticatedUser
 
-    const { group_id, user_id, league, selected_tab_ids } = await req.json() as {
+    const { group_id, user_id, league: requestedLeague, selected_tab_ids } = await req.json() as {
       group_id: string
       user_id: string
-      league: string
+      league?: string
       selected_tab_ids?: string[]
     }
 
-    if (!group_id || !user_id || !league) {
+    if (!group_id || !user_id) {
       return new Response(JSON.stringify({ error: 'Missing required parameters' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -127,12 +127,28 @@ Deno.serve(async (req) => {
     }
 
     const adminClient = createAdminClient()
-    const accessToken = await ensureFreshPoeAccessToken(user_id)
 
-    const [{ data: userData }, { data: groupData }] = await Promise.all([
+    const [{ data: userData }, { data: groupData }, { data: membership }] = await Promise.all([
       adminClient.from('users').select('poe_account_name').eq('id', user_id).single(),
-      adminClient.from('groups').select('current_strategy_id, game').eq('id', group_id).single(),
+      adminClient
+        .from('groups')
+        .select('current_strategy_id, game, league')
+        .eq('id', group_id)
+        .single(),
+      adminClient
+        .from('group_members')
+        .select('role')
+        .eq('group_id', group_id)
+        .eq('user_id', user_id)
+        .maybeSingle(),
     ])
+
+    if (!membership) {
+      return new Response(JSON.stringify({ error: 'Not a member of this group' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     if (!userData?.poe_account_name) {
       return new Response(JSON.stringify({ error: 'User account name not found' }), {
@@ -142,6 +158,14 @@ Deno.serve(async (req) => {
     }
 
     const game = normalizePoeGame(groupData?.game)
+    const league = typeof groupData?.league === 'string' ? groupData.league : ''
+
+    if (!league || (requestedLeague && requestedLeague !== league)) {
+      return new Response(JSON.stringify({ error: 'Snapshot league must match the group league' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     if (!supportsStashSnapshots(game)) {
       return new Response(JSON.stringify({ error: 'Stash snapshots are currently only supported for Path of Exile 1 groups.' }), {
@@ -150,10 +174,13 @@ Deno.serve(async (req) => {
       })
     }
 
+    const accessToken = await ensureFreshPoeAccessToken(user_id)
+
     await adminClient
       .from('stash_snapshots')
       .update({ status: 'failed', error_msg: 'Superseded by new snapshot' })
       .eq('user_id', user_id)
+      .eq('group_id', group_id)
       .in('status', ['pending', 'in_progress'])
 
     const { data: snapshot, error: snapshotError } = await adminClient

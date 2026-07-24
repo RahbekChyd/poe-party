@@ -74,21 +74,17 @@ function defaultQuickSearchConstraints() {
   }
 }
 
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === 'string') return error
-  try {
-    return JSON.stringify(error)
-  } catch {
-    return 'Unknown error'
-  }
-}
-
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
+}
+
+function hasStringId(value: unknown): value is { id: string } {
+  return (
+    typeof value === 'object' && value !== null && 'id' in value && typeof value.id === 'string'
+  )
 }
 
 function guestErrorResponse(error: unknown): Response {
@@ -100,20 +96,9 @@ function guestErrorResponse(error: unknown): Response {
   return jsonResponse(
     {
       error: 'Failed to queue Public Analysis',
-      detail: toErrorMessage(error),
     },
     500,
   )
-}
-
-async function cleanupExpiredGuestRuns(adminClient: ReturnType<typeof createAdminClient>) {
-  const { error } = await adminClient
-    .from('guest_upgrade_analysis_runs')
-    .delete()
-    .lt('expires_at', new Date().toISOString())
-  if (error) {
-    console.warn('Failed to cleanup expired guest analysis runs', error)
-  }
 }
 
 Deno.serve(async (req) => {
@@ -125,42 +110,6 @@ Deno.serve(async (req) => {
     const { accountName, normalizedAccountName } = normalizeGuestAccountName(body.account_name)
     const characterName = normalizeCharacterName(body.character_name)
     const adminClient = createAdminClient()
-
-    await cleanupExpiredGuestRuns(adminClient)
-
-    const characters = await fetchGuestCharacters(accountName)
-    const selectedCharacter =
-      characters.find((character) => character.name === characterName) ??
-      characters.find((character) => character.name.toLowerCase() === characterName.toLowerCase()) ??
-      null
-    if (!selectedCharacter) {
-      throw new GuestPoePublicError(
-        'That character was not found on the public account.',
-        404,
-        'character_not_found',
-      )
-    }
-
-    const [profile, pobImport] = await Promise.all([
-      fetchGuestCharacterProfile(accountName, selectedCharacter.name, selectedCharacter),
-      parseGuestPobImport(body.raw_import),
-    ])
-    const targetStage = buildGuestTargetStage(pobImport.metadata, body)
-    const targetName = targetStage.label
-    const searchConstraints = defaultQuickSearchConstraints()
-    const inputHash = await sha256Hex(
-      JSON.stringify({
-        version: GUEST_UPGRADE_ANALYSIS_INPUT_VERSION,
-        normalized_account_name: normalizedAccountName,
-        character_name: selectedCharacter.name,
-        character_league: profile.league,
-        character_profile_hash: await sha256Hex(JSON.stringify(profile)),
-        raw_xml_hash: await sha256Hex(pobImport.raw_xml),
-        target_stage: targetStage,
-        analysis_mode: 'quick',
-        search_constraints: searchConstraints,
-      }),
-    )
     const clientIp = getClientIp(req)
     const ipHash = clientIp ? await hmacSha256Hex(clientIp, 'guest-analysis-ip') : null
     const usageDate = utcUsageDate()
@@ -191,6 +140,41 @@ Deno.serve(async (req) => {
       )
     }
 
+    const characters = await fetchGuestCharacters(accountName)
+    const selectedCharacter =
+      characters.find((character) => character.name === characterName) ??
+      characters.find(
+        (character) => character.name.toLowerCase() === characterName.toLowerCase(),
+      ) ??
+      null
+    if (!selectedCharacter) {
+      throw new GuestPoePublicError(
+        'That character was not found on the public account.',
+        404,
+        'character_not_found',
+      )
+    }
+
+    const [profile, pobImport] = await Promise.all([
+      fetchGuestCharacterProfile(accountName, selectedCharacter.name, selectedCharacter),
+      parseGuestPobImport(body.raw_import),
+    ])
+    const targetStage = buildGuestTargetStage(pobImport.metadata, body)
+    const targetName = targetStage.label
+    const searchConstraints = defaultQuickSearchConstraints()
+    const inputHash = await sha256Hex(
+      JSON.stringify({
+        version: GUEST_UPGRADE_ANALYSIS_INPUT_VERSION,
+        normalized_account_name: normalizedAccountName,
+        character_name: selectedCharacter.name,
+        character_league: profile.league,
+        character_profile_hash: await sha256Hex(JSON.stringify(profile)),
+        raw_xml_hash: await sha256Hex(pobImport.raw_xml),
+        target_stage: targetStage,
+        analysis_mode: 'quick',
+        search_constraints: searchConstraints,
+      }),
+    )
     const runToken = createRunToken()
     const runTokenHash = await hmacSha256Hex(runToken, 'guest-analysis-run-token')
     const expiresAt = new Date(Date.now() + GUEST_RUN_EXPIRES_DAYS * 24 * 60 * 60 * 1000)
@@ -233,6 +217,9 @@ Deno.serve(async (req) => {
       .single()
 
     if (insertError) throw insertError
+    if (!hasStringId(insertedRun)) {
+      throw new Error('Guest analysis run insert returned no id')
+    }
 
     let workerNotified = false
     const workerUrl = Deno.env.get('UPGRADE_ANALYZER_WORKER_URL')

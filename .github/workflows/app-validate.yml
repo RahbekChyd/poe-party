@@ -9,9 +9,14 @@ on:
       - 'optimizer-worker/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
+      - 'scripts/**'
       - 'tsconfig*.json'
       - 'vite.config.ts'
+      - 'vitest.config.ts'
+      - 'vercel.json'
       - 'eslint.config.js'
+      - 'playwright.config.ts'
+      - 'tests/**'
       - '.github/workflows/app-validate.yml'
   workflow_dispatch:
 
@@ -24,13 +29,20 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan changed history for secrets
+        uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: pnpm
@@ -38,14 +50,32 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
+
       - name: Lint app
         run: pnpm lint
 
       - name: Type-check app
         run: pnpm type-check
 
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: Run optimizer worker contract tests
+        run: pnpm test:worker
+
       - name: Build app
         run: pnpm build
+
+      - name: Enforce bundle budgets
+        run: pnpm check:bundle
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run browser smoke tests
+        run: pnpm test:e2e
 
       - name: Build optimizer worker image
         run: docker build -t poe-optimizer-worker-ci ./optimizer-worker

@@ -1,40 +1,10 @@
 import { Link, useRouterState } from '@tanstack/react-router'
-import {
-  Handshake,
-  LayoutDashboard,
-  Search,
-  Sparkles,
-  Sword,
-  Target,
-  TrendingUp,
-  Users,
-} from 'lucide-react'
 import { cn } from '../../lib/utils'
 import logo from '../../assets/poe-party-logo.png'
 import { useGroupStore } from '../../store/group-store'
 import { useIsSoloGroup } from '../../hooks/useGroups'
 import { HoverTooltip } from '../ui/hover-tooltip'
-const navItems = [{ label: 'Overview', to: '/dashboard', icon: LayoutDashboard, exact: true }]
-
-const navSections = [
-  {
-    label: 'Workspace',
-    items: [
-      { label: 'Economy', to: '/dashboard/economy', icon: TrendingUp, exact: false },
-      { label: 'Analysis', to: '/dashboard/analysis', icon: Sparkles, exact: false },
-      { label: 'Gear Planning', to: '/dashboard/gear', icon: Sword, exact: false },
-      { label: 'Members', to: '/dashboard/members', icon: Users, exact: false },
-    ],
-  },
-  {
-    label: 'Community',
-    items: [
-      { label: 'Directory', to: '/dashboard/search', icon: Search, exact: false },
-      { label: 'Services', to: '/dashboard/services', icon: Handshake, exact: false },
-      { label: 'Strategies', to: '/dashboard/strategies', icon: Target, exact: false },
-    ],
-  },
-]
+import { dashboardNavigation, isDashboardNavItemActive } from './dashboard-navigation'
 
 export function Sidebar() {
   const { location } = useRouterState()
@@ -42,7 +12,7 @@ export function Sidebar() {
   const isSolo = useIsSoloGroup(activeGroupId)
 
   return (
-    <aside className="border-divider/70 bg-content1/90 flex h-full w-16 shrink-0 flex-col border-r backdrop-blur lg:w-60">
+    <aside className="border-divider/70 bg-content1/90 hidden h-full w-60 shrink-0 flex-col border-r backdrop-blur lg:flex">
       <div className="border-divider/50 flex shrink-0 items-center justify-center gap-2 border-b px-3 py-5 lg:justify-start lg:px-4">
         <img src={logo} alt="PoE Party" className="h-8 w-8 rounded-lg" />
         <span className="text-foreground hidden text-base font-semibold tracking-tight lg:inline">
@@ -50,55 +20,19 @@ export function Sidebar() {
         </span>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-4 px-2 py-2">
-        {navItems.map(({ label: rawLabel, to, icon: Icon, exact }) => {
-          const label = isSolo && to === '/dashboard/members' ? 'Characters' : rawLabel
-          const isActive = exact ? location.pathname === to : location.pathname.startsWith(to)
-
-          return (
-            <HoverTooltip
-              key={to}
-              as="span"
-              className="block"
-              content={label}
-              contentClassName="lg:hidden"
-              placement="right"
-            >
-              <Link
-                to={to}
-                className={cn(
-                  'relative flex min-h-9 items-center justify-center gap-3 overflow-hidden rounded-lg px-3 py-2 text-sm font-medium transition-colors lg:justify-start',
-                  isActive
-                    ? 'bg-warning/15 text-warning ring-warning/20 ring-1'
-                    : 'text-default-500 hover:bg-default-100 hover:text-default-800',
-                )}
-                title={label}
-              >
-                <span
-                  className={cn(
-                    'bg-warning absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 rounded-r-full transition-opacity',
-                    isActive ? 'opacity-100' : 'opacity-0',
-                  )}
-                  aria-hidden="true"
-                />
-                <Icon size={16} className="shrink-0" />
-                <span className="hidden truncate lg:inline">{label}</span>
-              </Link>
-            </HoverTooltip>
-          )
-        })}
-
-        {navSections.map((section) => (
+      <nav aria-label="Primary dashboard" className="flex flex-1 flex-col gap-4 overflow-y-auto px-2 py-3">
+        {dashboardNavigation.map((section) => (
           <div
             key={section.label}
-            className="border-divider/40 flex flex-col gap-0.5 border-t pt-4 lg:border-t-0 lg:pt-0"
+            className="flex flex-col gap-0.5"
           >
-            <p className="text-default-400 hidden px-3 text-xs font-semibold tracking-wide uppercase lg:block">
+            <p className="text-default-400 px-3 text-xs font-semibold tracking-wide uppercase">
               {section.label}
             </p>
-            {section.items.map(({ label: rawLabel, to, icon: Icon, exact }) => {
+            {section.items.map((item) => {
+              const { label: rawLabel, to, icon: Icon } = item
               const label = isSolo && to === '/dashboard/members' ? 'Characters' : rawLabel
-              const isActive = exact ? location.pathname === to : location.pathname.startsWith(to)
+              const isActive = isDashboardNavItemActive(location.pathname, item)
 
               return (
                 <HoverTooltip
@@ -106,13 +40,14 @@ export function Sidebar() {
                   as="span"
                   className="block"
                   content={label}
-                  contentClassName="lg:hidden"
                   placement="right"
                 >
                   <Link
                     to={to}
+                    activeOptions={{ exact: true }}
+                    aria-current={isActive ? 'page' : undefined}
                     className={cn(
-                      'relative flex min-h-9 items-center justify-center gap-3 overflow-hidden rounded-lg px-3 py-2 text-sm font-medium transition-colors lg:justify-start',
+                      'relative flex min-h-10 items-center gap-3 overflow-hidden rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
                       isActive
                         ? 'bg-warning/15 text-warning ring-warning/20 ring-1'
                         : 'text-default-500 hover:bg-default-100 hover:text-default-800',
@@ -127,7 +62,7 @@ export function Sidebar() {
                       aria-hidden="true"
                     />
                     <Icon size={16} className="shrink-0" />
-                    <span className="hidden truncate lg:inline">{label}</span>
+                    <span className="truncate">{label}</span>
                   </Link>
                 </HoverTooltip>
               )

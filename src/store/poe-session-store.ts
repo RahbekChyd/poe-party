@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 interface PoeSessionState {
   sessId: string
   cfClearance: string
@@ -28,6 +28,15 @@ export const usePoeSession = create<PoeSessionState>()(
       setSelectedTabIds: (ids) => set({ selectedTabIds: ids }),
       clear: () => set({ sessId: '', cfClearance: '', accountName: '', selectedTabIds: null }),
     }),
-    { name: 'poe-session' },
+    {
+      name: 'poe-session-tab',
+      storage: createJSONStorage(() => sessionStorage),
+    },
   ),
 )
+
+// Older builds persisted POESESSID in localStorage. Remove that legacy copy now that the
+// development-only transport is scoped to the current browser tab.
+if (typeof window !== 'undefined') {
+  window.localStorage.removeItem('poe-session')
+}

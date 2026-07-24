@@ -10,6 +10,7 @@ import { StashTabSelectorModal, MAX_STASH_TABS } from '../components/sync/StashT
 import { useSnapshotPreferencesStore } from '../store/snapshot-preferences-store'
 import { useMyProfile } from './useCurrentUser'
 import { useSnapshotStore } from '../store/snapshot-store'
+import { trackProductEvent } from '../lib/analytics'
 type Step = 'idle' | 'fetching-tabs' | 'selecting' | 'snapshotting'
 
 /**
@@ -159,6 +160,11 @@ export function useStashSnapshotFlow() {
         }
       }
       resetTimer()
+      trackProductEvent('activation_stash_snapshot_completed', {
+        transport: preferOAuthFlow ? 'oauth' : 'local_cookie',
+        tab_count: selectedTabs.length,
+        scheduled: false,
+      })
     } catch (error) {
       setProgress({ phase: 'error', message: String(error) })
       throw error
@@ -194,6 +200,11 @@ export function useStashSnapshotFlow() {
           message: `Synced ${selectedTabIds.length} tabs`,
         })
         resetTimer()
+        trackProductEvent('activation_stash_snapshot_completed', {
+          transport: 'oauth',
+          tab_count: selectedTabIds.length,
+          scheduled: true,
+        })
         return
       }
 
@@ -215,6 +226,11 @@ export function useStashSnapshotFlow() {
       }
 
       resetTimer()
+      trackProductEvent('activation_stash_snapshot_completed', {
+        transport: 'local_cookie',
+        tab_count: selectedTabs.length,
+        scheduled: true,
+      })
     } catch (error) {
       setProgress({ phase: 'error', message: String(error) })
       throw error

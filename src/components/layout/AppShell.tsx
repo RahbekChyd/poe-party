@@ -9,6 +9,7 @@ import { CharacterProfileSyncRunner } from './CharacterProfileSyncRunner'
 import { EarlyAccessNoticeModal } from './EarlyAccessNoticeModal'
 import { useEarlyAccessNoticeStore } from '../../store/early-access-notice-store'
 import { useCurrentUser, useMyProfile } from '../../hooks/useCurrentUser'
+import { MobileBottomNav } from './MobileBottomNav'
 interface AppShellProps {
   children: ReactNode
 }
@@ -34,14 +35,13 @@ export function AppShell({ children }: AppShellProps) {
   }, [close, open, profile?.has_seen_early_access_notice, profileLoading, user?.id, userLoading])
 
   return (
-    <>
-      <EarlyAccessNoticeModal />
-      <GroupGate>
-        <div className="bg-background/85 flex h-screen overflow-hidden">
+    <GroupGate>
+      <div className="bg-background/85 flex h-screen overflow-hidden">
           <Sidebar />
           <div className="flex flex-1 flex-col overflow-hidden">
             <Navbar />
-            <main className="flex flex-1 flex-col overflow-y-auto">
+            <main id="main-content" className="flex flex-1 flex-col overflow-y-auto">
+              <EarlyAccessNoticeModal />
               <div className="flex-1 p-4 md:p-6">
                 <ErrorBoundary>
                   <SnapshotIntervalRunner />
@@ -51,9 +51,9 @@ export function AppShell({ children }: AppShellProps) {
               </div>
               <Footer />
             </main>
+            <MobileBottomNav />
           </div>
-        </div>
-      </GroupGate>
-    </>
+      </div>
+    </GroupGate>
   )
 }

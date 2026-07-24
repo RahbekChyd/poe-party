@@ -18,7 +18,8 @@ Recommended production shape:
 This package now includes `optimizer-worker/railway.json` with:
 
 - Dockerfile builds enabled explicitly
-- `GET /health` as the Railway health check
+- `GET /health` as the Railway readiness check (`GET /health/ready` is equivalent)
+- `GET /health/live` as a process liveness check
 - restart-on-failure defaults suitable for the worker loop
 
 If you deploy from this monorepo on Railway, point the service at the `optimizer-worker`
@@ -30,7 +31,7 @@ Environment variables for the worker process:
 
 - `SUPABASE_URL`
 - `SUPABASE_SECRET_KEY` preferred, or `SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` as compatibility aliases
-- `WORKER_AUTH_TOKEN` optional bearer token expected by `POST /jobs`
+- `WORKER_AUTH_TOKEN` required unique random bearer token of at least 32 bytes expected by `POST /jobs`
 - `POE_TRADE_USER_AGENT` optional override for Path of Exile trade API requests
 - `POB_RUNTIME_COMMAND` optional override for the exact PoB runtime command. On Railway or any Docker-based deploy, prefer leaving this unset so the bundled Linux launcher is used.
 - `POB_REF` optional pinned PoB commit baked into the container image
@@ -39,6 +40,8 @@ Environment variables for the worker process:
 - `WORKER_MAX_CONCURRENT_RUNS` optional, defaults to `1`
 - `WORKER_HEARTBEAT_INTERVAL_MS` optional, defaults to `15000`
 - `WORKER_STALE_RUNNING_AFTER_MS` optional, defaults to `180000`
+- `WORKER_MAX_STASH_ITEMS` optional, defaults to `50000`; a larger result fails explicitly instead of being silently truncated
+- `WORKER_SHUTDOWN_TIMEOUT_MS` optional graceful-drain bound, defaults to `25000`
 - `PORT` optional, defaults to `8788`
 
 Current behavior:
@@ -47,10 +50,15 @@ Current behavior:
 - treats `/jobs` as a lightweight wake-up signal instead of a synchronous full analysis request
 - processes up to `WORKER_MAX_CONCURRENT_RUNS` runs concurrently per replica
 - polls for queued runs so processing still works if the edge-function notify call fails
-- heartbeats active `running` rows and automatically reclaims stale non-waiting runs after worker crashes
+- claims each run with an explicit attempt number and expiring lease; stale leases are reclaimed without allowing the old owner to persist or fail the run
+- retries retryable failures up to the run's bounded `max_attempts` (default `3`) with short 5/10/20-second backoff delays
+- keeps trade API cooldown/resume within the same attempt while releasing its active lease during the wait
+- heartbeats active `running` rows, aborts phase work after ownership loss, and ignores retry-delayed rows until they are due
 - reads build targets, mapped stages, profile snapshots, and latest stash items from Supabase
-- writes grouped recommendation plans and items back into Supabase
+- replaces grouped recommendation plans/items and marks the run complete in one guarded database transaction
 - runs exact PoB analysis and fails loudly when the PoB runtime is unavailable
+
+Attempt history and lifecycle transitions are service-role-only. A stale, cancelled, completed, or reclaimed attempt cannot overwrite a newer owner's state or results.
 
 Railway starting point:
 
@@ -72,7 +80,9 @@ The worker now builds a deterministic PoB runtime payload containing:
 - owned stash candidates with richer `mods`, `sockets`, and `raw_data`
 - market unique candidates and payload diagnostics
 
-The image now bakes in a pinned Path of Building Community source checkout and defaults `POB_RUNTIME_COMMAND` to `/app/pob/run-pob-runtime.sh`, which starts the headless LuaJIT harness in `optimizer-worker/pob/run-analysis.lua`.
+The image bakes in a commit-pinned, SHA-256-verified Path of Building Community source archive and defaults `POB_RUNTIME_COMMAND` to `/app/pob/run-pob-runtime.sh`, which starts the headless LuaJIT harness in `optimizer-worker/pob/run-analysis.lua`. The runtime process runs as a non-root container user.
+
+When updating the baked PoB revision, update both Docker build arguments `POB_REF` and `POB_SHA256`; the build intentionally fails when the downloaded archive does not match the expected checksum.
 
 If a Linux worker receives a stale Windows-only `POB_RUNTIME_COMMAND` override, it now ignores that override and falls back to `/app/pob/run-pob-runtime.sh`. The deploy should still remove that stale override so diagnostics stay clean.
 
@@ -105,7 +115,7 @@ It uses:
 - `SUPABASE_URL`
 - `SUPABASE_SECRET_KEY` preferred, or `SUPABASE_SERVICE_ROLE_KEY`
 - `UPGRADE_ANALYZER_WORKER_URL`
-- `UPGRADE_ANALYZER_WORKER_TOKEN` optional, but recommended
+- `UPGRADE_ANALYZER_WORKER_TOKEN` required whenever `UPGRADE_ANALYZER_WORKER_URL` is configured; it must exactly match the worker's strong `WORKER_AUTH_TOKEN`
 
 Notes:
 
@@ -128,7 +138,7 @@ PowerShell example:
 ```powershell
 $env:SUPABASE_URL="http://127.0.0.1:45121"
 $env:SUPABASE_SECRET_KEY="<local-secret-from-supabase-status>"
-$env:WORKER_AUTH_TOKEN="dev-worker-token"
+$env:WORKER_AUTH_TOKEN="local-only-worker-token-0123456789abcdef"
 docker build -t poe-optimizer-worker .\optimizer-worker
 docker run --rm -p 8788:8788 `
   -e SUPABASE_URL=$env:SUPABASE_URL `
@@ -152,7 +162,7 @@ docker build -t poe-optimizer-worker .\optimizer-worker
 docker run --rm -p 8788:8788 `
   -e SUPABASE_URL=http://host.docker.internal:45121 `
   -e SUPABASE_SECRET_KEY="<local-secret-from-supabase-status>" `
-  -e WORKER_AUTH_TOKEN="dev-worker-token" `
+  -e WORKER_AUTH_TOKEN="local-only-worker-token-0123456789abcdef" `
   poe-optimizer-worker
 ```
 
@@ -172,7 +182,7 @@ Add the Edge Function callback values to `supabase/functions/.env`:
 SUPABASE_URL=http://127.0.0.1:45121
 SUPABASE_SECRET_KEY=<local-secret-from-supabase-status>
 UPGRADE_ANALYZER_WORKER_URL=http://127.0.0.1:8788
-UPGRADE_ANALYZER_WORKER_TOKEN=dev-worker-token
+UPGRADE_ANALYZER_WORKER_TOKEN=local-only-worker-token-0123456789abcdef
 ```
 
 Then serve functions with:
@@ -200,6 +210,8 @@ There are two separate trusted runtimes here:
 - `WORKER_MAX_CONCURRENT_RUNS`
 - `WORKER_HEARTBEAT_INTERVAL_MS`
 - `WORKER_STALE_RUNNING_AFTER_MS`
+- `WORKER_MAX_STASH_ITEMS`
+- `WORKER_SHUTDOWN_TIMEOUT_MS`
 
 - Supabase Edge Function:
   - `SUPABASE_URL`

@@ -8,6 +8,7 @@ import { useMyProfile } from './useCurrentUser'
 import { normalizePoeGame, type PoeGame } from '../lib/poe-game'
 import { useActiveGroupContext } from './useGroups'
 import { useGroupStore } from '../store/group-store'
+import { trackProductEvent } from '../lib/analytics'
 async function getGroupGame(groupId: string): Promise<PoeGame> {
   const { data, error } = await supabase
     .from('groups')
@@ -40,6 +41,10 @@ export function useCharacterSyncFlow(groupId?: string | null) {
 
       if (sessId && targetGame === 'poe1') {
         await snapshotCharacters(nextGroupId)
+        trackProductEvent('activation_character_sync_completed', {
+          game: targetGame,
+          transport: 'local_cookie',
+        })
         return
       }
 
@@ -65,6 +70,10 @@ export function useCharacterSyncFlow(groupId?: string | null) {
       if (error) throw error
       queryClient.invalidateQueries({ queryKey: [...queryKeys.characters.mine(nextGroupId)] })
       queryClient.invalidateQueries({ queryKey: [...queryKeys.characters.active(nextGroupId)] })
+      trackProductEvent('activation_character_sync_completed', {
+        game: targetGame,
+        transport: 'oauth',
+      })
     } finally {
       setIsBusy(false)
     }

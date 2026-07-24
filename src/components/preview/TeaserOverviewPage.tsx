@@ -240,7 +240,11 @@ export function TeaserOverviewPage() {
             <Card.Content className="gap-1.5 p-4">
               <div className="flex items-center gap-2">
                 {sampleItemImage ? (
-                  <img src={sampleItemImage} className="h-8 w-8 bg-transparent object-contain" />
+                  <img
+                    src={sampleItemImage}
+                    alt=""
+                    className="h-8 w-8 bg-transparent object-contain"
+                  />
                 ) : (
                   <Sword size={14} className="text-default-400 shrink-0" />
                 )}
