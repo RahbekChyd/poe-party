@@ -1,0 +1,4 @@
+# Deterministic 32-byte worker-auth test fixtures from the initial remediation commit.
+# These fingerprints are exact historical false positives, not production credentials.
+f012053cd2ca5636c72bef2394fdc3f60d0cd811:optimizer-worker/test/http-server.test.mjs:generic-api-key:5
+f012053cd2ca5636c72bef2394fdc3f60d0cd811:optimizer-worker/test/worker-auth.test.mjs:generic-api-key:9

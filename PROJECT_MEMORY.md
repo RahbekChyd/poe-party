@@ -37,6 +37,7 @@ Purpose: low-context handoff for the next Codex session. Keep this file short, c
 
 ## Latest Verification
 
+- July 24, 2026 PR follow-up: official Gitleaks 8.24.3 reproduced the App Validate commit-range scan and reported no leaks after exact fingerprint ignores were added for two deterministic worker-auth test fixtures; lint and all 16 worker tests passed.
 - July 24, 2026 pre-commit gate: type-check, lint, 5 frontend unit tests, 16 worker tests, production build, bundle budgets, staged secret-signature scan, and staged `git diff --check` passed.
 - July 20, 2026 full local matrix: type-check, lint, 5 frontend unit tests, 16 worker tests, production build, bundle budgets, 18 Playwright + axe desktop/mobile tests, 34-route SEO prerender, production dependency audit, 26 worker syntax checks, and `git diff --check` passed.
 - Rollback-only composite replay of migrations `0082`–`0088` passed all seven pgTAP suites: 113/113 assertions. No local reset or persisted database mutation was performed.

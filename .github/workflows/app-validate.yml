@@ -17,6 +17,7 @@ on:
       - 'eslint.config.js'
       - 'playwright.config.ts'
       - 'tests/**'
+      - '.gitleaksignore'
       - '.github/workflows/app-validate.yml'
   workflow_dispatch:
 

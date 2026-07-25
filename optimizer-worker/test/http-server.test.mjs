@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createWorkerHttpServer } from '../src/http-server.mjs'
 
-const STRONG_TOKEN = '0123456789abcdef0123456789abcdef'
+const TEST_WORKER_CREDENTIAL = 'w'.repeat(32)
 const RUN_ID = '10000000-0000-4000-8000-000000000001'
 const QUIET_LOGGER = { error() {} }
 
@@ -28,7 +28,7 @@ test('health routes separate liveness from readiness and keep /health as the rea
     startRunTask: () => true,
   }
   const server = createWorkerHttpServer({
-    workerAuthToken: STRONG_TOKEN,
+    workerAuthToken: TEST_WORKER_CREDENTIAL,
     jobRunner,
     logger: QUIET_LOGGER,
     isReady: () => ready,
@@ -72,7 +72,7 @@ test('jobs endpoint rejects invalid bearer tokens before accepting work', async 
     },
   }
   const server = createWorkerHttpServer({
-    workerAuthToken: STRONG_TOKEN,
+    workerAuthToken: TEST_WORKER_CREDENTIAL,
     jobRunner,
     logger: QUIET_LOGGER,
     isReady: () => true,
@@ -91,7 +91,7 @@ test('jobs endpoint rejects invalid bearer tokens before accepting work', async 
   const accepted = await fetch(`${baseUrl}/jobs`, {
     method: 'POST',
     headers: {
-      authorization: `Bearer ${STRONG_TOKEN}`,
+      authorization: `Bearer ${TEST_WORKER_CREDENTIAL}`,
       'content-type': 'application/json',
     },
     body: JSON.stringify({ run_id: RUN_ID }),
