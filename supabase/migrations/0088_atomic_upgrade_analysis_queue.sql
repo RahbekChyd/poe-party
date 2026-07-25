@@ -3,6 +3,13 @@
 -- transaction so concurrent requests cannot stale each other or double-charge
 -- the Community daily allowance.
 
+-- Keep this migration as one top-level statement. Supabase Branching executes
+-- migration files through a prepared statement, which rejects multiple
+-- top-level commands. Dynamic DDL also keeps creation and privilege hardening
+-- in the same transaction.
+DO $migration$
+BEGIN
+  EXECUTE $function_definition$
 CREATE OR REPLACE FUNCTION public.queue_upgrade_analysis_run_atomic(
   p_group_id UUID,
   p_build_target_id UUID,
@@ -23,7 +30,7 @@ RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $function_body$
 DECLARE
   v_existing public.upgrade_analysis_runs;
   v_inserted public.upgrade_analysis_runs;
@@ -145,11 +152,19 @@ BEGIN
     'run', to_jsonb(v_inserted)
   );
 END;
-$$;
+$function_body$;
+$function_definition$;
 
+  EXECUTE $permissions$
 REVOKE ALL ON FUNCTION public.queue_upgrade_analysis_run_atomic(
   UUID, UUID, UUID, UUID, UUID, UUID, NUMERIC, TEXT, JSONB, JSONB, TEXT, JSONB, DATE, INTEGER
 ) FROM PUBLIC, anon, authenticated;
+$permissions$;
+
+  EXECUTE $permissions$
 GRANT EXECUTE ON FUNCTION public.queue_upgrade_analysis_run_atomic(
   UUID, UUID, UUID, UUID, UUID, UUID, NUMERIC, TEXT, JSONB, JSONB, TEXT, JSONB, DATE, INTEGER
 ) TO service_role;
+$permissions$;
+END;
+$migration$;
