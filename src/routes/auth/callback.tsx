@@ -57,7 +57,7 @@ function AuthCallback() {
             code,
             state,
             code_verifier: codeVerifier,
-            redirect_to: `${window.location.origin}/auth/callback`,
+            redirect_uri: `${window.location.origin}/auth/callback`,
           }) as unknown as { magic_link?: string }
         } catch (invokeError) {
           if (cancelled) return

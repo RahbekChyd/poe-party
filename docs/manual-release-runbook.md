@@ -106,8 +106,9 @@ Set secrets through the Supabase dashboard or an approved private file outside t
 not pass them inline where shell history or CI logs can retain them. Confirm at least:
 
 - `POE_TOKEN_ENCRYPTION_ACTIVE_KEY_ID` and `POE_TOKEN_ENCRYPTION_KEYS`;
-- `POE_CLIENT_ID`, `POE_CLIENT_SECRET`, `POE_REDIRECT_URI`, and `POE_CONTACT`;
-- `POE_ALLOWED_RETURN_URLS` as comma-separated exact frontend return URLs;
+- `POE_CLIENT_ID`, `POE_CLIENT_SECRET`, the primary exact `POE_REDIRECT_URI`, and `POE_CONTACT`;
+- `POE_ALLOWED_RETURN_URLS` as comma-separated exact, registered OAuth callback/frontend return
+  URLs, including the stable preview callback when that environment is enabled;
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SECRET_KEY`;
 - Stripe test secrets, `BILLING_ALLOWED_RETURN_ORIGINS`, and `BILLING_RETURN_ORIGIN`;
 - `UPGRADE_ANALYZER_WORKER_URL` and a strong `UPGRADE_ANALYZER_WORKER_TOKEN` that exactly matches
@@ -164,11 +165,31 @@ Configure Vercel with browser-safe values only:
 
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SUPABASE_FUNCTIONS_KEY`;
 - `VITE_POE_CLIENT_ID` and exact `VITE_POE_REDIRECT_URI`;
-- `VITE_ENABLE_COOKIE_AUTH=false`;
 - the reviewed `VITE_POE2_ALLOWED_ACCOUNT_NAMES`, consistent with the database/product gate;
 - `VITE_BILLING_ALLOWED_POE_ACCOUNTS` only for an intentional billing canary.
 
 Deploy the recorded SHA to Preview/staging and recheck project/domain before testing.
+
+For Vercel PR validation with the approved PoE callback:
+
+1. Assign `preview-poe-party.xyz` to the reviewed preview branch/deployment and open the app through
+   `https://preview-poe-party.xyz`. Do not start OAuth from an arbitrary `*.vercel.app` URL: PKCE
+   state, the verifier, and the Supabase session are scoped to the origin that starts the flow.
+2. Set Preview `VITE_POE_REDIRECT_URI` to the exact
+   `https://preview-poe-party.xyz/auth/callback` value and redeploy because Vite variables are
+   embedded at build time.
+3. Add that exact callback to `POE_ALLOWED_RETURN_URLS`. The callback function exchanges each code
+   using the exact requested URI only after this server-side allowlist check, so production and
+   preview callbacks can coexist.
+4. Add the exact callback to the hosted Supabase Auth Redirect URLs. The tracked
+   `supabase/config.toml` is local CLI configuration and does not update a hosted project.
+5. Use staging-only Supabase, Stripe, worker, OAuth test accounts, and non-sensitive data. Review PR
+   code before signing in because frontend code on the aliased deployment can access that tab's
+   session. If billing is tested, configure the preview origin in the staging billing return-origin
+   settings too.
+
+A single branch domain follows one branch/latest deployment. Reassign it deliberately or promote
+the PR commit to the dedicated preview branch before testing another PR.
 
 Privately verify the database setting `app.allowed_poe2_accounts` matches the intended normalized
 account list (or `*`) before accepting PoE2 workspace creation. The public repo does not currently

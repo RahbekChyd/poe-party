@@ -32,7 +32,7 @@ Deno.test({
       Deno.env.set('POE_REDIRECT_URI', 'https://poe-party.com/auth/callback')
       Deno.env.set(
         'POE_ALLOWED_RETURN_URLS',
-        'https://staging.poe-party.com/auth/callback,http://localhost:5173/auth/callback',
+        'https://preview-poe-party.xyz/auth/callback,http://localhost:5173/auth/callback',
       )
 
       assertEquals(
@@ -43,9 +43,15 @@ Deno.test({
         resolveOauthReturnUrl('http://localhost:5173/auth/callback'),
         'http://localhost:5173/auth/callback',
       )
+      assertEquals(
+        resolveOauthReturnUrl('https://preview-poe-party.xyz/auth/callback'),
+        'https://preview-poe-party.xyz/auth/callback',
+      )
 
       assertThrows(() => resolveOauthReturnUrl('https://evil.example/auth/callback'))
       assertThrows(() => resolveOauthReturnUrl('https://poe-party.com.evil.example/auth/callback'))
+      assertThrows(() => resolveOauthReturnUrl('https://untrusted-preview.vercel.app/auth/callback'))
+      assertThrows(() => resolveOauthReturnUrl('https://preview-poe-party.xyz.evil.example/auth/callback'))
       assertThrows(() =>
         resolveOauthReturnUrl('https://poe-party.com/auth/callback?next=/dashboard'),
       )

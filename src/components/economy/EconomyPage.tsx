@@ -30,7 +30,6 @@ import { filterHistoryByRange, type WealthHistoryRange } from '../../lib/wealth-
 import { useCurrencyStore } from '../../store/currency-store'
 import { TableSkeleton } from '../layout/Skeletons'
 import { useGroupStore } from '../../store/group-store'
-import { usePoeSession } from '../../store/poe-session-store'
 import { useMyProfile } from '../../hooks/useCurrentUser'
 import { useSnapshotSchedule } from '../../hooks/useSnapshotSchedule'
 import {
@@ -69,7 +68,6 @@ function Poe1EconomyPage() {
   const { data: characters } = useActiveCharacters(activeGroupId)
   const { data: myGroups } = useMyGroups()
   const { data: myProfile } = useMyProfile()
-  const { sessId } = usePoeSession()
   const { triggerSnapshot, isBusy, modal } = useStashSnapshotFlow()
   const display = useCurrencyStore((s) => s.display)
   const snapshotMode = useSnapshotPreferencesStore((s) => s.mode)
@@ -82,7 +80,7 @@ function Poe1EconomyPage() {
 
   const activeLeague = myGroups?.find((g) => g.group.id === activeGroupId)?.group.league ?? null
   const isPro = hasActiveProAccess(myProfile)
-  const canSnapshot = (!!sessId || !!myProfile?.poe_token_expires_at) && !!activeLeague
+  const canSnapshot = !!myProfile?.poe_token_expires_at && !!activeLeague
 
   // Live divine price from poe.ninja — 30 min stale time
   const { data: ninjaData } = useNinjaPrices(activeLeague)

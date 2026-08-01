@@ -3,14 +3,12 @@ import { useGroupStore } from '../../store/group-store'
 import { useCurrentUser, useMyProfile } from '../../hooks/useCurrentUser'
 import { useActiveCharacters } from '../../hooks/useSnapshots'
 import { useCharacterProfiles, useSyncCharacterProfile } from '../../hooks/useCharacterProfiles'
-import { usePoeSession } from '../../store/poe-session-store'
 const PROFILE_FRESHNESS_MS = 15 * 60 * 1000
 
 export function CharacterProfileSyncRunner() {
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
   const { data: currentUser } = useCurrentUser()
   const { data: profile } = useMyProfile()
-  const { sessId } = usePoeSession()
   const { data: activeCharacters } = useActiveCharacters(activeGroupId)
   const { data: characterProfiles } = useCharacterProfiles(activeGroupId)
   const { mutate: syncCharacterProfile, isPending } = useSyncCharacterProfile()
@@ -30,7 +28,7 @@ export function CharacterProfileSyncRunner() {
   )
 
   useEffect(() => {
-    const hasSyncAccess = !!profile?.poe_token_expires_at || !!sessId
+    const hasSyncAccess = !!profile?.poe_token_expires_at
     if (!activeGroupId || !currentUser?.id || !hasSyncAccess || !activeCharacter?.id) {
       return
     }
@@ -73,7 +71,6 @@ export function CharacterProfileSyncRunner() {
     myCharacterProfile?.character_id,
     myCharacterProfile?.last_synced_at,
     profile?.poe_token_expires_at,
-    sessId,
     syncCharacterProfile,
   ])
 

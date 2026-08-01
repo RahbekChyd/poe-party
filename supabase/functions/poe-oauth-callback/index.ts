@@ -27,6 +27,8 @@ type OAuthRequest = {
   code?: unknown
   state?: unknown
   code_verifier?: unknown
+  redirect_uri?: unknown
+  /** @deprecated Kept temporarily for callbacks started by an older frontend build. */
   redirect_to?: unknown
 }
 
@@ -65,14 +67,20 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Invalid JSON request body' }, 400)
     }
 
-    const { code, state, code_verifier: codeVerifier, redirect_to: redirectTo } = payload
+    const {
+      code,
+      state,
+      code_verifier: codeVerifier,
+      redirect_uri: redirectUri,
+      redirect_to: legacyRedirectTo,
+    } = payload
     if (!isNonEmptyString(code) || !isNonEmptyString(state) || !isNonEmptyString(codeVerifier)) {
       return jsonResponse({ error: 'Missing OAuth callback parameters' }, 400)
     }
 
     let allowedReturnUrl: string
     try {
-      allowedReturnUrl = resolveOauthReturnUrl(redirectTo)
+      allowedReturnUrl = resolveOauthReturnUrl(redirectUri ?? legacyRedirectTo)
     } catch (error) {
       console.warn('Rejected OAuth return URL:', error instanceof Error ? error.message : 'invalid')
       return jsonResponse({ error: 'Invalid OAuth return URL' }, 400)
@@ -80,7 +88,6 @@ Deno.serve(async (req) => {
 
     const clientId = requireEnvironmentValue('POE_CLIENT_ID')
     const clientSecret = requireEnvironmentValue('POE_CLIENT_SECRET')
-    const redirectUri = requireEnvironmentValue('POE_REDIRECT_URI')
     await assertPoeTokenEncryptionConfigured()
 
     const tokenRes = await fetch(POE_TOKEN_URL, {
@@ -89,7 +96,10 @@ Deno.serve(async (req) => {
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code: code.trim(),
-        redirect_uri: redirectUri,
+        // The authorization code must be exchanged with the exact URI used to
+        // start the flow. It has already passed the server-side exact allowlist,
+        // which lets production and the stable Vercel preview callback coexist.
+        redirect_uri: allowedReturnUrl,
         client_id: clientId,
         client_secret: clientSecret,
         scope: POE_OAUTH_SCOPES.join(' '),

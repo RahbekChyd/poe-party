@@ -1,16 +1,11 @@
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
-import { Separator } from '@heroui/react/separator'
 import { Spinner } from '@heroui/react/spinner'
 import {
   AlertCircle,
   ArrowLeft,
-  CheckCircle,
   Coins,
-  Cookie,
-  Eye,
-  EyeOff,
   Github,
   Shield,
   Sparkles,
@@ -19,36 +14,10 @@ import {
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import logo from '../../assets/poe-party-logo.png'
-import { fetchPoeCharacters } from '../../lib/poe-cookie-client'
-import { supabase } from '../../lib/supabase'
-import { storePostLoginTarget, takeStoredPostLoginTarget } from '../../lib/auth-redirect'
+import { storePostLoginTarget } from '../../lib/auth-redirect'
 import { usePoeOAuthUrl } from '../../hooks/usePoeOAuthUrl'
-import { usePoeSession } from '../../store/poe-session-store'
-import { FieldInput } from '../ui/heroui-native'
 import { GITHUB_URL } from '../../lib/seo'
 import { trackPublicEvent } from '../../lib/analytics'
-
-function isLocalUrl(value: string | undefined): boolean {
-  if (!value) return false
-  try {
-    const hostname = new URL(value).hostname
-    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
-  } catch {
-    return false
-  }
-}
-
-function isLocalCookieTransportEnabled(): boolean {
-  if (!import.meta.env.DEV || typeof window === 'undefined') return false
-  if (!isLocalUrl(window.location.origin)) return false
-  if (!isLocalUrl(import.meta.env.VITE_SUPABASE_URL as string | undefined)) return false
-
-  const configured = import.meta.env.VITE_ENABLE_COOKIE_AUTH as string | undefined
-  if (configured == null) return true
-  return ['1', 'true', 'yes', 'on'].includes(configured.trim().toLowerCase())
-}
-
-const allowLocalCookieTransport = isLocalCookieTransportEnabled()
 
 const teaserItems = [
   {
@@ -70,15 +39,9 @@ const teaserItems = [
 
 export function LoginPage() {
   const { getOAuthUrl } = usePoeOAuthUrl()
-  const { setSession } = usePoeSession()
   const getRequestedTarget = () => new URLSearchParams(window.location.search).get('next')
 
   const [oauthStatus, setOauthStatus] = useState<'idle' | 'loading' | 'error'>('idle')
-  const [accountName, setAccountName] = useState('')
-  const [sessId, setSessId] = useState('')
-  const [showSessId, setShowSessId] = useState(false)
-  const [sessIdStatus, setSessIdStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
-  const [sessIdError, setSessIdError] = useState('')
 
   const handleLogin = async () => {
     setOauthStatus('loading')
@@ -92,73 +55,6 @@ export function LoginPage() {
       setOauthStatus('error')
     }
   }
-
-  const handleSessIdConnect = async () => {
-    if (!allowLocalCookieTransport || !accountName.trim() || !sessId.trim()) return
-    storePostLoginTarget(getRequestedTarget())
-    setSessIdStatus('loading')
-    setSessIdError('')
-
-    try {
-      await fetchPoeCharacters(accountName.trim(), sessId.trim(), '')
-      setSession(accountName.trim(), sessId.trim(), '')
-
-      const slug = accountName.trim().toLowerCase().replace(/[^a-z0-9]/g, '_')
-      const internalEmail = `${slug}@cookie.poe-party.app`
-      const internalPassword = 'poe-party-cookie-auth-v1'
-      const { error: signUpError } = await supabase.auth.signUp({
-        email: internalEmail,
-        password: internalPassword,
-      })
-
-      if (signUpError && !signUpError.message.toLowerCase().includes('already')) {
-        throw signUpError
-      }
-
-      const result = await supabase.auth.signInWithPassword({
-        email: internalEmail,
-        password: internalPassword,
-      })
-      if (result.error) throw result.error
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (user) {
-        const { data: existingProfile, error: profileReadError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('id', user.id)
-          .maybeSingle()
-
-        if (profileReadError) throw profileReadError
-
-        if (existingProfile) {
-          const { error } = await supabase
-            .from('users')
-            .update({ display_name: accountName.trim() })
-            .eq('id', user.id)
-          if (error) throw error
-        } else {
-          const { error } = await supabase.from('users').insert({
-            id: user.id,
-            poe_account_name: accountName.trim(),
-            display_name: accountName.trim(),
-          })
-          if (error) throw error
-        }
-      }
-
-      setSessIdStatus('ok')
-      setTimeout(() => window.location.replace(takeStoredPostLoginTarget()), 600)
-    } catch {
-      setSessIdStatus('error')
-      setSessIdError('The local connection failed. Check the account name and session value.')
-    }
-  }
-
-  const resetCookieStatus = () => setSessIdStatus('idle')
 
   return (
     <div className="from-background via-background to-warning/5 min-h-screen bg-gradient-to-br px-4 py-5 md:py-10">
@@ -229,7 +125,8 @@ export function LoginPage() {
             {oauthStatus === 'error' ? (
               <div role="alert" className="text-danger flex items-center justify-center gap-2 text-sm">
                 <AlertCircle size={15} aria-hidden="true" />
-                Could not start OAuth. Check this deployment&apos;s configuration and try again.
+                Could not start OAuth. Open the configured preview domain or check this
+                deployment&apos;s configuration.
               </div>
             ) : null}
 
@@ -237,82 +134,6 @@ export function LoginPage() {
               You will return to the page or workspace you were trying to open.
             </p>
 
-            {allowLocalCookieTransport ? (
-              <>
-                <Separator />
-                <div className="flex flex-col gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Cookie size={14} className="text-default-400" aria-hidden="true" />
-                    <p className="text-default-500 text-xs font-medium uppercase tracking-wide">
-                      Local development transport
-                    </p>
-                    <Chip size="sm" variant="soft">Current tab only</Chip>
-                  </div>
-                  <p className="text-default-400 text-xs leading-relaxed">
-                    Available only when both the app and Supabase run locally. The session value is
-                    kept in this browser tab and is not a production sign-in method.
-                  </p>
-                  <FieldInput
-                    aria-label="Path of Exile account name for local development"
-                    size="sm"
-                    placeholder="AccountName#1234"
-                    value={accountName}
-                    onValueChange={(value) => {
-                      setAccountName(value)
-                      resetCookieStatus()
-                    }}
-                  />
-                  <FieldInput
-                    aria-label="POESESSID for local development"
-                    size="sm"
-                    placeholder="POESESSID"
-                    value={sessId}
-                    onValueChange={(value) => {
-                      setSessId(value)
-                      resetCookieStatus()
-                    }}
-                    type={showSessId ? 'text' : 'password'}
-                    endContent={
-                      <button
-                        type="button"
-                        onClick={() => setShowSessId((previous) => !previous)}
-                        className="text-default-400 hover:text-default-700 rounded-md p-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                        aria-label={showSessId ? 'Hide POESESSID' : 'Show POESESSID'}
-                      >
-                        {showSessId ? <EyeOff size={14} /> : <Eye size={14} />}
-                      </button>
-                    }
-                  />
-                  {sessIdStatus === 'error' ? (
-                    <div role="alert" className="text-danger flex items-center gap-2">
-                      <AlertCircle size={13} aria-hidden="true" />
-                      <p className="text-xs">{sessIdError}</p>
-                    </div>
-                  ) : null}
-                  {sessIdStatus === 'ok' ? (
-                    <div role="status" className="text-success flex items-center gap-2">
-                      <CheckCircle size={13} aria-hidden="true" />
-                      <p className="text-xs">Connected — redirecting…</p>
-                    </div>
-                  ) : null}
-                  <Button
-                    onPress={handleSessIdConnect}
-                    isPending={sessIdStatus === 'loading'}
-                    isDisabled={!accountName.trim() || !sessId.trim() || sessIdStatus === 'ok'}
-                    className="w-full"
-                    variant="tertiary"
-                    size="sm"
-                  >
-                    {({ isPending }) => (
-                      <>
-                        {isPending ? <Spinner color="current" size="sm" /> : null}
-                        Connect to local Supabase
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </>
-            ) : null}
           </Card.Content>
         </Card>
 

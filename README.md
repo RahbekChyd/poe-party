@@ -53,7 +53,6 @@ Important frontend variables:
 - `VITE_SUPABASE_FUNCTIONS_KEY`
 - `VITE_POE_CLIENT_ID`
 - `VITE_POE_REDIRECT_URI`
-- `VITE_ENABLE_COOKIE_AUTH`
 - `VITE_POE2_ALLOWED_ACCOUNT_NAMES`: optional comma-separated PoE2 early-access account gate, or `*`.
 - `VITE_BILLING_ALLOWED_POE_ACCOUNTS`: optional temporary billing rollout gate.
 

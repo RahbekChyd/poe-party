@@ -78,7 +78,7 @@ enabled = true
 # in emails.
 site_url = "http://localhost:5173"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["http://localhost:5173", "https://localhost:5173", "https://poe-party.com/auth/callback"]
+additional_redirect_urls = ["http://localhost:5173", "https://localhost:5173", "https://poe-party.com/auth/callback", "https://preview-poe-party.xyz/auth/callback"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 seconds (one
 # week).
 jwt_expiry = 3600
@@ -96,7 +96,7 @@ enable_manual_linking = false
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.
-# Enabled locally for Supabase auth flows such as session-cookie development.
+# Enabled locally for Supabase Auth test flows.
 enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.

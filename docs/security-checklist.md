@@ -2,7 +2,7 @@
 
 Last updated: March 10, 2026
 
-This checklist is specific to the current PoE Party stack: Vite frontend, Supabase auth/database/functions, Path of Exile OAuth integration, optional session-cookie flow, and poe.ninja pricing ingestion.
+This checklist is specific to the current PoE Party stack: Vite frontend, Supabase auth/database/functions, Path of Exile OAuth integration, and poe.ninja pricing ingestion.
 
 ## 1. Authentication and Token Handling
 
@@ -13,13 +13,11 @@ This checklist is specific to the current PoE Party stack: Vite frontend, Supaba
 - Check token refresh flows for replay, missing expiry handling, and stale-token cleanup.
 - Document exactly which OAuth scopes are requested and why each one is still needed.
 
-## 2. Cookie-Based Auth Fallback
+## 2. Retired Cookie Authentication
 
-- Verify `VITE_ENABLE_COOKIE_AUTH` is disabled in production unless there is an explicit decision to keep it.
-- Confirm the session-cookie flow is clearly labeled as non-primary and not presented to normal production users.
-- Review whether `POESESSID` or related cookie values can ever be persisted, logged, or returned in an error.
-- Validate the derived internal auth-account pattern cannot be abused for account takeover or unintended account linking.
-- Confirm failed cookie-auth attempts do not leak whether a PoE account exists.
+- Confirm no UI, local proxy, storage, or fallback accepts `POESESSID` or related cookie values.
+- Keep the hosted legacy cookie endpoints as credential-blind `410` tombstones while stale clients may exist.
+- Confirm logs and error payloads never contain old cookie values or derived cookie-auth credentials.
 
 ## 3. Supabase Auth and RLS
 
@@ -34,7 +32,7 @@ This checklist is specific to the current PoE Party stack: Vite frontend, Supaba
 
 - Review all functions under `supabase/functions/` for auth checks, parameter validation, and least-privilege access.
 - Confirm public functions do not allow privilege escalation or unauthenticated sensitive actions.
-- Validate `cookie-auth`, `poe-oauth-callback`, `poe-refresh-token`, `poe-snapshot`, and sync functions for input validation and authorization boundaries.
+- Validate the `cookie-auth` tombstone plus `poe-oauth-callback`, `poe-refresh-token`, `poe-snapshot`, and sync functions for input validation and authorization boundaries.
 - Ensure CORS settings only allow intended origins and methods.
 - Confirm function errors are sanitized before being returned to the client.
 

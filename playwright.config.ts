@@ -43,7 +43,6 @@ export default defineConfig({
         process.env.VITE_SUPABASE_ANON_KEY ?? 'public-browser-test-key',
       VITE_SUPABASE_FUNCTIONS_KEY:
         process.env.VITE_SUPABASE_FUNCTIONS_KEY ?? 'public-browser-test-key',
-      VITE_ENABLE_COOKIE_AUTH: 'false',
     },
   },
 })

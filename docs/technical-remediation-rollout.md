@@ -81,4 +81,5 @@ identity collision, duplicate charge, partial optimizer persistence, or raw-data
   stash or optimizer parity.
 - Public profiles are explicit opt-in curated build profiles; they never expose inventory, atlas,
   raw provider payloads, or internal identifiers.
-- POESESSID is a localhost development transport only and never establishes application identity.
+- Cookie authentication and the POESESSID transport are fully retired; legacy hosted endpoints are
+  credential-blind `410` tombstones only.

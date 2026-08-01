@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLatestSnapshots } from './useSnapshots'
 import { useCurrentUser, useMyProfile } from './useCurrentUser'
-import { usePoeSession } from '../store/poe-session-store'
+import { useStashTabSelectionStore } from '../store/stash-tab-selection-store'
 import { useSnapshotPreferencesStore } from '../store/snapshot-preferences-store'
 import { useActiveGroupContext } from './useGroups'
 import { hasActiveProAccess } from '../lib/billing'
@@ -20,7 +20,7 @@ export function useSnapshotSchedule(groupId: string | null) {
   const { data: user } = useCurrentUser()
   const { data: profile } = useMyProfile()
   const { data: snapshots } = useLatestSnapshots(groupId)
-  const { sessId, selectedTabIds } = usePoeSession()
+  const selectedTabIds = useStashTabSelectionStore((state) => state.selectedTabIds)
   const { league: activeLeague, capabilities } = useActiveGroupContext(groupId)
   const mode = useSnapshotPreferencesStore((s) => s.mode)
   const intervalHours = useSnapshotPreferencesStore((s) => s.intervalHours)
@@ -37,9 +37,8 @@ export function useSnapshotSchedule(groupId: string | null) {
   const mySnapshot = snapshots?.find((s) => s.user_id === user?.id)
   const isPro = hasActiveProAccess(profile)
   const hasOAuthAccess = !!profile?.poe_token_expires_at
-  const hasCookieAccess = !!sessId
   const hasSavedTabs = (selectedTabIds?.length ?? 0) > 0
-  const hasSnapshotAccess = hasCookieAccess || hasOAuthAccess
+  const hasSnapshotAccess = hasOAuthAccess
   const intervalMs = intervalHours * 60 * 60 * 1000
 
   useEffect(() => {

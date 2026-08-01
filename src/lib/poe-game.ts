@@ -4,7 +4,6 @@ export type PoeRealm = 'pc' | 'poe2'
 
 export interface PoeGameCapabilities {
   supportsAccountLeagues: boolean
-  supportsCookieAuth: boolean
   supportsStashSnapshots: boolean
   supportsGroupEconomy: boolean
   supportsAtlasTree: boolean
@@ -18,7 +17,6 @@ export interface PoeGameCapabilities {
 const POE_GAME_CAPABILITIES: Record<PoeGame, PoeGameCapabilities> = {
   poe1: {
     supportsAccountLeagues: true,
-    supportsCookieAuth: true,
     supportsStashSnapshots: true,
     supportsGroupEconomy: true,
     supportsAtlasTree: true,
@@ -30,7 +28,6 @@ const POE_GAME_CAPABILITIES: Record<PoeGame, PoeGameCapabilities> = {
   },
   poe2: {
     supportsAccountLeagues: false,
-    supportsCookieAuth: false,
     supportsStashSnapshots: false,
     supportsGroupEconomy: false,
     supportsAtlasTree: false,
