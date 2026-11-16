@@ -103,6 +103,10 @@ Deno.serve(async (req) => {
     const primaryPayload = asRecord(primaryItem?.item_payload)
     const actionType = normalizeActionType(primaryPayload.action_type)
     const iconUrl = primaryPayload.icon_url ?? primaryPayload.icon ?? null
+    // Untyped embedded relations can be inferred as arrays even for a to-one join.
+    const targetStage = Array.isArray(plan.target_stage)
+      ? plan.target_stage[0]
+      : plan.target_stage
 
     const itemName = trimToLength(
       primaryItem?.item_name ||
@@ -113,7 +117,7 @@ Deno.serve(async (req) => {
 
     const notes = trimToLength(
       [
-        plan.target_stage?.label ? `Stage: ${plan.target_stage.label}` : null,
+        targetStage?.label ? `Stage: ${targetStage.label}` : null,
         plan.category === 'unlock_next_stage' ? 'Unlock next stage' : null,
         plan.summary,
         plan.explanation,

@@ -4,6 +4,7 @@ Purpose: low-context handoff for the next Codex session. Keep this file short, c
 
 ## Latest Conclusions
 
+- The deployment validation's `promote-upgrade-recommendation` type failure is fixed on `fix/recommendation-stage-relation`: normalize the embedded target-stage relation before reading its label. Supabase Validate now checks every Edge entry point, matching private deployment validation, instead of omitting four functions from a hand-maintained list. PR #2's remediation is merged; this follow-up must also merge before choosing the next public release SHA.
 - The July 2026 technical/product remediation is implemented locally in the current worktree. No hosted Supabase, Vercel, Stripe, worker, OAuth, or production data was inspected or changed.
 - Product direction is the connected **Plan -> Play -> Snapshot -> Learn -> Upgrade** loop. Authenticated navigation is Today, Runs, Builds, Party, and Discover; public Analysis and Strategies are the primary acquisition paths.
 - The public root is now a real product home. Login keeps OAuth above the mobile fold, onboarding is inline/nonblocking, query failures have retry states, mobile has bottom navigation, and a missing deployment configuration renders a safe fallback instead of a blank app.
@@ -22,7 +23,7 @@ Purpose: low-context handoff for the next Codex session. Keep this file short, c
 
 ## Next Steps
 
-1. Follow `docs/manual-release-runbook.md`: freeze a reviewed commit SHA, require App Validate and Supabase Validate, then execute database -> coordinated Edge -> one-worker canary -> frontend in staging before production.
+1. Merge `fix/recommendation-stage-relation` after Supabase Validate, then choose the full public main merge SHA and start a fresh private operations staging plan. The original c9f82c0 release still contains this type error. Follow `docs/manual-release-runbook.md`: database -> coordinated Edge -> one-worker canary -> frontend in staging before production. No hosted deployment is implied by this source fix.
 2. Point `preview-poe-party.xyz` at the reviewed PR branch/deployment, configure the exact callback in Vercel Preview, Edge `POE_ALLOWED_RETURN_URLS`, and hosted Supabase Auth, then run the authenticated staging matrix through that origin. Browser automation covers public routes plus OAuth-only login/storage cleanup, not a live GGG callback.
 3. Reconcile legacy OAuth identities/sessions through private operations, backfill plaintext/old-key token rows in bounded batches, report counts/key IDs only, and defer the destructive token contract migration until every documented zero-row gate passes.
 4. Monitor authorization denials, OAuth failures, queue age/retries/expired attempts, optimizer failures, guest `429`/`413`, webhook leases, duplicate Checkout attempts, raw-data exposure, and the privacy-safe activation funnel for at least 24 hours after canary.
@@ -39,6 +40,7 @@ Purpose: low-context handoff for the next Codex session. Keep this file short, c
 
 ## Latest Verification
 
+- November 16, 2026 Edge relation follow-up: pinned Deno 2.5.6 reproduced both TS2339 failures before the fix; all 17 Edge Functions type-check after it. OAuth helper tests pass 3/3, crypto tests pass 5/5, workflow actionlint and whitespace checks pass. No database/schema, authorization policy, hosted service, or deployed function was changed.
 - August 1, 2026 preview-auth/cookie-retirement follow-up: type-check, lint, 5 frontend unit tests, production build, bundle budgets, and 18 Playwright + axe desktop/mobile checks passed. Login verification confirms no POESESSID UI and scrubs legacy credential storage while retaining only stash-tab IDs. OAuth exact-URL tests cover the preview callback and hostile lookalikes; Deno was unavailable locally, so CI `Supabase Validate` remains required. No hosted service was accessed or changed.
 - July 25, 2026 PR follow-up: `seroval` resolved to patched `1.5.6`; the production dependency audit, type-check, and production build passed. Migration `0088` applied as one top-level statement with `anon=false`, `authenticated=false`, and `service_role=true` execution privileges; rollback-only replay of `0081`–`0088` plus the atomic queue pgTAP suite passed 21/21 assertions. No local reset or hosted operation was performed.
 - July 24, 2026 PR follow-up: official Gitleaks 8.24.3 reproduced the App Validate commit-range scan and reported no leaks after exact fingerprint ignores were added for two deterministic worker-auth test fixtures; lint and all 16 worker tests passed.
