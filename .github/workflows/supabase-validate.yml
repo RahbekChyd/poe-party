@@ -65,22 +65,8 @@ jobs:
       - name: Run database authorization tests
         run: supabase test db
 
-      - name: Type-check security-critical Edge Functions
-        run: >-
-          deno check --node-modules-dir=none
-          supabase/functions/cookie-auth/index.ts
-          supabase/functions/create-checkout-session/index.ts
-          supabase/functions/guest-queue-upgrade-analysis/index.ts
-          supabase/functions/guest-upgrade-analysis-status/index.ts
-          supabase/functions/poe-account-leagues/index.ts
-          supabase/functions/poe-list-stash-tabs/index.ts
-          supabase/functions/poe-oauth-callback/index.ts
-          supabase/functions/poe-refresh-token/index.ts
-          supabase/functions/poe-snapshot/index.ts
-          supabase/functions/poe-sync-character-profile/index.ts
-          supabase/functions/poe-sync-characters/index.ts
-          supabase/functions/queue-upgrade-analysis/index.ts
-          supabase/functions/stripe-webhook/index.ts
+      - name: Type-check all Edge Functions
+        run: deno check --node-modules-dir=none supabase/functions/*/index.ts
 
       - name: Test OAuth security helpers
         run: >-
