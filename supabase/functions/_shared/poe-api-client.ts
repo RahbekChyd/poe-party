@@ -106,7 +106,10 @@ export class PoeApiClient {
     return this.fetch('/character', realm ? { realm } : undefined)
   }
 
-  async getCharacter(name: string, realm?: string): Promise<{ character: PoeCharacterDetail | null }> {
+  async getCharacter(
+    name: string,
+    realm?: string,
+  ): Promise<{ character: PoeCharacterDetail | null }> {
     return this.fetch(`/character/${encodeURIComponent(name)}`, realm ? { realm } : undefined)
   }
 
@@ -118,7 +121,10 @@ export class PoeApiClient {
     league: string,
     realm?: string,
   ): Promise<{ league_account: PoeLeagueAccount | null }> {
-    return this.fetch(`/league-account/${encodeURIComponent(league)}`, realm ? { realm } : undefined)
+    return this.fetch(
+      `/league-account/${encodeURIComponent(league)}`,
+      realm ? { realm } : undefined,
+    )
   }
 
   async listStashes(league: string): Promise<{ stashes: PoeStashTab[] }> {
@@ -265,4 +271,5 @@ export interface PoeItem {
 
 export interface PoeStashTabWithItems extends PoeStashTab {
   items: PoeItem[]
+  children?: PoeStashTabWithItems[]
 }

@@ -1,7 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
 import { ListBox } from '@heroui/react/list-box'
+import { ToggleButton } from '@heroui/react/toggle-button'
+import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
 import { Globe } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useScarabData } from '../../hooks/useScarabNames'
@@ -15,9 +17,17 @@ import { getPoeGameCapabilities, getPoeGameShortLabel } from '../../lib/poe-game
 import { trackPublicEvent } from '../../lib/analytics'
 import { SelectField } from '../ui/heroui-native'
 import { StrategyInfoSection } from '../strategies/StrategyInfoSection'
+import { StrategyMetadataBadges } from '../strategies/StrategyMetadataBadges'
+import {
+  STRATEGY_CONTENT_STAGE_OPTIONS,
+  type StrategyContentStage,
+} from '../../lib/public-strategy-content'
+import { QueryFreshnessNotice, QueryStatePanel } from '../ui/QueryStatePanel'
 const divinePrice = 205
+type StageFilter = StrategyContentStage | 'all'
 
 export function GuestStrategiesPage() {
+  const [stageFilter, setStageFilter] = useState<StageFilter>('all')
   const { canUsePoe2, availableGames } = usePoeGameAccess()
   const {
     leagues,
@@ -26,8 +36,17 @@ export function GuestStrategiesPage() {
     selectedLeague,
     setSelectedLeague,
     isLoading: leagueLoading,
+    isError: leagueError,
+    isFetching: leagueFetching,
+    refetch: refetchLeagues,
   } = usePreviewLeague(canUsePoe2)
-  const { data: strategies = [], isLoading } = useGuestPublicStrategies(
+  const {
+    data: strategies = [],
+    isLoading,
+    isError,
+    isFetching,
+    refetch,
+  } = useGuestPublicStrategies(
     selectedGame,
     selectedLeague,
   )
@@ -39,6 +58,13 @@ export function GuestStrategiesPage() {
   const scarabIconMap = useMemo(
     () => new Map(scarabData.map((scarab) => [scarab.name, scarab.icon])),
     [scarabData],
+  )
+  const filteredStrategies = useMemo(
+    () =>
+      stageFilter === 'all'
+        ? strategies
+        : strategies.filter((strategy) => strategy.content_metadata?.stage === stageFilter),
+    [stageFilter, strategies],
   )
 
   return (
@@ -99,26 +125,83 @@ export function GuestStrategiesPage() {
         </Card.Content>
       </Card>
 
-      {isLoading ? (
-        <Card>
-          <Card.Content className="text-default-400 p-10 text-center text-sm">
-            Loading live public strategies...
-          </Card.Content>
-        </Card>
+      <div className="flex flex-wrap items-center gap-2">
+        <ToggleButtonGroup
+          size="sm"
+          className="flex max-w-full flex-wrap"
+          selectionMode="single"
+          disallowEmptySelection
+          selectedKeys={new Set([stageFilter])}
+          onSelectionChange={(keys) => {
+            const [nextStage] = Array.from(keys)
+            if (
+              nextStage === 'all' ||
+              STRATEGY_CONTENT_STAGE_OPTIONS.some((option) => option.value === nextStage)
+            ) {
+              setStageFilter(nextStage as StageFilter)
+            }
+          }}
+        >
+          <ToggleButton id="all">All</ToggleButton>
+          {STRATEGY_CONTENT_STAGE_OPTIONS.map((option) => (
+            <ToggleButton key={option.value} id={option.value}>
+              {option.label}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+      </div>
+
+      {leagueError && leagues.length === 0 ? (
+        <QueryStatePanel
+          kind="error"
+          title="Leagues are unavailable"
+          description="We could not load the current league list. Retry before browsing strategies."
+          onRetry={refetchLeagues}
+        />
+      ) : null}
+
+      <QueryFreshnessNotice
+        isRefreshing={(leagueFetching && leagues.length > 0) || (isFetching && strategies.length > 0)}
+        refreshFailed={(leagueError && leagues.length > 0) || (isError && strategies.length > 0)}
+        onRetry={() => {
+          void refetchLeagues()
+          void refetch()
+        }}
+      />
+
+      {isError && strategies.length === 0 ? (
+        <QueryStatePanel
+          kind="error"
+          title="Strategies could not be loaded"
+          description="The public strategy directory did not respond. This is not an empty league result."
+          onRetry={refetch}
+        />
+      ) : isLoading ? (
+        <QueryStatePanel
+          kind="loading"
+          title="Loading strategies"
+          description="Checking the selected league for public strategy listings."
+        />
       ) : strategies.length === 0 ? (
-        <Card>
-          <Card.Content className="flex flex-col items-center gap-3 p-12 text-center">
-            <Globe size={32} className="text-default-300" />
-            <p className="text-default-400 text-sm">
-              No public strategies were found for {selectedLeague ?? 'the selected league'}.
-            </p>
-          </Card.Content>
-        </Card>
+        <QueryStatePanel
+          kind="empty"
+          icon={<Globe size={32} className="text-default-300" />}
+          title={`No public strategies in ${selectedLeague ?? 'the selected league'}`}
+          description="Try another game or league, or check again after new strategies are published."
+        />
+      ) : filteredStrategies.length === 0 ? (
+        <QueryStatePanel
+          kind="empty"
+          icon={<Globe size={32} className="text-default-300" />}
+          title="No strategies match this stage"
+          description={`Try another stage or league. The current league is ${selectedLeague ?? 'not selected'}.`}
+        />
       ) : (
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-default-500 text-sm">
-              Showing {strategies.length} live public strateg{strategies.length === 1 ? 'y' : 'ies'}
+              Showing {filteredStrategies.length} live public strateg
+              {filteredStrategies.length === 1 ? 'y' : 'ies'}
               {selectedLeague ? ` for ${getPoeGameShortLabel(selectedGame)} ${selectedLeague}` : ''}
               .
             </p>
@@ -127,7 +210,7 @@ export function GuestStrategiesPage() {
             </Link>
           </div>
 
-          {strategies.map((strategy) => {
+          {filteredStrategies.map((strategy) => {
             const diffChip = DIFFICULTY_CHIP[strategy.difficulty] ?? DIFFICULTY_CHIP.normal
             const strategyGame = strategy.group_game ?? selectedGame
             const capabilities = getPoeGameCapabilities(strategyGame)
@@ -167,6 +250,10 @@ export function GuestStrategiesPage() {
                             ~= {formatCurrencyAmount(strategy.map_cost, 'chaos', divinePrice)}/map
                           </Chip>
                         ) : null}
+                        <StrategyMetadataBadges
+                          metadata={strategy.content_metadata}
+                          includeVerified={false}
+                        />
                       </div>
 
                       {strategy.description ? (

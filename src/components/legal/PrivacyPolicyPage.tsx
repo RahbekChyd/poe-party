@@ -2,7 +2,7 @@ import { CONTACT_EMAIL, CONTACT_MAILTO } from '../../lib/seo'
 import { LegalLayout } from './LegalLayout'
 export function PrivacyPolicyPage() {
   return (
-    <LegalLayout title="Privacy Policy" lastUpdated="May 13, 2026">
+    <LegalLayout title="Privacy Policy" lastUpdated="July 20, 2026">
       <p>
         Your privacy is important to us. This Privacy Policy explains what information PoE Party
         collects for its Path of Exile group tools, how we use it, and your rights regarding your
@@ -13,8 +13,10 @@ export function PrivacyPolicyPage() {
       <p>When you use PoE Party, we collect the following information:</p>
       <ul>
         <li>
-          <strong>Account information:</strong> Your Path of Exile account name and email address,
-          obtained through PoE OAuth authentication
+          <strong>Account information:</strong> Your Path of Exile account name and immutable OAuth
+          account subject. PoE Party creates an internal synthetic email address for Supabase
+          authentication; Path of Exile OAuth does not provide your personal email address to the
+          app.
         </li>
         <li>
           <strong>Character data:</strong> Your PoE character names, levels, classes, and equipment
@@ -86,7 +88,9 @@ export function PrivacyPolicyPage() {
           <strong>poe.ninja:</strong> Fetching current economy and pricing data
         </li>
         <li>
-          <strong>Vercel Analytics:</strong> Aggregated app usage and performance analytics
+          <strong>Vercel Analytics:</strong> Aggregated app usage, performance, and coarse product
+          activation milestones. Custom events do not include account, workspace, character, item,
+          or run identifiers.
         </li>
         <li>
           <strong>Stripe:</strong> Payment checkout, subscriptions, invoices, and customer billing
@@ -130,7 +134,7 @@ export function PrivacyPolicyPage() {
       <h2>9. Contact</h2>
       <p>
         For privacy-related questions or data requests, contact us at{' '}
-        <a href={CONTACT_MAILTO} className="text-primary hover:underline">
+        <a href={CONTACT_MAILTO} className="text-primary underline underline-offset-2 hover:no-underline">
           {CONTACT_EMAIL}
         </a>
         .

@@ -138,6 +138,16 @@ export interface PoeStashTab {
   }
 }
 
+/** Compact stash-tab shape returned by the poe-list-stash-tabs Edge Function. */
+export interface PoeStashTabSummary {
+  id: string
+  n: string
+  i: number
+  type: string
+  colour: { r: number; g: number; b: number }
+  hidden?: boolean
+}
+
 export interface PoeStashTabWithItems extends PoeStashTab {
   items: PoeItem[]
 }

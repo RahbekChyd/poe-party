@@ -9,7 +9,8 @@ The worker is currently run locally with Docker, not with a separate Node build 
 - Image tag: `poe-optimizer-worker-local-image`
 - Container name: `poe-optimizer-worker-local`
 - Host port: `8788`
-- Health endpoint: `http://127.0.0.1:8788/health`
+- Readiness endpoint: `http://127.0.0.1:8788/health`
+- Liveness endpoint: `http://127.0.0.1:8788/health/live`
 - Local Supabase URL from inside Docker: `http://host.docker.internal:45121`
 
 Important:
@@ -17,6 +18,7 @@ Important:
 - There is no dedicated worker build script in `optimizer-worker/package.json`.
 - "Rebuild the worker locally" means rebuilding the Docker image from `optimizer-worker/Dockerfile`.
 - The container already carries the required worker env vars, including `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `WORKER_AUTH_TOKEN`, and `POB_RUNTIME_COMMAND`.
+- `WORKER_AUTH_TOKEN` must be a unique value of at least 32 bytes. Old local containers using `dev-worker-token` must be recreated with a stronger local token.
 
 ## Fast Restart Workflow
 
@@ -47,7 +49,7 @@ $runArgs = @(
   '-p', '8788:8788'
 )
 
-foreach ($name in @('SUPABASE_URL','SUPABASE_SECRET_KEY','WORKER_AUTH_TOKEN','POE_TRADE_USER_AGENT','WORKER_POLL_INTERVAL_MS','WORKER_MAX_CONCURRENT_RUNS','WORKER_HEARTBEAT_INTERVAL_MS','WORKER_STALE_RUNNING_AFTER_MS')) {
+foreach ($name in @('SUPABASE_URL','SUPABASE_SECRET_KEY','WORKER_AUTH_TOKEN','POE_TRADE_USER_AGENT','WORKER_POLL_INTERVAL_MS','WORKER_MAX_CONCURRENT_RUNS','WORKER_HEARTBEAT_INTERVAL_MS','WORKER_STALE_RUNNING_AFTER_MS','WORKER_MAX_STASH_ITEMS','WORKER_SHUTDOWN_TIMEOUT_MS')) {
   if ($envMap.ContainsKey($name) -and $envMap[$name]) {
     $runArgs += @('-e', ("{0}={1}" -f $name, $envMap[$name]))
   }
@@ -69,6 +71,7 @@ If a stopped container starts but logs `JWT expired` from Supabase polling, recr
 After restart:
 
 ```powershell
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8788/health/live | Select-Object -ExpandProperty Content
 Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8788/health | Select-Object -ExpandProperty Content
 docker logs --tail 50 poe-optimizer-worker-local
 docker ps --filter "name=poe-optimizer-worker-local"
@@ -81,6 +84,8 @@ Healthy output should include:
 - `"pob_runtime_configured":true`
 - `"poll_loop_active":true`
 
+`/health/live` stays available during startup and draining. `/health` and `/health/ready` return `503` until the worker has completed a successful Supabase poll, and immediately become unready during shutdown.
+
 ## If The Container Does Not Exist Yet
 
 If you need to create the local worker from scratch instead of reusing an existing container:
@@ -92,7 +97,7 @@ If you need to create the local worker from scratch instead of reusing an existi
 ```powershell
 $env:SUPABASE_URL = 'http://host.docker.internal:45121'
 $env:SUPABASE_SECRET_KEY = '<local-secret-from-supabase-status>'
-$env:WORKER_AUTH_TOKEN = 'dev-worker-token'
+$env:WORKER_AUTH_TOKEN = 'local-only-worker-token-0123456789abcdef'
 
 docker build -t poe-optimizer-worker-local-image .\optimizer-worker
 docker run -d --name poe-optimizer-worker-local -p 8788:8788 `

@@ -17,7 +17,7 @@ Use this skill to orient work in the PoE Party repo. Treat the current checkout 
 
 ## Repo Shape
 
-- Frontend: Vite, React 18, TypeScript, TanStack Router, TanStack Query, HeroUI, Tailwind, Zustand.
+- Frontend: Vite, React 19, TypeScript, TanStack Router, TanStack Query, HeroUI, Tailwind, Zustand.
 - Backend/data: Supabase auth, database migrations, RLS, RPCs, and Edge Functions under `supabase/`.
 - Worker: `optimizer-worker/` container service for queued gear optimizer analysis with PoB runtime and trade analysis.
 - Deployment: frontend on Vercel, Supabase project for DB/functions, optimizer worker as its own container service.
@@ -30,9 +30,16 @@ Use `pnpm` from repo root:
 ```powershell
 pnpm type-check
 pnpm lint
+pnpm test
+pnpm test:worker
 pnpm build
+pnpm check:bundle
+pnpm test:e2e
 pnpm dev
 ```
+
+If the global pnpm launcher fails under the installed Node version, use the repository-pinned
+launcher form: `npm exec --yes pnpm@10.33.2 -- <script>`.
 
 Use `pnpm generate` after changing TanStack route files if route generation is not handled by the dev/build flow.
 

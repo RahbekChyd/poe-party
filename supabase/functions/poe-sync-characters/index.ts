@@ -53,22 +53,36 @@ Deno.serve(async (req) => {
     }
 
     const adminClient = createAdminClient()
-    const { data: groupData, error: groupError } = await adminClient
-      .from('groups')
-      .select('game')
-      .eq('id', group_id)
-      .single()
+    const [{ data: groupData, error: groupError }, { data: membership, error: membershipError }] =
+      await Promise.all([
+        adminClient.from('groups').select('game, league').eq('id', group_id).single(),
+        adminClient
+          .from('group_members')
+          .select('role')
+          .eq('group_id', group_id)
+          .eq('user_id', user_id)
+          .maybeSingle(),
+      ])
 
     if (groupError) throw groupError
+    if (membershipError) throw membershipError
+    if (!membership) {
+      return new Response(JSON.stringify({ error: 'Not a member of this group' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const game = normalizePoeGame(groupData?.game)
+    const groupLeague = typeof groupData?.league === 'string' ? groupData.league : ''
     const accessToken = await ensureFreshPoeAccessToken(user_id)
     const poeClient = new PoeApiClient(accessToken)
     const { characters } = await poeClient.getCharacters(getPoeRealm(game))
+    const groupCharacters = characters.filter((character) => character.league === groupLeague)
 
-    if (characters.length > 0) {
+    if (groupCharacters.length > 0) {
       const { error: upsertError } = await adminClient.from('characters').upsert(
-        characters.map((c) => {
+        groupCharacters.map((c) => {
           const normalized = normalizeCharacterClassInfo(game, c.class, c.ascendancyClass ?? 0)
           return {
             user_id,
@@ -92,7 +106,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ count: characters.length }),
+      JSON.stringify({ count: groupCharacters.length }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   } catch (err) {

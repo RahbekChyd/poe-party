@@ -1,0 +1,563 @@
+{
+  "lastmod": "2026-07-17",
+  "sourceInbox": "tmp_strategy_sources/3.29",
+  "entries": [
+    {
+      "slug": "poe-3-29-league-starters",
+      "game": "poe1",
+      "league": "3.29",
+      "patch": "3.29",
+      "stage": "league_starter",
+      "kind": "league_starter",
+      "confidence": "source_backed",
+      "title": "PoE 3.29 league starter strategies",
+      "headline": "Track PoE 3.29 league starters by source, role, and early economy fit.",
+      "summary": "A public strategy board for collecting source-attributed 3.29 league starters without turning PoE Party into a full build-guide site.",
+      "intro": "Use this 3.29 league starter page to collect external build sources, compare campaign-to-map readiness, and decide which starters deserve a workspace strategy before launch.",
+      "tags": ["3.29", "League starter", "Build sources", "Launch planning"],
+      "tracking": [
+        "Keep source links and notes attached to a single strategy card.",
+        "Separate starter picks by role, expected cost, and early map safety.",
+        "Subscribe to the public strategy once your group chooses a launch plan."
+      ],
+      "sourceRefs": [
+        {
+          "label": "Official Path of Exile news",
+          "url": "https://www.pathofexile.com/forum/view-forum/news",
+          "type": "official"
+        },
+        {
+          "label": "Official Path of Exile patch notes",
+          "url": "https://www.pathofexile.com/forum/view-forum/patch-notes",
+          "type": "official"
+        }
+      ],
+      "verifiedAt": "2026-07-17",
+      "seo": {
+        "title": "PoE 3.29 league starter strategies",
+        "description": "Track Path of Exile 3.29 league starter strategy sources, early mapping readiness, party roles, and launch planning notes in PoE Party.",
+        "priority": 0.95,
+        "changefreq": "daily",
+        "llmsSection": "3.29 Strategy Pages"
+      },
+      "strategy": {
+        "name": "3.29 League Starter Source Board",
+        "description": "Collect source-attributed 3.29 league starter candidates, summarize the role each build fills, and keep launch notes close to the public strategy subscribers can copy into their own workspace.",
+        "colour": "#f5a524",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "slug": "poe-3-29-build-source-roundup",
+      "game": "poe1",
+      "league": "3.29",
+      "patch": "3.29",
+      "stage": "league_starter",
+      "kind": "build_source",
+      "confidence": "curated",
+      "title": "PoE 3.29 league starter build source roundup",
+      "headline": "Use external build creators as sources, then track the chosen starter in PoE Party.",
+      "summary": "A source roundup page for build-guide links that should be cited instead of copied.",
+      "intro": "This page is designed for source-attributed starter links from your markdown notes. The public strategy keeps the comparison and decision context while the full build guide stays with the original creator.",
+      "tags": ["3.29", "Build guides", "Source roundup", "Starter comparison"],
+      "tracking": [
+        "Store each creator link as a source reference instead of duplicating the guide.",
+        "Record whether the starter is solo, duo, support, mapper, or bosser friendly.",
+        "Keep later updates visible by refreshing the strategy metadata instead of recreating cards."
+      ],
+      "sourceRefs": [
+        {
+          "label": "Official Path of Exile news",
+          "url": "https://www.pathofexile.com/forum/view-forum/news",
+          "type": "official"
+        }
+      ],
+      "sourceFiles": ["tmp_strategy_sources/3.29/league-starter-build-sources.md"],
+      "verifiedAt": "2026-07-17",
+      "seo": {
+        "title": "PoE 3.29 league starter build sources",
+        "description": "Collect external Path of Exile 3.29 league starter build sources in PoE Party while keeping full build guides attributed to their creators.",
+        "priority": 0.92,
+        "changefreq": "daily",
+        "llmsSection": "3.29 Strategy Pages"
+      },
+      "strategy": {
+        "name": "3.29 Build Source Roundup",
+        "description": "A curated source board for external 3.29 league starter build links. Use it to compare role, cost, and campaign-to-map readiness without copying full creator guides.",
+        "colour": "#14b8a6",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "slug": "poe-3-29-atlas-completion",
+      "game": "poe1",
+      "league": "3.29",
+      "patch": "3.29",
+      "stage": "early_maps",
+      "kind": "farming",
+      "confidence": "curated",
+      "title": "PoE 3.29 atlas completion strategy",
+      "headline": "Turn early atlas completion into a measurable 3.29 strategy.",
+      "summary": "A low-investment early mapping plan for atlas points, map sustain, and first currency tracking.",
+      "intro": "Atlas completion is usually the first real economy strategy of a league. Track map sustain, voidstone progress, and early currency movement as a public or private strategy.",
+      "tags": ["3.29", "Early maps", "Atlas completion", "Map sustain"],
+      "tracking": [
+        "Use one active strategy while progressing atlas completion.",
+        "Keep early map-cost assumptions separate from later farming setups.",
+        "Record when the strategy shifts from completion to currency farming."
+      ],
+      "sourceRefs": [
+        {
+          "label": "Official Path of Exile patch notes",
+          "url": "https://www.pathofexile.com/forum/view-forum/patch-notes",
+          "type": "official"
+        }
+      ],
+      "verifiedAt": "2026-07-17",
+      "seo": {
+        "title": "PoE 3.29 atlas completion strategy",
+        "description": "Plan Path of Exile 3.29 atlas completion with early map sustain, low investment notes, and strategy-linked progress tracking.",
+        "priority": 0.9,
+        "changefreq": "daily",
+        "llmsSection": "3.29 Strategy Pages"
+      },
+      "strategy": {
+        "name": "3.29 Atlas Completion",
+        "description": "Early league atlas completion plan for pushing map bonus, sustaining maps, and deciding when to move into dedicated currency strategies.",
+        "colour": "#60a5fa",
+        "difficulty": "easy",
+        "mapCost": 2,
+        "mapRequirements": {
+          "item_quantity": 60,
+          "pack_size": 15
+        }
+      }
+    },
+    {
+      "slug": "poe-3-29-alch-and-go",
+      "game": "poe1",
+      "league": "3.29",
+      "patch": "3.29",
+      "stage": "alch_and_go",
+      "kind": "farming",
+      "confidence": "curated",
+      "title": "PoE 3.29 alch and go farming strategy",
+      "headline": "Track simple 3.29 alch and go mapping before heavy investment.",
+      "summary": "A low-friction mapping strategy for players who want fast setup, clear snapshot windows, and simple cost tracking.",
+      "intro": "Alch and go works best when the setup stays light and the results are measured over several sessions. Use a dedicated strategy so early profits are not mixed with later scarab-heavy mapping.",
+      "tags": ["3.29", "Alch and go", "Low investment", "Mapping"],
+      "tracking": [
+        "Keep map cost low and avoid mixing scarab-heavy runs into the same benchmark.",
+        "Use snapshots after consistent session windows.",
+        "Compare early returns against atlas completion and midgame farming cards."
+      ],
+      "sourceRefs": [
+        {
+          "label": "Official Path of Exile patch notes",
+          "url": "https://www.pathofexile.com/forum/view-forum/patch-notes",
+          "type": "official"
+        }
+      ],
+      "verifiedAt": "2026-07-17",
+      "seo": {
+        "title": "PoE 3.29 alch and go farming strategy",
+        "description": "Track a Path of Exile 3.29 alch and go farming strategy with low map cost, simple setup notes, and stash-snapshot results.",
+        "priority": 0.93,
+        "changefreq": "daily",
+        "llmsSection": "3.29 Strategy Pages"
+      },
+      "strategy": {
+        "name": "3.29 Alch and Go Mapping",
+        "description": "Low-investment 3.29 mapping plan for fast setup, basic map rolling, and clean snapshot windows before moving into scarab-heavy farming.",
+        "colour": "#22c55e",
+        "difficulty": "easy",
+        "mapCost": 4,
+        "mapRequirements": {
+          "item_quantity": 70,
+          "pack_size": 20
+        }
+      }
+    },
+    {
+      "slug": "poe-3-29-midgame-currency",
+      "game": "poe1",
+      "league": "3.29",
+      "patch": "3.29",
+      "stage": "midgame",
+      "kind": "farming",
+      "confidence": "curated",
+      "title": "PoE 3.29 midgame currency strategy",
+      "headline": "Separate 3.29 midgame currency farming from launch mapping noise.",
+      "summary": "A measured midgame strategy for repeatable mechanics, moderate investment, and benchmarkable sessions.",
+      "intro": "Once atlas completion and first upgrades are done, midgame farming should get its own strategy card. That keeps investment, mechanics, and result snapshots comparable.",
+      "tags": ["3.29", "Midgame", "Currency farming", "Repeat sessions"],
+      "tracking": [
+        "Record the mechanic mix and the expected cost per map.",
+        "Use separate strategies for different mechanics instead of averaging everything.",
+        "Refresh source links as community testing settles after launch."
+      ],
+      "sourceRefs": [
+        {
+          "label": "Official Path of Exile patch notes",
+          "url": "https://www.pathofexile.com/forum/view-forum/patch-notes",
+          "type": "official"
+        }
+      ],
+      "verifiedAt": "2026-07-17",
+      "seo": {
+        "title": "PoE 3.29 midgame currency farming strategy",
+        "description": "Plan Path of Exile 3.29 midgame currency farming with mechanic notes, map cost, and benchmarkable strategy snapshots.",
+        "priority": 0.9,
+        "changefreq": "daily",
+        "llmsSection": "3.29 Strategy Pages"
+      },
+      "strategy": {
+        "name": "3.29 Midgame Currency Farming",
+        "description": "Moderate-investment 3.29 farming plan for repeatable midgame sessions. Keep mechanic choices, cost assumptions, and snapshot results together.",
+        "colour": "#a78bfa",
+        "difficulty": "normal",
+        "mapCost": 12,
+        "mapRequirements": {
+          "item_quantity": 80,
+          "pack_size": 25
+        }
+      }
+    },
+    {
+      "slug": "poe-3-29-high-end-farming",
+      "game": "poe1",
+      "league": "3.29",
+      "patch": "3.29",
+      "stage": "high_end",
+      "kind": "farming",
+      "confidence": "curated",
+      "title": "PoE 3.29 high end farming strategy",
+      "headline": "Track high-end 3.29 farming with investment and benchmark context.",
+      "summary": "A high investment strategy template for scarabs, map costs, atlas setup, and result review.",
+      "intro": "High-end farming needs cleaner bookkeeping than early mapping. Track investment, scarab assumptions, fallback plans, and snapshot-linked results in one strategy.",
+      "tags": ["3.29", "High end", "Scarab farming", "Benchmarking"],
+      "tracking": [
+        "Record primary scarabs and alternatives before the session starts.",
+        "Keep high-end runs out of alch-and-go benchmark samples.",
+        "Review map cost and result deltas after enough snapshots exist."
+      ],
+      "sourceRefs": [
+        {
+          "label": "Official Path of Exile patch notes",
+          "url": "https://www.pathofexile.com/forum/view-forum/patch-notes",
+          "type": "official"
+        }
+      ],
+      "verifiedAt": "2026-07-17",
+      "seo": {
+        "title": "PoE 3.29 high end farming strategy",
+        "description": "Track Path of Exile 3.29 high-end farming with scarab setup, map cost, atlas notes, and benchmark snapshots.",
+        "priority": 0.93,
+        "changefreq": "daily",
+        "llmsSection": "3.29 Strategy Pages"
+      },
+      "strategy": {
+        "name": "3.29 High-End Farming",
+        "description": "High-investment 3.29 farming plan for scarab-heavy mapping, explicit map costs, fallback scarabs, and result review after linked snapshots.",
+        "colour": "#ef4444",
+        "difficulty": "hard",
+        "mapCost": 45,
+        "mapRequirements": {
+          "item_quantity": 90,
+          "pack_size": 30
+        },
+        "scarabs": []
+      }
+    },
+    {
+      "slug": "poe-3-29-bossing-progression",
+      "game": "poe1",
+      "league": "3.29",
+      "patch": "3.29",
+      "stage": "midgame",
+      "kind": "farming",
+      "confidence": "curated",
+      "title": "PoE 3.29 bossing progression strategy",
+      "headline": "Track 3.29 bossing progress separately from mapping income.",
+      "summary": "A bossing strategy for invitations, fragments, carries, and profit snapshots.",
+      "intro": "Bossing often has different cashflow than mapping. Use a dedicated 3.29 strategy to keep invitation costs, fragment usage, and service overlap visible.",
+      "tags": ["3.29", "Bossing", "Invitations", "Fragments"],
+      "tracking": [
+        "Separate boss entry costs from map-farming costs.",
+        "Record when drops are held, sold, or used for later progression.",
+        "Connect service listings when the group sells carries."
+      ],
+      "sourceRefs": [
+        {
+          "label": "Official Path of Exile patch notes",
+          "url": "https://www.pathofexile.com/forum/view-forum/patch-notes",
+          "type": "official"
+        }
+      ],
+      "verifiedAt": "2026-07-17",
+      "seo": {
+        "title": "PoE 3.29 bossing progression strategy",
+        "description": "Plan Path of Exile 3.29 bossing progression with invitation costs, fragment notes, service context, and snapshot tracking.",
+        "priority": 0.88,
+        "changefreq": "weekly",
+        "llmsSection": "3.29 Strategy Pages"
+      },
+      "strategy": {
+        "name": "3.29 Bossing Progression",
+        "description": "Bossing-focused 3.29 strategy for tracking invitation flow, fragment costs, service overlap, and post-session stash changes.",
+        "colour": "#f97316",
+        "difficulty": "hard"
+      }
+    },
+    {
+      "slug": "poe-3-29-party-strategies",
+      "game": "poe1",
+      "league": "3.29",
+      "patch": "3.29",
+      "stage": "party",
+      "kind": "party",
+      "confidence": "curated",
+      "title": "PoE 3.29 party strategies",
+      "headline": "Plan 3.29 party strategies around roles, investment, and shared results.",
+      "summary": "A public party-strategy page for duo, small-group, and full-party planning.",
+      "intro": "Party strategies need role clarity before they need perfect numbers. Track the carry, support, aura, trader, and service assumptions in one strategy so the whole group can subscribe to it.",
+      "tags": ["3.29", "Party", "Group economy", "Role planning"],
+      "tracking": [
+        "Keep role assumptions in the strategy description and source notes.",
+        "Use active strategy tracking while the group runs the same plan.",
+        "Split party farming, bossing, and service workflows into separate public cards."
+      ],
+      "sourceRefs": [
+        {
+          "label": "Official Path of Exile news",
+          "url": "https://www.pathofexile.com/forum/view-forum/news",
+          "type": "official"
+        }
+      ],
+      "verifiedAt": "2026-07-17",
+      "seo": {
+        "title": "PoE 3.29 party strategies",
+        "description": "Plan Path of Exile 3.29 party strategies with group roles, shared strategy notes, public subscriptions, and economy snapshots.",
+        "priority": 0.93,
+        "changefreq": "daily",
+        "llmsSection": "3.29 Strategy Pages"
+      },
+      "strategy": {
+        "name": "3.29 Party Strategy Board",
+        "description": "Group-focused 3.29 strategy board for role planning, shared investment assumptions, and active-strategy tracking during party sessions.",
+        "colour": "#6366f1",
+        "difficulty": "normal"
+      }
+    },
+    {
+      "slug": "poe-3-29-duo-start",
+      "game": "poe1",
+      "league": "3.29",
+      "patch": "3.29",
+      "stage": "party",
+      "kind": "party",
+      "confidence": "curated",
+      "title": "PoE 3.29 duo start strategy",
+      "headline": "Keep a 3.29 duo start focused on complementary roles and clean progress.",
+      "summary": "A duo launch plan for two-player progression, early farming, and shared upgrade decisions.",
+      "intro": "A duo start works best when one strategy holds the role split, early atlas plan, and shared upgrade priorities. Subscribe to the card, then attach snapshots once farming begins.",
+      "tags": ["3.29", "Duo", "League start", "Role split"],
+      "tracking": [
+        "Track which player covers clear, single-target, support, or trading gaps.",
+        "Use one active strategy during early atlas progression.",
+        "Split into farming-specific strategies once the duo settles on a repeatable plan."
+      ],
+      "sourceRefs": [
+        {
+          "label": "Official Path of Exile news",
+          "url": "https://www.pathofexile.com/forum/view-forum/news",
+          "type": "official"
+        }
+      ],
+      "verifiedAt": "2026-07-17",
+      "seo": {
+        "title": "PoE 3.29 duo league start strategy",
+        "description": "Plan a Path of Exile 3.29 duo league start with complementary roles, atlas progress, shared upgrades, and strategy tracking.",
+        "priority": 0.88,
+        "changefreq": "weekly",
+        "llmsSection": "3.29 Strategy Pages"
+      },
+      "strategy": {
+        "name": "3.29 Duo League Start",
+        "description": "Two-player 3.29 launch strategy for complementary starter roles, early atlas progress, and shared upgrade planning.",
+        "colour": "#0ea5e9",
+        "difficulty": "normal"
+      }
+    },
+    {
+      "slug": "harvest-farming",
+      "game": "poe1",
+      "league": "evergreen",
+      "patch": "evergreen",
+      "stage": "midgame",
+      "kind": "farming",
+      "confidence": "curated",
+      "title": "PoE Harvest farming strategy tracker",
+      "headline": "Track Harvest farming as a measured league strategy.",
+      "summary": "Harvest farming strategy tracking for setup notes, map costs, and snapshot-linked results.",
+      "intro": "Harvest farming benefits from consistent map setup, clear cost tracking, and snapshot history because returns often come from many small decisions across a session.",
+      "tags": ["Harvest", "Lifeforce", "Map investment", "Group review"],
+      "tracking": [
+        "Record map device and scarab investment where PoE1 strategy planning supports it.",
+        "Link snapshots to the active strategy after farming sessions.",
+        "Compare currency per hour against other public or private strategies."
+      ],
+      "sourceRefs": [],
+      "verifiedAt": "2026-07-17",
+      "seo": {
+        "title": "PoE Harvest farming strategy tracker",
+        "description": "Track a Path of Exile Harvest farming strategy with setup notes, map costs, party roles, snapshot history, and currency per hour context.",
+        "priority": 0.85,
+        "changefreq": "weekly",
+        "llmsSection": "Strategy Pages"
+      },
+      "strategy": {
+        "name": "Harvest Farming",
+        "description": "Track Harvest setup notes, map costs, and linked economy snapshots so the strategy can be compared against other farming plans.",
+        "colour": "#22c55e",
+        "difficulty": "normal"
+      }
+    },
+    {
+      "slug": "essence-farming",
+      "game": "poe1",
+      "league": "evergreen",
+      "patch": "evergreen",
+      "stage": "alch_and_go",
+      "kind": "farming",
+      "confidence": "curated",
+      "title": "PoE Essence farming strategy tracker",
+      "headline": "Track Essence farming with map costs and repeatable snapshots.",
+      "summary": "Essence farming strategy tracking for easy setup, map speed, and early profit review.",
+      "intro": "Essence farming is easy to start but still needs clean tracking if you want to compare map speed, investment, and stash growth over time.",
+      "tags": ["Essence", "League start", "Map speed", "Low setup"],
+      "tracking": [
+        "Use difficulty and setup notes to separate casual and high-investment variants.",
+        "Track active strategy snapshots instead of relying on memory.",
+        "Share a public summary when the strategy is useful for other groups."
+      ],
+      "sourceRefs": [],
+      "verifiedAt": "2026-07-17",
+      "seo": {
+        "title": "PoE Essence farming strategy tracker",
+        "description": "Plan and track a Path of Exile Essence farming strategy with map cost, difficulty, stash snapshot outcomes, and public strategy discovery.",
+        "priority": 0.85,
+        "changefreq": "weekly",
+        "llmsSection": "Strategy Pages"
+      },
+      "strategy": {
+        "name": "Essence Farming",
+        "description": "Low-setup Essence farming plan for mapping speed, cost tracking, and repeatable snapshot comparisons.",
+        "colour": "#a78bfa",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "slug": "strongbox-farming",
+      "game": "poe1",
+      "league": "evergreen",
+      "patch": "evergreen",
+      "stage": "high_end",
+      "kind": "farming",
+      "confidence": "curated",
+      "title": "PoE Strongbox farming strategy tracker",
+      "headline": "Track Strongbox farming with investment and result context.",
+      "summary": "Strongbox strategy tracking for investment notes, scarab planning, and benchmarkable results.",
+      "intro": "Strongbox strategies can vary heavily by atlas setup and scarab investment, so a workspace should keep setup notes close to the wealth history.",
+      "tags": ["Strongboxes", "Scarab planning", "Atlas setup", "T17 context"],
+      "tracking": [
+        "Keep PoE1 atlas and scarab details attached to the strategy.",
+        "Record map cost and benchmark samples from completed sessions.",
+        "Use public strategy discovery to compare approaches across groups."
+      ],
+      "sourceRefs": [],
+      "verifiedAt": "2026-07-17",
+      "seo": {
+        "title": "PoE Strongbox farming strategy tracker",
+        "description": "Track Path of Exile Strongbox farming with investment notes, map cost context, scarab planning where supported, and strategy-linked results.",
+        "priority": 0.85,
+        "changefreq": "weekly",
+        "llmsSection": "Strategy Pages"
+      },
+      "strategy": {
+        "name": "Strongbox Farming",
+        "description": "Strongbox farming plan for atlas setup, scarab investment notes, and benchmarkable strategy-linked results.",
+        "colour": "#f97316",
+        "difficulty": "hard"
+      }
+    },
+    {
+      "slug": "boss-rush",
+      "game": "poe1",
+      "league": "evergreen",
+      "patch": "evergreen",
+      "stage": "midgame",
+      "kind": "farming",
+      "confidence": "curated",
+      "title": "PoE boss rush strategy tracker",
+      "headline": "Track boss rush sessions by speed, cost, and party role.",
+      "summary": "Boss rush strategy tracking for invitation flow, map investment, service overlap, and snapshots.",
+      "intro": "Boss rush strategies need more than a stash total: map source, invitation flow, carry context, and service overlap all affect the final read.",
+      "tags": ["Boss rush", "Invitations", "Service overlap", "Profit snapshots"],
+      "tracking": [
+        "Keep boss route, invitation, and service notes close to the strategy.",
+        "Use snapshots to measure value changes after boss-focused runs.",
+        "Connect strategy work to service listings when the group sells carries."
+      ],
+      "sourceRefs": [],
+      "verifiedAt": "2026-07-17",
+      "seo": {
+        "title": "PoE boss rush strategy tracker",
+        "description": "Plan and track a Path of Exile boss rush strategy with public strategy sharing, map investment, service context, and profit snapshots.",
+        "priority": 0.85,
+        "changefreq": "weekly",
+        "llmsSection": "Strategy Pages"
+      },
+      "strategy": {
+        "name": "Boss Rush",
+        "description": "Boss-focused strategy for tracking route, invitation flow, service overlap, and snapshot-linked profit changes.",
+        "colour": "#ef4444",
+        "difficulty": "hard"
+      }
+    },
+    {
+      "slug": "ultimatum-farming",
+      "game": "poe1",
+      "league": "evergreen",
+      "patch": "evergreen",
+      "stage": "midgame",
+      "kind": "farming",
+      "confidence": "curated",
+      "title": "PoE Ultimatum farming strategy tracker",
+      "headline": "Track Ultimatum farming with party suitability and outcome history.",
+      "summary": "Ultimatum strategy tracking for setup notes, build readiness, and outcome history.",
+      "intro": "Ultimatum runs can be build-sensitive, so tracking works best when strategy notes, roster context, and economy snapshots live together.",
+      "tags": ["Ultimatum", "Catalysts", "Build checks", "Repeat sessions"],
+      "tracking": [
+        "Capture setup notes and difficulty before running the strategy.",
+        "Review member readiness and public character context.",
+        "Compare snapshot-linked results across multiple sessions."
+      ],
+      "sourceRefs": [],
+      "verifiedAt": "2026-07-17",
+      "seo": {
+        "title": "PoE Ultimatum farming strategy tracker",
+        "description": "Track a Path of Exile Ultimatum farming strategy with setup notes, party suitability, snapshot outcomes, and currency per hour context.",
+        "priority": 0.85,
+        "changefreq": "weekly",
+        "llmsSection": "Strategy Pages"
+      },
+      "strategy": {
+        "name": "Ultimatum Farming",
+        "description": "Ultimatum farming plan for setup notes, build-suitability checks, and repeated strategy-linked outcome review.",
+        "colour": "#f5a524",
+        "difficulty": "normal"
+      }
+    }
+  ]
+}

@@ -1,11 +1,20 @@
 {
-  "lastmod": "2026-07-07",
+  "lastmod": "2026-07-20",
   "routes": [
+    {
+      "path": "/",
+      "title": "Plan runs, track outcomes, choose upgrades",
+      "description": "Plan Path of Exile strategies, keep party and character context aligned, track PoE1 stash outcomes, and turn build analysis into the next upgrade.",
+      "priority": 1,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "Core Pages"
+    },
     {
       "path": "/preview",
       "title": "Path of Exile group economy and planning tool",
       "description": "Preview PoE Party, a Path of Exile group tool for shared stash snapshots, party wealth tracking, strategy coordination, gear planning, and upgrade analysis.",
-      "priority": 1.0,
+      "priority": 1,
       "changefreq": "weekly",
       "prerender": true,
       "llmsSection": "Core Pages"
@@ -183,6 +192,105 @@
       "llmsSection": "SEO Tool Pages",
       "contentType": "tool",
       "slug": "poe-gear-upgrade-planner"
+    },
+    {
+      "path": "/poe-strategies/poe-3-29-league-starters",
+      "title": "PoE 3.29 league starter strategies",
+      "description": "Track Path of Exile 3.29 league starter strategy sources, early mapping readiness, party roles, and launch planning notes in PoE Party.",
+      "priority": 0.95,
+      "changefreq": "daily",
+      "prerender": true,
+      "llmsSection": "3.29 Strategy Pages",
+      "contentType": "strategy",
+      "slug": "poe-3-29-league-starters"
+    },
+    {
+      "path": "/poe-strategies/poe-3-29-build-source-roundup",
+      "title": "PoE 3.29 league starter build sources",
+      "description": "Collect external Path of Exile 3.29 league starter build sources in PoE Party while keeping full build guides attributed to their creators.",
+      "priority": 0.92,
+      "changefreq": "daily",
+      "prerender": true,
+      "llmsSection": "3.29 Strategy Pages",
+      "contentType": "strategy",
+      "slug": "poe-3-29-build-source-roundup"
+    },
+    {
+      "path": "/poe-strategies/poe-3-29-atlas-completion",
+      "title": "PoE 3.29 atlas completion strategy",
+      "description": "Plan Path of Exile 3.29 atlas completion with early map sustain, low investment notes, and strategy-linked progress tracking.",
+      "priority": 0.9,
+      "changefreq": "daily",
+      "prerender": true,
+      "llmsSection": "3.29 Strategy Pages",
+      "contentType": "strategy",
+      "slug": "poe-3-29-atlas-completion"
+    },
+    {
+      "path": "/poe-strategies/poe-3-29-alch-and-go",
+      "title": "PoE 3.29 alch and go farming strategy",
+      "description": "Track a Path of Exile 3.29 alch and go farming strategy with low map cost, simple setup notes, and stash-snapshot results.",
+      "priority": 0.93,
+      "changefreq": "daily",
+      "prerender": true,
+      "llmsSection": "3.29 Strategy Pages",
+      "contentType": "strategy",
+      "slug": "poe-3-29-alch-and-go"
+    },
+    {
+      "path": "/poe-strategies/poe-3-29-midgame-currency",
+      "title": "PoE 3.29 midgame currency farming strategy",
+      "description": "Plan Path of Exile 3.29 midgame currency farming with mechanic notes, map cost, and benchmarkable strategy snapshots.",
+      "priority": 0.9,
+      "changefreq": "daily",
+      "prerender": true,
+      "llmsSection": "3.29 Strategy Pages",
+      "contentType": "strategy",
+      "slug": "poe-3-29-midgame-currency"
+    },
+    {
+      "path": "/poe-strategies/poe-3-29-high-end-farming",
+      "title": "PoE 3.29 high end farming strategy",
+      "description": "Track Path of Exile 3.29 high-end farming with scarab setup, map cost, atlas notes, and benchmark snapshots.",
+      "priority": 0.93,
+      "changefreq": "daily",
+      "prerender": true,
+      "llmsSection": "3.29 Strategy Pages",
+      "contentType": "strategy",
+      "slug": "poe-3-29-high-end-farming"
+    },
+    {
+      "path": "/poe-strategies/poe-3-29-bossing-progression",
+      "title": "PoE 3.29 bossing progression strategy",
+      "description": "Plan Path of Exile 3.29 bossing progression with invitation costs, fragment notes, service context, and snapshot tracking.",
+      "priority": 0.88,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "3.29 Strategy Pages",
+      "contentType": "strategy",
+      "slug": "poe-3-29-bossing-progression"
+    },
+    {
+      "path": "/poe-strategies/poe-3-29-party-strategies",
+      "title": "PoE 3.29 party strategies",
+      "description": "Plan Path of Exile 3.29 party strategies with group roles, shared strategy notes, public subscriptions, and economy snapshots.",
+      "priority": 0.93,
+      "changefreq": "daily",
+      "prerender": true,
+      "llmsSection": "3.29 Strategy Pages",
+      "contentType": "strategy",
+      "slug": "poe-3-29-party-strategies"
+    },
+    {
+      "path": "/poe-strategies/poe-3-29-duo-start",
+      "title": "PoE 3.29 duo league start strategy",
+      "description": "Plan a Path of Exile 3.29 duo league start with complementary roles, atlas progress, shared upgrades, and strategy tracking.",
+      "priority": 0.88,
+      "changefreq": "weekly",
+      "prerender": true,
+      "llmsSection": "3.29 Strategy Pages",
+      "contentType": "strategy",
+      "slug": "poe-3-29-duo-start"
     },
     {
       "path": "/poe-strategies/harvest-farming",

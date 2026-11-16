@@ -2,6 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { queryKeys } from '../lib/queryKeys'
 import { normalizeScarabs, type Scarab } from '../lib/strategy-scarabs'
+import {
+  normalizeStrategyContentMetadata,
+  type StrategyContentMetadata,
+} from '../lib/public-strategy-content'
+import { trackProductEvent } from '../lib/analytics'
 
 export interface MapRequirements {
   item_quantity?: number | null
@@ -37,6 +42,8 @@ export interface Strategy {
   source_group_name: string | null
   subscription_state: StrategySubscriptionState
   last_synced_from_source_at: string | null
+  content_slug: string | null
+  content_metadata: StrategyContentMetadata | null
 }
 
 export interface PublicStrategy {
@@ -54,6 +61,8 @@ export interface PublicStrategy {
   map_trade_link: string | null
   map_requirements: MapRequirements
   map_cost: number | null
+  content_slug: string | null
+  content_metadata: StrategyContentMetadata | null
   benchmark_sample_count: number
   benchmark_chaos_per_hour: number | null
   live_subscription_id: string | null
@@ -68,6 +77,8 @@ function normalizeStrategy(row: Record<string, unknown>): Strategy {
       row.map_requirements && typeof row.map_requirements === 'object'
         ? (row.map_requirements as MapRequirements)
         : {},
+    content_slug: typeof row.content_slug === 'string' ? row.content_slug : null,
+    content_metadata: normalizeStrategyContentMetadata(row.content_metadata),
   }
 }
 
@@ -90,6 +101,8 @@ function normalizePublicStrategy(row: Record<string, unknown>): PublicStrategy {
         ? (row.map_requirements as MapRequirements)
         : {},
     map_cost: row.map_cost == null ? null : Number(row.map_cost),
+    content_slug: typeof row.content_slug === 'string' ? row.content_slug : null,
+    content_metadata: normalizeStrategyContentMetadata(row.content_metadata),
     benchmark_sample_count: Number(row.benchmark_sample_count ?? 0),
     benchmark_chaos_per_hour:
       row.benchmark_chaos_per_hour == null ? null : Number(row.benchmark_chaos_per_hour),
@@ -115,7 +128,8 @@ export function useStrategies(groupId: string | null) {
           `
           id, group_id, name, description, colour, difficulty, is_active, created_by, created_at,
           atlas_tree_url, scarabs, map_trade_link, map_requirements, map_cost, admin_locked,
-          visibility, source_strategy_id, source_group_id, source_group_name, subscription_state, last_synced_from_source_at
+          visibility, source_strategy_id, source_group_id, source_group_name, subscription_state, last_synced_from_source_at,
+          content_slug, content_metadata
         `,
         )
         .eq('group_id', groupId!)
@@ -139,7 +153,8 @@ export function useStrategy(strategyId: string | undefined) {
           `
           id, group_id, name, description, colour, difficulty, is_active, created_by, created_at,
           atlas_tree_url, scarabs, map_trade_link, map_requirements, map_cost, admin_locked,
-          visibility, source_strategy_id, source_group_id, source_group_name, subscription_state, last_synced_from_source_at
+          visibility, source_strategy_id, source_group_id, source_group_name, subscription_state, last_synced_from_source_at,
+          content_slug, content_metadata
         `,
         )
         .eq('id', strategyId!)
@@ -213,6 +228,10 @@ export function useCreateStrategy() {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.strategies.all(data.group_id)] })
       queryClient.invalidateQueries({ queryKey: [...queryKeys.strategies.count(data.group_id)] })
       invalidateStrategyQueries(queryClient)
+      trackProductEvent('activation_strategy_created', {
+        difficulty: data.difficulty,
+        visibility: data.visibility,
+      })
     },
   })
 }

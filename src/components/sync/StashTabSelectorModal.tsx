@@ -1,7 +1,7 @@
 import { Button } from '@heroui/react/button'
 import { Modal } from '@heroui/react/modal'
 import { Spinner } from '@heroui/react/spinner'
-import type { LegacyStashTab } from '../../lib/poe-cookie-client'
+import type { PoeStashTabSummary } from '../../types/poe-api'
 import { NativeCheckbox } from '../ui/heroui-native'
 
 export const MAX_STASH_TABS = 5
@@ -9,7 +9,7 @@ export const MAX_STASH_TABS = 5
 interface Props {
   isOpen: boolean
   isFetchingTabs: boolean
-  tabs: LegacyStashTab[]
+  tabs: PoeStashTabSummary[]
   selectedIds: string[]
   onSelectionChange: (ids: string[]) => void
   onConfirm: () => void

@@ -18,6 +18,7 @@ import {
 import { ServiceCard } from '../services/ServiceCard'
 import { getPoeGameShortLabel } from '../../lib/poe-game'
 import { FieldInput, SelectField } from '../ui/heroui-native'
+import { QueryFreshnessNotice, QueryStatePanel } from '../ui/QueryStatePanel'
 type TypeFilter = ServiceType | 'all'
 
 export function GuestServicesPage() {
@@ -29,6 +30,9 @@ export function GuestServicesPage() {
     selectedLeague,
     setSelectedLeague,
     isLoading: leagueLoading,
+    isError: leagueError,
+    isFetching: leagueFetching,
+    refetch: refetchLeagues,
   } = usePreviewLeague(canUsePoe2)
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
@@ -36,7 +40,13 @@ export function GuestServicesPage() {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search, 250)
 
-  const { data: services = [], isLoading } = useGuestPublicServices(
+  const {
+    data: services = [],
+    isLoading,
+    isError,
+    isFetching,
+    refetch,
+  } = useGuestPublicServices(
     selectedGame,
     selectedLeague,
     typeFilter === 'all' ? null : typeFilter,
@@ -155,24 +165,44 @@ export function GuestServicesPage() {
         </Card.Content>
       </Card>
 
-      {isLoading ? (
-        <Card>
-          <Card.Content className="text-default-400 p-10 text-center text-sm">
-            Loading live public services...
-          </Card.Content>
-        </Card>
+      {leagueError && leagues.length === 0 ? (
+        <QueryStatePanel
+          kind="error"
+          title="Leagues are unavailable"
+          description="We could not load the current league list. This is a connection problem, not an empty league."
+          onRetry={refetchLeagues}
+        />
+      ) : null}
+
+      <QueryFreshnessNotice
+        isRefreshing={(leagueFetching && leagues.length > 0) || (isFetching && services.length > 0)}
+        refreshFailed={(leagueError && leagues.length > 0) || (isError && services.length > 0)}
+        onRetry={() => {
+          void refetchLeagues()
+          void refetch()
+        }}
+      />
+
+      {isError && services.length === 0 ? (
+        <QueryStatePanel
+          kind="error"
+          title="Services could not be loaded"
+          description="The public service directory did not respond. Try again instead of changing filters."
+          onRetry={refetch}
+        />
+      ) : isLoading ? (
+        <QueryStatePanel
+          kind="loading"
+          title="Loading services"
+          description="Checking the selected league for current public listings."
+        />
       ) : filtered.length === 0 ? (
-        <Card>
-          <Card.Content className="flex flex-col items-center gap-3 p-12 text-center">
-            <Handshake size={32} className="text-default-300" />
-            <p className="text-default-500 text-sm font-medium">
-              No services in {selectedLeague ?? 'this league'} match your filters.
-            </p>
-            <p className="text-default-400 text-xs">
-              Try another league, service type, region, or search term.
-            </p>
-          </Card.Content>
-        </Card>
+        <QueryStatePanel
+          kind="empty"
+          icon={<Handshake size={32} className="text-default-300" />}
+          title={`No services match in ${selectedLeague ?? 'this league'}`}
+          description="Try another league, service type, region, or search term."
+        />
       ) : (
         <div className="flex flex-col gap-3">
           <p className="text-default-500 text-sm">

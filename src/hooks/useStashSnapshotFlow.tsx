@@ -1,22 +1,21 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { fetchPoeStashTabs } from '../lib/poe-cookie-client'
-import type { LegacyStashTab } from '../lib/poe-cookie-client'
+import type { PoeStashTabSummary } from '../types/poe-api'
 import { supabase } from '../lib/supabase'
 import { queryKeys } from '../lib/queryKeys'
-import { usePoeSession } from '../store/poe-session-store'
-import { usePoeSnapshot } from './usePoeSnapshot'
+import { useStashTabSelectionStore } from '../store/stash-tab-selection-store'
 import { StashTabSelectorModal, MAX_STASH_TABS } from '../components/sync/StashTabSelectorModal'
 import { useSnapshotPreferencesStore } from '../store/snapshot-preferences-store'
 import { useMyProfile } from './useCurrentUser'
 import { useSnapshotStore } from '../store/snapshot-store'
+import { trackProductEvent } from '../lib/analytics'
 type Step = 'idle' | 'fetching-tabs' | 'selecting' | 'snapshotting'
 
 /**
  * Handles the stash snapshot flow for the Economy page:
  *   1. Fetch available stash tabs from PoE
- *   2. Show tab-selector modal (remembers selection in poe-session-store)
- *   3. Run snapshotStash + applyPricing with the chosen tabs
+ *   2. Show tab-selector modal (remembers the user's selection for this browser tab)
+ *   3. Ask the OAuth-backed Edge Function to create and price the snapshot
  *
  * Usage:
  *   const { triggerSnapshot, isBusy, modal } = useStashSnapshotFlow()
@@ -24,23 +23,21 @@ type Step = 'idle' | 'fetching-tabs' | 'selecting' | 'snapshotting'
  *   // call `triggerSnapshot(groupId, league)` on button press
  */
 export function useStashSnapshotFlow() {
-  const { sessId, cfClearance, accountName, selectedTabIds, setSelectedTabIds } = usePoeSession()
-  const { snapshotStash, applyPricing, recordGroupWealthHistory } = usePoeSnapshot()
+  const { selectedTabIds, setSelectedTabIds } = useStashTabSelectionStore()
   const resetTimer = useSnapshotPreferencesStore((s) => s.resetTimer)
   const { data: profile } = useMyProfile()
   const { setProgress, reset } = useSnapshotStore()
   const queryClient = useQueryClient()
 
   const [step, setStep] = useState<Step>('idle')
-  const [availableTabs, setAvailableTabs] = useState<LegacyStashTab[]>([])
+  const [availableTabs, setAvailableTabs] = useState<PoeStashTabSummary[]>([])
   const [pendingGroupId, setPendingGroupId] = useState<string | null>(null)
   const [pendingLeague, setPendingLeague] = useState<string | null>(null)
   const [localSelection, setLocalSelection] = useState<string[]>([])
   const [fetchError, setFetchError] = useState<string | null>(null)
 
   const isBusy = step !== 'idle'
-  const canUseOAuthFlow = !!profile?.poe_token_expires_at
-  const preferOAuthFlow = canUseOAuthFlow
+  const hasOAuthAccess = !!profile?.poe_token_expires_at
 
   const getAuthenticatedUserId = async () => {
     const {
@@ -50,7 +47,7 @@ export function useStashSnapshotFlow() {
     return user.id
   }
 
-  const fetchOAuthStashTabs = async (league: string): Promise<LegacyStashTab[]> => {
+  const fetchOAuthStashTabs = async (league: string): Promise<PoeStashTabSummary[]> => {
     const userId = await getAuthenticatedUserId()
 
     const { data, error } = await supabase.functions.invoke('poe-list-stash-tabs', {
@@ -62,7 +59,7 @@ export function useStashSnapshotFlow() {
 
     if (error) throw error
 
-    return Array.isArray(data?.tabs) ? (data.tabs as LegacyStashTab[]) : []
+    return Array.isArray(data?.tabs) ? (data.tabs as PoeStashTabSummary[]) : []
   }
 
   const runOAuthSnapshot = async (groupId: string, league: string, tabIds: string[]) => {
@@ -91,10 +88,10 @@ export function useStashSnapshotFlow() {
     setStep('fetching-tabs')
 
     try {
-      const tabs =
-        preferOAuthFlow
-          ? await fetchOAuthStashTabs(league)
-          : await fetchPoeStashTabs(accountName, sessId, cfClearance, league)
+      if (!hasOAuthAccess) {
+        throw new Error('Connect your PoE account before taking a stash snapshot.')
+      }
+      const tabs = await fetchOAuthStashTabs(league)
       const visible = tabs.filter((t) => !t.hidden && !t.n.includes('(Remove-only)'))
       setAvailableTabs(visible)
 
@@ -115,7 +112,7 @@ export function useStashSnapshotFlow() {
       console.error('Failed to fetch stash tabs:', err)
       setAvailableTabs([])
       setFetchError(
-        err instanceof Error ? err.message : 'Failed to fetch stash tabs. Check your PoE session.',
+        err instanceof Error ? err.message : 'Failed to fetch stash tabs. Try reconnecting OAuth.',
       )
       setStep('selecting')
     }
@@ -129,36 +126,30 @@ export function useStashSnapshotFlow() {
     const selectedTabs = availableTabs.filter((t) => localSelection.includes(t.id))
 
     try {
-      if (preferOAuthFlow) {
-        reset()
-        setProgress({
-          phase: 'stash',
-          tabsCurrent: 0,
-          tabsTotal: selectedTabs.length,
-          message: `Syncing ${selectedTabs.length} tabs...`,
-        })
-        await runOAuthSnapshot(
-          pendingGroupId,
-          pendingLeague,
-          selectedTabs.map((tab) => tab.id),
-        )
-        setProgress({
-          phase: 'done',
-          tabsCurrent: selectedTabs.length,
-          tabsTotal: selectedTabs.length,
-          message: `Synced ${selectedTabs.length} tabs`,
-        })
-      } else {
-        const snapshotId = await snapshotStash(pendingGroupId, pendingLeague, selectedTabs)
-        await applyPricing(pendingGroupId, pendingLeague, snapshotId)
-        // Best-effort group wealth history recording
-        try {
-          await recordGroupWealthHistory(pendingGroupId, snapshotId)
-        } catch (e) {
-          console.error('Failed to record group wealth history:', e)
-        }
-      }
+      reset()
+      setProgress({
+        phase: 'stash',
+        tabsCurrent: 0,
+        tabsTotal: selectedTabs.length,
+        message: `Syncing ${selectedTabs.length} tabs...`,
+      })
+      await runOAuthSnapshot(
+        pendingGroupId,
+        pendingLeague,
+        selectedTabs.map((tab) => tab.id),
+      )
+      setProgress({
+        phase: 'done',
+        tabsCurrent: selectedTabs.length,
+        tabsTotal: selectedTabs.length,
+        message: `Synced ${selectedTabs.length} tabs`,
+      })
       resetTimer()
+      trackProductEvent('activation_stash_snapshot_completed', {
+        transport: 'oauth',
+        tab_count: selectedTabs.length,
+        scheduled: false,
+      })
     } catch (error) {
       setProgress({ phase: 'error', message: String(error) })
       throw error
@@ -178,43 +169,29 @@ export function useStashSnapshotFlow() {
     setStep('snapshotting')
 
     try {
-      if (preferOAuthFlow) {
-        reset()
-        setProgress({
-          phase: 'stash',
-          tabsCurrent: 0,
-          tabsTotal: selectedTabIds.length,
-          message: `Syncing ${selectedTabIds.length} tabs...`,
-        })
-        await runOAuthSnapshot(groupId, league, selectedTabIds)
-        setProgress({
-          phase: 'done',
-          tabsCurrent: selectedTabIds.length,
-          tabsTotal: selectedTabIds.length,
-          message: `Synced ${selectedTabIds.length} tabs`,
-        })
-        resetTimer()
-        return
+      if (!hasOAuthAccess) {
+        throw new Error('Connect your PoE account before taking a stash snapshot.')
       }
-
-      const tabs = await fetchPoeStashTabs(accountName, sessId, cfClearance, league)
-      const visible = tabs.filter((t) => !t.hidden && !t.n.includes('(Remove-only)'))
-      const selectedTabs = visible.filter((t) => selectedTabIds.includes(t.id)).slice(0, MAX_STASH_TABS)
-
-      if (selectedTabs.length === 0) {
-        throw new Error('Your saved stash tab selection is no longer valid. Run a manual snapshot to pick tabs again.')
-      }
-
-      const snapshotId = await snapshotStash(groupId, league, selectedTabs)
-      await applyPricing(groupId, league, snapshotId)
-
-      try {
-        await recordGroupWealthHistory(groupId, snapshotId)
-      } catch (e) {
-        console.error('Failed to record group wealth history:', e)
-      }
-
+      reset()
+      setProgress({
+        phase: 'stash',
+        tabsCurrent: 0,
+        tabsTotal: selectedTabIds.length,
+        message: `Syncing ${selectedTabIds.length} tabs...`,
+      })
+      await runOAuthSnapshot(groupId, league, selectedTabIds)
+      setProgress({
+        phase: 'done',
+        tabsCurrent: selectedTabIds.length,
+        tabsTotal: selectedTabIds.length,
+        message: `Synced ${selectedTabIds.length} tabs`,
+      })
       resetTimer()
+      trackProductEvent('activation_stash_snapshot_completed', {
+        transport: 'oauth',
+        tab_count: selectedTabIds.length,
+        scheduled: true,
+      })
     } catch (error) {
       setProgress({ phase: 'error', message: String(error) })
       throw error

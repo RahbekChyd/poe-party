@@ -53,7 +53,6 @@ import { filterHistoryByRange, type WealthHistoryRange } from '../../lib/wealth-
 import { useCurrencyStore } from '../../store/currency-store'
 import { useGroupStore } from '../../store/group-store'
 import { KpiCardsSkeleton, ItemTableSkeleton } from '../layout/Skeletons'
-import { usePoeSession } from '../../store/poe-session-store'
 import { useMyProfile } from '../../hooks/useCurrentUser'
 import { WealthHistoryRangeSelector } from './WealthHistoryRangeSelector'
 import { SNAPSHOT_LIMITS, hasActiveProAccess } from '../../lib/billing'
@@ -135,13 +134,12 @@ export function SnapshotDetailPage() {
   const { mutate: setItemExcludedAllHistory, isPending: updatingExclusionAllHistory } =
     useSetSnapshotItemExcludedAllHistory(activeGroupId, userId, effectiveSnapshotId)
   const display = useCurrencyStore((s) => s.display)
-  const { sessId } = usePoeSession()
   const { triggerSnapshot, isBusy, modal } = useStashSnapshotFlow()
   const { data: myProfile } = useMyProfile()
   const isPro = hasActiveProAccess(myProfile)
 
   const activeLeague = myGroups?.find((g) => g.group.id === activeGroupId)?.group.league ?? null
-  const canSnapshot = (!!sessId || !!myProfile?.poe_token_expires_at) && !!activeLeague
+  const canSnapshot = !!myProfile?.poe_token_expires_at && !!activeLeague
 
   const { data: ninjaData } = useNinjaPrices(activeLeague)
   const divinePrice = ninjaData?.divinePrice ?? 200

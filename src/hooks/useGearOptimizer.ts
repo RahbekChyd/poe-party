@@ -19,6 +19,7 @@ import type {
 } from '../types/app'
 import { normalizeUpgradeSearchConstraints } from '../lib/gear-optimizer-search-constraints'
 import { asRecord, readString as asString } from '../lib/parse-helpers'
+import { trackProductEvent } from '../lib/analytics'
 import {
   hasExactPobTreeSpecData,
   normalizePobConfigSet,
@@ -784,7 +785,11 @@ export function useQueueUpgradeAnalysis() {
         run: toUpgradeAnalysisRun(data.run),
       }
     },
-    onSuccess: ({ run }) => {
+    onSuccess: ({ run, reused }) => {
+      trackProductEvent('activation_analysis_queued', {
+        analysis_mode: run.analysis_mode,
+        reused,
+      })
       queryClient.setQueryData<UpgradeAnalysisRun[]>(
         [
           ...queryKeys.gearOptimizer.analysisRuns(
@@ -860,24 +865,12 @@ export function useCancelUpgradeAnalysis() {
       target_user_id: string
       build_target_id: string
     }) => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
-
-      const { data, error } = await supabase
-        .from('upgrade_analysis_runs')
-        .update({ status: 'stale', stale_reason: 'user-cancelled' })
-        .eq('id', values.run_id)
-        .eq('group_id', values.group_id)
-        .eq('queued_by', user.id)
-        .in('status', ['queued', 'running'])
-        .select(
-          'id, group_id, build_target_id, target_stage_id, target_user_id, character_id, queued_by, budget_chaos, analysis_mode, search_constraints, party_config, input_hash, status, stale_reason, partial_reason, error_detail, summary, started_at, completed_at, created_at, updated_at',
-        )
-        .single()
+      const { data, error } = await supabase.rpc('cancel_upgrade_analysis_run', {
+        p_run_id: values.run_id,
+      })
 
       if (error) throw error
+      if (!data) throw new Error('The analysis run is not cancellable')
       return toUpgradeAnalysisRun(data as Record<string, unknown>)
     },
     onSuccess: (cancelled) => {

@@ -6,6 +6,9 @@ import { Analytics } from '@vercel/analytics/react'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 import { routeTree } from './routeTree.gen'
 import { queryClient } from './lib/queryClient'
+import { supabaseConfiguration } from './lib/supabase'
+import { ErrorBoundary } from './components/layout/ErrorBoundary'
+import { AppConfigurationError } from './components/layout/AppConfigurationError'
 import './index.css'
 import './store/theme-store'
 
@@ -17,12 +20,24 @@ declare module '@tanstack/react-router' {
   }
 }
 
-createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root')
+
+if (!rootElement) {
+  throw new Error('Application root element is missing')
+}
+
+createRoot(rootElement).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-      <Analytics />
-      <SpeedInsights />
-    </QueryClientProvider>
+    <ErrorBoundary>
+      {supabaseConfiguration.isConfigured ? (
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+          <Analytics />
+          <SpeedInsights />
+        </QueryClientProvider>
+      ) : (
+        <AppConfigurationError />
+      )}
+    </ErrorBoundary>
   </StrictMode>,
 )

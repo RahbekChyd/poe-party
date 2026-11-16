@@ -162,9 +162,7 @@ function findMatchingCharacter(
   const storedName = normalizeLookupValue(storedCharacter.name)
   if (!storedName) return null
 
-  return (
-    characters.find((character) => normalizeLookupValue(character.name) === storedName) ?? null
-  )
+  return characters.find((character) => normalizeLookupValue(character.name) === storedName) ?? null
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -417,7 +415,7 @@ function normalizePassiveTree(
   activeCharacter: Record<string, unknown>,
   activeCharacterClass: string | null,
 ) {
-  const characterRecord = character as Record<string, unknown>
+  const characterRecord: Record<string, unknown> = { ...character }
   const passives = asRecord(characterRecord.passives)
   const metadata = asRecord(characterRecord.metadata)
   const passivesHashes = readNumberArray(passives, 'hashes', 'passiveSkills')
@@ -428,7 +426,11 @@ function normalizePassiveTree(
     'masteryEffectPairs',
     'masteryEffects',
   )
-  const passivesMasteryPairs = readNumberArray(passives, 'mastery_effect_pairs', 'masteryEffectPairs')
+  const passivesMasteryPairs = readNumberArray(
+    passives,
+    'mastery_effect_pairs',
+    'masteryEffectPairs',
+  )
   return {
     url: readString(
       characterRecord,
@@ -528,15 +530,28 @@ Deno.serve(async (req) => {
     }
 
     const adminClient = createAdminClient()
-    const { data: groupData, error: groupError } = await adminClient
-      .from('groups')
-      .select('game')
-      .eq('id', group_id)
-      .single()
+    const [{ data: groupData, error: groupError }, { data: membership, error: membershipError }] =
+      await Promise.all([
+        adminClient.from('groups').select('game, league').eq('id', group_id).single(),
+        adminClient
+          .from('group_members')
+          .select('role')
+          .eq('group_id', group_id)
+          .eq('user_id', authenticatedUser.id)
+          .maybeSingle(),
+      ])
 
     if (groupError) throw groupError
+    if (membershipError) throw membershipError
+    if (!membership) {
+      return new Response(JSON.stringify({ error: 'Not a member of this group' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const game = normalizePoeGame(groupData?.game)
+    const groupLeague = typeof groupData?.league === 'string' ? groupData.league : ''
     let characterQuery = adminClient
       .from('characters')
       .select(
@@ -604,6 +619,12 @@ Deno.serve(async (req) => {
       latestCharacter.ascendancyClass ?? 0,
     )
     const resolvedLeague = latestCharacter.league ?? activeCharacter.league
+    if (!resolvedLeague || resolvedLeague !== groupLeague) {
+      return new Response(JSON.stringify({ skipped: true, reason: 'character-league-mismatch' }), {
+        status: 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
     const refreshedCharacter = {
       ...activeCharacter,
       poe_character_id: latestCharacter.id,
@@ -685,7 +706,7 @@ Deno.serve(async (req) => {
         passive_tree: passiveTree,
         atlas_tree: atlasTree,
         raw_character: character,
-        raw_league_account: game === 'poe1' ? league_account ?? {} : {},
+        raw_league_account: game === 'poe1' ? (league_account ?? {}) : {},
         last_synced_at: new Date().toISOString(),
       },
       { onConflict: 'user_id,group_id,character_id' },

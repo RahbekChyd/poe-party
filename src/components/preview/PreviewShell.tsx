@@ -1,11 +1,11 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Button } from '@heroui/react/button'
-import { Chip } from '@heroui/react/chip'
 import {
   Coins,
   Handshake,
   LayoutDashboard,
+  Menu,
   Moon,
   Search,
   Sparkles,
@@ -13,6 +13,8 @@ import {
   Sword,
   Target,
   Users,
+  X,
+  type LucideIcon,
 } from 'lucide-react'
 import logo from '../../assets/poe-party-logo.png'
 import { cn } from '../../lib/utils'
@@ -22,40 +24,51 @@ import { Footer } from '../layout/Footer'
 import { ErrorBoundary } from '../layout/ErrorBoundary'
 import { useThemeStore } from '../../store/theme-store'
 import { GuestGateModal, PreviewModeChip, type PreviewMode } from './PreviewShared'
-const publicItems = [
-  { label: 'Analysis', to: '/preview/analysis', icon: Sparkles, exact: false },
-  { label: 'Directory', to: '/preview/search', icon: Search, exact: false },
-  { label: 'Services', to: '/preview/services', icon: Handshake, exact: false },
-  { label: 'Strategies', to: '/preview/strategies', icon: Target, exact: false },
+
+interface PreviewNavItem {
+  label: string
+  to:
+    | '/preview'
+    | '/preview/analysis'
+    | '/preview/economy'
+    | '/preview/gear'
+    | '/preview/members'
+    | '/preview/search'
+    | '/preview/services'
+    | '/preview/strategies'
+  icon: LucideIcon
+  exact?: boolean
+}
+
+const publicItems: readonly PreviewNavItem[] = [
+  { label: 'Analysis', to: '/preview/analysis', icon: Sparkles },
+  { label: 'Directory', to: '/preview/search', icon: Search },
+  { label: 'Services', to: '/preview/services', icon: Handshake },
+  { label: 'Strategies', to: '/preview/strategies', icon: Target },
 ]
 
-const privateWorkspaceItems = [
+const privateWorkspaceItems: readonly PreviewNavItem[] = [
   { label: 'Overview', to: '/preview', icon: LayoutDashboard, exact: true },
-  { label: 'Economy', to: '/preview/economy', icon: Coins, exact: false },
-  { label: 'Gear', to: '/preview/gear', icon: Sword, exact: false },
-  { label: 'Members', to: '/preview/members', icon: Users, exact: false },
+  { label: 'Economy', to: '/preview/economy', icon: Coins },
+  { label: 'Gear', to: '/preview/gear', icon: Sword },
+  { label: 'Members', to: '/preview/members', icon: Users },
 ]
 
-type PreviewNavItem =
-  | (typeof publicItems)[number]
-  | (typeof privateWorkspaceItems)[number]
+function isItemActive(pathname: string, item: PreviewNavItem) {
+  return item.exact ? pathname === item.to || pathname === `${item.to}/` : pathname.startsWith(item.to)
+}
 
 function currentPageMeta(pathname: string): { section: string; page: string } {
-  if (pathname === '/preview') return { section: 'Private Workspace', page: 'Overview' }
-  if (pathname.startsWith('/preview/economy'))
-    return { section: 'Private Workspace', page: 'Economy' }
-  if (pathname.startsWith('/preview/members'))
-    return { section: 'Private Workspace', page: 'Members' }
-  if (pathname.startsWith('/preview/gear')) return { section: 'Private Workspace', page: 'Gear' }
-  if (pathname.startsWith('/preview/analysis')) return { section: 'Public', page: 'Analysis' }
-  if (pathname.startsWith('/preview/strategies/')) return { section: 'Public', page: 'Strategy' }
-  if (pathname.startsWith('/preview/strategies')) return { section: 'Public', page: 'Strategies' }
-  if (pathname.startsWith('/preview/services')) return { section: 'Public', page: 'Services' }
-  if (pathname.startsWith('/preview/search')) return { section: 'Public', page: 'Directory' }
-  if (pathname.startsWith('/tools')) return { section: 'PoE Tools', page: 'Guide' }
-  if (pathname.startsWith('/poe-strategies')) return { section: 'PoE Strategies', page: 'Guide' }
-
-  return { section: 'Preview', page: 'Explore' }
+  if (pathname === '/preview' || pathname === '/preview/') return { section: 'Workspace sample', page: 'Overview' }
+  if (pathname.startsWith('/preview/economy')) return { section: 'Workspace sample', page: 'Economy' }
+  if (pathname.startsWith('/preview/members')) return { section: 'Workspace sample', page: 'Members' }
+  if (pathname.startsWith('/preview/gear')) return { section: 'Workspace sample', page: 'Gear' }
+  if (pathname.startsWith('/preview/analysis')) return { section: 'Public tool', page: 'Analysis' }
+  if (pathname.startsWith('/preview/strategies/')) return { section: 'Public tool', page: 'Strategy' }
+  if (pathname.startsWith('/preview/strategies')) return { section: 'Public tool', page: 'Strategies' }
+  if (pathname.startsWith('/preview/services')) return { section: 'Public tool', page: 'Services' }
+  if (pathname.startsWith('/preview/search')) return { section: 'Public tool', page: 'Directory' }
+  return { section: 'Explore', page: 'PoE Party' }
 }
 
 function PreviewSidebarSection({ title, items }: { title: string; items: readonly PreviewNavItem[] }) {
@@ -63,26 +76,29 @@ function PreviewSidebarSection({ title, items }: { title: string; items: readonl
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-default-400 px-3 text-[11px] font-semibold tracking-[0.24em] uppercase">
+      <p className="text-default-400 px-3 text-[11px] font-semibold tracking-[0.22em] uppercase">
         {title}
       </p>
       <div className="flex flex-col gap-1">
-        {items.map(({ label, to, icon: Icon, exact }) => {
-          const isActive = exact ? location.pathname === to : location.pathname.startsWith(to)
+        {items.map((item) => {
+          const Icon = item.icon
+          const isActive = isItemActive(location.pathname, item)
 
           return (
             <Link
-              key={to}
-              to={to}
+              key={item.to}
+              to={item.to}
+              activeOptions={{ exact: true }}
+              aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'rounded-large flex items-center gap-3 px-3 py-2 text-sm font-medium transition-colors',
+                'flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
                 isActive
-                  ? 'bg-warning/15 text-warning'
+                  ? 'bg-warning/15 text-brand-readable'
                   : 'text-default-500 hover:bg-default-100 hover:text-default-800',
               )}
             >
-              <Icon size={16} />
-              {label}
+              <Icon size={16} aria-hidden="true" />
+              {item.label}
             </Link>
           )
         })}
@@ -100,13 +116,13 @@ function currentMode(pathname: string): PreviewMode {
   ) {
     return 'public'
   }
-
   return 'teaser'
 }
 
 export function PreviewShell({ children }: { children: ReactNode }) {
   const { location } = useRouterState()
   const { theme, toggle } = useThemeStore()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const loginHref =
     typeof window === 'undefined'
       ? '/auth/login'
@@ -126,135 +142,163 @@ export function PreviewShell({ children }: { children: ReactNode }) {
       <div className="bg-background flex h-screen overflow-hidden">
         <aside className="border-divider bg-content1 hidden h-full w-72 shrink-0 border-r lg:flex lg:flex-col">
           <div className="border-divider border-b px-5 py-5">
-            <div className="flex items-center gap-3">
-              <img src={logo} alt="PoE Party" className="h-11 w-11 rounded-2xl shadow-sm" />
+            <Link
+              to="/"
+              activeOptions={{ exact: true }}
+              className="flex items-center gap-3 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              <img src={logo} alt="" className="h-11 w-11 rounded-2xl shadow-sm" />
               <div>
                 <p className="text-foreground text-base font-semibold">PoE Party</p>
-                <p className="text-default-400 text-sm">
-                  {isPublicMode
-                    ? 'Use public tools without connecting an account.'
-                    : 'Sample private workspace views before connecting.'}
-                </p>
+                <p className="text-default-400 text-sm">Explore before connecting.</p>
               </div>
-            </div>
+            </Link>
           </div>
 
-          <div className="flex flex-1 flex-col gap-6 px-4 py-5">
-            <PreviewSidebarSection title="Public" items={publicItems} />
-            <PreviewSidebarSection title="Private Workspace" items={privateWorkspaceItems} />
+          <nav aria-label="Explore PoE Party" className="flex flex-1 flex-col gap-6 overflow-y-auto px-4 py-5">
+            <PreviewSidebarSection title="Use now" items={publicItems} />
+            <PreviewSidebarSection title="Workspace samples" items={privateWorkspaceItems} />
 
             {mode === 'teaser' ? (
               <div className="border-warning/25 bg-warning/5 mt-auto rounded-2xl border p-4">
                 <div className="flex items-center gap-2">
-                  <Sparkles size={16} className="text-warning" />
-                  <p className="text-foreground text-sm font-medium">Private workspace</p>
+                  <Sparkles size={16} className="text-warning" aria-hidden="true" />
+                  <p className="text-foreground text-sm font-medium">Bring in your own data</p>
                 </div>
                 <p className="text-default-500 mt-2 text-sm leading-relaxed">
-                  Connect when you want real stash, roster, and planning data.
+                  Connect when you want character sync and a private league workspace.
                 </p>
                 <a
                   className="button button--sm button--tertiary mt-4"
                   href={loginHref}
-                  onClick={() => {
+                  onClick={() =>
                     trackPublicEvent('public_sign_in_click', {
                       source: location.pathname,
                       placement: 'sidebar',
                     })
-                  }}
+                  }
                 >
-                  Connect Account
+                  Connect account
                 </a>
               </div>
             ) : null}
-          </div>
+          </nav>
         </aside>
 
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <header className="border-divider bg-content1/90 border-b backdrop-blur">
-            <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <PreviewModeChip mode={mode} />
-                </div>
-                <p className="text-default-400 mt-2 text-xs font-medium tracking-[0.18em] uppercase">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <header className="border-divider bg-content1/95 relative z-30 shrink-0 border-b backdrop-blur">
+            <div className="flex min-h-16 items-center gap-2 px-3 sm:px-4 lg:px-6">
+              <Link
+                to="/"
+                activeOptions={{ exact: true }}
+                aria-label="PoE Party home"
+                className="mr-auto flex min-w-0 items-center gap-2 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary lg:hidden"
+              >
+                <img src={logo} alt="" className="h-9 w-9 rounded-xl" />
+                <span className="min-w-0">
+                  <span className="text-foreground block truncate text-sm font-semibold">PoE Party</span>
+                  <span className="text-default-400 block truncate text-[11px]">{pageMeta.page}</span>
+                </span>
+              </Link>
+
+              <div className="mr-auto hidden min-w-0 lg:block">
+                <PreviewModeChip mode={mode} />
+                <p className="text-default-400 mt-1.5 text-xs font-medium tracking-[0.16em] uppercase">
                   {pageMeta.section} / {pageMeta.page}
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Button
-                  isIconOnly
-                  size="sm"
-                  variant="tertiary"
-                  onPress={toggle}
-                  aria-label="Toggle theme"
-                >
-                  {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-                </Button>
-                <Link to={crossLink.to} className="button button--sm button--tertiary">
-                  {crossLink.label}
-                </Link>
-                <a
-                  className="button button--sm button--tertiary"
-                  href={loginHref}
-                  onClick={() => {
-                    trackPublicEvent('public_sign_in_click', {
-                      source: location.pathname,
-                      placement: 'header',
-                    })
-                  }}
-                >
-                  {isPublicMode ? 'Sign In' : 'Connect Account'}
-                </a>
-              </div>
+              <Button
+                isIconOnly
+                size="sm"
+                variant="tertiary"
+                onPress={toggle}
+                aria-label="Toggle theme"
+              >
+                {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+              </Button>
+
+              <Link
+                to={crossLink.to}
+                activeOptions={{ exact: true }}
+                className="button button--sm button--tertiary hidden sm:inline-flex"
+              >
+                {crossLink.label}
+              </Link>
+
+              <Button
+                isIconOnly
+                size="sm"
+                variant="tertiary"
+                onPress={() => setMobileMenuOpen((open) => !open)}
+                aria-label={mobileMenuOpen ? 'Close explore menu' : 'Open explore menu'}
+                aria-expanded={mobileMenuOpen}
+                aria-controls="preview-mobile-menu"
+                className="lg:hidden"
+              >
+                {mobileMenuOpen ? <X size={17} /> : <Menu size={17} />}
+              </Button>
+
+              <a
+                className="button button--sm button--tertiary"
+                href={loginHref}
+                onClick={() =>
+                  trackPublicEvent('public_sign_in_click', {
+                    source: location.pathname,
+                    placement: 'header',
+                  })
+                }
+              >
+                <span className="hidden sm:inline">{isPublicMode ? 'Sign in' : 'Connect account'}</span>
+                <span className="sm:hidden">Connect</span>
+              </a>
             </div>
 
-            <div className="border-divider border-t px-4 py-3 lg:hidden">
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                  <Chip size="sm" variant="soft">
-                    Public
-                  </Chip>
-                  {publicItems.map(({ label, to, exact }) => (
-                    <Link
-                      key={to}
-                      to={to}
-                      className={cn(
-                        'shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors',
-                        (exact ? location.pathname === to : location.pathname.startsWith(to))
-                          ? 'bg-warning/15 text-warning'
-                          : 'bg-default-100 text-default-600',
-                      )}
-                    >
-                      {label}
-                    </Link>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                  <Chip size="sm" variant="soft">
-                    Private Workspace
-                  </Chip>
-                  {privateWorkspaceItems.map(({ label, to, exact }) => (
-                    <Link
-                      key={to}
-                      to={to}
-                      className={cn(
-                        'shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors',
-                        (exact ? location.pathname === to : location.pathname.startsWith(to))
-                          ? 'bg-warning/15 text-warning'
-                          : 'bg-default-100 text-default-600',
-                      )}
-                    >
-                      {label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </div>
+            {mobileMenuOpen ? (
+              <nav
+                id="preview-mobile-menu"
+                aria-label="Explore PoE Party on mobile"
+                className="border-divider bg-content1 absolute inset-x-0 top-full grid max-h-[calc(100vh-4rem)] gap-5 overflow-y-auto border-y p-4 shadow-lg lg:hidden"
+              >
+                {[
+                  { label: 'Use now', items: publicItems },
+                  { label: 'Workspace samples', items: privateWorkspaceItems },
+                ].map((section) => (
+                  <div key={section.label}>
+                    <p className="text-default-400 px-1 text-xs font-semibold tracking-[0.18em] uppercase">
+                      {section.label}
+                    </p>
+                    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {section.items.map((item) => {
+                        const Icon = item.icon
+                        const isActive = isItemActive(location.pathname, item)
+                        return (
+                          <Link
+                            key={item.to}
+                            to={item.to}
+                            activeOptions={{ exact: true }}
+                            aria-current={isActive ? 'page' : undefined}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className={cn(
+                              'flex min-h-12 items-center gap-2 rounded-xl border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                              isActive
+                                ? 'border-warning/30 bg-warning/12 text-brand-readable'
+                                : 'border-divider bg-default-50 text-default-600',
+                            )}
+                          >
+                            <Icon size={16} aria-hidden="true" /> {item.label}
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </nav>
+            ) : null}
           </header>
 
-          <main className="flex flex-1 flex-col overflow-y-auto">
-            <div className="flex-1 p-6">
+          <main id="main-content" className="flex flex-1 flex-col overflow-y-auto">
+            <div className="flex-1 p-4 sm:p-6">
               <ErrorBoundary>{children}</ErrorBoundary>
             </div>
             <Footer />

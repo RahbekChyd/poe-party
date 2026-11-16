@@ -21,6 +21,7 @@ import {
   DirectoryCharacterCardContent,
   DirectoryGroupCardContent,
 } from '../search/DirectoryResultCards'
+import { QueryFreshnessNotice, QueryStatePanel } from '../ui/QueryStatePanel'
 type Mode = 'characters' | 'groups'
 
 export function GuestDirectoryPage() {
@@ -35,16 +36,21 @@ export function GuestDirectoryPage() {
     selectedLeague,
     setSelectedLeague,
     isLoading: leagueLoading,
+    isError: leagueError,
+    isFetching: leagueFetching,
+    refetch: refetchLeagues,
   } = usePreviewLeague(canUsePoe2)
-  const { data: publicCharacters = [], isLoading: characterLoading } =
-    useGuestPublicCharacterSearch(selectedGame, selectedLeague, debouncedQuery)
-  const { data: publicGroups = [], isLoading: groupLoading } = useGuestPublicGroupSearch(
+  const characterQuery = useGuestPublicCharacterSearch(selectedGame, selectedLeague, debouncedQuery)
+  const groupQuery = useGuestPublicGroupSearch(
     selectedGame,
     selectedLeague,
     debouncedQuery,
   )
+  const { data: publicCharacters = [] } = characterQuery
+  const { data: publicGroups = [] } = groupQuery
   const hasSearch = debouncedQuery.trim().length >= 2
-  const isLoading = mode === 'characters' ? characterLoading : groupLoading
+  const activeQuery = mode === 'characters' ? characterQuery : groupQuery
+  const isLoading = activeQuery.isLoading
   const resultCount = mode === 'characters' ? publicCharacters.length : publicGroups.length
 
   useEffect(() => {
@@ -150,6 +156,29 @@ export function GuestDirectoryPage() {
         </Card.Content>
       </Card>
 
+      {leagueError && leagues.length === 0 ? (
+        <QueryStatePanel
+          kind="error"
+          title="Leagues are unavailable"
+          description="We could not load the current league list. Retry before searching the directory."
+          onRetry={refetchLeagues}
+        />
+      ) : null}
+
+      <QueryFreshnessNotice
+        isRefreshing={
+          (leagueFetching && leagues.length > 0) ||
+          (activeQuery.isFetching && resultCount > 0)
+        }
+        refreshFailed={
+          (leagueError && leagues.length > 0) || (activeQuery.isError && resultCount > 0)
+        }
+        onRetry={() => {
+          void refetchLeagues()
+          void activeQuery.refetch()
+        }}
+      />
+
       {hasSearch && !isLoading ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-default-500 text-sm">
@@ -163,7 +192,14 @@ export function GuestDirectoryPage() {
         </div>
       ) : null}
 
-      {!hasSearch ? (
+      {hasSearch && activeQuery.isError && resultCount === 0 ? (
+        <QueryStatePanel
+          kind="error"
+          title="Directory search failed"
+          description="The public directory did not respond. Your search is still here; retry when ready."
+          onRetry={activeQuery.refetch}
+        />
+      ) : !hasSearch ? (
         <Card>
           <Card.Content className="flex flex-col items-center gap-3 p-12 text-center">
             <Search size={32} className="text-default-300" />
@@ -174,11 +210,11 @@ export function GuestDirectoryPage() {
           </Card.Content>
         </Card>
       ) : isLoading ? (
-        <Card>
-          <Card.Content className="text-default-400 p-10 text-center text-sm">
-            Searching live public results...
-          </Card.Content>
-        </Card>
+        <QueryStatePanel
+          kind="loading"
+          title="Searching the directory"
+          description="Looking for public results in the selected game and league."
+        />
       ) : mode === 'characters' ? (
         publicCharacters.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">

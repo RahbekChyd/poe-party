@@ -21,7 +21,7 @@ export function SecurityTrustPage() {
         PoE Party is open source under Apache-2.0. The{' '}
         <a
           href={GITHUB_URL}
-          className="text-primary hover:underline"
+          className="text-primary underline underline-offset-2 hover:no-underline"
           target="_blank"
           rel="noreferrer"
         >
@@ -122,7 +122,7 @@ export function SecurityTrustPage() {
       </ol>
       <p>
         For help with account, privacy, or deletion requests, contact{' '}
-        <a href={CONTACT_MAILTO} className="text-primary hover:underline">
+        <a href={CONTACT_MAILTO} className="text-primary underline underline-offset-2 hover:no-underline">
           {CONTACT_EMAIL}
         </a>
         .
@@ -131,7 +131,7 @@ export function SecurityTrustPage() {
       <h2>9. Responsible Disclosure</h2>
       <p>
         If you believe you found a vulnerability, report it privately to{' '}
-        <a href={CONTACT_MAILTO} className="text-primary hover:underline">
+        <a href={CONTACT_MAILTO} className="text-primary underline underline-offset-2 hover:no-underline">
           {CONTACT_EMAIL}
         </a>
         . Include reproduction steps, impact, and any logs or screenshots that help validate the

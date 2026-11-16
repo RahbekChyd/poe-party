@@ -2,7 +2,7 @@ import { CONTACT_EMAIL, CONTACT_MAILTO } from '../../lib/seo'
 import { LegalLayout } from './LegalLayout'
 export function CookiePolicyPage() {
   return (
-    <LegalLayout title="Cookie Policy" lastUpdated="April 30, 2026">
+    <LegalLayout title="Cookie Policy" lastUpdated="July 20, 2026">
       <p>
         This Cookie Policy explains how PoE Party uses cookies and similar technologies when you use
         the Path of Exile group management web app, public previews, and signed-in workspace.
@@ -14,12 +14,15 @@ export function CookiePolicyPage() {
         remember information about your visit, such as your login session and preferences.
       </p>
 
-      <h2>2. Cookies We Use</h2>
-      <p>PoE Party uses essential cookies and local storage needed for the service to function:</p>
+      <h2>2. Browser Storage We Use</h2>
+      <p>
+        PoE Party uses session storage and local storage needed for the service to function. Hosting,
+        analytics, or authentication providers may also set operational cookies:
+      </p>
       <ul>
         <li>
-          <strong>Authentication session:</strong> Supabase stores a session token to keep you
-          signed in. This is required for the service to work and cannot be disabled.
+          <strong>Authentication session:</strong> Supabase session credentials are stored in
+          browser session storage and are cleared when that browser session ends or you sign out.
         </li>
         <li>
           <strong>Theme preference:</strong> Your light/dark mode preference is stored in local
@@ -42,8 +45,10 @@ export function CookiePolicyPage() {
       <h2>3. Analytics</h2>
       <p>
         PoE Party uses Vercel Analytics to collect high-level usage and performance information
-        about public pages and app routes. We do not use advertising cookies, and we do not track
-        your browsing behavior across other websites.
+        about public pages, app routes, and coarse milestones such as completing a workspace,
+        sync, snapshot, strategy, or analysis action. Those custom events do not include account,
+        workspace, character, item, or run identifiers. We do not use advertising cookies, and we
+        do not track your browsing behavior across other websites.
       </p>
       <p>
         Analytics data is used to understand page usage, spot issues, and improve the product during
@@ -52,9 +57,9 @@ export function CookiePolicyPage() {
 
       <h2>4. Managing Cookies</h2>
       <p>
-        You can manage cookies through your browser settings. Most browsers allow you to block or
-        delete cookies. However, blocking essential cookies will prevent you from using PoE Party,
-        as authentication requires session cookies.
+        You can manage cookies and site storage through your browser settings. Most browsers allow
+        you to block or delete both. Clearing PoE Party site data signs you out and resets local
+        preferences; blocking required browser storage prevents signed-in features from working.
       </p>
       <p>Common browser cookie settings:</p>
       <ul>
@@ -83,7 +88,7 @@ export function CookiePolicyPage() {
       <h2>6. Contact</h2>
       <p>
         If you have questions about our use of cookies, contact us at{' '}
-        <a href={CONTACT_MAILTO} className="text-primary hover:underline">
+        <a href={CONTACT_MAILTO} className="text-primary underline underline-offset-2 hover:no-underline">
           {CONTACT_EMAIL}
         </a>
         .

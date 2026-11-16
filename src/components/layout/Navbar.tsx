@@ -158,7 +158,7 @@ export function Navbar() {
             <button
               type="button"
               onClick={() => void navigate({ to: '/dashboard/analysis' })}
-              className="block max-w-44 focus:outline-none"
+              className="block max-w-44 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               aria-label={analysisChipLabel}
             >
               <Chip

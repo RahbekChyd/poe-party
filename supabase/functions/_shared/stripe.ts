@@ -1,4 +1,4 @@
-import Stripe from 'npm:stripe'
+import Stripe from 'npm:stripe@22.3.2'
 
 export function createStripeClient() {
   const secretKey = Deno.env.get('STRIPE_SECRET_KEY')

@@ -108,7 +108,7 @@ export function TermsOfServicePage() {
       <h2>11. Contact</h2>
       <p>
         If you have questions about these Terms of Service, please contact us at{' '}
-        <a href={CONTACT_MAILTO} className="text-primary hover:underline">
+        <a href={CONTACT_MAILTO} className="text-primary underline underline-offset-2 hover:no-underline">
           {CONTACT_EMAIL}
         </a>
         .

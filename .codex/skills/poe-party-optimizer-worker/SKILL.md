@@ -25,6 +25,9 @@ Use this skill for the separate containerized worker under `optimizer-worker/`. 
 - In `summary.compare_power_report`, the worker's `totalDps` primary metric maps to PoB `TotalDPS`/Hit DPS. Do not map it to `FullDPS` unless the selected build actually populates PoB's Full DPS rollup.
 - When adopting upstream PoB features, verify the Dockerfile `POB_REF` against the upstream commit/release that introduced the feature before assuming the bundled runtime has it.
 - Queue entrypoints and promotion functions live under `supabase/functions/`.
+- Startup requires a unique `WORKER_AUTH_TOKEN` of at least 32 bytes. `/health/live` is process liveness; `/health` and `/health/ready` are dependency-aware readiness and must become unready before graceful drain.
+- Authenticated and guest analysis runs share the service-role-only attempt RPC lifecycle. Preserve lease ownership on heartbeat/complete/fail, bounded retries with `retry_not_before`, same-attempt trade cooldowns, and transactional plan/item replacement.
+- Read stash inputs in deterministic 500-row keyset pages and fail explicitly above `WORKER_MAX_STASH_ITEMS`; never accept PostgREST's default page as a complete stash.
 - Shared recommendation shape helpers appear in both frontend and worker libs; avoid drifting output contracts.
 - Live market rare candidates may come from relaxed search attempts; preserve the original trade query/link that produced the priced candidate instead of rebuilding a stricter exact link downstream.
 - Preserve market price context in recommendation payloads: live trade listings should carry original amount/currency, and poe.ninja unique prices should carry link count/variant details into trade-link generation.

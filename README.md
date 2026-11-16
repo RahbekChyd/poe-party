@@ -53,7 +53,6 @@ Important frontend variables:
 - `VITE_SUPABASE_FUNCTIONS_KEY`
 - `VITE_POE_CLIENT_ID`
 - `VITE_POE_REDIRECT_URI`
-- `VITE_ENABLE_COOKIE_AUTH`
 - `VITE_POE2_ALLOWED_ACCOUNT_NAMES`: optional comma-separated PoE2 early-access account gate, or `*`.
 - `VITE_BILLING_ALLOWED_POE_ACCOUNTS`: optional temporary billing rollout gate.
 
@@ -65,7 +64,10 @@ Important Edge Function secrets:
 - `POE_CLIENT_ID`
 - `POE_CLIENT_SECRET`
 - `POE_REDIRECT_URI`
+- `POE_ALLOWED_RETURN_URLS`: comma-separated exact frontend URLs accepted after OAuth callback.
 - `POE_CONTACT`
+- `POE_TOKEN_ENCRYPTION_ACTIVE_KEY_ID`
+- `POE_TOKEN_ENCRYPTION_KEYS`: JSON key ring of unpadded base64url AES-256 keys.
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_PRO_PRICE_ID`
@@ -76,6 +78,10 @@ Important Edge Function secrets:
 
 Hosted projects must use their own Supabase, Vercel, Stripe, PoE OAuth, and worker credentials. Never reuse local secrets or PoE Party production values.
 
+The additive database rollout, exact token-encryption key-ring format, rotation process, and
+plaintext backfill/contract gates are documented in
+[`docs/poe-token-encryption-rollout.md`](docs/poe-token-encryption-rollout.md).
+
 ## Validation
 
 Use the pinned pnpm version through npm exec when needed:
@@ -83,7 +89,17 @@ Use the pinned pnpm version through npm exec when needed:
 ```powershell
 npm exec --yes pnpm@10.33.2 -- type-check
 npm exec --yes pnpm@10.33.2 -- lint
+npm exec --yes pnpm@10.33.2 -- test
+npm exec --yes pnpm@10.33.2 -- test:worker
 npm exec --yes pnpm@10.33.2 -- build
+npm exec --yes pnpm@10.33.2 -- check:bundle
+```
+
+Public browser smoke and accessibility checks run with:
+
+```powershell
+npm exec --yes pnpm@10.33.2 -- exec playwright install chromium
+npm exec --yes pnpm@10.33.2 -- test:e2e
 ```
 
 After changing routes, run:
@@ -127,5 +143,10 @@ Production deploy workflows for hosted PoE Party infrastructure are private oper
 ## Security
 
 Read `SECURITY.md`, `docs/security-checklist.md`, and `docs/open-source-policy.md` before changing auth, tokens, RLS, public data, billing, or hosted-service behavior.
+
+The environment-neutral release sequence and staging gates are documented in
+`docs/technical-remediation-rollout.md`. The repository-side manual sequence is in
+`docs/manual-release-runbook.md`. Exact production targets, credentials, and private operator
+procedures remain private and require explicit confirmation before use.
 
 Do not commit secrets, production logs, local env files, user data exports, service-role keys, Stripe secrets, PoE OAuth secrets, or worker tokens.

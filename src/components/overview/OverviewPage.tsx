@@ -560,6 +560,7 @@ export function OverviewPage() {
                       {s.item_data?.icon_url ? (
                         <img
                           src={s.item_data.icon_url}
+                          alt=""
                           className="h-8 w-8 bg-transparent object-contain"
                         />
                       ) : (

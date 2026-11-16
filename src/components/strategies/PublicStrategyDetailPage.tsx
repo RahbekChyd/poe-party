@@ -14,6 +14,7 @@ import { useNinjaPrices } from '../../hooks/useNinjaPrices'
 import { DIFFICULTY_CHIP, MAP_REQ_LABELS } from '../../lib/constants'
 import { formatCurrencyAmount } from '../../lib/utils'
 import { DetailPageSkeleton } from '../layout/Skeletons'
+import { StrategyMetadataBadges, StrategySourceLinks } from './StrategyMetadataBadges'
 type NativeChipColor = 'default' | 'accent' | 'success' | 'warning' | 'danger'
 
 function toNativeChipColor(color: string): NativeChipColor {
@@ -131,6 +132,7 @@ export function PublicStrategyDetailPage() {
           {strategy.benchmark_sample_count} benchmark sample
           {strategy.benchmark_sample_count === 1 ? '' : 's'}
         </Chip>
+        <StrategyMetadataBadges metadata={strategy.content_metadata} />
       </div>
 
       <Card>
@@ -164,6 +166,8 @@ export function PublicStrategyDetailPage() {
 
       <Card>
         <Card.Content className="gap-4 p-5">
+          <StrategySourceLinks metadata={strategy.content_metadata} />
+
           {capabilities?.supportsAtlasTree && strategy.atlas_tree_url ? (
             <div className="rounded-large border-divider bg-default-50/60 flex items-center justify-between gap-3 border p-4">
               <div>

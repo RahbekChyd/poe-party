@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import { Github } from 'lucide-react'
 import { trackPublicEvent } from '../../lib/analytics'
 import { CONTACT_MAILTO, DISCORD_URL, GITHUB_URL } from '../../lib/seo'
@@ -66,9 +65,9 @@ export function Footer() {
               >
                 {index > 0 ? <span className="text-default-300">|</span> : null}
                 {link.type === 'route' ? (
-                  <Link to={link.to} className="hover:text-foreground transition-colors">
+                  <a href={link.to} className="hover:text-foreground transition-colors">
                     {link.label}
-                  </Link>
+                  </a>
                 ) : (
                   <a
                     href={link.href}
@@ -91,13 +90,12 @@ export function Footer() {
           {legalLinks.map((link, index) => (
             <span key={link.to} className="inline-flex items-center gap-3">
               {index > 0 ? <span className="text-default-300">|</span> : null}
-              <Link
-                to={link.to}
-                hash={'hash' in link ? link.hash : undefined}
+              <a
+                href={`${link.to}${'hash' in link ? `#${link.hash}` : ''}`}
                 className="hover:text-foreground transition-colors"
               >
                 {link.label}
-              </Link>
+              </a>
             </span>
           ))}
           <span className="text-default-300">|</span>

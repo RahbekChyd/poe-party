@@ -35,54 +35,10 @@ type StripeWebhookEvent = {
   data: { object: Record<string, unknown> }
 }
 
-async function claimBillingEvent(
-  adminClient: ReturnType<typeof createAdminClient>,
-  event: { id: string; type: string; created?: number },
-): Promise<'claimed' | 'duplicate'> {
-  const stripeCreatedAt = fromStripeCreated(event.created)
-  const { error: insertError } = await adminClient.from('billing_events').insert({
-    stripe_event_id: event.id,
-    event_type: event.type,
-    stripe_created_at: stripeCreatedAt,
-    processing_status: 'processing',
-  })
-
-  if (!insertError) return 'claimed'
-
-  if (insertError.code !== '23505') {
-    throw insertError
-  }
-
-  const { data: existingEvent, error: existingEventError } = await adminClient
-    .from('billing_events')
-    .select('processing_status')
-    .eq('stripe_event_id', event.id)
-    .maybeSingle()
-
-  if (existingEventError) throw existingEventError
-  if (
-    existingEvent?.processing_status === 'processed' ||
-    existingEvent?.processing_status === 'processing' ||
-    existingEvent?.processing_status === 'ignored'
-  ) {
-    return 'duplicate'
-  }
-
-  const { error: updateError } = await adminClient
-    .from('billing_events')
-    .update({
-      processing_status: 'processing',
-      error_message: null,
-    })
-    .eq('stripe_event_id', event.id)
-
-  if (updateError) throw updateError
-  return 'claimed'
-}
-
 async function finishBillingEvent(
   adminClient: ReturnType<typeof createAdminClient>,
   eventId: string,
+  leaseOwner: string,
   status: 'processed' | 'failed' | 'ignored',
   errorMessage: string | null = null,
 ) {
@@ -92,8 +48,11 @@ async function finishBillingEvent(
       processing_status: status,
       processed_at: new Date().toISOString(),
       error_message: errorMessage,
+      lease_owner: null,
+      lease_expires_at: null,
     })
     .eq('stripe_event_id', eventId)
+    .eq('lease_owner', leaseOwner)
 
   if (error) throw error
 }
@@ -113,7 +72,7 @@ Deno.serve(async (req) => {
       rawBody,
       signature,
       getStripeWebhookSecret(),
-    ) as StripeWebhookEvent
+    ) as unknown as StripeWebhookEvent
   } catch (error) {
     console.error('stripe-webhook signature error', error)
     return new Response('bad signature', { status: 400 })
@@ -121,11 +80,25 @@ Deno.serve(async (req) => {
 
   const adminClient = createAdminClient()
   const eventCreatedAt = fromStripeCreated(event.created)
+  const leaseOwner = crypto.randomUUID()
 
   try {
-    const claimStatus = await claimBillingEvent(adminClient, event)
+    const { data: claimStatus, error: claimError } = await adminClient.rpc(
+      'claim_billing_event',
+      {
+        p_event_id: event.id,
+        p_event_type: event.type,
+        p_stripe_created_at: eventCreatedAt,
+        p_lease_owner: leaseOwner,
+        p_lease_seconds: 120,
+      },
+    )
+    if (claimError) throw claimError
     if (claimStatus === 'duplicate') {
       return jsonResponse({ received: true, duplicate: true })
+    }
+    if (claimStatus === 'busy') {
+      return jsonResponse({ error: 'Event is already being processed' }, 503)
     }
 
     switch (event.type) {
@@ -154,6 +127,15 @@ Deno.serve(async (req) => {
             { onConflict: 'user_id' },
           )
           if (error) throw error
+        }
+
+        if (typeof session.id === 'string') {
+          const { error: checkoutIntentError } = await adminClient
+            .from('billing_checkout_intents')
+            .update({ status: 'completed' })
+            .eq('stripe_session_id', session.id)
+            .in('status', ['claimed', 'open'])
+          if (checkoutIntentError) throw checkoutIntentError
         }
 
         const subscriptionId =
@@ -207,17 +189,17 @@ Deno.serve(async (req) => {
       }
 
       default:
-        await finishBillingEvent(adminClient, event.id, 'ignored')
+        await finishBillingEvent(adminClient, event.id, leaseOwner, 'ignored')
         return jsonResponse({ received: true, ignored: true })
     }
 
-    await finishBillingEvent(adminClient, event.id, 'processed')
+    await finishBillingEvent(adminClient, event.id, leaseOwner, 'processed')
     return jsonResponse({ received: true })
   } catch (error) {
     const errorMessage = toErrorMessage(error).slice(0, 1000)
     console.error('stripe-webhook processing error', error)
     try {
-      await finishBillingEvent(adminClient, event.id, 'failed', errorMessage)
+      await finishBillingEvent(adminClient, event.id, leaseOwner, 'failed', errorMessage)
     } catch (eventUpdateError) {
       console.error('stripe-webhook failed to record failure', eventUpdateError)
     }

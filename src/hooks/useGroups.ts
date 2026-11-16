@@ -8,6 +8,7 @@ import {
   normalizePoeGame,
   type PoeGame,
 } from '../lib/poe-game'
+import { trackProductEvent } from '../lib/analytics'
 export interface Group {
   id: string
   name: string
@@ -99,25 +100,26 @@ export function useCreateGroup() {
       } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      const { data: group, error: groupError } = await supabase
-        .from('groups')
-        .insert({ ...values, created_by: user.id })
-        .select()
-        .single()
+      const { data, error } = await supabase.rpc('create_group_with_owner', {
+        p_name: values.name,
+        p_game: values.game,
+        p_league: values.league,
+        p_description: values.description ?? null,
+        p_is_solo: values.is_solo ?? false,
+      })
 
-      if (groupError) throw groupError
+      if (error) throw error
+      if (!data) throw new Error('The workspace was not created')
 
-      const { error: memberError } = await supabase
-        .from('group_members')
-        .insert({ group_id: group.id, user_id: user.id, role: 'admin' })
-
-      if (memberError) throw memberError
-
-      return group as Group
+      return data as unknown as Group
     },
-    onSuccess: (group) => {
+    onSuccess: (group, values) => {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.groups.mine] })
       setActiveGroupId(group.id)
+      trackProductEvent('activation_workspace_created', {
+        game: values.game,
+        workspace_type: values.is_solo ? 'solo' : 'party',
+      })
     },
   })
 }

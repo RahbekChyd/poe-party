@@ -1,21 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { PoeItem, PoeProperty } from '../types/poe-api'
 import { supabase } from '../lib/supabase'
 import { queryKeys } from '../lib/queryKeys'
-import type {
-  CharacterProfileEmbeddedGem,
-  CharacterProfileItem,
-  CharacterProfilePassiveTree,
-  CharacterProfileProperty,
-  CharacterProfileSnapshot,
-  CharacterProfileSocket,
-} from '../lib/character-profile'
-import { fetchPoeCharacterItems, fetchPoeCharacterPassiveTree } from '../lib/poe-cookie-client'
-import { normalizeCharacterClassInfo } from '../lib/poe-character-class'
+import type { CharacterProfilePassiveTree, CharacterProfileSnapshot } from '../lib/character-profile'
 import { asRecord } from '../lib/parse-helpers'
-import { usePoeSession } from '../store/poe-session-store'
-import { useMyProfile } from './useCurrentUser'
-import { useActiveGroupContext } from './useGroups'
 type CharacterProfileRow = Omit<
   CharacterProfileSnapshot,
   'poe_account_name' | 'raw_character' | 'raw_league_account'
@@ -46,23 +33,6 @@ type ActiveCharacterRow = {
   level: number
 }
 
-const EQUIPMENT_SLOTS = new Set([
-  'Helm',
-  'Amulet',
-  'BodyArmour',
-  'Weapon',
-  'Offhand',
-  'Gloves',
-  'Ring',
-  'Ring2',
-  'Belt',
-  'Boots',
-  'Weapon2',
-  'Offhand2',
-])
-
-const JEWEL_SLOT_MARKERS = ['Passive', 'Jewel']
-const INVENTORY_SLOT_MARKERS = ['MainInventory', 'Flask', 'Map', 'Sanctum', 'Relic']
 const CLASS_IDS: Record<string, number> = {
   Scion: 0,
   Marauder: 1,
@@ -72,28 +42,6 @@ const CLASS_IDS: Record<string, number> = {
   Templar: 5,
   Shadow: 6,
 }
-const EQUIPMENT_SLOT_SORT_ORDER = new Map([
-  ['Helm', 0],
-  ['Weapon', 1],
-  ['Amulet', 2],
-  ['Offhand', 3],
-  ['Gloves', 4],
-  ['BodyArmour', 5],
-  ['Ring', 6],
-  ['Belt', 7],
-  ['Ring2', 8],
-  ['Boots', 9],
-  ['Weapon2', 10],
-  ['Offhand2', 11],
-])
-
-function compareNullableStrings(
-  a: string | null | undefined,
-  b: string | null | undefined,
-): number {
-  return (a ?? '').localeCompare(b ?? '')
-}
-
 function compareNullableNumbers(
   a: number | null | undefined,
   b: number | null | undefined,
@@ -106,38 +54,6 @@ function compareNullableNumbers(
 
 function sortNumberArray(values: number[]): number[] {
   return [...values].sort((a, b) => a - b)
-}
-
-function sortStringArray(values: string[]): string[] {
-  return [...values].sort((a, b) => a.localeCompare(b))
-}
-
-function compareEmbeddedGems(
-  a: CharacterProfileEmbeddedGem,
-  b: CharacterProfileEmbeddedGem,
-): number {
-  return (
-    compareNullableStrings(a.id, b.id) ||
-    compareNullableStrings(a.name, b.name) ||
-    compareNullableStrings(a.typeLine, b.typeLine) ||
-    Number(a.support) - Number(b.support) ||
-    compareNullableNumbers(a.level, b.level) ||
-    compareNullableStrings(a.quality, b.quality)
-  )
-}
-
-function compareProfileItems(a: CharacterProfileItem, b: CharacterProfileItem): number {
-  const slotRankA = a.slot ? (EQUIPMENT_SLOT_SORT_ORDER.get(a.slot) ?? 99) : 99
-  const slotRankB = b.slot ? (EQUIPMENT_SLOT_SORT_ORDER.get(b.slot) ?? 99) : 99
-
-  return (
-    slotRankA - slotRankB ||
-    compareNullableStrings(a.slot, b.slot) ||
-    compareNullableStrings(a.id, b.id) ||
-    compareNullableStrings(a.name, b.name) ||
-    compareNullableStrings(a.typeLine, b.typeLine) ||
-    compareNullableNumbers(a.itemLevel, b.itemLevel)
-  )
 }
 
 function toCharacterProfile(row: CharacterProfileRow): CharacterProfileSnapshot {
@@ -275,139 +191,6 @@ function normalizePassiveTreeJewelData(
     .sort((left, right) => compareNullableNumbers(left.socketIndex, right.socketIndex))
 }
 
-function normalizeModifierLines(lines: string[] | undefined): string[] {
-  return (lines ?? []).filter((line) => typeof line === 'string' && line.trim().length > 0)
-}
-
-function mapVeiledMods(item: PoeItem): string[] {
-  return normalizeModifierLines(item.veiledMods).map((mod) => {
-    if (mod.startsWith('Prefix')) return 'Veiled Prefix'
-    if (mod.startsWith('Suffix')) return 'Veiled Suffix'
-    return 'Veiled Modifier'
-  })
-}
-
-function collectModifierLines(item: PoeItem): string[] {
-  return [
-    ...normalizeModifierLines(item.enchantMods),
-    ...normalizeModifierLines(item.implicitMods),
-    ...normalizeModifierLines(item.fracturedMods),
-    ...normalizeModifierLines(item.explicitMods),
-    ...normalizeModifierLines(item.craftedMods),
-    ...mapVeiledMods(item),
-  ].slice(0, 8)
-}
-
-function mapProperty(property: PoeProperty): CharacterProfileProperty {
-  return {
-    name: property.name,
-    values: (property.values ?? []).map(([value]) => value),
-  }
-}
-
-function mapSockets(item: PoeItem): CharacterProfileSocket[] {
-  return (item.sockets ?? []).map((socket) => ({
-    group: socket.group,
-    color: socket.sColour ?? socket.attr ?? null,
-  }))
-}
-
-function findPropertyValue(item: PoeItem, name: string): string | null {
-  const match = (item.properties ?? []).find((property) => property.name === name)
-  return match?.values?.[0]?.[0] ?? null
-}
-
-function mapSocketedItems(item: PoeItem): CharacterProfileEmbeddedGem[] {
-  return (item.socketedItems ?? [])
-    .map((socketedItem) => ({
-      id: socketedItem.id ?? null,
-      name: socketedItem.name ?? '',
-      typeLine: socketedItem.typeLine ?? '',
-      icon: socketedItem.icon ?? null,
-      support: !!socketedItem.support,
-      level: Number(findPropertyValue(socketedItem, 'Level')) || null,
-      quality: findPropertyValue(socketedItem, 'Quality'),
-    }))
-    .sort(compareEmbeddedGems)
-}
-
-function mapItem(item: PoeItem): CharacterProfileItem {
-  return {
-    id: item.id ?? null,
-    slot: item.inventoryId ?? null,
-    name: item.name ?? '',
-    typeLine: item.typeLine ?? '',
-    baseType: item.baseType ?? null,
-    icon: item.icon ?? null,
-    rarity: item.rarity ?? null,
-    frameType: typeof item.frameType === 'number' ? item.frameType : null,
-    itemLevel:
-      typeof item.ilvl === 'number'
-        ? item.ilvl
-        : typeof item.itemLevel === 'number'
-          ? item.itemLevel
-          : null,
-    identified: !!item.identified,
-    corrupted: !!item.corrupted,
-    fractured: !!item.fractured,
-    synthesised: !!item.synthesised,
-    veiled: !!item.veiled || (item.veiledMods?.length ?? 0) > 0,
-    influences: sortStringArray(
-      Object.entries(item.influences ?? {})
-        .filter(([, active]) => !!active)
-        .map(([name]) => name),
-    ),
-    note: item.note ?? null,
-    width: item.w ?? null,
-    height: item.h ?? null,
-    sockets: mapSockets(item),
-    socketedItems: mapSocketedItems(item),
-    properties: (item.properties ?? []).map(mapProperty).slice(0, 5),
-    requirements: (item.requirements ?? []).map(mapProperty).slice(0, 4),
-    implicitMods: normalizeModifierLines(item.implicitMods),
-    explicitMods: normalizeModifierLines(item.explicitMods),
-    craftedMods: normalizeModifierLines(item.craftedMods),
-    fracturedMods: normalizeModifierLines(item.fracturedMods),
-    enchantMods: normalizeModifierLines(item.enchantMods),
-    veiledMods: mapVeiledMods(item),
-    modifiers: collectModifierLines(item),
-  }
-}
-
-function normalizeItemGroups(items: PoeItem[]) {
-  const gear: CharacterProfileItem[] = []
-  const inventory: CharacterProfileItem[] = []
-  const jewels: CharacterProfileItem[] = []
-
-  for (const item of items) {
-    const slot = item.inventoryId ?? ''
-    const normalized = mapItem(item)
-
-    if (slot && EQUIPMENT_SLOTS.has(slot)) {
-      gear.push(normalized)
-      continue
-    }
-
-    if (JEWEL_SLOT_MARKERS.some((marker) => slot.includes(marker))) {
-      jewels.push(normalized)
-      continue
-    }
-
-    if (!slot || INVENTORY_SLOT_MARKERS.some((marker) => slot.includes(marker))) {
-      inventory.push(normalized)
-      continue
-    }
-
-    inventory.push(normalized)
-  }
-
-  return {
-    gear: [...gear].sort(compareProfileItems),
-    inventory: [...inventory].sort(compareProfileItems),
-    jewels: [...jewels].sort(compareProfileItems),
-  }
-}
-
 function normalizePassiveTree(
   passiveTree: Record<string, unknown>,
   activeCharacter: ActiveCharacterRow,
@@ -529,9 +312,6 @@ export function useCharacterProfileDailySnapshotDetail(
 
 export function useSyncCharacterProfile() {
   const queryClient = useQueryClient()
-  const { data: profile } = useMyProfile()
-  const { sessId, cfClearance, accountName } = usePoeSession()
-  const { game } = useActiveGroupContext()
 
   return useMutation({
     mutationFn: async ({
@@ -568,78 +348,10 @@ export function useSyncCharacterProfile() {
         return
       }
 
-      const { data: existingProfile } = await supabase
-        .from('character_profile_snapshots')
-        .select('visibility')
-        .eq('user_id', user.id)
-        .eq('group_id', groupId)
-        .eq('character_id', activeCharacter.id)
-        .maybeSingle()
-
-      const visibility = existingProfile?.visibility === 'public' ? 'public' : 'group_only'
-
-      if (profile?.poe_token_expires_at) {
-        const { error } = await supabase.functions.invoke('poe-sync-character-profile', {
-          body: { group_id: groupId, character_id: activeCharacter.id },
-        })
-        if (error) throw error
-        return
-      }
-
-      if (!sessId || !accountName) {
-        throw new Error('Character profile sync requires either PoE OAuth or a session cookie.')
-      }
-
-      if (game === 'poe2') {
-        throw new Error('Path of Exile 2 character profile sync currently requires OAuth access.')
-      }
-
-      const [items, passiveTree] = await Promise.all([
-        fetchPoeCharacterItems(accountName, sessId, cfClearance, activeCharacter.name),
-        fetchPoeCharacterPassiveTree(accountName, sessId, cfClearance, activeCharacter.name),
-      ])
-      const normalized = normalizeCharacterClassInfo(
-        game ?? 'poe1',
-        activeCharacter.class,
-        activeCharacter.ascendancy_class,
-      )
-      const { gear, inventory, jewels } = normalizeItemGroups(items)
-
-      const { error: upsertError } = await supabase.from('character_profile_snapshots').upsert(
-        {
-          user_id: user.id,
-          group_id: groupId,
-          character_id: activeCharacter.id,
-          character_name: activeCharacter.name,
-          league: activeCharacter.league,
-          class: normalized.className,
-          ascendancy_class: normalized.ascendancyClass,
-          level: activeCharacter.level,
-          visibility,
-          gear,
-          inventory,
-          jewels,
-          passive_tree: normalizePassiveTree(passiveTree, {
-            ...activeCharacter,
-            class: normalized.className ?? activeCharacter.class,
-            ascendancy_class: normalized.ascendancyClass,
-          }),
-          atlas_tree: {
-            url: null,
-            hashes: [],
-            league: activeCharacter.league,
-          },
-          raw_character: {
-            items,
-            passive_tree: passiveTree,
-          },
-          raw_league_account: {},
-          last_synced_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,group_id,character_id' },
-      )
-
-      if (upsertError) throw upsertError
+      const { error } = await supabase.functions.invoke('poe-sync-character-profile', {
+        body: { group_id: groupId, character_id: activeCharacter.id },
+      })
+      if (error) throw error
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({

@@ -22,6 +22,7 @@
   --color-primary-700: color-mix(in oklab, var(--accent) 82%, var(--foreground) 18%);
   --color-primary-800: color-mix(in oklab, var(--accent) 72%, var(--foreground) 28%);
   --color-primary-900: color-mix(in oklab, var(--accent) 62%, var(--foreground) 38%);
+  --color-brand-readable: var(--accent-readable);
 
   --color-currency: var(--currency);
   --color-currency-50: var(--currency-soft);
@@ -49,8 +50,8 @@
   --color-default-100: var(--default);
   --color-default-200: color-mix(in oklab, var(--default) 82%, var(--default-foreground) 18%);
   --color-default-300: color-mix(in oklab, var(--default) 72%, var(--default-foreground) 28%);
-  --color-default-400: color-mix(in oklab, var(--default) 58%, var(--default-foreground) 42%);
-  --color-default-500: var(--muted);
+  --color-default-400: var(--muted-subtle-text);
+  --color-default-500: var(--muted-text);
   --color-default-600: color-mix(in oklab, var(--muted) 72%, var(--foreground) 28%);
   --color-default-700: color-mix(in oklab, var(--muted) 50%, var(--foreground) 50%);
   --color-default-800: color-mix(in oklab, var(--muted) 34%, var(--foreground) 66%);
@@ -95,6 +96,9 @@
   --accent-foreground: var(--eclipse, oklch(21.03% 0.0059 285.89));
   --accent-hover: color-mix(in oklab, var(--accent) 90%, var(--accent-foreground) 10%);
   --accent-soft: color-mix(in oklab, var(--accent) 15%, transparent);
+  --accent-readable: #754700;
+  --muted-subtle-text: #66666e;
+  --muted-text: #5f5f67;
   --currency: #177a4a;
   --currency-soft: color-mix(in oklab, var(--currency) 13%, transparent);
   --currency-border: color-mix(in oklab, var(--currency) 30%, var(--separator) 70%);
@@ -124,6 +128,9 @@
 }
 
 .dark {
+  --accent-readable: #f5b84b;
+  --muted-subtle-text: #a8a8b0;
+  --muted-text: #b6b6be;
   --currency: #55d68d;
   --currency-soft: color-mix(in oklab, var(--currency) 14%, transparent);
   --currency-border: color-mix(in oklab, var(--currency) 28%, var(--separator) 72%);
@@ -153,7 +160,24 @@ body {
   color: var(--foreground);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 @layer components {
+  :root:not(.dark) .chip--accent.chip--soft,
+  :root:not(.dark) .chip--warning.chip--soft,
+  :root:not(.dark) .toggle-button[data-selected='true'] {
+    color: var(--accent-readable);
+  }
+
   .card {
     border: 1px solid color-mix(in oklab, var(--separator) 80%, transparent);
     background: linear-gradient(180deg, var(--surface-card-top), var(--surface-card-bottom));
@@ -218,5 +242,12 @@ body {
 
   .toggle-button-group .toggle-button {
     min-height: 2.25rem;
+  }
+}
+
+@layer utilities {
+  :root:not(.dark) .text-primary,
+  :root:not(.dark) .text-accent {
+    color: var(--accent-readable);
   }
 }

@@ -1,3 +1,6 @@
+/// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
+
 import { normalizeCharacterClassInfo } from './poe-character-class.ts'
 
 export type GuestCharacterSummary = {
@@ -118,6 +121,9 @@ type LegacyItemRecord = Record<string, unknown>
 
 const ACCOUNT_NAME_REGEX = /^[^\s#][^#]{1,63}#\d{4}$/
 const UINT16_MAX = 0xffff
+const MAX_GUEST_UPSTREAM_BODY_BYTES = 8 * 1024 * 1024
+const MAX_DECOMPRESSED_POB_BYTES = 8 * 1024 * 1024
+const GUEST_UPSTREAM_TIMEOUT_MS = 10_000
 const LEGACY_CHARACTER_WINDOW_BASE = 'https://www.pathofexile.com/character-window'
 const DEFAULT_GUEST_ANALYSIS_USER_AGENT =
   'poe-party/1.0 (contact: support@poe-party.com) guest-analysis'
@@ -256,16 +262,12 @@ export async function hmacSha256Hex(value: string, purpose: string): Promise<str
     ['sign'],
   )
   const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(value))
-  return [...new Uint8Array(signature)]
-    .map((entry) => entry.toString(16).padStart(2, '0'))
-    .join('')
+  return [...new Uint8Array(signature)].map((entry) => entry.toString(16).padStart(2, '0')).join('')
 }
 
 export async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
-  return [...new Uint8Array(digest)]
-    .map((entry) => entry.toString(16).padStart(2, '0'))
-    .join('')
+  return [...new Uint8Array(digest)].map((entry) => entry.toString(16).padStart(2, '0')).join('')
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -356,6 +358,7 @@ async function fetchLegacyCharacterWindowJson<T>(
   }
 
   const res = await fetch(url.toString(), {
+    signal: AbortSignal.timeout(GUEST_UPSTREAM_TIMEOUT_MS),
     headers: {
       Accept: 'application/json',
       'User-Agent':
@@ -379,7 +382,47 @@ async function fetchLegacyCharacterWindowJson<T>(
     )
   }
 
-  return res.json() as Promise<T>
+  const contentLength = Number(res.headers.get('content-length'))
+  if (Number.isFinite(contentLength) && contentLength > MAX_GUEST_UPSTREAM_BODY_BYTES) {
+    throw new GuestPoePublicError(
+      'Path of Exile returned an oversized public character response.',
+      502,
+      'poe_response_too_large',
+    )
+  }
+
+  const reader = res.body?.getReader()
+  const decoder = new TextDecoder()
+  let responseText = ''
+  let responseBytes = 0
+
+  if (reader) {
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      responseBytes += value.byteLength
+      if (responseBytes > MAX_GUEST_UPSTREAM_BODY_BYTES) {
+        await reader.cancel('Path of Exile response exceeded the guest-analysis limit')
+        throw new GuestPoePublicError(
+          'Path of Exile returned an oversized public character response.',
+          502,
+          'poe_response_too_large',
+        )
+      }
+      responseText += decoder.decode(value, { stream: true })
+    }
+    responseText += decoder.decode()
+  }
+
+  try {
+    return JSON.parse(responseText) as T
+  } catch {
+    throw new GuestPoePublicError(
+      'Path of Exile returned an invalid public character response.',
+      502,
+      'poe_invalid_json',
+    )
+  }
 }
 
 export async function fetchGuestCharacters(accountName: string): Promise<GuestCharacterSummary[]> {
@@ -453,8 +496,9 @@ export async function fetchGuestCharacterProfile(
     character: resolvedCharacter,
     passives: passivePayload,
   }
-  const rawItems = asArray(itemsPayload.items)
-    .filter((entry): entry is LegacyItemRecord => !!entry && typeof entry === 'object')
+  const rawItems = asArray(itemsPayload.items).filter(
+    (entry): entry is LegacyItemRecord => !!entry && typeof entry === 'object',
+  )
   const { gear, inventory, jewels } = normalizeItemGroups(rawItems)
 
   return {
@@ -595,8 +639,20 @@ function mapItem(item: LegacyItemRecord) {
 }
 
 function compareProfileItems(
-  left: { slot: string | null; id: string | null; name: string; typeLine: string; itemLevel: number | null },
-  right: { slot: string | null; id: string | null; name: string; typeLine: string; itemLevel: number | null },
+  left: {
+    slot: string | null
+    id: string | null
+    name: string
+    typeLine: string
+    itemLevel: number | null
+  },
+  right: {
+    slot: string | null
+    id: string | null
+    name: string
+    typeLine: string
+    itemLevel: number | null
+  },
 ) {
   const leftRank = left.slot ? (EQUIPMENT_SLOT_SORT_ORDER.get(left.slot) ?? 99) : 99
   const rightRank = right.slot ? (EQUIPMENT_SLOT_SORT_ORDER.get(right.slot) ?? 99) : 99
@@ -719,7 +775,11 @@ function normalizePassiveTree(
     'masteryEffectPairs',
     'masteryEffects',
   )
-  const passivesMasteryPairs = readNumberArray(passives, 'mastery_effect_pairs', 'masteryEffectPairs')
+  const passivesMasteryPairs = readNumberArray(
+    passives,
+    'mastery_effect_pairs',
+    'masteryEffectPairs',
+  )
 
   return {
     url: readString(
@@ -767,12 +827,40 @@ function normalizeSourceKind(input: string): PobImportMetadata['source_kind'] {
 }
 
 async function inflateBase64Payload(base64Payload: string): Promise<string> {
-  const normalized = base64Payload.trim().replace(/-/g, '+').replace(/_/g, '/')
-  const padding = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4))
-  const binary = atob(`${normalized}${padding}`)
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate'))
-  return new Response(stream).text()
+  try {
+    const normalized = base64Payload.trim().replace(/-/g, '+').replace(/_/g, '/')
+    const padding = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4))
+    const binary = atob(`${normalized}${padding}`)
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+    const reader = new Blob([bytes])
+      .stream()
+      .pipeThrough(new DecompressionStream('deflate'))
+      .getReader()
+    const decoder = new TextDecoder()
+    let output = ''
+    let outputBytes = 0
+
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      outputBytes += value.byteLength
+      if (outputBytes > MAX_DECOMPRESSED_POB_BYTES) {
+        await reader.cancel('decompressed PoB payload too large')
+        throw new GuestPoePublicError(
+          'The decompressed PoB import is too large for Public Analysis.',
+          413,
+          'pob_decompressed_too_large',
+        )
+      }
+      output += decoder.decode(value, { stream: true })
+    }
+
+    output += decoder.decode()
+    return output
+  } catch (error) {
+    if (error instanceof GuestPoePublicError) throw error
+    throw new GuestPoePublicError('The PoB share code is invalid.', 400, 'invalid_pob')
+  }
 }
 
 function parseNumber(value: string | null): number | null {
@@ -887,7 +975,9 @@ function buildPobItemSummaryLookup(document: Document) {
   return itemNodes
 }
 
-function getClusterJewelSize(typeLine: string | null | undefined) {
+type ClusterJewelSize = 'large' | 'medium' | 'small' | 'unknown'
+
+function getClusterJewelSize(typeLine: string | null | undefined): ClusterJewelSize | null {
   const normalized = typeLine?.trim().toLowerCase()
   if (!normalized) return null
   if (normalized.includes('large cluster jewel')) return 'large'
@@ -932,8 +1022,7 @@ function parseTreeSpecs(document: Document): PobImportMetadata['tree_specs'] {
         String(index + 1),
       title: node.getAttribute('title')?.trim() || `Tree ${index + 1}`,
       url:
-        node.querySelector('URL')?.getAttribute('link') ??
-        readNodeText(node.querySelector('URL')),
+        node.querySelector('URL')?.getAttribute('link') ?? readNodeText(node.querySelector('URL')),
       treeVersion: node.getAttribute('treeVersion')?.trim() || null,
       classId: parseIntegerAttribute(node, 'classId'),
       ascendancyId: parseIntegerAttribute(node, 'ascendClassId'),
@@ -1035,7 +1124,7 @@ function parseConfigSets(document: Document) {
     (activeConfigSetId == null ? (configSets[0]?.title ?? null) : null)
   return {
     config_sets: configSets,
-    active_config_set_id: activeConfigSetId ?? (configSets[0]?.id ?? null),
+    active_config_set_id: activeConfigSetId ?? configSets[0]?.id ?? null,
     active_config_set_title: activeConfigSetTitle,
   }
 }
@@ -1096,7 +1185,10 @@ function parsePlayerStats(document: Document): Record<string, unknown> {
   return stats
 }
 
-function parsePobXml(rawXml: string, sourceKind: PobImportMetadata['source_kind']): PobImportMetadata {
+function parsePobXml(
+  rawXml: string,
+  sourceKind: PobImportMetadata['source_kind'],
+): PobImportMetadata {
   const document = new DOMParser().parseFromString(rawXml, 'application/xml')
   const parserError = document.querySelector('parsererror')
   if (parserError) {
@@ -1131,7 +1223,11 @@ export async function parseGuestPobImport(input: unknown): Promise<{
     throw new GuestPoePublicError('Paste a PoB share code or XML export first.', 400, 'missing_pob')
   }
   if (raw_import.length > 2_000_000) {
-    throw new GuestPoePublicError('The PoB import is too large for Public Analysis.', 413, 'pob_too_large')
+    throw new GuestPoePublicError(
+      'The PoB import is too large for Public Analysis.',
+      413,
+      'pob_too_large',
+    )
   }
   const source_kind = normalizeSourceKind(raw_import)
   const raw_xml = source_kind === 'pob_xml' ? raw_import : await inflateBase64Payload(raw_import)
@@ -1139,7 +1235,10 @@ export async function parseGuestPobImport(input: unknown): Promise<{
   return { source_kind, raw_import, raw_xml, metadata }
 }
 
-function isMeaningfulLinkRequirement(slotName: string | null | undefined, value: number | null | undefined): boolean {
+function isMeaningfulLinkRequirement(
+  slotName: string | null | undefined,
+  value: number | null | undefined,
+): boolean {
   const normalizedSlot = normalizeSlotName(slotName ?? '').toLowerCase()
   const normalizedValue = Number(value ?? 0)
   if (!Number.isFinite(normalizedValue) || normalizedValue < 6) return false
@@ -1181,7 +1280,8 @@ function deriveStageRequirementsFromSelection(
 }
 
 function resolveSelection<T extends { id: string }>(entries: T[], preferredId: unknown): T | null {
-  const normalizedId = typeof preferredId === 'string' && preferredId.trim() ? preferredId.trim() : null
+  const normalizedId =
+    typeof preferredId === 'string' && preferredId.trim() ? preferredId.trim() : null
   if (normalizedId) {
     const matched = entries.find((entry) => entry.id === normalizedId)
     if (matched) return matched
