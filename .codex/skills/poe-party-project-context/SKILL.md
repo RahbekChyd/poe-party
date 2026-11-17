@@ -9,7 +9,7 @@ Use this skill to orient work in the PoE Party repo. Treat the current checkout 
 
 ## Start Here
 
-- Read repo `AGENTS.md` and `PROJECT_MEMORY.md` early; keep `PROJECT_MEMORY.md` short, current, and overwrite-oriented after meaningful work.
+- Read repo `AGENTS.md`, `README.md` and relevant docs early. In public `poe-party`, `PROJECT_MEMORY.md` is optional, ignored local handoff material: read/update it if present, keep it concise, and never commit or force-add it. Clean clones must work without it. Follow the separate private operations repo's memory policy when working there.
 - Inspect the relevant source before deciding; this repo has recent project docs and generated files.
 - Prefer local repo truth first, official docs second, assumptions last.
 - For current third-party behavior, verify official docs before relying on memory, especially Supabase, Vercel, TanStack Router, HeroUI, GGG OAuth/API behavior, poe.ninja, and PoE/PoE2 support.
