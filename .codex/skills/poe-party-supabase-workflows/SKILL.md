@@ -23,6 +23,7 @@ Treat Supabase changes as security-sensitive by default. Membership, public visi
 
 - Reuse shared helpers in `supabase/functions/_shared/` for auth, admin clients, CORS, PoE API access, token storage, and game-aware behavior.
 - Validate request auth before privileged reads/writes.
+- Resolve PoE identity by `poe_account_sub`, never by display name. Names may duplicate; a fresh verified profile must not inherit an older profile's groups, history or billing. Read `docs/account-identity-and-league-retention.md` for identity and league-retention boundaries.
 - Never return or log PoE OAuth tokens, cookies, service-role keys, or raw secret values.
 - PoE OAuth tokens use the rotation-capable AES-256-GCM key-ring contract in `docs/poe-token-encryption-rollout.md`. Keep keys in Edge secrets, use dual-read expand/backfill/contract releases, and never attempt encryption or key handling inside SQL.
 - Keep browser-facing env vars limited to intentional `VITE_` values.

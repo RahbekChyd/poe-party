@@ -82,6 +82,10 @@ The additive database rollout, exact token-encryption key-ring format, rotation 
 plaintext backfill/contract gates are documented in
 [`docs/poe-token-encryption-rollout.md`](docs/poe-token-encryption-rollout.md).
 
+UUID-based sign-in, fresh profiles for returning accounts, and the distinction between
+snapshot retention and future league cleanup are described in
+[`docs/account-identity-and-league-retention.md`](docs/account-identity-and-league-retention.md).
+
 ## Validation
 
 Use the pinned pnpm version through npm exec when needed:

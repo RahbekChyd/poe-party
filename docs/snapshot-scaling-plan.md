@@ -27,6 +27,11 @@ Use these defaults until real production distribution says otherwise:
 - Raw snapshots continue to be deleted by retention
 - Durable summary history remains in `snapshot_value_history`
 
+These limits are already enforced by snapshot count, not by league end. A planned
+game/league-scoped cleanup should use the separate boundaries in
+[`account-identity-and-league-retention.md`](account-identity-and-league-retention.md).
+It must define grace periods and summary retention before adding scheduled deletions.
+
 Revisit limits when either condition is true:
 
 - At least 100 real completed snapshots have been measured
