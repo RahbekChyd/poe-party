@@ -1,10 +1,11 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Spinner } from '@heroui/react/spinner'
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { POE_OAUTH_CODE_VERIFIER_KEY, POE_OAUTH_STATE_KEY } from '../../lib/poe-oauth'
 import { invokePublicFunction } from '../../lib/supabase-functions'
 import { takeStoredPostLoginTarget } from '../../lib/auth-redirect'
+import { CONTACT_MAILTO } from '../../lib/seo'
 export const Route = createFileRoute('/auth/callback')({
   component: AuthCallback,
 })
@@ -12,12 +13,23 @@ export const Route = createFileRoute('/auth/callback')({
 function AuthCallback() {
   const navigate = useNavigate()
   const [status, setStatus] = useState('Charting a course back to your hideout...')
+  const [failure, setFailure] = useState<'sign-in' | 'identity-recovery' | null>(null)
 
   useEffect(() => {
     let cancelled = false
     const clearOAuthState = () => {
-      sessionStorage.removeItem(POE_OAUTH_STATE_KEY)
-      sessionStorage.removeItem(POE_OAUTH_CODE_VERIFIER_KEY)
+      try {
+        sessionStorage.removeItem(POE_OAUTH_STATE_KEY)
+        sessionStorage.removeItem(POE_OAUTH_CODE_VERIFIER_KEY)
+      } catch {
+        // Unavailable browser storage must still leave an actionable error screen.
+      }
+    }
+    const showError = (message: string, needsIdentityRecovery = false) => {
+      if (cancelled) return
+      clearOAuthState()
+      setStatus(message)
+      setFailure(needsIdentityRecovery ? 'identity-recovery' : 'sign-in')
     }
 
     const completeOAuth = async () => {
@@ -28,8 +40,7 @@ function AuthCallback() {
       const state = url.searchParams.get('state')
 
       if (error) {
-        clearOAuthState()
-        setStatus(errorDescription ?? 'The waypoint fizzled out. Please try connecting again.')
+        showError(errorDescription ?? 'The waypoint fizzled out. Please try connecting again.')
         return
       }
 
@@ -38,14 +49,12 @@ function AuthCallback() {
         const codeVerifier = sessionStorage.getItem(POE_OAUTH_CODE_VERIFIER_KEY)
 
         if (!state || !expectedState || state !== expectedState) {
-          clearOAuthState()
-          setStatus('The trail went cold. Please start the login flow again.')
+          showError('The trail went cold. Please start the login flow again.')
           return
         }
 
         if (!codeVerifier) {
-          clearOAuthState()
-          setStatus('Your portal scroll was lost. Please start the login flow again.')
+          showError('Your portal scroll was lost. Please start the login flow again.')
           return
         }
 
@@ -60,13 +69,13 @@ function AuthCallback() {
             redirect_uri: `${window.location.origin}/auth/callback`,
           }) as unknown as { magic_link?: string }
         } catch (invokeError) {
-          if (cancelled) return
-          clearOAuthState()
-          setStatus(
-            invokeError instanceof Error
+          const needsIdentityRecovery = invokeError instanceof Error &&
+            invokeError.message === 'This Path of Exile account requires a manual identity migration'
+          showError(needsIdentityRecovery
+            ? 'Your account needs a one-time identity upgrade. Contact support to restore access. Your existing data is retained.'
+            : invokeError instanceof Error
               ? invokeError.message
-              : 'The envoy never returned. Please try again.',
-          )
+              : 'The envoy never returned. Please try again.', needsIdentityRecovery)
           return
         }
 
@@ -76,7 +85,7 @@ function AuthCallback() {
 
         const magicLink = typeof data?.magic_link === 'string' ? data.magic_link : null
         if (!magicLink) {
-          setStatus('No portal opened on the return trip. Please try again.')
+          showError('No portal opened on the return trip. Please try again.')
           return
         }
 
@@ -95,8 +104,7 @@ function AuthCallback() {
       }
 
       if (!cancelled) {
-        clearOAuthState()
-        setStatus('Your hideout remains out of reach. Please start the login flow again.')
+        showError('Your hideout remains out of reach. Please start the login flow again.')
       }
     }
 
@@ -108,7 +116,9 @@ function AuthCallback() {
       }
     })
 
-    void completeOAuth()
+    void completeOAuth().catch(() => {
+      showError('Unable to finish signing in. Please start the login flow again.')
+    })
 
     return () => {
       cancelled = true
@@ -117,11 +127,23 @@ function AuthCallback() {
   }, [navigate])
 
   return (
-    <div className="flex h-screen items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <Spinner size="lg" />
-        <p className="text-default-500 text-center text-sm">{status}</p>
+    <main className="flex min-h-screen items-center justify-center px-6 py-12" aria-busy={!failure}>
+      <div className="flex w-full max-w-md flex-col items-center gap-4 text-center">
+        {failure ? (
+          <h1 className="text-xl font-semibold">
+            {failure === 'identity-recovery' ? 'Account recovery needed' : 'Sign-in needs attention'}
+          </h1>
+        ) : <Spinner size="lg" aria-label="Completing sign-in" />}
+        <p role={failure ? 'alert' : 'status'} className="text-default-500 text-sm">{status}</p>
+        {failure && (
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {failure === 'identity-recovery' && (
+              <a href={CONTACT_MAILTO} className="button button--primary">Contact support</a>
+            )}
+            <Link to="/auth/login" className="button button--secondary text-foreground">Back to sign in</Link>
+          </div>
+        )}
       </div>
-    </div>
+    </main>
   )
 }
