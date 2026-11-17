@@ -1,7 +1,7 @@
 import { assertEquals, assertThrows } from 'jsr:@std/assert@1.0.18'
 import { POE_OAUTH_SCOPES as FRONTEND_POE_OAUTH_SCOPES } from '../../../src/lib/poe-oauth-scopes.ts'
 import { POE_OAUTH_SCOPES } from './poe-oauth-scopes.ts'
-import { parsePoeAccountSubject, resolveOauthReturnUrl } from './oauth-security.ts'
+import { buildOAuthIdentityMigrationError, parsePoeAccountSubject, resolveOauthReturnUrl } from './oauth-security.ts'
 
 Deno.test('OAuth callback scopes match the frontend authorization scopes', () => {
   assertEquals(POE_OAUTH_SCOPES, FRONTEND_POE_OAUTH_SCOPES)
@@ -20,6 +20,15 @@ Deno.test('PoE identity binding accepts only UUID account subjects', () => {
   )
   assertEquals(parsePoeAccountSubject('AccountName#1234'), null)
   assertEquals(parsePoeAccountSubject(null), null)
+})
+
+Deno.test('identity recovery exposes only the verified caller UUID and generic error', () => {
+  assertEquals(buildOAuthIdentityMigrationError(' AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE '), {
+    error: 'This Path of Exile account requires a manual identity migration',
+    code: 'oauth_identity_migration_required',
+    verified_poe_account_sub: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+  })
+  assertThrows(() => buildOAuthIdentityMigrationError('AccountName#1234'))
 })
 
 Deno.test({

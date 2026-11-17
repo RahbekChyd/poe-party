@@ -5,6 +5,7 @@
  */
 import { corsHeaders, handleCors } from '../_shared/cors.ts'
 import {
+  buildOAuthIdentityMigrationError,
   parsePoeAccountSubject,
   requireEnvironmentValue,
   resolveOauthReturnUrl,
@@ -169,10 +170,7 @@ Deno.serve(async (req) => {
         }
         if (nameConflict) {
           return jsonResponse(
-            {
-              error: 'This Path of Exile account requires a manual identity migration',
-              code: 'oauth_identity_migration_required',
-            },
+            buildOAuthIdentityMigrationError(subject),
             409,
           )
         }
@@ -223,10 +221,7 @@ Deno.serve(async (req) => {
       }
       if (legacyNameUser) {
         return jsonResponse(
-          {
-            error: 'This Path of Exile account requires a manual identity migration',
-            code: 'oauth_identity_migration_required',
-          },
+          buildOAuthIdentityMigrationError(subject),
           409,
         )
       }
@@ -260,10 +255,7 @@ Deno.serve(async (req) => {
         if (cleanupError) console.error('OAuth orphaned auth-user cleanup failed')
         return jsonResponse(
           profileError.code === '23505'
-            ? {
-                error: 'This Path of Exile account requires a manual identity migration',
-                code: 'oauth_identity_migration_required',
-              }
+            ? buildOAuthIdentityMigrationError(subject)
             : { error: 'Unable to create account' },
           profileError.code === '23505' ? 409 : 500,
         )

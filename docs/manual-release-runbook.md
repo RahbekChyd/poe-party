@@ -265,6 +265,33 @@ into incident tickets.
 
 ## 12. Backfill and later contract work
 
+### Legacy identity recovery
+
+Migration `0083` adds a nullable, unique `users.poe_account_sub` without automatically
+binding old profiles by mutable account names. A successful PoE token exchange can therefore
+end with `409 oauth_identity_migration_required` for a legacy profile or name/uniqueness
+collision. The response includes `verified_poe_account_sub`: only the caller's normalized
+UUID from the freshly verified provider response. It contains no tokens, authorization codes,
+stored profile IDs or Auth metadata and retains `Cache-Control: no-store`.
+
+Confirm the callback's actual Supabase hostname before inspecting or repairing any profile;
+the preview frontend origin alone does not identify its backend. If both the profile subject
+and historical Auth metadata are empty and no usable stored OAuth credential exists, further
+metadata queries cannot reconstruct the identity. After deploying this callback version, start
+a new login and use its verified UUID in separately reviewed private operator reconciliation.
+Previous OAuth codes have already been consumed and cannot be replayed.
+
+The verified UUID proves control of the current PoE account only. Independently establish
+ownership of the old profile/data before binding. User-editable metadata or display-name equality
+is insufficient. The private operator must bind exact target/profile/name/NULL old subject and
+the reviewed original `updated_at`, check matching Auth-user existence and any server-controlled
+Auth subject, reject subject collisions, and require exactly one affected row. Preserve the
+original Auth/profile ID, email, memberships, billing and other related data. Never auto-link by
+name or delete/recreate an account merely to remove the conflict. A fresh login after binding
+updates Auth metadata and encrypted tokens through the existing callback path.
+
+### Token backfill
+
 Normal reads opportunistically rewrite plaintext or old-key tokens. Inactive accounts need a
 reviewed private batch that selects only user IDs and invokes the shared Edge read/rewrite path in
 bounded batches. This public repository intentionally has no token-backfill or legacy OAuth
