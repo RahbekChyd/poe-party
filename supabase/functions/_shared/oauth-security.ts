@@ -35,6 +35,19 @@ export function parsePoeAccountSubject(value: unknown): string | null {
   return UUID_PATTERN.test(normalized) ? normalized : null
 }
 
+/** Only call after validating a successful provider token response. */
+export function buildOAuthIdentityMigrationError(verifiedSubject: string) {
+  const subject = parsePoeAccountSubject(verifiedSubject)
+  if (!subject) throw new Error('A verified PoE UUID is required for identity recovery')
+  return {
+    error: 'This Path of Exile account requires a manual identity migration',
+    code: 'oauth_identity_migration_required',
+    // This is the caller's own provider identity, not proof of old-profile ownership.
+    // Private operators can use it during separately reviewed reconciliation.
+    verified_poe_account_sub: subject,
+  }
+}
+
 export function resolveOauthReturnUrl(requestedUrl: unknown): string {
   if (typeof requestedUrl !== 'string') {
     throw new Error('OAuth return URL is required')

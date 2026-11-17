@@ -74,6 +74,12 @@ jobs:
           --allow-env=POE_REDIRECT_URI,POE_ALLOWED_RETURN_URLS
           supabase/functions/_shared/oauth-security.test.ts
 
+      - name: Test OAuth callback identity recovery with mocked providers
+        run: >-
+          deno test --node-modules-dir=none
+          --allow-env=SUPABASE_URL,SUPABASE_SECRET_KEY,POE_CLIENT_ID,POE_CLIENT_SECRET,POE_REDIRECT_URI,POE_ALLOWED_RETURN_URLS,POE_TOKEN_ENCRYPTION_ACTIVE_KEY_ID,POE_TOKEN_ENCRYPTION_KEYS
+          supabase/functions/_shared/oauth-callback.test.ts
+
       - name: Test OAuth token encryption helpers
         run: deno test supabase/functions/_shared/poe-token-crypto.test.ts
 
