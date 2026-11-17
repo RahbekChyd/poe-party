@@ -20,6 +20,7 @@ If the answer is "nothing durable", do not edit skills. Mention no skill update 
 
 ## Update Rules
 
+- In public `poe-party`, keep `PROJECT_MEMORY.md` optional and local-only; never commit or force-add it. Store reusable guidance in committed docs/skills and private operational handoffs in the private repo or ignored local notes. Follow the private operations repo's own policy there.
 - Prefer editing the smallest relevant skill or reference file.
 - Keep volatile facts out of `SKILL.md`; link to repo docs or tell Codex how to verify current official docs.
 - Do not duplicate large chunks from `README.md`, `docs/`, migrations, or source files.

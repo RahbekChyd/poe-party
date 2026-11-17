@@ -1,7 +1,9 @@
 # Agent Instructions
 
-- Read `PROJECT_MEMORY.md` early in each session.
-- At the end of meaningful tasks, update `PROJECT_MEMORY.md`.
+- Read `README.md` and the relevant `docs/` early in each session; they contain shared project context.
+- `PROJECT_MEMORY.md` is optional, ignored local handoff material. Read it if present and update it after meaningful tasks; a clean clone does not require it.
+- Never commit or force-add `PROJECT_MEMORY.md`. Keep local paths, private operations references, live deployment state and session notes out of public documentation.
+- Put reusable architecture, setup, product and validation guidance in the appropriate committed docs or agent instructions.
 - Prefer replacing stale memory over appending a changelog.
 - Keep memory concise: latest conclusions, concrete next steps, active blockers/assumptions, and verification last run.
 - Only update broader instructions when the session produced durable knowledge future agents should not rediscover.

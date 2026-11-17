@@ -11,6 +11,8 @@ PoE Party is an open-source Path of Exile group tool. Contributions are welcome 
 
 Production operator tooling, live deployment credentials, incident response details, comp grants, and abuse-sensitive automation belong in private operations material, not this public repo.
 
+Shared project guidance belongs in `README.md`, `docs/`, and `AGENTS.md`. `PROJECT_MEMORY.md` is an optional, ignored local agent handoff file; it is not required for contributing and must not be committed.
+
 ## Local Validation
 
 Use the pinned pnpm version through npm exec when the global pnpm launcher is unreliable:
