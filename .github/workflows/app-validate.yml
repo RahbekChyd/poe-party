@@ -26,7 +26,8 @@ permissions:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    # Keep browser validation on an OS supported by the pinned Playwright version.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Check out repository
