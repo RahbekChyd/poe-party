@@ -19,7 +19,7 @@ type QueueUpgradeAnalysisBody = {
   rerun_changed_slots?: unknown
 }
 
-const UPGRADE_ANALYSIS_INPUT_VERSION = 16
+const UPGRADE_ANALYSIS_INPUT_VERSION = 17
 const FREE_DAILY_UPGRADE_ANALYSIS_LIMIT = 3
 
 const ALLOWED_TARGET_KEYS = new Set([
@@ -525,6 +525,7 @@ Deno.serve(async (req) => {
     const inputHash = await sha256Hex(
       JSON.stringify({
         version: UPGRADE_ANALYSIS_INPUT_VERSION,
+        engine_contract: 'pob-2.68.1-adapter-1',
         group_id,
         build_target_id,
         target_user_id: buildTarget.user_id,

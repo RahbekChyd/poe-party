@@ -1091,9 +1091,17 @@ local overlay_inventory_ids = {
   Flask = true,
   BrequelGrafts = true,
   BrequelGrafts2 = true,
+  VisceraHead = true, VisceraBody = true, VisceraArm = true, VisceraLeg = true,
 }
 
 local function apply_character_overlay(character_snapshot)
+  -- A missing current part must never retain a target Wickerman bonus.
+  for _, part in ipairs({ "Head", "Body", "Arm", "Leg" }) do
+    local slot = build.itemsTab.slots[part]
+    if slot and slot.selItemId and slot.selItemId ~= 0 then
+      build.itemsTab:DeleteItem(build.itemsTab.items[slot.selItemId])
+    end
+  end
   local raw_items = as_table(character_snapshot and character_snapshot.overlay_items)
   local item_source = "character_snapshot.overlay_items"
   if #raw_items == 0 then
@@ -2219,11 +2227,11 @@ local function rebuild_party_tab_actor_from_controls(dest_party_tab)
     Curse = {},
     Warcry = {},
     Link = {},
-    modDB = new("ModDB"),
+    modDB = new("ModDB"):ModDB(),
     output = {},
   }
   dest_party_tab.actor.modDB.actor = dest_party_tab.actor
-  dest_party_tab.enemyModList = new("ModList")
+  dest_party_tab.enemyModList = new("ModList"):ModList()
 
   dest_party_tab:ParseBuffs(dest_party_tab.actor["modDB"], dest_party_tab.controls.editPartyMemberStats.buf or "", "PartyMemberStats", dest_party_tab.actor["output"])
   dest_party_tab:ParseBuffs(dest_party_tab.actor["Aura"], dest_party_tab.controls.editAuras.buf or "", "Aura", dest_party_tab.controls.simpleAuras)
@@ -2271,9 +2279,9 @@ local function apply_collected_party_buffs_to_tab(collected, dest_party_tab, lab
     sync_party_tab_controls(dest_party_tab, aggregated)
     rebuild_party_tab_actor_from_controls(dest_party_tab)
   else
-    dest_party_tab.enemyModList = dest_party_tab.enemyModList or new("ModList")
-    dest_party_tab.actor = dest_party_tab.actor or { Aura = {}, Curse = {}, Warcry = {}, Link = {}, modDB = new("ModDB"), output = {} }
-    dest_party_tab.actor.modDB = dest_party_tab.actor.modDB or new("ModDB")
+    dest_party_tab.enemyModList = dest_party_tab.enemyModList or new("ModList"):ModList()
+    dest_party_tab.actor = dest_party_tab.actor or { Aura = {}, Curse = {}, Warcry = {}, Link = {}, modDB = new("ModDB"):ModDB(), output = {} }
+    dest_party_tab.actor.modDB = dest_party_tab.actor.modDB or new("ModDB"):ModDB()
     dest_party_tab.actor.modDB.actor = dest_party_tab.actor
   end
 
@@ -2748,58 +2756,35 @@ end
 
 function import_live_character_into_current_build(character_snapshot)
   local current_import = as_table(character_snapshot and character_snapshot.current_import)
-  local raw_character_json = trim(current_import.raw_character_json)
-  local passive_tree_json = trim(current_import.passive_tree_json)
+  local char_data = current_import.character
   local imported_items = false
   local imported_tree = false
   local import_errors = {}
-
-  if not build or not build.importTab then
-    return {
-      imported_items = false,
-      imported_tree = false,
-      errors = { "import_tab_unavailable" },
-    }
+  if not build or not build.importTab or type(char_data) ~= "table" then
+    error("Current character import failed: character data unavailable")
   end
-
-  if raw_character_json then
-    local controls = as_table(build.importTab.controls)
-    set_import_clear_option(controls.charImportItemsClearItems, true)
-    set_import_clear_option(controls.charImportItemsClearSkills, true)
-    local ok, char_data_or_error = pcall(function()
-      return build.importTab:ImportItemsAndSkills(raw_character_json)
-    end)
-    if ok and char_data_or_error then
-      imported_items = true
-      character_snapshot.__compare_char_data = char_data_or_error
-    else
-      table.insert(import_errors, "items:" .. tostring(char_data_or_error))
-    end
+  local ok, result = pcall(function()
+    return build.importTab:ImportItemsAndSkills(char_data, true, true, false)
+  end)
+  if ok and result then
+    imported_items = true
+  else
+    table.insert(import_errors, "items:" .. tostring(result))
   end
-
-  if passive_tree_json then
-    local controls = as_table(build.importTab.controls)
-    set_import_clear_option(controls.charImportTreeClearJewels, true)
-    local char_data = character_snapshot.__compare_char_data or {
-      name = trim(character_snapshot.character_name) or "",
-      class = trim(character_snapshot.class) or trim(character_snapshot.ascendancy_class) or "",
-      league = trim(character_snapshot.league) or "",
-      level = safe_number(character_snapshot.level) or 1,
-    }
-    local ok, err = pcall(function()
-      build.importTab:ImportPassiveTreeAndJewels(passive_tree_json, char_data)
-    end)
-    if ok then
-      imported_tree = true
-    else
-      local err_text = tostring(err)
-      if err_text:find("charSelectLeague", 1, true) then
-        imported_tree = true
-        table.insert(import_errors, "tree:headless_post_import_ui_warning:" .. err_text)
-      else
-        table.insert(import_errors, "tree:" .. err_text)
-      end
-    end
+  local tree_ok, tree_err = pcall(function()
+    build.importTab:ImportPassiveTreeAndJewels(char_data, true)
+  end)
+  if tree_ok then
+    imported_tree = true
+  else
+    table.insert(import_errors, "tree:" .. tostring(tree_err))
+  end
+  if not imported_items or not imported_tree then
+    error("Current character import failed: " .. table.concat(import_errors, "; "))
+  end
+  if not as_table(current_import.completeness).wickerman then
+    add_warning("Current character source does not establish Wickerman completeness; comparison is incomplete.")
+    table.insert(import_errors, "wickerman_source_incomplete")
   end
 
   rebuild_current_build()
@@ -2809,6 +2794,7 @@ function import_live_character_into_current_build(character_snapshot)
     imported_items = imported_items,
     imported_tree = imported_tree,
     errors = import_errors,
+    completeness = current_import.completeness,
   }
 end
 
@@ -3124,13 +3110,13 @@ function build_upstream_compare_power_report(build_target, target_stage, charact
   end
 
   local raw_xml = strip_party_section_from_xml(build_target.raw_xml)
-  local compare_entry = new("CompareEntry", raw_xml, trim(as_table(target_stage).label) or "Target Stage")
+  local compare_entry = new("CompareEntry"):CompareEntry(raw_xml, trim(as_table(target_stage).label) or "Target Stage")
   local selection, selection_error = select_target_sets_for_compare_entry(compare_entry, target_stage)
   if selection_error then
     return nil, current_context, current_metrics, selection_error
   end
 
-  local compare_tab = new("CompareTab", build)
+  local compare_tab = new("CompareTab"):CompareTab(build)
   local primary_report = build_upstream_compare_report_from_tab(
     compare_tab,
     compare_entry,
@@ -3306,7 +3292,7 @@ function append_compare_power_item_rows(rows, calc_func, baseline_output, power_
         end
         local ok, output = pcall(function()
           local item_rarity = normalize_pob_item_rarity(stage_item and stage_item.rarity)
-          local item = new("Item", raw_text, item_rarity, true)
+          local item = new("Item"):Item(raw_text, item_rarity, true)
           if item.NormaliseQuality then
             item:NormaliseQuality()
           end
@@ -3793,7 +3779,7 @@ local function build_pob_weighted_trade_query_url(league, slot_name, primary_met
     return nil
   end
 
-  local generator = new("TradeQueryGenerator", query_tab)
+  local generator = new("TradeQueryGenerator"):TradeQueryGenerator(query_tab)
   local query_json = nil
   local err_msg = nil
   generator.requesterContext = {}
@@ -3880,7 +3866,7 @@ local function evaluate_unique_swap(build_target, target_stage, character_snapsh
       return nil, "Target slot could not be resolved inside the active item set."
     end
 
-    local item = new("Item", template.raw, "UNIQUE", true)
+    local item = new("Item"):Item(template.raw, "UNIQUE", true)
     item:BuildAndParseRaw()
     build.itemsTab:AddItem(item, true)
 
@@ -4238,7 +4224,7 @@ local function evaluate_rare_swap(build_target, target_stage, character_snapshot
       return nil, "Target slot could not be resolved inside the active item set."
     end
 
-    local item = new("Item", scored_raw_text, "RARE", true)
+    local item = new("Item"):Item(scored_raw_text, "RARE", true)
     item:BuildAndParseRaw()
     build.itemsTab:AddItem(item, true)
 
@@ -5063,11 +5049,13 @@ local function create_exact_rare_plan(args)
     breaks_requirements = args.breaks_requirements == true,
     items = {
       {
-        source = "market",
+        source = args.source or "market",
         slot = args.slot_name,
         item_name = args.item_name or (args.base_type and ("Rare " .. args.base_type) or ("Rare " .. args.slot_name)),
         item_payload = {
           base_type = args.base_type,
+          stash_item_id = args.owned_item_id,
+          owner_user_id = args.owner_user_id,
           exact_eval = exact_eval,
           target_stage_slot = args.slot_name,
           estimated_price = estimated_price,
@@ -5233,6 +5221,9 @@ end
 
 local function get_rare_plan_source_priority(plan)
   local candidate_type = get_plan_candidate_type(plan)
+  if candidate_type == "owned_viscera" then
+    return 3
+  end
   if candidate_type == "market_rare" then
     return 2
   end
@@ -5429,7 +5420,7 @@ local function evaluate_exact_stage_rare_plans(payload, build_target, target_sta
 
   for stage_item_index, stage_item in ipairs(stage_items) do
     if stage_item
-      and normalize_key(stage_item.rarity) == "rare"
+      and (normalize_key(stage_item.rarity) == "rare" or normalize_key(stage_item.slot) == "head" or normalize_key(stage_item.slot) == "body" or normalize_key(stage_item.slot) == "arm" or normalize_key(stage_item.slot) == "leg")
       and trim(stage_item.slot)
       and trim(stage_item.raw_text)
     then
@@ -5920,16 +5911,22 @@ local function evaluate_exact_market_rare_plans(payload, build_target, target_st
                 primary_metric = primary_metric,
                 stage_progress_score = unlock_candidate and 1.05 or 0.85,
                 unlock_weight = unlock_weight,
-                category = unlock_candidate and "unlock_next_stage" or "best_single",
+                category = unlock_candidate and "unlock_next_stage" or (candidate.candidate_source == "owned" and "owned_now" or "best_single"),
                 trade_link = trim(candidate and candidate.trade_link),
                 estimated_price = false,
-                candidate_type = "market_rare",
+                candidate_type = candidate.candidate_source == "owned" and "owned_viscera" or "market_rare",
+                source = candidate.candidate_source == "owned" and "owned" or "market",
+                owned_item_id = candidate.owned_item_id,
+                owner_user_id = candidate.owner_user_id,
+                title_override = candidate.candidate_source == "owned" and ("Use owned Viscera: " .. slot_name) or nil,
+                summary_override = candidate.candidate_source == "owned" and "Exact PoB swap scoring for a retained stash item; no purchase cost." or nil,
+                explanation_override = candidate.candidate_source == "owned" and "This Viscera is already in the group's retained stash snapshot. Path of Building evaluated the exact item in the matching Wickerman slot." or nil,
                 raw_text = raw_text,
                 icon_url = trim(candidate and candidate.icon_url),
                 trade_link_kind = trim(candidate and candidate.trade_link_kind) or "trade_search",
                 trade_query_id = trim(candidate and candidate.trade_query_id),
                 trade_result_id = trim(candidate and candidate.trade_result_id),
-                price_source = "trade_listing",
+                price_source = candidate.candidate_source == "owned" and "owned_stash" or "trade_listing",
                 listing_price_amount = safe_number(candidate and candidate.listing_price_amount),
                 listing_price_currency = trim(candidate and candidate.listing_price_currency),
                 retained_for_incremental_rerun = retain_non_positive and not meaningful_gain,
@@ -6042,6 +6039,10 @@ local ok, runtime_error = xpcall(function()
     compare_power_reports = reports_or_nil
   else
     compare_error = report_or_error
+  end
+  if compare_error and tostring(compare_error):find("Current character import failed:", 1, true) then
+    stderr_print(tostring(compare_error))
+    error("Current character import failed; exact comparison cannot proceed.")
   end
   local baseline_context = initialize_stage_context(build_target, target_stage, character_snapshot)
   -- Ensure staged skills (e.g. Reave) use max stages if the user never set a value in PoB
@@ -6189,6 +6190,20 @@ local ok, runtime_error = xpcall(function()
     end
   end
 
+  if not as_table(as_table(character_snapshot.current_import).completeness).equipment
+    or not as_table(as_table(character_snapshot.current_import).completeness).passives then
+    run_status = "partial"
+    partial_reason = "Current source does not establish equipment or passive-tree completeness; comparison is incomplete."
+  end
+  if #as_table(as_table(character_snapshot.current_import).unsupported_flags) > 0 then
+    run_status = "partial"
+    partial_reason = "Current input includes modifier flags whose support is unverified in this PoB revision."
+  end
+  if not as_table(as_table(character_snapshot.current_import).completeness).wickerman then
+    run_status = "partial"
+    partial_reason = "Current source does not establish Wickerman completeness; current-character comparison is incomplete."
+  end
+
   stderr_print(string.format(
     "[exact][summary] status=%s source=%s plan_count=%d compare_plans=%d unique_plans=%d unique_evaluated=%d market_rare_plans=%d market_rare_evaluated=%d stage_rare_plans=%d stage_rare_evaluated=%d warnings=%d",
     tostring(run_status),
@@ -6213,6 +6228,8 @@ local ok, runtime_error = xpcall(function()
     summary = {
       runtime = "pob-luajit",
       pob_ref = os.getenv("POB_REF"),
+      input_completeness = as_table(as_table(character_snapshot.current_import).completeness),
+      unsupported_flags = as_table(as_table(character_snapshot.current_import).unsupported_flags),
       pob_compare_available = detect_compare_capability(),
       baseline_metrics = metrics,
       compare_power_report = compare_power_report,

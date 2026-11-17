@@ -11,8 +11,11 @@ import { ensureFreshPoeAccessToken } from '../_shared/poe-token-store.ts'
 import { requireAuthenticatedUser } from '../_shared/request-auth.ts'
 import { normalizeCharacterClassInfo } from '../_shared/poe-character-class.ts'
 import { getPoeRealm, normalizePoeGame } from '../_shared/poe-game.ts'
+import { normalizePoeItemModLines, getPoeItemModLinesByFlag } from '../_shared/poe-item-mods.ts'
 
 const EQUIPMENT_SLOTS = new Set([
+  'VisceraHead', 'VisceraBody', 'VisceraArm', 'VisceraLeg',
+  'VisceraHead', 'VisceraBody', 'VisceraArm', 'VisceraLeg',
   'Helm',
   'Amulet',
   'BodyArmour',
@@ -262,8 +265,8 @@ function normalizePassiveTreeJewelData(
     })
 }
 
-function normalizeModifierLines(lines: string[] | undefined): string[] {
-  return (lines ?? []).filter((line) => typeof line === 'string' && line.trim().length > 0)
+function normalizeModifierLines(lines: unknown): string[] {
+  return normalizePoeItemModLines(lines)
 }
 
 function mapVeiledMods(item: PoeItem): string[] {
@@ -348,9 +351,9 @@ function mapItem(item: PoeItem) {
     properties: (item.properties ?? []).map(mapProperty).slice(0, 5),
     requirements: (item.requirements ?? []).map(mapProperty).slice(0, 4),
     implicitMods: normalizeModifierLines(item.implicitMods),
-    explicitMods: normalizeModifierLines(item.explicitMods),
-    craftedMods: normalizeModifierLines(item.craftedMods),
-    fracturedMods: normalizeModifierLines(item.fracturedMods),
+    explicitMods: normalizeModifierLines(item.explicitMods?.filter((mod) => typeof mod === 'string' || (!mod.flags?.crafted && !mod.flags?.fractured))),
+    craftedMods: [...normalizeModifierLines(item.craftedMods), ...getPoeItemModLinesByFlag(item.explicitMods, 'crafted')],
+    fracturedMods: [...normalizeModifierLines(item.fracturedMods), ...getPoeItemModLinesByFlag(item.explicitMods, 'fractured')],
     enchantMods: normalizeModifierLines(item.enchantMods),
     veiledMods: mapVeiledMods(item),
     modifiers: collectModifierLines(item),
@@ -363,6 +366,7 @@ function extractItems(character: PoeCharacterDetail): PoeItem[] {
     character.equipment,
     character.inventory,
     character.jewels,
+    character.wickerman,
   ]
   const itemMap = new Map<string, PoeItem>()
 

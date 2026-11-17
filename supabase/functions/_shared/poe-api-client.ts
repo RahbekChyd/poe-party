@@ -159,11 +159,18 @@ export interface PoeCharacterDetail extends PoeCharacter {
   equipment?: PoeItem[]
   inventory?: PoeItem[]
   jewels?: PoeItem[]
+  guardian?: PoeItem[]
+  wickerman?: PoeItem[]
   passives?: {
     hashes?: number[]
     hashes_ex?: number[]
     mastery_effects?: Record<string, number>
     jewel_data?: Record<string, PoeItemJewelData>
+    bandit_choice?: string
+    pantheon_major?: string
+    pantheon_minor?: string
+    alternate_ascendancy?: string | number
+    skill_overrides?: Record<string, unknown>
   }
   metadata?: {
     version?: string
@@ -241,7 +248,9 @@ export interface PoeItem {
   rarity?: string
   identified: boolean
   itemLevel: number
+  ilvl?: number
   frameType: number
+  frameTypeId?: string
   icon: string
   socketedItems?: PoeItem[]
   stackSize?: number
@@ -253,8 +262,8 @@ export interface PoeItem {
   sockets?: { group: number; attr?: string; sColour?: string }[]
   properties?: { name: string; values: [string, number][] }[]
   requirements?: { name: string; values: [string, number][] }[]
-  implicitMods?: string[]
-  explicitMods?: string[]
+  implicitMods?: import('./poe-item-mods.ts').PoeItemMod[]
+  explicitMods?: import('./poe-item-mods.ts').PoeItemMod[]
   craftedMods?: string[]
   fracturedMods?: string[]
   enchantMods?: string[]
@@ -262,6 +271,11 @@ export interface PoeItem {
   scourgeMods?: string[]
   veiled?: boolean
   support?: boolean
+  monsterLevel?: number
+  builtInSupport?: string
+  vestigial?: boolean
+  doubleCorrupted?: boolean
+  unidentifiedTier?: number
   note?: string
   x?: number
   y?: number

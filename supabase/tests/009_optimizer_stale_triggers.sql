@@ -147,7 +147,7 @@ SELECT results_eq(
 RESET ROLE;
 UPDATE public.upgrade_analysis_runs SET status = 'completed', stale_reason = NULL
 WHERE group_id = '29000000-0000-0000-0000-000000000001';
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE service_role;
 SELECT lives_ok(
   $$ INSERT INTO public.stash_snapshots (id, user_id, group_id, status)
      VALUES ('49000000-0000-0000-0000-000000000001', '19000000-0000-0000-0000-000000000001', '29000000-0000-0000-0000-000000000001', 'pending') $$,
@@ -160,7 +160,7 @@ SELECT results_eq(
 RESET ROLE;
 UPDATE public.upgrade_analysis_runs SET status = 'completed', stale_reason = NULL
 WHERE group_id = '29000000-0000-0000-0000-000000000001';
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE service_role;
 SELECT lives_ok(
   $$ UPDATE public.stash_tabs SET estimated_value_chaos = 10 WHERE id = '49000000-0000-0000-0000-000000000002' $$,
   'an authorized stash pricing update can invoke the helper'

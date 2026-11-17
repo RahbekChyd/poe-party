@@ -205,10 +205,7 @@ const CHARACTER_SELECTION_STORAGE_VERSION = 1
 const PARTY_CONFIG_STORAGE_VERSION = 1
 const ANALYSIS_PREFS_STORAGE_VERSION = 1
 const DEFAULT_LIVE_MARKET_BUDGET_DIVINE = 5
-const DEFAULT_DIVINE_PRICE_CHAOS = 200
-const DEFAULT_LIVE_MARKET_BUDGET_CHAOS = String(
-  DEFAULT_LIVE_MARKET_BUDGET_DIVINE * DEFAULT_DIVINE_PRICE_CHAOS,
-)
+const DEFAULT_LIVE_MARKET_BUDGET_CHAOS = '1000'
 
 type StoredCharacterSelection = {
   version: number
@@ -2019,7 +2016,7 @@ export function GearRecommendationsPanel() {
     staleTime: 1000 * 60 * 60,
   })
 
-  const divinePrice = ninjaData?.divinePrice ?? 200
+  const divinePrice = ninjaData?.divinePrice ?? 0
   const targetUserId = currentUser?.id ?? null
   const currentMember = members?.find((member) => member.user.id === targetUserId) ?? null
   const { data: activeCharacters = [] } = useActiveCharacters(activeGroupId)
@@ -2180,10 +2177,10 @@ export function GearRecommendationsPanel() {
     if (stored) {
       setAnalysisMode(stored.analysisMode)
       setBudgetChaos(stored.budgetChaos)
-      setBudgetCurrency(stored.budgetCurrency)
+      setBudgetCurrency(divinePrice > 0 ? stored.budgetCurrency : 'chaos')
     } else {
-      setBudgetChaos(String(Math.round(DEFAULT_LIVE_MARKET_BUDGET_DIVINE * divinePrice)))
-      setBudgetCurrency('divine')
+      setBudgetChaos(String(divinePrice > 0 ? Math.round(DEFAULT_LIVE_MARKET_BUDGET_DIVINE * divinePrice) : DEFAULT_LIVE_MARKET_BUDGET_CHAOS))
+      setBudgetCurrency(divinePrice > 0 ? 'divine' : 'chaos')
     }
     setAnalysisPrefsHydratedKey(analysisPrefsStorageKey)
   }, [analysisPrefsStorageKey, currencyDisplay, divinePrice])
@@ -2957,7 +2954,7 @@ export function GearRecommendationsPanel() {
                 <Dropdown.Item id="chaos" textValue="Chaos">
                   Chaos
                 </Dropdown.Item>
-                <Dropdown.Item id="divine" textValue="Divine">
+                <Dropdown.Item id="divine" textValue="Divine" isDisabled={divinePrice <= 0}>
                   Divine
                 </Dropdown.Item>
               </Dropdown.Menu>
@@ -2965,14 +2962,14 @@ export function GearRecommendationsPanel() {
           </Dropdown>
         }
         value={
-          budgetCurrency === 'divine'
+          budgetCurrency === 'divine' && divinePrice > 0
             ? String(
                 budgetChaos === '' ? '' : Math.round((Number(budgetChaos) / divinePrice) * 10) / 10,
               )
             : budgetChaos
         }
         onValueChange={(v) => {
-          if (budgetCurrency === 'divine') {
+          if (budgetCurrency === 'divine' && divinePrice > 0) {
             setBudgetChaos(v === '' ? '' : String(Math.round(Number(v) * divinePrice)))
           } else {
             setBudgetChaos(v)

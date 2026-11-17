@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '..')
 const contentPath = path.join(repoRoot, 'src', 'content', 'public-strategy-content.json')
 const seoManifestPath = path.join(repoRoot, 'src', 'lib', 'public-seo-pages.json')
-const seedSqlPath = path.join(repoRoot, 'tmp_strategy_seed_3_29.sql')
+const seedSqlPath = path.join(repoRoot, 'tmp_strategy_seed_current.sql')
 
 const validStages = new Set([
   'league_starter',
@@ -169,6 +169,7 @@ function renderSeedSql(manifest) {
     const strategy = entry.strategy
     const metadata = metadataForEntry(entry)
     const scarabs = strategy.scarabs ?? []
+    const threads = strategy.threads ?? []
     const mapRequirements = strategy.mapRequirements ?? {}
 
     return `    (
@@ -182,6 +183,7 @@ function renderSeedSql(manifest) {
       editorial_user_id,
       ${sqlString(strategy.atlasTreeUrl ?? null)},
       ${sqlJson(scarabs)},
+      ${sqlJson(threads)},
       ${sqlString(strategy.mapTradeLink ?? null)},
       ${sqlJson(mapRequirements)},
       ${sqlNumber(strategy.mapCost ?? null)},
@@ -239,6 +241,7 @@ BEGIN
     created_by,
     atlas_tree_url,
     scarabs,
+    threads,
     map_trade_link,
     map_requirements,
     map_cost,
@@ -260,6 +263,7 @@ ${rows.join(',\n')}
     created_by = EXCLUDED.created_by,
     atlas_tree_url = EXCLUDED.atlas_tree_url,
     scarabs = EXCLUDED.scarabs,
+    threads = EXCLUDED.threads,
     map_trade_link = EXCLUDED.map_trade_link,
     map_requirements = EXCLUDED.map_requirements,
     map_cost = EXCLUDED.map_cost,

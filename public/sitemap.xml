@@ -2,205 +2,259 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://poe-party.com/</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://poe-party.com/preview</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://poe-party.com/preview/economy</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/preview/analysis</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/preview/gear</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/preview/members</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://poe-party.com/preview/search</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/preview/services</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/preview/strategies</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/legal/faq</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://poe-party.com/legal/security</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://poe-party.com/legal/privacy</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://poe-party.com/legal/terms</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://poe-party.com/legal/cookies</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://poe-party.com/tools/poe-wealth-tracker</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/tools/poe-stash-tracker</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/tools/poe-group-economy-tracker</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/tools/poe-farming-strategy-tracker</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/tools/poe-service-listings</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/tools/poe-gear-upgrade-planner</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://poe-party.com/poe-strategies/poe-3-30-league-starters</loc>
+    <lastmod>2026-11-18</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://poe-party.com/poe-strategies/poe-3-30-build-source-roundup</loc>
+    <lastmod>2026-11-18</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://poe-party.com/poe-strategies/poe-3-30-atlas-completion</loc>
+    <lastmod>2026-11-18</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://poe-party.com/poe-strategies/poe-3-30-alch-and-go</loc>
+    <lastmod>2026-11-18</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://poe-party.com/poe-strategies/poe-3-30-midgame-currency</loc>
+    <lastmod>2026-11-18</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://poe-party.com/poe-strategies/poe-3-30-high-end-farming</loc>
+    <lastmod>2026-11-18</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://poe-party.com/poe-strategies/poe-3-30-bossing-progression</loc>
+    <lastmod>2026-11-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://poe-party.com/poe-strategies/poe-3-30-party-strategies</loc>
+    <lastmod>2026-11-18</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://poe-party.com/poe-strategies/poe-3-30-duo-start</loc>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/poe-strategies/poe-3-29-league-starters</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/poe-strategies/poe-3-29-build-source-roundup</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/poe-strategies/poe-3-29-atlas-completion</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/poe-strategies/poe-3-29-alch-and-go</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/poe-strategies/poe-3-29-midgame-currency</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/poe-strategies/poe-3-29-high-end-farming</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/poe-strategies/poe-3-29-bossing-progression</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/poe-strategies/poe-3-29-party-strategies</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/poe-strategies/poe-3-29-duo-start</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://poe-party.com/poe-strategies/harvest-farming</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://poe-party.com/poe-strategies/essence-farming</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://poe-party.com/poe-strategies/strongbox-farming</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://poe-party.com/poe-strategies/boss-rush</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://poe-party.com/poe-strategies/ultimatum-farming</loc>
-    <lastmod>2026-07-20</lastmod>
+    <lastmod>2026-11-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>

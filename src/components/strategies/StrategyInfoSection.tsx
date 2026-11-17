@@ -1,9 +1,9 @@
 import { Chip } from '@heroui/react/chip'
 import { ExternalLink } from 'lucide-react'
 import { MAP_REQ_LABELS } from '../../lib/constants'
-import type { Scarab } from '../../lib/strategy-scarabs'
+import type { Thread } from '../../lib/strategy-threads'
 import type { MapRequirements } from '../../hooks/useStrategies'
-import type { ScarabEntry } from '../../hooks/useScarabNames'
+import type { ThreadEntry } from '../../hooks/useThreadData'
 
 const CHAOS_ORB_ICON_URL =
   'https://web.poecdn.com/image/Art/2DItems/Currency/CurrencyRerollRare.png'
@@ -29,7 +29,7 @@ function ChaosPrice({ amount }: { amount: number }) {
   )
 }
 
-function ScarabChipIcon({ icon, name }: { icon: ScarabEntry['icon'] | undefined; name: string }) {
+function ThreadChipIcon({ icon, name }: { icon: ThreadEntry['icon'] | undefined; name: string }) {
   if (!icon) return null
 
   return (
@@ -39,7 +39,7 @@ function ScarabChipIcon({ icon, name }: { icon: ScarabEntry['icon'] | undefined;
       width={20}
       height={20}
       loading="lazy"
-      data-scarab-icon={name}
+      data-thread-icon={name}
       className="inline-block h-5 w-5 shrink-0 object-contain"
     />
   )
@@ -47,25 +47,27 @@ function ScarabChipIcon({ icon, name }: { icon: ScarabEntry['icon'] | undefined;
 
 export function StrategyInfoSection({
   atlasTreeUrl,
-  scarabs,
+  threads,
+  legacyScarabs = [],
   mapTradeLink,
   mapRequirements,
-  scarabPriceMap,
-  scarabIconMap,
+  threadPriceMap,
+  threadIconMap,
 }: {
   atlasTreeUrl: string | null
-  scarabs: Scarab[]
+  threads: Thread[]
+  legacyScarabs?: Thread[]
   mapTradeLink: string | null
   mapRequirements: MapRequirements
-  scarabPriceMap: Map<string, number>
-  scarabIconMap: Map<string, ScarabEntry['icon']>
+  threadPriceMap: Map<string, number | null>
+  threadIconMap: Map<string, ThreadEntry['icon']>
 }) {
   const reqChips = Object.entries(mapRequirements ?? {})
     .filter(([, value]) => value != null)
     .map(([key, value]) => ({ label: MAP_REQ_LABELS[key] ?? key, value: value as number }))
-  const hasAlternatives = scarabs.some((scarab) => scarab.alternatives.length > 0)
+  const hasAlternatives = threads.some((thread) => thread.alternatives.length > 0)
 
-  const hasInfoRow = scarabs.length > 0 || reqChips.length > 0 || !!atlasTreeUrl || !!mapTradeLink
+  const hasInfoRow = legacyScarabs.length > 0 || threads.length > 0 || reqChips.length > 0 || !!atlasTreeUrl || !!mapTradeLink
   if (!hasInfoRow) return null
 
   return (
@@ -86,60 +88,68 @@ export function StrategyInfoSection({
           </div>
         ) : null}
 
-        {scarabs.length > 0 ? (
+        {legacyScarabs.length > 0 && (
+          <details className="text-default-400 text-xs">
+            <summary className="cursor-pointer">Legacy Scarab reference (removed in 3.30)</summary>
+            <ul className="mt-1">{legacyScarabs.map((scarab, index) => (
+              <li key={index}>{scarab.quantity} × {scarab.name}</li>
+            ))}</ul>
+          </details>
+        )}
+        {threads.length > 0 ? (
           <div
             className={`flex flex-col gap-2 ${
               atlasTreeUrl ? 'rounded-medium bg-default-100/40 p-1.5' : ''
             }`}
           >
-            {scarabs.map((scarab, index) => {
-              const rowCost = scarabPriceMap.has(scarab.name)
-                ? scarabPriceMap.get(scarab.name)! * scarab.quantity
+            {threads.map((thread, index) => {
+              const rowCost = threadPriceMap.get(thread.name) != null
+                ? (threadPriceMap.get(thread.name) ?? 0) * thread.quantity
                 : null
-              const scarabIcon = scarabIconMap.get(scarab.name)
+              const threadIcon = threadIconMap.get(thread.name)
 
               return (
                 <div
-                  key={`${scarab.name}-${index}`}
+                  key={`${thread.name}-${index}`}
                   className="flex flex-wrap items-center gap-1.5"
                 >
                   <Chip size="sm" variant="soft" className="px-2 py-1">
                     <span className="inline-flex min-w-0 items-center gap-1.5">
-                      <ScarabChipIcon icon={scarabIcon} name={scarab.name} />
-                      <span>{scarab.name}</span>
+                      <ThreadChipIcon icon={threadIcon} name={thread.name} />
+                      <span>{thread.name}</span>
                     </span>
-                    {scarab.quantity > 1 ? (
-                      <span className="text-default-400 ml-2">x{scarab.quantity}</span>
+                    {thread.quantity > 1 ? (
+                      <span className="text-default-400 ml-2">x{thread.quantity}</span>
                     ) : null}
                     {rowCost != null ? (
                       <span className="ml-2">
                         <ChaosPrice amount={rowCost} />
                       </span>
                     ) : null}
-                    {!scarab.required ? (
+                    {!thread.required ? (
                       <span className="text-default-400 ml-2 text-xs">opt</span>
                     ) : null}
                   </Chip>
-                  {scarab.alternatives.map((alternative, alternativeIndex) => {
-                    const alternativeCost = scarabPriceMap.has(alternative.name)
-                      ? scarabPriceMap.get(alternative.name)! * scarab.quantity
+                  {thread.alternatives.map((alternative, alternativeIndex) => {
+                    const alternativeCost = threadPriceMap.get(alternative.name) != null
+                      ? (threadPriceMap.get(alternative.name) ?? 0) * thread.quantity
                       : null
-                    const alternativeIcon = scarabIconMap.get(alternative.name)
+                    const alternativeIcon = threadIconMap.get(alternative.name)
 
                     return (
                       <Chip
-                        key={`${scarab.name}-${index}-alt-${alternative.name}-${alternativeIndex}`}
+                        key={`${thread.name}-${index}-alt-${alternative.name}-${alternativeIndex}`}
                         size="sm"
                         variant="secondary"
                         className="border-dashed px-2 py-1"
                       >
                         <span className="text-default-400">Alternative:</span>
                         <span className="ml-1.5 inline-flex min-w-0 items-center gap-1.5">
-                          <ScarabChipIcon icon={alternativeIcon} name={alternative.name} />
+                          <ThreadChipIcon icon={alternativeIcon} name={alternative.name} />
                           <span>{alternative.name}</span>
                         </span>
-                        {scarab.quantity > 1 ? (
-                          <span className="text-default-400 ml-2">x{scarab.quantity}</span>
+                        {thread.quantity > 1 ? (
+                          <span className="text-default-400 ml-2">x{thread.quantity}</span>
                         ) : null}
                         {alternativeCost != null ? (
                           <span className="ml-2">
@@ -154,7 +164,7 @@ export function StrategyInfoSection({
             })}
             {hasAlternatives ? (
               <p className="text-default-400 text-xs">
-                Alternative scarabs use the same quantity as the primary scarab.
+                Alternative threads use the same quantity as the primary thread.
               </p>
             ) : null}
           </div>

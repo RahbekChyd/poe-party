@@ -1,3 +1,4 @@
+import { comparablePricing } from '../../lib/snapshot-pricing'
 import { useMemo, useState } from 'react'
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
@@ -71,16 +72,16 @@ export function OverviewPage() {
   const [groupHistoryRange, setGroupHistoryRange] = useState<WealthHistoryRange>('7d')
 
   const { data: ninjaData } = useNinjaPrices(activeLeague, game ?? 'poe1')
-  const divinePrice = ninjaData?.divinePrice ?? 200
+  const divinePrice = ninjaData?.divinePrice ?? null
   const display = useCurrencyStore((s) => s.display)
   const isMarketOnly = !capabilities?.supportsGroupEconomy
 
   const fmt = (chaos: number): string => {
-    return formatCurrencyAmount(chaos, display, divinePrice)
+    return formatCurrencyAmount(chaos, display === 'divine' && divinePrice ? 'divine' : 'chaos', divinePrice ?? 1)
   }
 
   const fmtRate = (chaos: number): string => {
-    if (display === 'divine') {
+    if (display === 'divine' && divinePrice != null && divinePrice > 0) {
       return `${(chaos / divinePrice).toFixed(1)} div/hr`
     }
     return `${Math.round(chaos).toLocaleString()} chaos/hr`
@@ -97,7 +98,9 @@ export function OverviewPage() {
     () => filterHistoryByRange(groupHistory ?? [], groupHistoryRange, (point) => point.created_at),
     [groupHistory, groupHistoryRange],
   )
-  const groupChaosPerHour = calculateChaosPerHour(
+  const valuationUnavailable = snapshots?.some((snapshot) => snapshot.pricing_summary?.status === 'unavailable') ?? false
+  const valuationPartial = snapshots?.some((snapshot) => snapshot.pricing_summary?.status === 'partial') ?? false
+  const groupChaosPerHour = valuationUnavailable || !comparablePricing(visibleGroupHistory) ? null : calculateChaosPerHour(
     visibleGroupHistory,
     (point) => point.created_at,
     (point) => point.total_wealth_chaos,
@@ -110,7 +113,7 @@ export function OverviewPage() {
         : groupChaosPerHour < 0
           ? 'text-danger'
           : 'text-default-400'
-  const groupTrend = calculateTrendStats(visibleGroupHistory, (point) => point.total_wealth_chaos)
+  const groupTrend = valuationUnavailable || !comparablePricing(visibleGroupHistory) ? null : calculateTrendStats(visibleGroupHistory, (point) => point.total_wealth_chaos)
   const groupTrendColor =
     groupTrend == null
       ? 'text-default-400'
@@ -199,22 +202,25 @@ export function OverviewPage() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      {!isMarketOnly && valuationPartial && (
+        <p role="status" className="text-warning text-sm">Partial pricing: this subtotal excludes items without available price estimates.</p>
+      )}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Link to="/dashboard/economy" className="block h-30">
           <Card className="hover:bg-default-50 h-full cursor-pointer transition-colors">
-            <Card.Content className="flex h-full flex-row items-center gap-10 p-5">
+            <Card.Content className="flex h-full flex-row items-center gap-3 p-4 md:gap-4 md:p-5">
               <div className="bg-success/15 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg">
                 <TrendingUp size={26} className="text-success" />
               </div>
               <div>
                 <p className="text-default-400 text-xs tracking-wider uppercase">
-                  {isMarketOnly ? 'Market Overview' : isSolo ? 'Your Wealth' : 'Group Value'}
+                  {isMarketOnly ? 'Market Overview' : valuationPartial ? 'Priced subtotal' : isSolo ? 'Your Wealth' : 'Group Value'}
                 </p>
                 {snapsLoading ? (
                   <Skeleton className="mt-1 h-7 w-24 rounded-md" />
                 ) : (
                   <p className="text-foreground text-2xl font-bold">
-                    {isMarketOnly ? 'Live' : fmt(totalChaos)}
+                    {isMarketOnly ? 'Live' : valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}
                   </p>
                 )}
               </div>
@@ -224,7 +230,7 @@ export function OverviewPage() {
 
         {!isSolo && (
           <Card className="h-30">
-            <Card.Content className="flex h-full flex-row items-center gap-10 p-5">
+            <Card.Content className="flex h-full flex-row items-center gap-3 p-4 md:gap-4 md:p-5">
               <div className="bg-primary/15 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg">
                 <Users size={26} className="text-primary" />
               </div>
@@ -247,7 +253,7 @@ export function OverviewPage() {
 
         <Link to="/dashboard/gear" className="block h-30">
           <Card className="hover:bg-default-50 h-full cursor-pointer transition-colors">
-            <Card.Content className="flex h-full flex-row items-center gap-10 p-5">
+            <Card.Content className="flex h-full flex-row items-center gap-3 p-4 md:gap-4 md:p-5">
               <div className="bg-warning/15 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg">
                 <Sword size={26} className="text-warning" />
               </div>
@@ -261,7 +267,7 @@ export function OverviewPage() {
 
         {!isSolo && (
           <Card className="h-30">
-            <Card.Content className="flex h-full flex-row items-center gap-10 p-5">
+            <Card.Content className="flex h-full flex-row items-center gap-3 p-4 md:gap-4 md:p-5">
               <div
                 className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${
                   stalestMember?.age.color === 'success'

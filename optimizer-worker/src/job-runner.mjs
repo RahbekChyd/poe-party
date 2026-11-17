@@ -978,6 +978,7 @@ export function createJobRunner({
       .toLowerCase()
       .replace(/\s+/g, '')
     if (!raw) return null
+    if (['head', 'body', 'arm', 'leg'].includes(raw.replace(/^viscera/, ''))) return raw.replace(/^viscera/, '')
     if (raw.includes('helmet') || raw.includes('helm')) return 'helmet'
     if (raw.includes('body') || raw.includes('chest')) return 'bodyarmour'
     if (raw.includes('glove')) return 'gloves'

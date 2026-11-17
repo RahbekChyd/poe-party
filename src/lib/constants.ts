@@ -24,19 +24,21 @@ export const DIFFICULTY_OPTIONS = [
 // ── Map requirement labels ────────────────────────────────────────────────────
 
 export const MAP_REQ_LABELS: Record<string, string> = {
-  item_quantity: 'IQ',
+  atlas_drops: 'Atlas Drops',
+  more_threads: '+Threads',
+  item_quantity: 'Legacy IQ',
   item_rarity:  'IR',
   pack_size:    'Pack Size',
-  more_scarabs: '+Scarabs',
+  more_scarabs: 'Legacy +Scarabs',
   more_currency: '+Currency',
   more_unique:  '+Unique',
 }
 
 export const MAP_REQ_FIELDS: { key: string; label: string }[] = [
-  { key: 'item_quantity', label: 'Item Quantity' },
+  { key: 'atlas_drops', label: 'Atlas Drops' },
   { key: 'item_rarity',  label: 'Item Rarity' },
   { key: 'pack_size',    label: 'Pack Size' },
-  { key: 'more_scarabs', label: 'More Scarabs' },
+  { key: 'more_threads', label: 'More Threads' },
   { key: 'more_currency', label: 'More Currency' },
   { key: 'more_unique',  label: 'More Unique' },
 ]

@@ -13,7 +13,7 @@ Use this skill to avoid accidentally treating PoE2 as a reskinned PoE1 workflow 
 - Treat PoE2 as first-class for supported shared workflows, but do not imply parity where upstream APIs are missing.
 - Prefer capability checks over scattered hard-coded game checks.
 - Scope public listings, subscriptions, search, caches, and workspace data by both game and league where relevant.
-- Keep stash snapshots, group wealth history, atlas/scarab planning, and optimizer/trade-analysis tooling PoE1-only unless a separate upstream validation proves support.
+- Keep stash snapshots, group wealth history, Atlas/Thread planning, and optimizer/trade-analysis tooling PoE1-only unless a separate upstream validation proves support.
 - Strategies do not expose member/character assignment as a product workflow. Keep strategy execution centered on strategy content, active-strategy selection, and snapshot-linked results.
 
 ## Public and Private Boundaries

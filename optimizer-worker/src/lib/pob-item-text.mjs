@@ -9,6 +9,7 @@ const FRAME_TYPE_TO_RARITY = {
   8: 'Quest Item',
   9: 'Prophecy',
   10: 'Relic',
+  15: 'Normal',
 }
 
 const SOCKET_COLOR_MAP = {
@@ -24,6 +25,7 @@ const SOCKET_COLOR_MAP = {
 }
 
 const EQUIPPABLE_CLASS_KEYWORDS = [
+  'viscera',
   'amulet',
   'belt',
   'body',
@@ -61,7 +63,7 @@ function asRecord(value) {
 
 function normalizeLineArray(value) {
   return asArray(value)
-    .map((entry) => String(entry ?? '').trim())
+    .flatMap((entry) => (typeof entry === 'string' ? entry : typeof entry?.description === 'string' ? entry.description : '').split(/\r?\n/).map((line) => line.trim()))
     .filter(Boolean)
 }
 
@@ -344,7 +346,7 @@ export function isLikelyEquippableStashItem(item) {
     return true
   }
 
-  return Number(item?.frame_type) === 2 || Number(item?.frame_type) === 3
+  return [2, 3, 15].includes(Number(item?.frame_type))
 }
 
 export function toStructuredStashMods(item) {

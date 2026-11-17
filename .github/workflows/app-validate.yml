@@ -81,3 +81,6 @@ jobs:
 
       - name: Build optimizer worker image
         run: docker build -t poe-optimizer-worker-ci ./optimizer-worker
+
+      - name: Verify real PoB 3.30 imports and swaps
+        run: node optimizer-worker/scripts/verify-pob-330.mjs poe-optimizer-worker-ci

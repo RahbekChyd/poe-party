@@ -1,3 +1,7 @@
+import {
+  POE1_EXCHANGE_TYPES,
+  parseNinjaExchangeResponse,
+} from '../../supabase/functions/_shared/ninja-economy'
 import type { PoeGame } from './poe-game'
 interface NinjaExchangeLine {
   id: string
@@ -25,24 +29,6 @@ interface NinjaItemOverviewResponse {
   lines: NinjaItemLine[]
 }
 
-const POE1_EXCHANGE_TYPES = [
-  'Currency',
-  'Essence',
-  'Fossil',
-  'Resonator',
-  'Scarab',
-  'DivinationCard',
-  'DeliriumOrb',
-  'Fragment',
-  'Oil',
-  'Omen',
-  'Tattoo',
-  'Artifact',
-  'Runegraft',
-  'AllflameEmber',
-  'DjinnCoin',
-] as const
-
 const POE2_EXCHANGE_TYPES = [
   'Currency',
   'Essence',
@@ -59,7 +45,8 @@ export type NinjaExchangeType =
 
 export interface NinjaPriceMap {
   byName: Map<string, number>
-  divinePrice: number
+  divinePrice: number | null
+  failedCategories: string[]
 }
 
 export interface NinjaExchangeEntry {
@@ -111,11 +98,13 @@ export async function fetchNinjaExchangeEntries(
     ),
   )
 
+  if (game === 'poe1') return parseNinjaExchangeResponse(response, type === 'Currency')
+
   const itemById = new Map(response.items.map((item) => [item.id, item]))
 
   return response.lines.flatMap((line) => {
     const item = itemById.get(line.id)
-    if (!item?.name) return []
+    if (!item?.name || !Number.isFinite(line.primaryValue) || line.primaryValue <= 0) return []
     return [
       {
         id: line.id,
@@ -132,11 +121,15 @@ export async function fetchAllNinjaPrices(
   game: PoeGame = 'poe1',
 ): Promise<NinjaPriceMap> {
   const byName = new Map<string, number>()
-  const exchangeResponses = await Promise.all(
-    getExchangeTypes(game).map((type) =>
-      fetchNinjaExchangeEntries(league, type, game).catch(() => [] as NinjaExchangeEntry[]),
-    ),
-  )
+  const failedCategories: string[] = []
+  const exchangeResponses = await mapLimited(getExchangeTypes(game), async (type) => {
+    try {
+      return await fetchNinjaExchangeEntries(league, type, game)
+    } catch {
+      failedCategories.push(type)
+      return []
+    }
+  })
 
   for (const response of exchangeResponses) {
     for (const entry of response) {
@@ -146,7 +139,8 @@ export async function fetchAllNinjaPrices(
 
   return {
     byName,
-    divinePrice: byName.get('Divine Orb') ?? 1,
+    divinePrice: byName.get('Divine Orb') ?? null,
+    failedCategories,
   }
 }
 
@@ -154,12 +148,12 @@ export async function fetchNinjaMarketOverview(
   league: string,
   game: PoeGame = 'poe1',
 ): Promise<NinjaMarketSection[]> {
-  const sections = await Promise.all(
-    getExchangeTypes(game).map(async (type) => ({
-      type,
-      entries: await fetchNinjaExchangeEntries(league, type, game).catch(() => [] as NinjaExchangeEntry[]),
-    })),
-  )
+  const sections = await mapLimited(getExchangeTypes(game), async (type) => ({
+    type,
+    entries: await fetchNinjaExchangeEntries(league, type, game).catch(
+      () => [] as NinjaExchangeEntry[],
+    ),
+  }))
 
   return sections
     .map((section) => ({
@@ -169,7 +163,9 @@ export async function fetchNinjaMarketOverview(
     .filter((section) => section.entries.length > 0)
 }
 
-export async function fetchNinjaSkillGemIcons(game: PoeGame = 'poe1'): Promise<NinjaSkillGemIcon[]> {
+export async function fetchNinjaSkillGemIcons(
+  game: PoeGame = 'poe1',
+): Promise<NinjaSkillGemIcon[]> {
   const response = await ninjaGet<NinjaItemOverviewResponse>(
     buildNinjaPath(game, '/api/economy/stash/current/item/overview?league=Standard&type=SkillGem'),
   )
@@ -191,7 +187,25 @@ export async function fetchNinjaSkillGemIcons(game: PoeGame = 'poe1'): Promise<N
 async function ninjaGet<T>(path: string): Promise<T> {
   const res = await fetch(`/api/ninja${path}`, {
     headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(10_000),
   })
   if (!res.ok) throw new Error(`poe.ninja API error: ${res.status} ${path}`)
   return res.json() as Promise<T>
+}
+
+async function mapLimited<T, R>(
+  values: readonly T[],
+  mapper: (value: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(values.length)
+  let next = 0
+  await Promise.all(
+    Array.from({ length: Math.min(3, values.length) }, async () => {
+      while (next < values.length) {
+        const index = next++
+        results[index] = await mapper(values[index])
+      }
+    }),
+  )
+  return results
 }

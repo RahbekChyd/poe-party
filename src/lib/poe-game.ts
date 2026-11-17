@@ -7,7 +7,7 @@ export interface PoeGameCapabilities {
   supportsStashSnapshots: boolean
   supportsGroupEconomy: boolean
   supportsAtlasTree: boolean
-  supportsScarabStrategies: boolean
+  supportsMapInvestmentPlanning: boolean
   supportsOptimizer: boolean
   supportsGeneratedPassiveTreeUrl: boolean
   supportsProfileAtlasTree: boolean
@@ -20,7 +20,7 @@ const POE_GAME_CAPABILITIES: Record<PoeGame, PoeGameCapabilities> = {
     supportsStashSnapshots: true,
     supportsGroupEconomy: true,
     supportsAtlasTree: true,
-    supportsScarabStrategies: true,
+    supportsMapInvestmentPlanning: true,
     supportsOptimizer: true,
     supportsGeneratedPassiveTreeUrl: true,
     supportsProfileAtlasTree: true,
@@ -31,7 +31,7 @@ const POE_GAME_CAPABILITIES: Record<PoeGame, PoeGameCapabilities> = {
     supportsStashSnapshots: false,
     supportsGroupEconomy: false,
     supportsAtlasTree: false,
-    supportsScarabStrategies: false,
+    supportsMapInvestmentPlanning: false,
     supportsOptimizer: false,
     supportsGeneratedPassiveTreeUrl: false,
     supportsProfileAtlasTree: false,

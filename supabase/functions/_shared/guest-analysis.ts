@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
 
+import { normalizePoeItemModLines, getPoeItemModLinesByFlag } from './poe-item-mods.ts'
 import { normalizeCharacterClassInfo } from './poe-character-class.ts'
 
 export type GuestCharacterSummary = {
@@ -129,6 +130,7 @@ const DEFAULT_GUEST_ANALYSIS_USER_AGENT =
   'poe-party/1.0 (contact: support@poe-party.com) guest-analysis'
 
 const EQUIPMENT_SLOTS = new Set([
+  'VisceraHead', 'VisceraBody', 'VisceraArm', 'VisceraLeg',
   'Helm',
   'Amulet',
   'BodyArmour',
@@ -496,7 +498,7 @@ export async function fetchGuestCharacterProfile(
     character: resolvedCharacter,
     passives: passivePayload,
   }
-  const rawItems = asArray(itemsPayload.items).filter(
+  const rawItems = [...asArray(itemsPayload.items), ...asArray(itemsPayload.wickerman)].filter(
     (entry): entry is LegacyItemRecord => !!entry && typeof entry === 'object',
   )
   const { gear, inventory, jewels } = normalizeItemGroups(rawItems)
@@ -524,9 +526,7 @@ export async function fetchGuestCharacterProfile(
 }
 
 function normalizeModifierLines(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((line): line is string => typeof line === 'string' && line.trim().length > 0)
-    : []
+  return normalizePoeItemModLines(value)
 }
 
 function mapProperty(property: unknown) {
@@ -629,9 +629,9 @@ function mapItem(item: LegacyItemRecord) {
     properties: asArray(item.properties).map(mapProperty).slice(0, 5),
     requirements: asArray(item.requirements).map(mapProperty).slice(0, 4),
     implicitMods: normalizeModifierLines(item.implicitMods),
-    explicitMods: normalizeModifierLines(item.explicitMods),
-    craftedMods: normalizeModifierLines(item.craftedMods),
-    fracturedMods: normalizeModifierLines(item.fracturedMods),
+    explicitMods: normalizeModifierLines(asArray(item.explicitMods).filter((mod) => typeof mod === 'string' || (!asRecord(asRecord(mod).flags).crafted && !asRecord(asRecord(mod).flags).fractured))),
+    craftedMods: [...normalizeModifierLines(item.craftedMods), ...getPoeItemModLinesByFlag(item.explicitMods, 'crafted')],
+    fracturedMods: [...normalizeModifierLines(item.fracturedMods), ...getPoeItemModLinesByFlag(item.explicitMods, 'fractured')],
     enchantMods: normalizeModifierLines(item.enchantMods),
     veiledMods,
     modifiers,

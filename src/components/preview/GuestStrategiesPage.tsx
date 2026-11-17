@@ -6,7 +6,7 @@ import { ToggleButton } from '@heroui/react/toggle-button'
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
 import { Globe } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
-import { useScarabData } from '../../hooks/useScarabNames'
+import { useThreadData } from '../../hooks/useThreadData'
 import { useGuestPublicStrategies } from '../../hooks/useGuestPreview'
 import { usePoeGameAccess } from '../../hooks/usePoeGameAccess'
 import { usePreviewLeague } from '../../hooks/usePreviewLeague'
@@ -50,14 +50,14 @@ export function GuestStrategiesPage() {
     selectedGame,
     selectedLeague,
   )
-  const { data: scarabData = [] } = useScarabData(selectedLeague, selectedGame)
-  const scarabPriceMap = useMemo(
-    () => new Map(scarabData.map((scarab) => [scarab.name, scarab.chaosValue])),
-    [scarabData],
+  const { data: threadData = [] } = useThreadData(selectedLeague, selectedGame)
+  const threadPriceMap = useMemo(
+    () => new Map(threadData.map((thread) => [thread.name, thread.chaosValue])),
+    [threadData],
   )
-  const scarabIconMap = useMemo(
-    () => new Map(scarabData.map((scarab) => [scarab.name, scarab.icon])),
-    [scarabData],
+  const threadIconMap = useMemo(
+    () => new Map(threadData.map((thread) => [thread.name, thread.icon])),
+    [threadData],
   )
   const filteredStrategies = useMemo(
     () =>
@@ -77,7 +77,7 @@ export function GuestStrategiesPage() {
           <PreviewNotice
             mode="public"
             title="Real public listings"
-            description="Titles, publishers, benchmark data, atlas setup, scarabs, and map cost come from live public listings. Workspace actions stay private."
+            description="Titles, publishers, benchmark data, atlas setup, threads, and map cost come from live public listings. Workspace actions stay private."
           />
         }
       />
@@ -214,7 +214,7 @@ export function GuestStrategiesPage() {
             const diffChip = DIFFICULTY_CHIP[strategy.difficulty] ?? DIFFICULTY_CHIP.normal
             const strategyGame = strategy.group_game ?? selectedGame
             const capabilities = getPoeGameCapabilities(strategyGame)
-            const showsPoe1PlanningFields = capabilities.supportsScarabStrategies
+            const showsPoe1PlanningFields = capabilities.supportsMapInvestmentPlanning
             const benchmarkColor =
               strategy.benchmark_chaos_per_hour == null
                 ? 'default'
@@ -287,11 +287,11 @@ export function GuestStrategiesPage() {
                   </div>
                   <StrategyInfoSection
                     atlasTreeUrl={showsPoe1PlanningFields ? strategy.atlas_tree_url : null}
-                    scarabs={showsPoe1PlanningFields ? strategy.scarabs : []}
+                    threads={showsPoe1PlanningFields ? strategy.threads : []}
                     mapTradeLink={showsPoe1PlanningFields ? strategy.map_trade_link : null}
                     mapRequirements={showsPoe1PlanningFields ? strategy.map_requirements : {}}
-                    scarabPriceMap={scarabPriceMap}
-                    scarabIconMap={scarabIconMap}
+                    threadPriceMap={threadPriceMap}
+                    threadIconMap={threadIconMap}
                   />
                 </Card.Content>
               </Card>

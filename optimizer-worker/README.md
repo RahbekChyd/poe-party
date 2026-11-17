@@ -4,6 +4,14 @@ Containerized worker for queued gear-optimizer analysis jobs.
 
 For the current local rebuild/restart workflow used in this repo, see [LOCAL-DEV-README.md](./LOCAL-DEV-README.md).
 
+## PoE1 3.30 runtime contract
+
+The image builds a pinned modern LuaJIT (Debian's older package cannot parse current compound assignments), strips upstream SimpleGraphic `#@` launcher headers, and pins PoB 2.68.1 (`a41fec6c20f822a658ae5df1273e8c69d5969bac`), with archive SHA-256 verified in the Docker build. Queue inputs and result summaries identify `pob-2.68.1-adapter-1`; queue functions must ship with the corresponding worker image so cached 2.65 results cannot be reused for new requests.
+
+Current-character import adapts OAuth and legacy website data to the decoded character object required by PoB 2.68. The adapter preserves raw structured modifiers, guardian, Wickerman, jewels, passives and imbued supports. Viscera Head/Body/Arm/Leg are distinct from Helmet/Body Armour. A missing current Wickerman part clears the corresponding target slot. Guest data which does not establish Wickerman completeness, or inputs carrying unverified `rareonly` modifiers, produces an explicit partial result. An import failure cannot become a successful exact comparison.
+
+`pnpm test:worker` covers the pure adapter and existing lifecycle contracts. After building the image, run `node optimizer-worker/scripts/verify-pob-330.mjs <image>` for credential-free, network-disabled real-engine fixtures covering Fireball, structured Viscera effects, missing-part clearing, owned parts and market swaps. Docker builds also compile the Lua harness to catch syntax and local-variable-limit regressions. Before release, execute the image with representative 3.30 build fixtures and compare ordinary/Wickerman/jewel/imbued-support outputs against desktop PoB 2.68.1. A successful image build or adapter test alone does not establish numerical parity.
+
 ## Production Hosting
 
 This service is meant to run as a separate long-lived container, not inside the frontend or a

@@ -1,5 +1,5 @@
 
-const SUPPORTED_PASSIVE_TREE_RENDER_VERSION_FAMILY = '3_26'
+const SUPPORTED_PASSIVE_TREE_RENDER_VERSION_FAMILY = '3_30'
 
 const ORBIT_ANGLE_TABLE: Record<number, number[]> = {
   0: [0],
@@ -438,7 +438,7 @@ export function loadPassiveTreeRenderData(
   if (existingPromise) return existingPromise
 
   const promise = fetch(
-    `https://raw.githubusercontent.com/grindinggear/skilltree-export/master/${BRANCH_FILE_NAMES[branch]}`,
+    `https://raw.githubusercontent.com/grindinggear/skilltree-export/550fb34ae7fca9ec4d760a2ac845bb2ba1032ec3/${BRANCH_FILE_NAMES[branch]}`,
   )
     .then(async (response) => {
       if (!response.ok) {

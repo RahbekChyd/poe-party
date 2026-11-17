@@ -136,6 +136,8 @@ export const queryKeys = {
 
   ninja: {
     prices: (game: PoeGame | null, league: string | null) => ['ninja-divine', game, league] as const,
+    threads: (game: PoeGame | null, league: string | null) =>
+      ['ninja-threads', game, league] as const,
     scarabs: (game: PoeGame | null, league: string | null) =>
       ['ninja-scarabs', game, league] as const,
     gemIcons: ['poedb-gem-icons'] as const,

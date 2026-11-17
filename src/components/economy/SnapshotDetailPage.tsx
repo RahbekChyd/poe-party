@@ -1,3 +1,5 @@
+import { SnapshotPricingNotice } from './SnapshotPricingNotice'
+import { storedSnapshotPrice, comparablePricing } from '../../lib/snapshot-pricing'
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
@@ -76,6 +78,7 @@ type PricedItem = {
   display_name: string
   unit_price: number
   price_chaos: number
+  has_price: boolean
   is_excluded: boolean
   excluded_reason: string | null
 }
@@ -89,6 +92,8 @@ export function SnapshotDetailPage() {
   const navigate = useNavigate()
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
 
+  const { data: snapshots } = useLatestSnapshots(activeGroupId)
+  const latestSnapshot = snapshots?.find((snapshot) => snapshot.user_id === userId)
   const { data: history } = useSnapshotHistory(activeGroupId, userId)
   const [historyRange, setHistoryRange] = useState<WealthHistoryRange>('7d')
   const selectedHistoryId = historyId ?? null
@@ -96,7 +101,7 @@ export function SnapshotDetailPage() {
     ? (history?.find((entry) => entry.id === selectedHistoryId) ?? null)
     : null
   const currentHistoryPoint =
-    selectedHistory ?? (history && history.length > 0 ? history[history.length - 1] : null)
+    selectedHistory ?? (history?.find((point) => point.snapshot_id === latestSnapshot?.id) ?? null)
   const effectiveSnapshotId = selectedHistoryId
     ? (currentHistoryPoint?.snapshot_id ?? MISSING_SNAPSHOT_ID)
     : null
@@ -123,7 +128,6 @@ export function SnapshotDetailPage() {
   const { data: rawItems, isLoading } = useSnapshotItems(activeGroupId, userId, effectiveSnapshotId)
   const { data: members } = useGroupMembers(activeGroupId)
   const { data: myGroups } = useMyGroups()
-  const { data: snapshots } = useLatestSnapshots(activeGroupId)
   const { data: strategyList } = useStrategies(activeGroupId)
   const { mutate: linkStrategy, isPending: linkingStrategy } = useLinkSnapshotStrategy()
   const { mutate: setItemExcluded, isPending: updatingExclusion } = useSetSnapshotItemExcluded(
@@ -142,29 +146,16 @@ export function SnapshotDetailPage() {
   const canSnapshot = !!myProfile?.poe_token_expires_at && !!activeLeague
 
   const { data: ninjaData } = useNinjaPrices(activeLeague)
-  const divinePrice = ninjaData?.divinePrice ?? 200
+  const capturePricing = selectedHistoryId ? currentHistoryPoint?.pricing_summary : latestSnapshot?.pricing_summary
+  const divinePrice = capturePricing ? capturePricing.divine_price : ninjaData?.divinePrice ?? null
+  const showDivine = display === 'divine' && divinePrice != null && divinePrice > 0
 
-  // Apply client-side pricing using ninja price map
-  const items = useMemo<PricedItem[]>(() => {
-    if (!rawItems) return []
-    return rawItems.map((item) => {
-      const key = item.frame_type === 3 ? item.name : item.type_line
-      const storedPrice = item.price_chaos ?? 0
-      const fallbackUnitPrice = ninjaData?.byName.get(key) ?? 0
-      const unitPrice =
-        item.stack_size > 0
-          ? storedPrice > 0
-            ? storedPrice / item.stack_size
-            : fallbackUnitPrice
-          : 0
-      return {
-        ...item,
-        display_name: item.name || item.type_line,
-        unit_price: unitPrice,
-        price_chaos: storedPrice > 0 ? storedPrice : unitPrice * item.stack_size,
-      }
-    })
-  }, [rawItems, ninjaData])
+  // Stored snapshot estimates remain authoritative as markets change.
+  const items = useMemo<PricedItem[]>(() => (rawItems ?? []).map((item) => ({
+    ...item,
+    display_name: item.name || item.type_line,
+    ...storedSnapshotPrice(item),
+  })), [rawItems])
 
   // Min value stored in chaos internally; displayed in current currency unit
   const [minValueChaos, setMinValueChaos] = useState(0)
@@ -192,32 +183,32 @@ export function SnapshotDetailPage() {
   }, [items])
 
   const fmt = (chaos: number) =>
-    display === 'divine'
-      ? `${(chaos / divinePrice).toFixed(1)} div`
+    showDivine
+      ? `${(chaos / (divinePrice ?? 1)).toFixed(1)} div`
       : `${Math.round(chaos).toLocaleString()}c`
 
   const fmtRate = (chaos: number) =>
-    display === 'divine'
-      ? `${(chaos / divinePrice).toFixed(1)} div/hr`
+    showDivine
+      ? `${(chaos / (divinePrice ?? 1)).toFixed(1)} div/hr`
       : `${Math.round(chaos).toLocaleString()} chaos/hr`
 
   const fmtDelta = (chaos: number) =>
     chaos === 0 ? fmt(0) : `${chaos > 0 ? '+' : '-'}${fmt(Math.abs(chaos))}`
 
   const fmtUnit = (chaos: number) =>
-    display === 'divine'
-      ? `${(chaos / divinePrice).toFixed(1)} div`
+    showDivine
+      ? `${(chaos / (divinePrice ?? 1)).toFixed(1)} div`
       : chaos < 1
         ? `${chaos.toFixed(1)}c`
         : `${Math.round(chaos).toLocaleString()}c`
 
   // The input value shown to the user respects current display mode
   const minValueDisplay =
-    display === 'divine' ? (minValueChaos / divinePrice).toFixed(1) : String(minValueChaos)
+    showDivine ? (minValueChaos / (divinePrice ?? 1)).toFixed(1) : String(minValueChaos)
 
   const handleMinValueChange = (v: string) => {
     const parsed = parseFloat(v) || 0
-    setMinValueChaos(display === 'divine' ? parsed * divinePrice : parsed)
+    setMinValueChaos(showDivine ? parsed * (divinePrice ?? 1) : parsed)
     setPage(1)
   }
 
@@ -228,9 +219,10 @@ export function SnapshotDetailPage() {
   const age = snapshotAge(snap?.completed_at ?? null)
 
   // KPIs
+  const valuationUnavailable = capturePricing?.status === 'unavailable'
   const totalChaos =
-    currentHistoryPoint?.total_chaos ?? items.reduce((s, i) => s + i.price_chaos, 0)
-  const snapshotChaosPerHour = calculateChaosPerHour(
+    selectedHistoryId && currentHistoryPoint ? currentHistoryPoint.total_chaos : items.reduce((s, i) => s + (i.is_excluded ? 0 : i.price_chaos), 0)
+  const snapshotChaosPerHour = latestSnapshot?.pricing_summary?.status === 'unavailable' || !comparablePricing(visibleHistory) ? null : calculateChaosPerHour(
     visibleHistory,
     (point) => point.completed_at,
     (point) => point.total_chaos,
@@ -243,7 +235,7 @@ export function SnapshotDetailPage() {
         : snapshotChaosPerHour < 0
           ? 'text-danger'
           : 'text-default-400'
-  const snapshotTrend = calculateTrendStats(visibleHistory, (point) => point.total_chaos)
+  const snapshotTrend = comparablePricing(visibleHistory) ? calculateTrendStats(visibleHistory, (point) => point.total_chaos) : null
   const snapshotTrendColor =
     snapshotTrend == null
       ? 'text-default-400'
@@ -281,6 +273,7 @@ export function SnapshotDetailPage() {
   const topTab = useMemo(() => {
     const map = new Map<string, number>()
     for (const item of includedItems) {
+      if (!item.has_price) continue
       map.set(item.tab_name, (map.get(item.tab_name) ?? 0) + item.price_chaos)
     }
     let best: { tab_name: string; value: number } | null = null
@@ -447,6 +440,9 @@ export function SnapshotDetailPage() {
           )}
         </div>
 
+        <SnapshotPricingNotice summaries={[selectedHistoryId ? currentHistoryPoint?.pricing_summary : snap?.pricing_summary]}
+          priced={items.filter((item) => item.has_price).length} unknown={items.filter((item) => !item.has_price).length} />
+
         {/* Strategy link */}
         {(() => {
           if (!currentHistoryPoint) return null
@@ -544,8 +540,8 @@ export function SnapshotDetailPage() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-default-400 text-xs">Total Value</p>
-                    <p className="text-foreground truncate text-lg font-bold">{fmt(totalChaos)}</p>
-                    <p className="text-default-400 text-xs">1 div = {divinePrice.toFixed(0)}c</p>
+                    <p className="text-foreground truncate text-lg font-bold">{valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}</p>
+                    <p className="text-default-400 text-xs">{divinePrice == null ? 'Divine conversion unavailable' : `1 div = ${divinePrice.toFixed(0)}c`}</p>
                   </div>
                 </Card.Content>
               </Card>
@@ -796,13 +792,13 @@ export function SnapshotDetailPage() {
                 <FieldInput
                   size="sm"
                   type="number"
-                  aria-label={`Minimum value in ${display === 'divine' ? 'divines' : 'chaos'}`}
+                  aria-label={`Minimum value in ${showDivine ? 'divines' : 'chaos'}`}
                   placeholder="0"
                   value={minValueDisplay}
                   onValueChange={handleMinValueChange}
                   endContent={
                     <span className="text-default-400 text-xs">
-                      {display === 'divine' ? 'div' : 'c'}
+                      {showDivine ? 'div' : 'c'}
                     </span>
                   }
                   className="w-40"
@@ -1230,7 +1226,7 @@ export function SnapshotDetailPage() {
                                     : 'text-default-300'
                                 }`}
                               >
-                                {item.price_chaos > 0 ? fmt(item.price_chaos) : '—'}
+                                {item.has_price ? fmt(item.price_chaos) : 'Unknown'}
                               </span>
                             </td>
                           </tr>
