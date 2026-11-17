@@ -265,30 +265,31 @@ into incident tickets.
 
 ## 12. Backfill and later contract work
 
-### Legacy identity recovery
+### Legacy identity and fresh profiles
 
-Migration `0083` adds a nullable, unique `users.poe_account_sub` without automatically
-binding old profiles by mutable account names. A successful PoE token exchange can therefore
-end with `409 oauth_identity_migration_required` for a legacy profile or name/uniqueness
-collision. The response includes `verified_poe_account_sub`: only the caller's normalized
-UUID from the freshly verified provider response. It contains no tokens, authorization codes,
-stored profile IDs or Auth metadata and retains `Cache-Control: no-store`.
+Migration `0083` adds a nullable, unique `users.poe_account_sub` without binding old profiles
+by display name. Migration `0089` removes global account-name uniqueness so a fresh,
+provider-verified UUID can sign in even when an old profile retains the same name. Deploy
+that migration before the UUID-only callback and new-profile notice frontend.
 
-Confirm the callback's actual Supabase hostname before inspecting or repairing any profile;
-the preview frontend origin alone does not identify its backend. If both the profile subject
-and historical Auth metadata are empty and no usable stored OAuth credential exists, further
-metadata queries cannot reconstruct the identity. After deploying this callback version, start
-a new login and use its verified UUID in separately reviewed private operator reconciliation.
-Previous OAuth codes have already been consumed and cannot be replayed.
+Existing verified UUIDs retain their profile IDs and relationships. A previously unknown UUID
+gets a fresh Auth/profile ID, with no automatic transfer of old memberships, history, tokens,
+billing customers or Supporter access. Older profiles remain intact. Review the rollout and
+staging acceptance cases in `docs/account-identity-and-league-retention.md`. Once duplicate
+display names exist, the old name-gated callback is not a safe rollback target.
 
-The verified UUID proves control of the current PoE account only. Independently establish
-ownership of the old profile/data before binding. User-editable metadata or display-name equality
-is insufficient. The private operator must bind exact target/profile/name/NULL old subject and
-the reviewed original `updated_at`, check matching Auth-user existence and any server-controlled
-Auth subject, reject subject collisions, and require exactly one affected row. Preserve the
-original Auth/profile ID, email, memberships, billing and other related data. Never auto-link by
-name or delete/recreate an account merely to remove the conflict. A fresh login after binding
-updates Auth metadata and encrypted tokens through the existing callback path.
+For a separately reviewed restoration of old data, confirm the actual Supabase hostname and
+independently establish ownership of the old profile and current PoE identity. A provider UUID
+from a fresh OAuth response proves current PoE account control only; editable metadata or
+name equality is insufficient. Preserve original IDs and related data. If a fresh profile
+already owns that UUID, the existing single-profile reconciliation tool must refuse it;
+a separate reviewed merge/reassignment process is needed, not a blind subject overwrite.
+
+Older callback versions can return `409 oauth_identity_migration_required` with
+`verified_poe_account_sub`, containing only the freshly verified caller UUID. Such evidence
+contains no tokens, codes, stored profile IDs or Auth metadata and uses `Cache-Control: no-store`.
+Do not replay consumed OAuth codes or uncertain provider refreshes. Do not delete an old
+account merely to remove a display-name conflict.
 
 ### Token backfill
 

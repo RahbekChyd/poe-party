@@ -6,6 +6,12 @@ import { POE_OAUTH_CODE_VERIFIER_KEY, POE_OAUTH_STATE_KEY } from '../../lib/poe-
 import { invokePublicFunction } from '../../lib/supabase-functions'
 import { takeStoredPostLoginTarget } from '../../lib/auth-redirect'
 import { CONTACT_MAILTO } from '../../lib/seo'
+import {
+  clearNewProfileNotice,
+  hasPendingNewProfileNotice,
+  rememberNewProfileNotice,
+  takeNewProfileNotice,
+} from '../../lib/new-profile-notice'
 export const Route = createFileRoute('/auth/callback')({
   component: AuthCallback,
 })
@@ -14,9 +20,14 @@ function AuthCallback() {
   const navigate = useNavigate()
   const [status, setStatus] = useState('Charting a course back to your hideout...')
   const [failure, setFailure] = useState<'sign-in' | 'identity-recovery' | null>(null)
+  const [freshProfileTarget, setFreshProfileTarget] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
+    let finishingSignIn = false
+    let exchangingCode = false
+    let terminalError = false
+    let signInTimer: ReturnType<typeof setTimeout> | undefined
     const clearOAuthState = () => {
       try {
         sessionStorage.removeItem(POE_OAUTH_STATE_KEY)
@@ -27,9 +38,29 @@ function AuthCallback() {
     }
     const showError = (message: string, needsIdentityRecovery = false) => {
       if (cancelled) return
+      terminalError = true
       clearOAuthState()
+      clearNewProfileNotice()
       setStatus(message)
       setFailure(needsIdentityRecovery ? 'identity-recovery' : 'sign-in')
+    }
+    const finishSignIn = async () => {
+      if (cancelled || finishingSignIn || exchangingCode || terminalError) return
+      finishingSignIn = true
+      if (hasPendingNewProfileNotice()) {
+        const { data, error } = await supabase.auth.getUser()
+        if (cancelled) return
+        if (error || !data.user) {
+          showError('Unable to verify your sign-in. Please start the login flow again.')
+          return
+        }
+        if (takeNewProfileNotice(data.user.id)) {
+          setStatus('Create or join a league workspace to get started. If you used PoE Party before, groups, history and Supporter access from an older profile are not transferred automatically.')
+          setFreshProfileTarget(takeStoredPostLoginTarget())
+          return
+        }
+      }
+      window.location.replace(takeStoredPostLoginTarget())
     }
 
     const completeOAuth = async () => {
@@ -45,6 +76,8 @@ function AuthCallback() {
       }
 
       if (code) {
+        exchangingCode = true
+        clearNewProfileNotice()
         const expectedState = sessionStorage.getItem(POE_OAUTH_STATE_KEY)
         const codeVerifier = sessionStorage.getItem(POE_OAUTH_CODE_VERIFIER_KEY)
 
@@ -60,14 +93,14 @@ function AuthCallback() {
 
         setStatus('Parleying with Oriath for passage...')
 
-        let data: { magic_link?: string } | undefined
+        let data: { magic_link?: string; is_new_profile?: boolean; user?: { id?: string } } | undefined
         try {
           data = await invokePublicFunction('poe-oauth-callback', {
             code,
             state,
             code_verifier: codeVerifier,
             redirect_uri: `${window.location.origin}/auth/callback`,
-          }) as unknown as { magic_link?: string }
+          }) as unknown as { magic_link?: string; is_new_profile?: boolean; user?: { id?: string } }
         } catch (invokeError) {
           const needsIdentityRecovery = invokeError instanceof Error &&
             invokeError.message === 'This Path of Exile account requires a manual identity migration'
@@ -89,6 +122,7 @@ function AuthCallback() {
           return
         }
 
+        if (data?.is_new_profile === true) rememberNewProfileNotice(data.user?.id)
         window.location.replace(magicLink)
         return
       }
@@ -99,7 +133,7 @@ function AuthCallback() {
       } = await supabase.auth.getSession()
 
       if (!cancelled && session) {
-        window.location.replace(takeStoredPostLoginTarget())
+        await finishSignIn()
         return
       }
 
@@ -110,7 +144,10 @@ function AuthCallback() {
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) {
-        window.location.replace(takeStoredPostLoginTarget())
+        // Avoid awaiting an Auth method inside the Auth state-change lock.
+        signInTimer = setTimeout(() => {
+          void finishSignIn().catch(() => showError('Unable to finish signing in. Please start the login flow again.'))
+        }, 0)
       } else if (event === 'SIGNED_OUT') {
         navigate({ to: '/auth/login' })
       }
@@ -122,19 +159,28 @@ function AuthCallback() {
 
     return () => {
       cancelled = true
+      if (signInTimer !== undefined) clearTimeout(signInTimer)
       listener.subscription.unsubscribe()
     }
   }, [navigate])
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-6 py-12" aria-busy={!failure}>
+    <main className="flex min-h-screen items-center justify-center px-6 py-12" aria-busy={!failure && !freshProfileTarget}>
       <div className="flex w-full max-w-md flex-col items-center gap-4 text-center">
-        {failure ? (
+        {freshProfileTarget ? (
+          <h1 className="text-xl font-semibold">Your new profile is ready</h1>
+        ) : failure ? (
           <h1 className="text-xl font-semibold">
             {failure === 'identity-recovery' ? 'Account recovery needed' : 'Sign-in needs attention'}
           </h1>
         ) : <Spinner size="lg" aria-label="Completing sign-in" />}
         <p role={failure ? 'alert' : 'status'} className="text-default-500 text-sm">{status}</p>
+        {freshProfileTarget && (
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <a href={freshProfileTarget} className="button button--primary">Continue to PoE Party</a>
+            <a href={CONTACT_MAILTO} className="button button--secondary text-foreground">Contact support</a>
+          </div>
+        )}
         {failure && (
           <div className="flex flex-wrap items-center justify-center gap-3">
             {failure === 'identity-recovery' && (

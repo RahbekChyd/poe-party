@@ -5,7 +5,6 @@
  */
 import { corsHeaders, handleCors } from '../_shared/cors.ts'
 import {
-  buildOAuthIdentityMigrationError,
   parsePoeAccountSubject,
   requireEnvironmentValue,
   resolveOauthReturnUrl,
@@ -124,111 +123,45 @@ Deno.serve(async (req) => {
     const accountName = isNonEmptyString(tokens.username) ? tokens.username.trim() : null
     const subject = parsePoeAccountSubject(tokens.sub)
     const expiresIn = typeof tokens.expires_in === 'number' ? tokens.expires_in : Number.NaN
+    const expiresAtMs = Date.now() + expiresIn * 1000
     if (
       !accountName ||
       !subject ||
       !isNonEmptyString(tokens.access_token) ||
       !isNonEmptyString(tokens.refresh_token) ||
       !Number.isFinite(expiresIn) ||
-      expiresIn <= 0
+      expiresIn <= 0 ||
+      !Number.isFinite(expiresAtMs) ||
+      expiresAtMs >= 8640000000000000
     ) {
       console.error('PoE OAuth token exchange omitted required identity or token fields')
       return jsonResponse({ error: 'OAuth provider returned an incomplete response' }, 502)
     }
 
     const adminClient = createAdminClient()
-    const { data: subjectUser, error: subjectLookupError } = await adminClient
+    const findSubjectUser = () => adminClient
       .from('users')
       .select('id, poe_account_name')
       .eq('poe_account_sub', subject)
       .maybeSingle()
+    const subjectLookup = await findSubjectUser()
+    let subjectUser = subjectLookup.data
 
-    if (subjectLookupError) {
-      console.error('OAuth subject lookup failed', { code: subjectLookupError.code })
+    if (subjectLookup.error) {
+      console.error('OAuth subject lookup failed', { code: subjectLookup.error.code })
       return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
     }
 
-    let userId: string
-    let authEmail: string
+    let isNewProfile = false
+    const concurrentSignIn = () => jsonResponse({
+      error: 'Another sign-in may still be completing. Please start a fresh sign-in.',
+      code: 'oauth_sign_in_conflict',
+    }, 409)
 
-    if (subjectUser) {
-      userId = subjectUser.id
-
-      if (subjectUser.poe_account_name !== accountName) {
-        const { data: nameConflict, error: nameConflictError } = await adminClient
-          .from('users')
-          .select('id')
-          .eq('poe_account_name', accountName)
-          .neq('id', userId)
-          .maybeSingle()
-
-        if (nameConflictError) {
-          console.error('OAuth account-name conflict check failed', {
-            code: nameConflictError.code,
-          })
-          return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
-        }
-        if (nameConflict) {
-          return jsonResponse(
-            buildOAuthIdentityMigrationError(subject),
-            409,
-          )
-        }
-
-        const { error: renameError } = await adminClient
-          .from('users')
-          .update({ poe_account_name: accountName })
-          .eq('id', userId)
-        if (renameError) {
-          console.error('Verified OAuth account-name update failed', { code: renameError.code })
-          return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
-        }
-      }
-
-      const { data: authUserData, error: authUserError } =
-        await adminClient.auth.admin.getUserById(userId)
-      if (authUserError || !authUserData.user?.email) {
-        console.error('OAuth identity has no matching auth user')
-        return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
-      }
-      authEmail = authUserData.user.email
-
-      const { error: authMetadataError } = await adminClient.auth.admin.updateUserById(userId, {
-        app_metadata: {
-          ...authUserData.user.app_metadata,
-          poe_account_sub: subject,
-          identity_provider: 'pathofexile',
-        },
-        user_metadata: {
-          ...authUserData.user.user_metadata,
-          poe_account_name: accountName,
-        },
-      })
-      if (authMetadataError) {
-        console.error('OAuth auth metadata update failed')
-        return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
-      }
-    } else {
-      const { data: legacyNameUser, error: legacyLookupError } = await adminClient
-        .from('users')
-        .select('id')
-        .eq('poe_account_name', accountName)
-        .maybeSingle()
-
-      if (legacyLookupError) {
-        console.error('Legacy OAuth identity lookup failed', { code: legacyLookupError.code })
-        return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
-      }
-      if (legacyNameUser) {
-        return jsonResponse(
-          buildOAuthIdentityMigrationError(subject),
-          409,
-        )
-      }
-
-      authEmail = `${subject}@oauth.poe.invalid`
+    if (!subjectUser) {
+      const newAuthEmail = `${subject}@oauth.poe.invalid`
       const { data: newAuthUser, error: authError } = await adminClient.auth.admin.createUser({
-        email: authEmail,
+        email: newAuthEmail,
         email_confirm: true,
         app_metadata: {
           poe_account_sub: subject,
@@ -238,34 +171,108 @@ Deno.serve(async (req) => {
       })
 
       if (authError || !newAuthUser.user) {
-        console.error('OAuth auth-user creation failed')
-        return jsonResponse({ error: 'Unable to create account' }, 500)
-      }
+        // A concurrent callback may have completed the same immutable identity.
+        // Never fall back to an account-name lookup or reuse a name's old Auth ID.
+        const winner = await findSubjectUser()
+        if (winner.error) {
+          console.error('OAuth concurrent subject lookup failed', { code: winner.error.code })
+          return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
+        }
+        subjectUser = winner.data
+        if (!subjectUser) {
+          console.error('OAuth auth-user creation failed')
+          return authError?.code === 'email_exists' || authError?.code === 'user_already_exists'
+            ? concurrentSignIn()
+            : jsonResponse({ error: 'Unable to create account' }, 500)
+        }
+      } else {
+        const createdAuthId = newAuthUser.user.id
+        const { error: profileError } = await adminClient.from('users').insert({
+          id: createdAuthId,
+          poe_account_name: accountName,
+          poe_account_sub: subject,
+        })
 
-      userId = newAuthUser.user.id
-      const { error: profileError } = await adminClient.from('users').insert({
-        id: userId,
-        poe_account_name: accountName,
+        if (profileError) {
+          // Resolve a duplicate/uncertain insert only by the provider UUID. The
+          // winning profile may be this request's successful-but-lost insert.
+          const winner = await findSubjectUser()
+          if (winner.error) {
+            console.error('OAuth profile outcome is uncertain', { code: winner.error.code })
+            return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
+          }
+          subjectUser = winner.data
+          if (subjectUser?.id === createdAuthId) {
+            isNewProfile = true
+          } else {
+            // Cleanup requires a definitive constraint rejection and a newly
+            // created, profileless Auth ID. An uncertain insert can still commit
+            // after an empty readback, so never cascade-delete it.
+            const { data: createdProfile, error: cleanupCheckError } = await adminClient
+              .from('users').select('id').eq('id', createdAuthId).maybeSingle()
+            if (profileError.code === '23505' && !cleanupCheckError && !createdProfile) {
+              const { error: cleanupError } = await adminClient.auth.admin.deleteUser(createdAuthId)
+              if (cleanupError) console.error('OAuth orphaned auth-user cleanup failed')
+            }
+            if (!subjectUser) {
+              console.error('OAuth profile creation failed', { code: profileError.code })
+              return profileError.code === '23505'
+                ? concurrentSignIn()
+                : jsonResponse({ error: 'Unable to create account' }, 500)
+            }
+          }
+        } else {
+          subjectUser = { id: createdAuthId, poe_account_name: accountName }
+          isNewProfile = true
+        }
+      }
+    }
+
+    const userId = subjectUser.id
+    const { data: authUserData, error: authUserError } =
+      await adminClient.auth.admin.getUserById(userId)
+    if (authUserError || authUserData.user?.id !== userId || !authUserData.user.email) {
+      console.error('OAuth identity has no matching auth user')
+      return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
+    }
+    const trustedSubject = authUserData.user.app_metadata?.poe_account_sub
+    if (trustedSubject !== undefined && trustedSubject !== null &&
+      parsePoeAccountSubject(trustedSubject) !== subject) {
+      console.error('OAuth server-controlled identity conflicts with the profile')
+      return jsonResponse({ error: 'Unable to safely verify this account', code: 'oauth_identity_conflict' }, 409)
+    }
+    const authEmail = authUserData.user.email
+
+    // Display-name reuse or an older cached name cannot block a verified UUID.
+    if (subjectUser.poe_account_name !== accountName) {
+      const { error: renameError } = await adminClient.from('users')
+        .update({ poe_account_name: accountName }).eq('id', userId).eq('poe_account_sub', subject)
+      if (renameError) {
+        console.error('Verified OAuth account-name update failed', { code: renameError.code })
+        return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
+      }
+    }
+
+    const { error: authMetadataError } = await adminClient.auth.admin.updateUserById(userId, {
+      app_metadata: {
+        ...authUserData.user.app_metadata,
         poe_account_sub: subject,
-      })
-
-      if (profileError) {
-        console.error('OAuth profile creation failed', { code: profileError.code })
-        const { error: cleanupError } = await adminClient.auth.admin.deleteUser(userId)
-        if (cleanupError) console.error('OAuth orphaned auth-user cleanup failed')
-        return jsonResponse(
-          profileError.code === '23505'
-            ? buildOAuthIdentityMigrationError(subject)
-            : { error: 'Unable to create account' },
-          profileError.code === '23505' ? 409 : 500,
-        )
-      }
+        identity_provider: 'pathofexile',
+      },
+      user_metadata: {
+        ...authUserData.user.user_metadata,
+        poe_account_name: accountName,
+      },
+    })
+    if (authMetadataError) {
+      console.error('OAuth auth metadata update failed')
+      return jsonResponse({ error: 'Unable to complete sign-in' }, 500)
     }
 
     await upsertStoredPoeTokens(userId, {
       access_token: tokens.access_token.trim(),
       refresh_token: tokens.refresh_token.trim(),
-      expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+      expires_at: new Date(expiresAtMs).toISOString(),
     })
 
     const { data: sessionData, error: sessionError } = await adminClient.auth.admin.generateLink({
@@ -283,6 +290,7 @@ Deno.serve(async (req) => {
     return jsonResponse({
       magic_link: magicLink,
       user: { id: userId, poe_account_name: accountName },
+      is_new_profile: isNewProfile,
     })
   } catch (error) {
     console.error('OAuth callback failed', {
