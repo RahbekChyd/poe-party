@@ -3780,11 +3780,14 @@ local function build_pob_weighted_trade_query_url(league, slot_name, primary_met
   end
 
   local generator = new("TradeQueryGenerator"):TradeQueryGenerator(query_tab)
-  local query_json = nil
+  -- RequestQuery normally supplies this UI selection. The headless adapter calls
+  -- StartQuery directly; index 4 is "online" in the pinned PoB tradeTypes list.
+  generator.tradeTypeIndex = 4
+  local query_table = nil
   local err_msg = nil
   generator.requesterContext = {}
   generator.requesterCallback = function(_, query, callback_err)
-    query_json = query
+    query_table = query
     err_msg = callback_err
   end
 
@@ -3816,7 +3819,7 @@ local function build_pob_weighted_trade_query_url(league, slot_name, primary_met
     generator:OnFrame()
   end
 
-  if not query_json or err_msg then
+  if type(query_table) ~= "table" or err_msg then
     if err_msg then
       add_warning("PoB trade query for " .. normalized_slot_name .. " could not be generated: " .. err_msg)
     end
@@ -3825,7 +3828,13 @@ local function build_pob_weighted_trade_query_url(league, slot_name, primary_met
   end
 
   local base_url = query_tab.tradeQueryRequests:buildUrl(query_tab.hostName .. "trade/search", "pc", normalized_league)
-  local result = base_url .. "?q=" .. urlEncode(query_json)
+  -- The generator returns filters as a Lua table. The ?q= link expects the JSON
+  -- search body, including the weighted-stat sort used by PoB's API consumer.
+  local result = base_url .. "?q=" .. urlEncode(json.encode({
+    query = query_table,
+    sort = { ["statgroup.0"] = "desc" },
+    engine = "new",
+  }))
   trade_query_url_cache[cache_key] = result
   return result
 end

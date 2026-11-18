@@ -56,7 +56,7 @@ function run(wickerman, targetXml = rawXml, options = {}) {
     passive_tree: {},
   }
   const payload = buildPobRuntimePayload({
-    run: { id: 'fixture', budget_chaos: 100 },
+    run: { id: 'fixture', budget_chaos: 100, analysis_mode: options.analysisMode ?? 'quick' },
     buildTarget: { raw_xml: targetXml },
     profile,
     latestItems: options.latestItems ?? [],
@@ -101,6 +101,35 @@ function run(wickerman, targetXml = rawXml, options = {}) {
   )
   return output
 }
+
+// Ordinary rare equipment exercises PoB's weighted trade-query callback. Viscera
+// fixtures alone do not cover this path because PoB cannot generate their queries.
+const rawHelmet =
+  'Rarity: Rare\nFixture Crown\nIron Hat\nItem Level: 80\nImplicits: 0\n+100 to maximum Life\n+30% to all Elemental Resistances\n40% increased Spell Damage'
+const rare = run([], rawXml, {
+  analysisMode: 'thorough',
+  targetContext: {
+    selectedItemSet: {
+      id: 1,
+      items: [{ slot: 'Helmet', typeLine: 'Iron Hat', rarity: 'Rare', rawText: rawHelmet }],
+    },
+  },
+})
+const rareItem = [...rare.plans, ...(rare.overview_plans ?? [])].flatMap((plan) => plan.items ?? []).find(
+  (item) => item.slot === 'Helmet' && item.item_payload?.trade_link_kind === 'pob_weighted_query',
+)
+assert.ok(rareItem?.trade_link, 'rare equipment must produce a weighted trade link')
+const tradeUrl = new URL(rareItem.trade_link)
+assert.equal(tradeUrl.origin, 'https://www.pathofexile.com')
+assert.equal(tradeUrl.pathname, '/trade/search/Covens')
+const tradeBody = JSON.parse(tradeUrl.searchParams.get('q'))
+assert.equal(tradeBody.query.status.option, 'online')
+assert.equal(tradeBody.query.stats[0].type, 'weight')
+assert.ok(tradeBody.query.stats[0].filters.length > 0, 'PoB stat weights must survive serialization')
+assert.equal(tradeBody.query.filters.trade_filters.filters.price.max, 100)
+assert.equal(tradeBody.query.filters.trade_filters.filters.price.option, 'chaos')
+assert.deepEqual(tradeBody.sort, { 'statgroup.0': 'desc' })
+assert.equal(tradeBody.engine, 'new')
 
 const empty = run([])
 // A controlled modifier on a real 3.30 Viscera base isolates slot import effects.
@@ -196,5 +225,5 @@ for (const [result, source] of [
   )
 }
 console.log(
-  'PoB 3.30 real engine smoke passed: skill, structured Viscera modifier, empty-slot replacement, owned and market swaps.',
+  'PoB 3.30 real engine smoke passed: weighted rare trade link, skill, structured Viscera modifier, empty-slot replacement, owned and market swaps.',
 )
