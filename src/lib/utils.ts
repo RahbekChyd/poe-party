@@ -60,7 +60,7 @@ export function formatCurrencyAmount(
 ): string {
   const sign = chaos < 0 ? '-' : ''
   const absoluteChaos = Math.abs(chaos)
-  if (display === 'divine') {
+  if (display === 'divine' && Number.isFinite(divineRate) && divineRate > 0) {
     return `${sign}${(absoluteChaos / divineRate).toFixed(1)} div`
   }
   if (absoluteChaos > 0 && absoluteChaos < 1) {

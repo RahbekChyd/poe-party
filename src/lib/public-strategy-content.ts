@@ -71,6 +71,7 @@ export interface PublicStrategyContentEntry {
     difficulty: 'easy' | 'normal' | 'hard'
     atlasTreeUrl?: string | null
     scarabs?: unknown[]
+    threads?: unknown[]
     mapTradeLink?: string | null
     mapRequirements?: Record<string, number | null>
     mapCost?: number | null

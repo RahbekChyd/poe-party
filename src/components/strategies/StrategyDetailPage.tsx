@@ -1,3 +1,4 @@
+import { isThreadName } from '../../lib/strategy-threads'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
@@ -54,7 +55,7 @@ import {
 } from '../../hooks/useSnapshots'
 import { useStrategyHourlyEstimates } from '../../hooks/useStrategyEconomy'
 import { useGroupStore } from '../../store/group-store'
-import { useScarabData, type ScarabEntry } from '../../hooks/useScarabNames'
+import { useThreadData, type ThreadEntry } from '../../hooks/useThreadData'
 import { useCurrencyStore } from '../../store/currency-store'
 import { DIFFICULTY_OPTIONS, MAP_REQ_FIELDS as MAP_REQ_FIELDS_CONST } from '../../lib/constants'
 import { DetailPageSkeleton } from '../layout/Skeletons'
@@ -79,15 +80,15 @@ const numericPct = z.preprocess(
   z.number().min(0).nullable().optional(),
 )
 
-const scarabAlternativeSchema = z.object({
-  name: z.string().trim().min(1, 'Alternative name required'),
+const threadAlternativeSchema = z.object({
+  name: z.string().trim().refine(isThreadName, 'Choose a Thread'),
 })
 
-const scarabSchema = z.object({
-  name: z.string().trim().min(1, 'Name required'),
-  quantity: z.preprocess((v) => Number(v), z.number().int().min(1)),
+const threadSchema = z.object({
+  name: z.string().trim().refine(isThreadName, 'Choose a Thread'),
+  quantity: z.preprocess((v) => Number(v), z.number().int().min(1).max(8)),
   required: z.boolean(),
-  alternatives: z.array(scarabAlternativeSchema),
+  alternatives: z.array(threadAlternativeSchema),
 })
 
 const schema = z.object({
@@ -101,14 +102,14 @@ const schema = z.object({
     z.number().int().min(0).nullable().optional(),
   ),
   map_requirements: z.object({
-    item_quantity: numericPct,
+    atlas_drops: numericPct,
     item_rarity: numericPct,
     pack_size: numericPct,
-    more_scarabs: numericPct,
+    more_threads: numericPct,
     more_currency: numericPct,
     more_unique: numericPct,
   }),
-  scarabs: z.array(scarabSchema),
+  threads: z.array(threadSchema).refine((rows) => rows.reduce((sum, row) => sum + row.quantity, 0) <= 8, 'Spend at most eight Threads per map'),
 })
 
 type FormInput = z.input<typeof schema>
@@ -122,14 +123,14 @@ const DEFAULT_FORM_VALUES: FormInput = {
   atlas_tree_url: '',
   map_cost: null,
   map_requirements: {
-    item_quantity: null,
+    atlas_drops: null,
     item_rarity: null,
     pack_size: null,
-    more_scarabs: null,
+    more_threads: null,
     more_currency: null,
     more_unique: null,
   },
-  scarabs: [],
+  threads: [],
 }
 
 function buildDefaults(s: Strategy): FormValues {
@@ -141,14 +142,14 @@ function buildDefaults(s: Strategy): FormValues {
     atlas_tree_url: s.atlas_tree_url ?? '',
     map_cost: s.map_cost ?? null,
     map_requirements: {
-      item_quantity: s.map_requirements?.item_quantity ?? null,
+      atlas_drops: s.map_requirements?.atlas_drops ?? null,
       item_rarity: s.map_requirements?.item_rarity ?? null,
       pack_size: s.map_requirements?.pack_size ?? null,
-      more_scarabs: s.map_requirements?.more_scarabs ?? null,
+      more_threads: s.map_requirements?.more_threads ?? null,
       more_currency: s.map_requirements?.more_currency ?? null,
       more_unique: s.map_requirements?.more_unique ?? null,
     },
-    scarabs: s.scarabs.map((sc) => ({
+    threads: s.threads.map((sc) => ({
       ...sc,
       alternatives: sc.alternatives.map((alternative) => ({ ...alternative })),
     })),
@@ -174,13 +175,13 @@ function toFieldStringValue(value: unknown): string {
   return value == null ? '' : String(value)
 }
 
-function ScarabAutocompleteField({
+function ThreadAutocompleteField({
   value,
   onChange,
   isReadOnly,
   isInvalid,
   errorMessage,
-  scarabData,
+  threadData,
   inputRef,
   autoFocus,
   className,
@@ -190,26 +191,26 @@ function ScarabAutocompleteField({
   isReadOnly: boolean
   isInvalid?: boolean
   errorMessage?: string
-  scarabData: ScarabEntry[]
+  threadData: ThreadEntry[]
   inputRef?: (node: HTMLInputElement | null) => void
   autoFocus?: boolean
   className?: string
 }) {
-  const selectedScarab = scarabData.find((scarab) => scarab.name === value)
-  const filteredScarabs = scarabData
-    .filter((scarab) => scarab.name.toLowerCase().includes(value.toLowerCase()))
+  const selectedThread = threadData.find((thread) => thread.name === value)
+  const filteredThreads = threadData
+    .filter((thread) => thread.name.toLowerCase().includes(value.toLowerCase()))
     .slice(0, 30)
 
   return (
     <ComboBox
       allowsCustomValue
       allowsEmptyCollection
-      aria-label="Scarab name"
+      aria-label="Thread name"
       className={className}
       inputValue={value}
       isInvalid={isInvalid}
       isReadOnly={isReadOnly}
-      selectedKey={selectedScarab?.name ?? null}
+      selectedKey={selectedThread?.name ?? null}
       onInputChange={isReadOnly ? undefined : onChange}
       onSelectionChange={(key) => {
         if (key != null && !isReadOnly) {
@@ -218,16 +219,16 @@ function ScarabAutocompleteField({
       }}
     >
       <ComboBox.InputGroup className="min-h-9">
-        <Input ref={inputRef} autoFocus={autoFocus} placeholder="Scarab name" />
+        <Input ref={inputRef} autoFocus={autoFocus} placeholder="Thread name" />
         <ComboBox.Trigger />
       </ComboBox.InputGroup>
       <ComboBox.Popover className="!max-h-80 overflow-y-auto">
         <ListBox>
-          {filteredScarabs.map((scarab) => (
-            <ListBox.Item key={scarab.name} id={scarab.name} textValue={scarab.name}>
-              {scarab.icon ? (
+          {filteredThreads.map((thread) => (
+            <ListBox.Item key={thread.name} id={thread.name} textValue={thread.name}>
+              {thread.icon ? (
                 <img
-                  src={scarab.icon}
+                  src={thread.icon}
                   alt=""
                   className="h-8 w-8 shrink-0 bg-transparent object-contain"
                   loading="lazy"
@@ -239,8 +240,8 @@ function ScarabAutocompleteField({
                 />
               )}
               <div className="flex min-w-0 flex-col">
-                <Label>{scarab.name}</Label>
-                <Description>{formatChaosValue(scarab.chaosValue)}c</Description>
+                <Label>{thread.name}</Label>
+                <Description>{thread.chaosValue == null ? 'Price unavailable' : `${formatChaosValue(thread.chaosValue)}c`}</Description>
               </div>
               <ListBox.ItemIndicator />
             </ListBox.Item>
@@ -252,22 +253,22 @@ function ScarabAutocompleteField({
   )
 }
 
-function ScarabAlternativesField({
+function ThreadAlternativesField({
   control,
-  scarabIndex,
+  threadIndex,
   canEditContent,
   errors,
-  scarabData,
-  scarabIconMap,
-  scarabPriceMap,
+  threadData,
+  threadIconMap,
+  threadPriceMap,
 }: {
   control: Control<FormInput, unknown, FormValues>
-  scarabIndex: number
+  threadIndex: number
   canEditContent: boolean
   errors: FieldErrors<FormInput>
-  scarabData: ScarabEntry[]
-  scarabIconMap: Map<string, string | null>
-  scarabPriceMap: Map<string, number>
+  threadData: ThreadEntry[]
+  threadIconMap: Map<string, string | null>
+  threadPriceMap: Map<string, number | null>
 }) {
   const {
     fields: alternativeFields,
@@ -275,18 +276,18 @@ function ScarabAlternativesField({
     remove: removeAlternative,
   } = useFieldArray({
     control,
-    name: `scarabs.${scarabIndex}.alternatives` as const,
+    name: `threads.${threadIndex}.alternatives` as const,
   })
   const watchedAlternatives =
     useWatch({
       control,
-      name: `scarabs.${scarabIndex}.alternatives` as const,
+      name: `threads.${threadIndex}.alternatives` as const,
     }) ?? []
   const quantity =
     Number(
       useWatch({
         control,
-        name: `scarabs.${scarabIndex}.quantity` as const,
+        name: `threads.${threadIndex}.quantity` as const,
       }) ?? 1,
     ) || 1
 
@@ -300,7 +301,7 @@ function ScarabAlternativesField({
             Alternatives
           </p>
           <p className="text-default-400 text-xs">
-            Fallback scarabs for this slot. Alternatives use the same quantity.
+            Fallback threads for this slot. Alternatives use the same quantity.
           </p>
         </div>
         {canEditContent ? (
@@ -316,16 +317,16 @@ function ScarabAlternativesField({
       </div>
 
       {alternativeFields.length === 0 ? (
-        <p className="text-default-400 mt-3 text-xs">No alternatives added for this scarab.</p>
+        <p className="text-default-400 mt-3 text-xs">No alternatives added for this thread.</p>
       ) : (
         <div className="mt-3 flex flex-col gap-2">
           {alternativeFields.map((field, alternativeIndex) => {
             const alternativeName = watchedAlternatives?.[alternativeIndex]?.name ?? ''
-            const alternativeIcon = scarabIconMap.get(alternativeName)
-            const unitPrice = scarabPriceMap.get(alternativeName) ?? null
+            const alternativeIcon = threadIconMap.get(alternativeName)
+            const unitPrice = threadPriceMap.get(alternativeName) ?? null
             const rowTotal = unitPrice != null ? unitPrice * quantity : null
             const error =
-              errors.scarabs?.[scarabIndex]?.alternatives?.[alternativeIndex]?.name?.message
+              errors.threads?.[threadIndex]?.alternatives?.[alternativeIndex]?.name?.message
 
             return (
               <div key={field.id} className="flex items-center gap-2">
@@ -340,15 +341,15 @@ function ScarabAlternativesField({
                 )}
                 <Controller
                   control={control}
-                  name={`scarabs.${scarabIndex}.alternatives.${alternativeIndex}.name`}
+                  name={`threads.${threadIndex}.alternatives.${alternativeIndex}.name`}
                   render={({ field: formField }) => (
-                    <ScarabAutocompleteField
+                    <ThreadAutocompleteField
                       value={formField.value ?? ''}
                       onChange={formField.onChange}
                       isReadOnly={!canEditContent}
                       isInvalid={!!error}
                       errorMessage={typeof error === 'string' ? error : undefined}
-                      scarabData={scarabData}
+                      threadData={threadData}
                       className="flex-1"
                     />
                   )}
@@ -372,7 +373,8 @@ function ScarabAlternativesField({
                     variant="tertiary"
                     type="button"
                     className="text-default-400 hover:text-danger shrink-0"
-                    onPress={() => removeAlternative(alternativeIndex)}
+                    aria-label="Remove alternative Thread"
+                      onPress={() => removeAlternative(alternativeIndex)}
                   >
                     <Trash2 size={14} />
                   </Button>
@@ -421,12 +423,12 @@ export function StrategyDetailPage() {
   const [visibilityPending, setVisibilityPending] = useState(false)
   const [adminLockPending, setAdminLockPending] = useState(false)
   const [currentStrategyPending, setCurrentStrategyPending] = useState(false)
-  const { data: scarabData = [] } = useScarabData(activeLeague, game ?? 'poe1')
-  const scarabPriceMap = new Map(scarabData.map((s) => [s.name, s.chaosValue]))
-  const scarabIconMap = new Map(scarabData.map((s) => [s.name, s.icon]))
+  const { data: threadData = [] } = useThreadData(activeLeague, game ?? 'poe1')
+  const threadPriceMap = new Map(threadData.map((s) => [s.name, s.chaosValue]))
+  const threadIconMap = new Map(threadData.map((s) => [s.name, s.icon]))
   const display = useCurrencyStore((s) => s.display)
   const { data: ninjaData } = useNinjaPrices(activeLeague, game ?? 'poe1')
-  const divinePrice = ninjaData?.divinePrice ?? 200
+  const divinePrice = ninjaData?.divinePrice ?? null
 
   const memberByUser = Object.fromEntries((members ?? []).map((m) => [m.user.id, m.user]))
 
@@ -441,24 +443,24 @@ export function StrategyDetailPage() {
     defaultValues: DEFAULT_FORM_VALUES,
   })
   const isDirtyRef = useRef(isDirty)
-  const scarabInputRefs = useRef<Array<HTMLInputElement | null>>([])
-  const pendingScarabFocusIndexRef = useRef<number | null>(null)
-  const [pendingScarabFocusIndex, setPendingScarabFocusIndex] = useState<number | null>(null)
+  const threadInputRefs = useRef<Array<HTMLInputElement | null>>([])
+  const pendingThreadFocusIndexRef = useRef<number | null>(null)
+  const [pendingThreadFocusIndex, setPendingThreadFocusIndex] = useState<number | null>(null)
 
   const {
-    fields: scarabFields,
-    append: appendScarab,
-    remove: removeScarab,
-  } = useFieldArray({ control, name: 'scarabs' })
+    fields: threadFields,
+    append: appendThread,
+    remove: removeThread,
+  } = useFieldArray({ control, name: 'threads' })
 
   const atlasUrl = watch('atlas_tree_url')
   const mapTradeUrl = watch('map_trade_link')
-  const watchedScarabs = watch('scarabs')
+  const watchedThreads = watch('threads')
   const watchedMapCost = watch('map_cost')
-  const hasScarabAlternatives = (watchedScarabs ?? []).some(
-    (scarab) => (scarab.alternatives?.length ?? 0) > 0,
+  const hasThreadAlternatives = (watchedThreads ?? []).some(
+    (thread) => (thread.alternatives?.length ?? 0) > 0,
   )
-  const fmt = (chaos: number): string => formatCurrencyAmount(chaos, display, divinePrice)
+  const fmt = (chaos: number): string => formatCurrencyAmount(chaos, divinePrice == null ? 'chaos' : display, divinePrice ?? 1)
   const isSubscribed = !!strategy?.source_strategy_id
   const displayVisibility = optimisticVisibility ?? strategy?.visibility ?? 'group_only'
   const displayAdminLocked = optimisticAdminLocked ?? strategy?.admin_locked ?? false
@@ -501,20 +503,20 @@ export function StrategyDetailPage() {
   }, [currentStrategyId, activeGroupId])
 
   useEffect(() => {
-    const pendingIndex = pendingScarabFocusIndexRef.current
+    const pendingIndex = pendingThreadFocusIndexRef.current
     if (pendingIndex == null) return
-    if (!scarabFields[pendingIndex]) return
+    if (!threadFields[pendingIndex]) return
 
     const frame = requestAnimationFrame(() => {
-      const input = scarabInputRefs.current[pendingIndex]
+      const input = threadInputRefs.current[pendingIndex]
       input?.focus()
       input?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
-      pendingScarabFocusIndexRef.current = null
-      setPendingScarabFocusIndex(null)
+      pendingThreadFocusIndexRef.current = null
+      setPendingThreadFocusIndex(null)
     })
 
     return () => cancelAnimationFrame(frame)
-  }, [scarabFields])
+  }, [threadFields])
 
   const onSubmit: SubmitHandler<FormValues> = (values) => {
     if (!strategy || !canEditContent) return
@@ -530,8 +532,8 @@ export function StrategyDetailPage() {
         map_trade_link: values.map_trade_link || null,
         atlas_tree_url: values.atlas_tree_url || null,
         map_cost: values.map_cost ?? null,
-        map_requirements: values.map_requirements,
-        scarabs: values.scarabs,
+        map_requirements: { ...strategy.map_requirements, ...values.map_requirements },
+        threads: values.threads,
       },
       {
         onSuccess: (data) => {
@@ -618,7 +620,7 @@ export function StrategyDetailPage() {
         atlas_tree_url: strategy.atlas_tree_url,
         map_cost: strategy.map_cost,
         map_requirements: strategy.map_requirements,
-        scarabs: strategy.scarabs,
+        threads: strategy.threads,
         ...overrides,
       },
       {
@@ -650,7 +652,7 @@ export function StrategyDetailPage() {
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="flex flex-col gap-6">
           {/* Top nav row with Save button */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Link to="/dashboard/strategies">
               <Button
                 variant="tertiary"
@@ -663,7 +665,7 @@ export function StrategyDetailPage() {
                 Back to Strategies
               </Button>
             </Link>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {canManageStrategy && (
                 <Button
                   size="sm"
@@ -925,29 +927,39 @@ export function StrategyDetailPage() {
             </Card>
           ) : null}
 
+          {showsPoe1PlanningFields && strategy.scarabs.length > 0 && (
+            <Card><Card.Content className="p-4">
+              <h2 className="text-sm font-semibold">Legacy Scarab reference</h2>
+              <p className="text-default-400 text-sm">Scarabs were removed in 3.30. Your saved selections remain here; choose Threads below for a new setup.</p>
+              <ul className="mt-2 text-sm">{strategy.scarabs.map((scarab, index) => (
+                <li key={index}>{scarab.quantity} × {scarab.name}{scarab.required ? '' : ' (optional)'}{scarab.alternatives.length ? `; alternatives: ${scarab.alternatives.map((a) => a.name).join(', ')}` : ''}</li>
+              ))}</ul>
+            </Card.Content></Card>
+          )}
+          {errors.threads?.root?.message && <p role="alert" className="text-danger text-sm">{errors.threads.root.message}</p>}
           {/* Total estimated cost summary */}
           {(() => {
-            const scarabTotal = (watchedScarabs ?? []).reduce((sum, s) => {
-              const p = scarabPriceMap.get(s.name ?? '')
+            const threadTotal = (watchedThreads ?? []).reduce((sum, s) => {
+              const p = threadPriceMap.get(s.name ?? '')
               return p != null ? sum + p * (Number(s.quantity) || 1) : sum
             }, 0)
             const mapCost = Number(watchedMapCost) || 0
-            const total = scarabTotal + mapCost
+            const total = threadTotal + mapCost
             if (total === 0) return null
-            const hasPartialScarabs = (watchedScarabs ?? []).some(
-              (s) => s.name && !scarabPriceMap.has(s.name),
+            const hasPartialThreads = (watchedThreads ?? []).some(
+              (s) => s.name && threadPriceMap.get(s.name) == null,
             )
             return (
               <div className="rounded-large border-primary/30 bg-primary/5 flex items-center justify-between border px-5 py-4">
                 <div className="flex items-center gap-2">
                   <Coins size={16} className="text-primary shrink-0" />
                   <span className="text-foreground text-sm font-medium">
-                    {hasScarabAlternatives
+                    {hasThreadAlternatives
                       ? 'Primary setup cost per map'
                       : 'Total estimated cost per map'}
                   </span>
-                  {hasPartialScarabs && <span className="text-default-400 text-xs">(partial)</span>}
-                  {hasScarabAlternatives && (
+                  {hasPartialThreads && <span className="text-default-400 text-xs">(partial)</span>}
+                  {hasThreadAlternatives && (
                     <span className="text-default-400 text-xs">(alternatives excluded)</span>
                   )}
                 </div>
@@ -1106,7 +1118,7 @@ export function StrategyDetailPage() {
             </Card.Content>
           </Card>
 
-          {/* Atlas Tree & Scarabs — two sections in one card */}
+          {/* Atlas Tree & Threads — two sections in one card */}
           <Card className={!showsPoe1PlanningFields ? 'hidden' : undefined}>
             {/* Section: Atlas Tree */}
             <Card.Header className="px-5 pt-5 pb-0">
@@ -1151,10 +1163,10 @@ export function StrategyDetailPage() {
             {/* Divider */}
             <div className="border-divider mx-5 border-t" />
 
-            {/* Section: Scarabs */}
+            {/* Section: Threads */}
             <Card.Header className="px-5 pt-4 pb-0">
               <div className="flex w-full flex-wrap items-center justify-between gap-3">
-                <h2 className="text-foreground text-sm font-semibold">Scarabs</h2>
+                <h2 className="text-foreground text-sm font-semibold">Threads</h2>
                 {canEditContent && (
                   <Button
                     size="sm"
@@ -1162,32 +1174,32 @@ export function StrategyDetailPage() {
                     type="button"
                     className="shrink-0"
                     onPress={() => {
-                      pendingScarabFocusIndexRef.current = scarabFields.length
-                      setPendingScarabFocusIndex(scarabFields.length)
-                      appendScarab(
+                      pendingThreadFocusIndexRef.current = threadFields.length
+                      setPendingThreadFocusIndex(threadFields.length)
+                      appendThread(
                         { name: '', quantity: 1, required: true, alternatives: [] },
                         { shouldFocus: false },
                       )
                     }}
                   >
                     <Plus size={14} />
-                    Add scarab
+                    Add thread
                   </Button>
                 )}
               </div>
             </Card.Header>
             <Card.Content className="px-5 pt-3 pb-5">
-              {scarabFields.length === 0 ? (
-                <p className="text-default-400 text-sm">No scarabs added yet.</p>
+              {threadFields.length === 0 ? (
+                <p className="text-default-400 text-sm">No Threads added yet. Spend up to eight per map; free Atlas Threads are additional.</p>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {scarabFields.map((field, i) => {
-                    const scarabName = watchedScarabs?.[i]?.name ?? ''
-                    const scarabIcon = scarabIconMap.get(scarabName)
-                    const qty = Number(watchedScarabs?.[i]?.quantity) || 1
-                    const unitPrice = scarabPriceMap.get(scarabName) ?? null
+                  {threadFields.map((field, i) => {
+                    const threadName = watchedThreads?.[i]?.name ?? ''
+                    const threadIcon = threadIconMap.get(threadName)
+                    const qty = Number(watchedThreads?.[i]?.quantity) || 1
+                    const unitPrice = threadPriceMap.get(threadName) ?? null
                     const rowTotal = unitPrice != null ? unitPrice * qty : null
-                    const alternativeCount = watchedScarabs?.[i]?.alternatives?.length ?? 0
+                    const alternativeCount = watchedThreads?.[i]?.alternatives?.length ?? 0
 
                     return (
                       <div
@@ -1195,10 +1207,10 @@ export function StrategyDetailPage() {
                         className="rounded-large border-divider bg-default-50/40 border p-3"
                       >
                         <div className="flex flex-wrap items-center gap-2">
-                          {scarabIcon ? (
+                          {threadIcon ? (
                             <img
-                              src={scarabIcon}
-                              alt={scarabName}
+                              src={threadIcon}
+                              alt={threadName}
                               className="h-10 w-10 bg-transparent object-contain"
                             />
                           ) : (
@@ -1206,36 +1218,40 @@ export function StrategyDetailPage() {
                           )}
                           <Controller
                             control={control}
-                            name={`scarabs.${i}.name`}
+                            name={`threads.${i}.name`}
                             render={({ field: f }) => (
-                              <ScarabAutocompleteField
+                              <ThreadAutocompleteField
                                 inputRef={(node) => {
-                                  scarabInputRefs.current[i] = node
+                                  threadInputRefs.current[i] = node
                                 }}
                                 value={f.value ?? ''}
                                 onChange={f.onChange}
                                 isReadOnly={!canEditContent}
-                                isInvalid={!!errors.scarabs?.[i]?.name}
-                                errorMessage={errors.scarabs?.[i]?.name?.message}
-                                scarabData={scarabData}
-                                autoFocus={pendingScarabFocusIndex === i}
+                                isInvalid={!!errors.threads?.[i]?.name}
+                                errorMessage={errors.threads?.[i]?.name?.message}
+                                threadData={threadData}
+                                autoFocus={pendingThreadFocusIndex === i}
                                 className="flex-1"
                               />
                             )}
                           />
                           <Controller
                             control={control}
-                            name={`scarabs.${i}.quantity`}
+                            name={`threads.${i}.quantity`}
                             render={({ field: quantityField }) => (
                               <FieldInput
                                 ref={quantityField.ref}
                                 name={quantityField.name}
                                 placeholder="Qty"
+                                aria-label="Thread quantity"
+                                min={1}
+                                max={8}
+                                step={1}
                                 type="number"
                                 size="sm"
                                 className={`w-16 shrink-0 ${readOnlyFieldClassName ?? ''}`}
                                 isReadOnly={!canEditContent}
-                                isInvalid={!!errors.scarabs?.[i]?.quantity}
+                                isInvalid={!!errors.threads?.[i]?.quantity}
                                 value={toFieldStringValue(quantityField.value)}
                                 onValueChange={quantityField.onChange}
                                 onBlur={quantityField.onBlur}
@@ -1258,10 +1274,10 @@ export function StrategyDetailPage() {
                           </span>
                           <Controller
                             control={control}
-                            name={`scarabs.${i}.required`}
+                            name={`threads.${i}.required`}
                             render={({ field: f }) => (
                               <NativeCheckbox
-                                id={`scarab-${field.id}-required`}
+                                id={`thread-${field.id}-required`}
                                 isSelected={f.value}
                                 onChange={canEditContent ? f.onChange : undefined}
                                 isDisabled={!canEditContent}
@@ -1282,20 +1298,21 @@ export function StrategyDetailPage() {
                               variant="tertiary"
                               type="button"
                               className="text-default-400 hover:text-danger shrink-0"
-                              onPress={() => removeScarab(i)}
+                              aria-label="Remove Thread"
+                              onPress={() => removeThread(i)}
                             >
                               <Trash2 size={14} />
                             </Button>
                           )}
                         </div>
-                        <ScarabAlternativesField
+                        <ThreadAlternativesField
                           control={control}
-                          scarabIndex={i}
+                          threadIndex={i}
                           canEditContent={canEditContent}
                           errors={errors}
-                          scarabData={scarabData}
-                          scarabIconMap={scarabIconMap}
-                          scarabPriceMap={scarabPriceMap}
+                          threadData={threadData}
+                          threadIconMap={threadIconMap}
+                          threadPriceMap={threadPriceMap}
                         />
                       </div>
                     )
@@ -1303,28 +1320,28 @@ export function StrategyDetailPage() {
 
                   {/* Total */}
                   {(() => {
-                    const total = (watchedScarabs ?? []).reduce((sum, s) => {
-                      const p = scarabPriceMap.get(s.name ?? '')
+                    const total = (watchedThreads ?? []).reduce((sum, s) => {
+                      const p = threadPriceMap.get(s.name ?? '')
                       return p != null ? sum + p * (Number(s.quantity) || 1) : sum
                     }, 0)
-                    const knownCount = (watchedScarabs ?? []).filter((s) =>
-                      scarabPriceMap.has(s.name ?? ''),
+                    const knownCount = (watchedThreads ?? []).filter((s) =>
+                      threadPriceMap.get(s.name ?? '') != null,
                     ).length
                     if (knownCount === 0) return null
                     return (
                       <div className="border-divider border-t pt-2 text-right">
                         <span className="text-default-500 text-xs">
-                          {hasScarabAlternatives
-                            ? 'Primary scarab cost per map:'
+                          {hasThreadAlternatives
+                            ? 'Primary thread cost per map:'
                             : 'Estimated cost per map:'}{' '}
                           <span className="text-foreground font-medium">
                             ~ {formatChaosValue(total)}
                             <span className="text-default-500 ml-0.5 text-xs font-semibold">c</span>
                           </span>
-                          {knownCount < (watchedScarabs ?? []).length && (
+                          {knownCount < (watchedThreads ?? []).length && (
                             <span className="text-default-400"> (partial)</span>
                           )}
-                          {hasScarabAlternatives && (
+                          {hasThreadAlternatives && (
                             <span className="text-default-400"> (alternatives excluded)</span>
                           )}
                         </span>
@@ -1429,7 +1446,7 @@ export function StrategyDetailPage() {
                 <p className="text-foreground text-sm font-semibold">PoE2 strategy mode</p>
                 <p className="text-default-500 text-sm leading-relaxed">
                   Path of Exile 2 strategies currently focus on shared planning fields like name,
-                  description, and difficulty. Atlas trees, scarabs, and map setup stay
+                  description, and difficulty. Atlas trees, threads, and map setup stay
                   PoE1-only until we ship a dedicated PoE2 strategy model.
                 </p>
               </Card.Content>

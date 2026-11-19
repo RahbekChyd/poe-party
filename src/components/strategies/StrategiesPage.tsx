@@ -26,7 +26,7 @@ import {
   useSetCurrentStrategy,
 } from '../../hooks/useGroups'
 import { useStrategyHourlyEstimates } from '../../hooks/useStrategyEconomy'
-import { type ScarabEntry, useScarabData } from '../../hooks/useScarabNames'
+import { type ThreadEntry, useThreadData } from '../../hooks/useThreadData'
 import { useCurrencyStore } from '../../store/currency-store'
 import { CreateStrategyModal } from './CreateStrategyModal'
 import { DIFFICULTY_CHIP } from '../../lib/constants'
@@ -58,8 +58,8 @@ function OwnedStrategyCard({
   strategyRate,
   totalCost,
   hasPartialPrices,
-  scarabPriceMap,
-  scarabIconMap,
+  threadPriceMap,
+  threadIconMap,
   fmt,
   showsPoe1PlanningFields,
 }: {
@@ -72,8 +72,8 @@ function OwnedStrategyCard({
   strategyRate: { chaosPerHour: number; sampleCount: number } | undefined
   totalCost: number
   hasPartialPrices: boolean
-  scarabPriceMap: Map<string, number>
-  scarabIconMap: Map<string, ScarabEntry['icon']>
+  threadPriceMap: Map<string, number | null>
+  threadIconMap: Map<string, ThreadEntry['icon']>
   fmt: (chaos: number) => string
   showsPoe1PlanningFields: boolean
 }) {
@@ -101,7 +101,7 @@ function OwnedStrategyCard({
     : strategy.visibility === 'public'
       ? 'secondary'
       : 'default'
-  const hasAlternativeScarabs = strategy.scarabs.some((scarab) => scarab.alternatives.length > 0)
+  const hasAlternativeThreads = strategy.threads.some((thread) => thread.alternatives.length > 0)
 
   return (
     <Card
@@ -139,7 +139,7 @@ function OwnedStrategyCard({
               {totalCost > 0 ? (
                 <Chip size="sm" variant="soft">
                   ~= {fmt(totalCost)}/map
-                  {hasAlternativeScarabs ? (
+                  {hasAlternativeThreads ? (
                     <span className="text-default-400 ml-1 text-xs">(primary)</span>
                   ) : null}
                   {hasPartialPrices ? (
@@ -203,12 +203,13 @@ function OwnedStrategyCard({
         </div>
 
         <StrategyInfoSection
+          legacyScarabs={showsPoe1PlanningFields ? strategy.scarabs : []}
           atlasTreeUrl={showsPoe1PlanningFields ? strategy.atlas_tree_url : null}
-          scarabs={showsPoe1PlanningFields ? strategy.scarabs : []}
+          threads={showsPoe1PlanningFields ? strategy.threads : []}
           mapTradeLink={showsPoe1PlanningFields ? strategy.map_trade_link : null}
           mapRequirements={showsPoe1PlanningFields ? strategy.map_requirements : {}}
-          scarabPriceMap={scarabPriceMap}
-          scarabIconMap={scarabIconMap}
+          threadPriceMap={threadPriceMap}
+          threadIconMap={threadIconMap}
         />
       </Card.Content>
     </Card>
@@ -223,8 +224,8 @@ function PublicStrategyCard({
   onUnsubscribe,
   subscribePending,
   unsubscribePending,
-  scarabPriceMap,
-  scarabIconMap,
+  threadPriceMap,
+  threadIconMap,
   fmt,
   showsPoe1PlanningFields,
 }: {
@@ -235,8 +236,8 @@ function PublicStrategyCard({
   onUnsubscribe: (strategyId: string) => void
   subscribePending: boolean
   unsubscribePending: boolean
-  scarabPriceMap: Map<string, number>
-  scarabIconMap: Map<string, ScarabEntry['icon']>
+  threadPriceMap: Map<string, number | null>
+  threadIconMap: Map<string, ThreadEntry['icon']>
   fmt: (chaos: number) => string
   showsPoe1PlanningFields: boolean
 }) {
@@ -392,12 +393,13 @@ function PublicStrategyCard({
         </div>
 
         <StrategyInfoSection
+          legacyScarabs={showsPoe1PlanningFields ? strategy.scarabs : []}
           atlasTreeUrl={showsPoe1PlanningFields ? strategy.atlas_tree_url : null}
-          scarabs={showsPoe1PlanningFields ? strategy.scarabs : []}
+          threads={showsPoe1PlanningFields ? strategy.threads : []}
           mapTradeLink={null}
           mapRequirements={{}}
-          scarabPriceMap={scarabPriceMap}
-          scarabIconMap={scarabIconMap}
+          threadPriceMap={threadPriceMap}
+          threadIconMap={threadIconMap}
         />
 
         {expanded ? (
@@ -409,12 +411,13 @@ function PublicStrategyCard({
               </div>
             ) : null}
             <StrategyInfoSection
+          legacyScarabs={showsPoe1PlanningFields ? strategy.scarabs : []}
               atlasTreeUrl={null}
-              scarabs={[]}
+              threads={[]}
               mapTradeLink={showsPoe1PlanningFields ? strategy.map_trade_link : null}
               mapRequirements={showsPoe1PlanningFields ? strategy.map_requirements : {}}
-              scarabPriceMap={scarabPriceMap}
-              scarabIconMap={scarabIconMap}
+              threadPriceMap={threadPriceMap}
+              threadIconMap={threadIconMap}
             />
           </>
         ) : null}
@@ -449,17 +452,17 @@ export function StrategiesPage() {
   }
 
   const display = useCurrencyStore((state) => state.display)
-  const { data: scarabData = [] } = useScarabData(activeLeague, game ?? 'poe1')
+  const { data: threadData = [] } = useThreadData(activeLeague, game ?? 'poe1')
   const { data: ninjaData } = useNinjaPrices(activeLeague, game ?? 'poe1')
-  const divinePrice = ninjaData?.divinePrice ?? 200
+  const divinePrice = ninjaData?.divinePrice ?? null
 
-  const scarabPriceMap = useMemo(
-    () => new Map(scarabData.map((scarab) => [scarab.name, scarab.chaosValue])),
-    [scarabData],
+  const threadPriceMap = useMemo(
+    () => new Map(threadData.map((thread) => [thread.name, thread.chaosValue])),
+    [threadData],
   )
-  const scarabIconMap = useMemo(
-    () => new Map(scarabData.map((scarab) => [scarab.name, scarab.icon])),
-    [scarabData],
+  const threadIconMap = useMemo(
+    () => new Map(threadData.map((thread) => [thread.name, thread.icon])),
+    [threadData],
   )
   const ownStrategies = useMemo(
     () =>
@@ -481,8 +484,8 @@ export function StrategiesPage() {
     [publicStrategies, stageFilter],
   )
 
-  const fmt = (chaos: number): string => formatCurrencyAmount(chaos, display, divinePrice)
-  const showsPoe1PlanningFields = !!capabilities?.supportsScarabStrategies
+  const fmt = (chaos: number): string => formatCurrencyAmount(chaos, divinePrice == null ? 'chaos' : display, divinePrice ?? 1)
+  const showsPoe1PlanningFields = !!capabilities?.supportsMapInvestmentPlanning
 
   const handleSubscribe = async (strategyId: string) => {
     if (!activeGroupId) return
@@ -551,7 +554,7 @@ export function StrategiesPage() {
                 <p className="text-default-500 text-sm leading-relaxed">
                   {showsPoe1PlanningFields
                     ? 'Subscribed strategies stay locked for content edits, but your group can still set them active for snapshot tracking.'
-                    : 'PoE2 strategy pages currently keep the shared planning fields front and center while PoE1-only atlas and scarab setup stays hidden.'}
+                    : 'PoE2 strategy pages currently keep the shared planning fields front and center while PoE1-only atlas and thread setup stays hidden.'}
                 </p>
               </>
             ) : (
@@ -618,15 +621,15 @@ export function StrategiesPage() {
         ) : (
           <div className="flex flex-col gap-4">
             {ownStrategies.map((strategy) => {
-              const scarabCost = strategy.scarabs.reduce((sum, scarab) => {
-                const price = scarabPriceMap.get(scarab.name)
-                return price != null ? sum + price * scarab.quantity : sum
+              const threadCost = strategy.threads.reduce((sum, thread) => {
+                const price = threadPriceMap.get(thread.name)
+                return price != null ? sum + price * thread.quantity : sum
               }, 0)
-              const totalCost = showsPoe1PlanningFields ? scarabCost + (strategy.map_cost ?? 0) : 0
+              const totalCost = showsPoe1PlanningFields ? threadCost + (strategy.map_cost ?? 0) : 0
               const hasPartialPrices =
                 showsPoe1PlanningFields &&
-                strategy.scarabs.length > 0 &&
-                strategy.scarabs.some((scarab) => !scarabPriceMap.has(scarab.name))
+                strategy.threads.length > 0 &&
+                strategy.threads.some((thread) => threadPriceMap.get(thread.name) == null)
 
               return (
                 <OwnedStrategyCard
@@ -645,8 +648,8 @@ export function StrategiesPage() {
                   strategyRate={strategyEconomy[strategy.id]}
                   totalCost={totalCost}
                   hasPartialPrices={hasPartialPrices}
-                  scarabPriceMap={scarabPriceMap}
-                  scarabIconMap={scarabIconMap}
+                  threadPriceMap={threadPriceMap}
+                  threadIconMap={threadIconMap}
                   fmt={fmt}
                   showsPoe1PlanningFields={showsPoe1PlanningFields}
                 />
@@ -676,8 +679,8 @@ export function StrategiesPage() {
               onUnsubscribe={handleUnsubscribe}
               subscribePending={subscribePending}
               unsubscribePending={unsubscribePending}
-              scarabPriceMap={scarabPriceMap}
-              scarabIconMap={scarabIconMap}
+              threadPriceMap={threadPriceMap}
+              threadIconMap={threadIconMap}
               fmt={fmt}
               showsPoe1PlanningFields={showsPoe1PlanningFields}
             />

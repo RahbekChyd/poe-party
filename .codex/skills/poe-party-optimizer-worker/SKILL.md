@@ -20,7 +20,8 @@ Use this skill for the separate containerized worker under `optimizer-worker/`. 
 - Worker source lives under `optimizer-worker/src/`.
 - PoB runtime harness lives under `optimizer-worker/pob/`.
 - `optimizer-worker/pob/run-analysis.lua` is near LuaJIT's top-level local-variable limit. When adding larger helper groups, attach functions to a table or define non-local helper functions instead of adding many new `local function` declarations at chunk scope; verify with `luajit -b` in the worker image.
-- Character snapshot `raw_character` may only contain `items`/`passive_tree`; when feeding PoB `ImportItemsAndSkills`, synthesize the expected `character` object from snapshot `character_name`, `class`, `league`, and `level`.
+- Character snapshot `raw_character` can be OAuth-shaped or legacy `items`/`passive_tree`. Use the canonical worker adapter to construct the flat decoded character expected by current PoB importers; preserve Wickerman/guardian/raw modifier objects and record source completeness. Do not pass legacy JSON strings or retain target Wickerman parts in empty current slots.
+- Verify runtime compatibility with the real container fixture command in `optimizer-worker/README.md`, not only Node tests or Lua syntax compilation. Current PoB requires modern LuaJIT syntax and explicit `new("Class"):Class(...)` constructors; ordinary Debian LuaJIT packages may lag.
 - PoB runtime output can include supplemental `summary.compare_power_report` rows; keep this additive to the existing recommendation plan contract unless intentionally changing the UI/API surface.
 - In `summary.compare_power_report`, the worker's `totalDps` primary metric maps to PoB `TotalDPS`/Hit DPS. Do not map it to `FullDPS` unless the selected build actually populates PoB's Full DPS rollup.
 - When adopting upstream PoB features, verify the Dockerfile `POB_REF` against the upstream commit/release that introduced the feature before assuming the bundled runtime has it.

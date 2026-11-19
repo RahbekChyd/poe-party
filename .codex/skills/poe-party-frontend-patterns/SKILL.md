@@ -40,7 +40,7 @@ Use existing nearby patterns first. This app is a product workspace, so favor de
 - Invalidate the same families of queries as adjacent mutations.
 - Keep Zustand for lightweight persisted UI/workspace preferences, not server-owned data.
 - When React Hook Form fields render through shared HeroUI wrappers such as `FieldInput`, use `Controller` with explicit `value` / `onValueChange` for fields that hydrate from `reset()`. Plain `register(...)` can leave HeroUI inputs blank after async data loads.
-- PoE1 scarab selector data should come from poe.ninja exchange overview (`type=Scarab`), not the stash item overview endpoint. League-specific lookups can return no rows, so keep a Standard/fallback path for dashboard strategy scarab pickers. Relative `/gen/image/...` URLs from this endpoint are served by `https://web.poecdn.com`, not `https://poe.ninja`.
+- PoE1 Thread planning uses the ten official usable Thread names and poe.ninja exchange overview (`type=Thread`) for exact-league market estimates. Never restore removed Scarabs through a Standard fallback. Retain saved Scarabs only as a legacy reference. Missing prices remain unknown. Relative `/gen/image/...` URLs are served by `https://web.poecdn.com`.
 
 ## SEO and Public Pages
 

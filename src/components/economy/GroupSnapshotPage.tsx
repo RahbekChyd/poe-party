@@ -1,3 +1,5 @@
+import { SnapshotPricingNotice } from './SnapshotPricingNotice'
+import { storedSnapshotPrice } from '../../lib/snapshot-pricing'
 import { useState, useMemo } from 'react'
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
@@ -17,6 +19,7 @@ import {
   Search,
 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
+import { useLatestSnapshots } from '../../hooks/useSnapshots'
 import { useGroupSnapshotItems } from '../../hooks/useSnapshotItems'
 import { useGroupMembers, useMyGroups } from '../../hooks/useGroups'
 import { contrastColor, getAvatarColor } from '../../lib/utils'
@@ -44,6 +47,8 @@ type PricedItem = {
   display_name: string
   unit_price: number
   price_chaos: number
+  has_price: boolean
+  is_excluded: boolean
 }
 
 const PAGE_SIZE = 25
@@ -51,6 +56,7 @@ const PAGE_SIZE = 25
 export function GroupSnapshotPage() {
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
   const { data: rawItems, isLoading } = useGroupSnapshotItems(activeGroupId)
+  const { data: snapshots } = useLatestSnapshots(activeGroupId)
   const { data: members } = useGroupMembers(activeGroupId)
   const { data: myGroups } = useMyGroups()
   const display = useCurrencyStore((s) => s.display)
@@ -58,28 +64,21 @@ export function GroupSnapshotPage() {
   const activeLeague = myGroups?.find((g) => g.group.id === activeGroupId)?.group.league ?? null
 
   const { data: ninjaData } = useNinjaPrices(activeLeague)
-  const divinePrice = ninjaData?.divinePrice ?? 200
+  const divinePrice = ninjaData?.divinePrice ?? null
+  const showDivine = display === 'divine' && divinePrice != null && divinePrice > 0
 
   const memberByUserId = useMemo(
     () => Object.fromEntries((members ?? []).map((m) => [m.user.id, m.user])),
     [members],
   )
 
-  const items = useMemo<PricedItem[]>(() => {
-    if (!rawItems) return []
-    return rawItems.map((item) => {
-      const key = item.frame_type === 3 ? item.name : item.type_line
-      const unitPrice = ninjaData?.byName.get(key) ?? 0
-      return {
-        ...item,
-        display_name: item.name || item.type_line,
-        unit_price: unitPrice,
-        price_chaos: unitPrice * item.stack_size,
-      }
-    })
-  }, [rawItems, ninjaData])
+  const items = useMemo<PricedItem[]>(() => (rawItems ?? []).map((item) => ({
+    ...item,
+    display_name: item.name || item.type_line,
+    ...storedSnapshotPrice(item),
+  })), [rawItems])
 
-  const [minValueChaos, setMinValueChaos] = useState(1)
+  const [minValueChaos, setMinValueChaos] = useState(0)
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search)
   const [tabFilters, setTabFilters] = useState<string[]>([])
@@ -89,37 +88,41 @@ export function GroupSnapshotPage() {
   const [page, setPage] = useState(1)
 
   const fmt = (chaos: number) =>
-    display === 'divine'
-      ? `${(chaos / divinePrice).toFixed(1)} div`
+    showDivine
+      ? `${(chaos / (divinePrice ?? 1)).toFixed(1)} div`
       : `${Math.round(chaos).toLocaleString()}c`
 
   const fmtUnit = (chaos: number) =>
-    display === 'divine'
-      ? `${(chaos / divinePrice).toFixed(1)} div`
+    showDivine
+      ? `${(chaos / (divinePrice ?? 1)).toFixed(1)} div`
       : chaos < 1
         ? `${chaos.toFixed(1)}c`
         : `${Math.round(chaos).toLocaleString()}c`
 
   const minValueDisplay =
-    display === 'divine' ? (minValueChaos / divinePrice).toFixed(1) : String(minValueChaos)
+    showDivine ? (minValueChaos / (divinePrice ?? 1)).toFixed(1) : String(minValueChaos)
 
   const handleMinValueChange = (v: string) => {
     const parsed = parseFloat(v) || 0
-    setMinValueChaos(display === 'divine' ? parsed * divinePrice : parsed)
+    setMinValueChaos(showDivine ? parsed * (divinePrice ?? 1) : parsed)
     setPage(1)
   }
 
-  // KPIs
-  const totalChaos = items.reduce((s, i) => s + i.price_chaos, 0)
+  const includedItems = useMemo(() => items.filter((item) => !item.is_excluded), [items])
 
-  const topItem = items.reduce<PricedItem | null>(
+  // KPIs
+  const valuationUnavailable = snapshots?.some((snapshot) => snapshot.pricing_summary?.status === 'unavailable') ?? false
+  const totalChaos = includedItems.reduce((s, i) => s + i.price_chaos, 0)
+
+  const topItem = includedItems.reduce<PricedItem | null>(
     (best, i) => (i.price_chaos > (best?.price_chaos ?? 0) ? i : best),
     null,
   )
 
   const topTab = useMemo(() => {
     const map = new Map<string, number>()
-    for (const item of items) {
+    for (const item of includedItems) {
+      if (!item.has_price) continue
       map.set(item.tab_name, (map.get(item.tab_name) ?? 0) + item.price_chaos)
     }
     let best: { tab_name: string; value: number } | null = null
@@ -127,7 +130,7 @@ export function GroupSnapshotPage() {
       if (!best || value > best.value) best = { tab_name, value }
     }
     return best
-  }, [items])
+  }, [includedItems])
 
   const uniqueTabs = useMemo(() => [...new Set(items.map((i) => i.tab_name))].sort(), [items])
 
@@ -273,6 +276,9 @@ export function GroupSnapshotPage() {
         </div>
       </div>
 
+      <SnapshotPricingNotice summaries={(snapshots ?? []).map((snapshot) => snapshot.pricing_summary)}
+        priced={items.filter((item) => item.has_price).length} unknown={items.filter((item) => !item.has_price).length} />
+
       {isLoading ? (
         <>
           <KpiCardsSkeleton />
@@ -298,8 +304,8 @@ export function GroupSnapshotPage() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-default-400 text-xs">Total Group Wealth</p>
-                  <p className="text-foreground truncate text-lg font-bold">{fmt(totalChaos)}</p>
-                  <p className="text-default-400 text-xs">1 div = {divinePrice.toFixed(0)}c</p>
+                  <p className="text-foreground truncate text-lg font-bold">{valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}</p>
+                  <p className="text-default-400 text-xs">{divinePrice == null ? 'Divine conversion unavailable' : `1 div = ${divinePrice.toFixed(0)}c`}</p>
                 </div>
               </Card.Content>
             </Card>
@@ -378,13 +384,13 @@ export function GroupSnapshotPage() {
               <FieldInput
                 size="sm"
                 type="number"
-                aria-label={`Minimum value in ${display === 'divine' ? 'divines' : 'chaos'}`}
+                aria-label={`Minimum value in ${showDivine ? 'divines' : 'chaos'}`}
                 placeholder="0"
                 value={minValueDisplay}
                 onValueChange={handleMinValueChange}
                 endContent={
                   <span className="text-default-400 text-xs">
-                    {display === 'divine' ? 'div' : 'c'}
+                    {showDivine ? 'div' : 'c'}
                   </span>
                 }
                 className="w-40"
@@ -588,7 +594,8 @@ export function GroupSnapshotPage() {
                             )}
                           </td>
                           <td className="px-4 py-2">
-                            <p className="text-foreground text-sm">{item.display_name}</p>
+                            <p className={`text-sm ${item.is_excluded ? 'text-default-400 line-through' : 'text-foreground'}`}>{item.display_name}</p>
+                            {item.is_excluded && <p className="text-default-500 text-xs">Excluded from totals</p>}
                             {item.base_type && item.base_type !== item.display_name && (
                               <p className="text-default-400 text-xs">{item.base_type}</p>
                             )}
@@ -677,7 +684,7 @@ export function GroupSnapshotPage() {
                             <span
                               className={`text-sm font-semibold ${item.price_chaos > 0 ? 'text-foreground' : 'text-default-300'}`}
                             >
-                              {item.price_chaos > 0 ? fmt(item.price_chaos) : '—'}
+                              {item.has_price ? fmt(item.price_chaos) : 'Unknown'}
                             </span>
                           </td>
                         </tr>

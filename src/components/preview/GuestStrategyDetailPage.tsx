@@ -65,7 +65,7 @@ export function GuestStrategyDetailPage() {
           <PreviewNotice
             mode="public"
             title="Live public summary"
-            description="The title, description, publisher, league, benchmark, atlas setup, scarabs, and map cost below come from the real public listing."
+            description="The title, description, publisher, league, benchmark, atlas setup, threads, and map cost below come from the real public listing."
           />
         }
       />
@@ -133,37 +133,45 @@ export function GuestStrategyDetailPage() {
             </div>
           ) : null}
 
-          {capabilities.supportsScarabStrategies && strategy.scarabs.length > 0 ? (
+          {capabilities.supportsMapInvestmentPlanning && strategy.scarabs.length > 0 && (
+            <details className="text-default-400 text-sm">
+              <summary className="cursor-pointer">Legacy Scarab reference (removed in 3.30)</summary>
+              <ul className="mt-2">{strategy.scarabs.map((scarab, index) => (
+                <li key={index}>{scarab.quantity} × {scarab.name}</li>
+              ))}</ul>
+            </details>
+          )}
+          {capabilities.supportsMapInvestmentPlanning && strategy.threads.length > 0 ? (
             <div className="rounded-large border-divider bg-default-50/60 border p-4">
-              <p className="text-foreground text-sm font-medium">Scarabs</p>
+              <p className="text-foreground text-sm font-medium">Threads</p>
               <div className="mt-3 flex flex-col gap-3">
-                {strategy.scarabs.map((scarab, index) => (
+                {strategy.threads.map((thread, index) => (
                   <div
-                    key={`${scarab.name}-${index}`}
+                    key={`${thread.name}-${index}`}
                     className="flex flex-wrap items-center gap-2"
                   >
                     <Chip size="sm" variant="soft">
-                      {scarab.name}
-                      {scarab.quantity > 1 ? ` x${scarab.quantity}` : ''}
-                      {!scarab.required ? ' - optional' : ''}
+                      {thread.name}
+                      {thread.quantity > 1 ? ` x${thread.quantity}` : ''}
+                      {!thread.required ? ' - optional' : ''}
                     </Chip>
-                    {scarab.alternatives.map((alternative, alternativeIndex) => (
+                    {thread.alternatives.map((alternative, alternativeIndex) => (
                       <Chip
-                        key={`${scarab.name}-${index}-alt-${alternative.name}-${alternativeIndex}`}
+                        key={`${thread.name}-${index}-alt-${alternative.name}-${alternativeIndex}`}
                         size="sm"
                         variant="secondary"
                         className="border-dashed"
                       >
                         Alternative: {alternative.name}
-                        {scarab.quantity > 1 ? ` x${scarab.quantity}` : ''}
+                        {thread.quantity > 1 ? ` x${thread.quantity}` : ''}
                       </Chip>
                     ))}
                   </div>
                 ))}
               </div>
-              {strategy.scarabs.some((scarab) => scarab.alternatives.length > 0) ? (
+              {strategy.threads.some((thread) => thread.alternatives.length > 0) ? (
                 <p className="text-default-400 mt-3 text-xs">
-                  Alternative scarabs use the same quantity as the primary scarab.
+                  Alternative threads use the same quantity as the primary thread.
                 </p>
               ) : null}
             </div>
@@ -208,7 +216,7 @@ export function GuestStrategyDetailPage() {
             <div className="rounded-large border-divider bg-default-50/60 border p-4">
               <p className="text-foreground text-sm font-medium">PoE2 public strategy view</p>
               <p className="text-default-500 mt-1 text-sm">
-                This public view stays focused on shared planning data. Atlas, scarab, and map setup
+                This public view stays focused on shared planning data. Atlas, thread, and map setup
                 fields remain hidden for PoE2 workspaces.
               </p>
             </div>

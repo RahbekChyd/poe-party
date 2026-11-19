@@ -166,12 +166,14 @@ function getExactRareSearchCacheKey({ league, candidate }) {
   ].join('::')
 }
 
-function normalizeSlot(slot) {
+export function normalizeSlot(slot) {
   const raw = String(slot ?? '')
     .trim()
     .toLowerCase()
     .replace(/\s+/g, '')
   if (!raw) return null
+  const visceraPart = raw.replace(/^viscera/, '')
+  if (['head', 'body', 'arm', 'leg'].includes(visceraPart)) return visceraPart[0].toUpperCase() + visceraPart.slice(1)
   if (raw.includes('weapon2') || raw.includes('offhand')) return 'Offhand'
   if (raw.includes('weapon1') || raw === 'weapon') return 'Weapon'
   if (raw.includes('helmet') || raw.includes('helm')) return 'Helmet'
@@ -1071,8 +1073,9 @@ function toProfileItemSearchText(item) {
 
   for (const modListKey of ['implicitMods', 'explicitMods', 'craftedMods']) {
     for (const mod of Array.isArray(item[modListKey]) ? item[modListKey] : []) {
-      if (typeof mod === 'string' && mod.trim()) {
-        lines.push(mod.trim())
+      const description = typeof mod === 'string' ? mod : mod?.description
+      if (typeof description === 'string' && description.trim()) {
+        lines.push(description.trim())
       }
     }
   }
@@ -3131,6 +3134,7 @@ async function buildStructuredRareSearchBody(candidate, options = {}) {
         type_filters: {
           filters: {
             rarity: { option: 'nonunique' },
+            ...(['Head', 'Body', 'Arm', 'Leg'].includes(slot) ? { category: { option: `viscera.${slot.toLowerCase()}` } } : {}),
           },
         },
         ...(buildPriceFilter(options.maxPriceChaos) ?? {}),
@@ -3361,6 +3365,7 @@ function buildApproximateRecommendedRareSearchBody(candidate) {
         type_filters: {
           filters: {
             rarity: { option: 'nonunique' },
+            ...(['Head', 'Body', 'Arm', 'Leg'].includes(slot) ? { category: { option: `viscera.${slot.toLowerCase()}` } } : {}),
           },
         },
         ...(buildSocketFilters({
@@ -3593,7 +3598,7 @@ export async function searchConstrainedRareCandidates({
         (item) =>
           String(item?.rarity ?? '')
             .trim()
-            .toLowerCase() === 'rare',
+            .toLowerCase() === 'rare' || ['Head', 'Body', 'Arm', 'Leg'].includes(normalizeSlot(item?.slot)),
       )
       .filter((item) => {
         if (!Array.isArray(limitToSlots) || limitToSlots.length === 0) {

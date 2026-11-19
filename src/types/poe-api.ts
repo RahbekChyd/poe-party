@@ -17,6 +17,8 @@ export interface PoeCharacter {
   experience: number
   league: string
   current?: boolean
+  wickerman?: PoeItem[]
+  guardian?: PoeItem[]
   equipment?: PoeItem[]
   jewels?: PoeItem[]
   inventory?: PoeItem[]
@@ -42,7 +44,8 @@ export interface PoeItemJewelData {
   }
 }
 
-export type PoeFrameType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 8 | 9 | 10
+export type PoeFrameType = number
+export type PoeItemMod = string | { description: string; flags?: Record<string, boolean | undefined> }
 
 export interface PoeItemSocket {
   group: number
@@ -72,6 +75,7 @@ export interface PoeItem {
   itemLevel: number  // OAuth API
   ilvl?: number      // Legacy /character-window endpoint
   frameType: PoeFrameType
+  frameTypeId?: string
   icon: string
   socketedItems?: PoeItem[]
   stackSize?: number
@@ -83,14 +87,18 @@ export interface PoeItem {
   sockets?: PoeItemSocket[]
   properties?: PoeProperty[]
   requirements?: PoeProperty[]
-  implicitMods?: string[]
-  explicitMods?: string[]
+  implicitMods?: PoeItemMod[]
+  explicitMods?: PoeItemMod[]
   craftedMods?: string[]
   fracturedMods?: string[]
   enchantMods?: string[]
   veiledMods?: string[]
   scourgeMods?: string[]
   veiled?: boolean
+  doubleCorrupted?: boolean
+  unidentifiedTier?: number
+  builtInSupport?: string
+  monsterLevel?: number
   support?: boolean
   x?: number
   y?: number

@@ -1,3 +1,5 @@
+import { useStrategies } from './useStrategies'
+import { comparablePricing } from '../lib/snapshot-pricing'
 import { useMemo } from 'react'
 import { useGroupWealthHistory } from './useGroupWealthHistory'
 export interface StrategyHourlyEstimate {
@@ -10,6 +12,7 @@ export interface StrategyHourlyEstimate {
 }
 
 export function useStrategyHourlyEstimates(groupId: string | null) {
+  const { data: strategies } = useStrategies(groupId)
   const { data: history, isLoading } = useGroupWealthHistory(groupId)
 
   const data = useMemo(() => {
@@ -23,7 +26,17 @@ export function useStrategyHourlyEstimates(groupId: string | null) {
     for (let i = 1; i < sorted.length; i += 1) {
       const previous = sorted[i - 1]
       const current = sorted[i]
-      if (!current.strategy_id) continue
+      if (
+        !current.strategy_id ||
+        previous.strategy_id !== current.strategy_id ||
+        !comparablePricing([previous, current])
+      )
+        continue
+
+      const cutoff = strategies?.find(
+        (strategy) => strategy.id === current.strategy_id,
+      )?.setup_cutoff_at
+      if (!cutoff || new Date(previous.created_at).getTime() < new Date(cutoff).getTime()) continue
 
       const hours =
         (new Date(current.created_at).getTime() - new Date(previous.created_at).getTime()) /
@@ -50,7 +63,7 @@ export function useStrategyHourlyEstimates(groupId: string | null) {
     }
 
     return estimates
-  }, [history])
+  }, [history, strategies])
 
   return { data, isLoading }
 }

@@ -36,6 +36,18 @@ PoE Party is built for Path of Exile players who coordinate groups, track shared
 - [PoE service listings for carries and rotas](https://poe-party.com/tools/poe-service-listings): Browse and publish Path of Exile service listings for boss carries, map carries, 5-way hosts, gold rotas, pricing, availability, and whisper-ready contact.
 - [PoE gear upgrade planner](https://poe-party.com/tools/poe-gear-upgrade-planner): Plan Path of Exile gear upgrades with group suggestions, item targets, trade links, recommendation notes, and Path of Building informed analysis.
 
+## 3.30 Strategy Pages
+
+- [PoE 3.30 league starter strategies](https://poe-party.com/poe-strategies/poe-3-30-league-starters): Track Path of Exile 3.30 league starter strategy sources, early mapping readiness, party roles, and launch planning notes in PoE Party.
+- [PoE 3.30 league starter build sources](https://poe-party.com/poe-strategies/poe-3-30-build-source-roundup): Collect external Path of Exile 3.30 league starter build sources in PoE Party while keeping full build guides attributed to their creators.
+- [PoE 3.30 atlas completion strategy](https://poe-party.com/poe-strategies/poe-3-30-atlas-completion): Plan Path of Exile 3.30 atlas completion with early map sustain, low investment notes, and strategy-linked progress tracking.
+- [PoE 3.30 alch and go farming strategy](https://poe-party.com/poe-strategies/poe-3-30-alch-and-go): Track a Path of Exile 3.30 alch and go farming strategy with low map cost, simple setup notes, and stash-snapshot results.
+- [PoE 3.30 midgame currency farming strategy](https://poe-party.com/poe-strategies/poe-3-30-midgame-currency): Plan Path of Exile 3.30 midgame currency farming with mechanic notes, map cost, and benchmarkable strategy snapshots.
+- [PoE 3.30 high end farming strategy](https://poe-party.com/poe-strategies/poe-3-30-high-end-farming): Track Path of Exile 3.30 high-end farming with map investment setup, map cost, atlas notes, and benchmark snapshots.
+- [PoE 3.30 bossing progression strategy](https://poe-party.com/poe-strategies/poe-3-30-bossing-progression): Plan Path of Exile 3.30 bossing progression with invitation costs, fragment notes, service context, and snapshot tracking.
+- [PoE 3.30 party strategies](https://poe-party.com/poe-strategies/poe-3-30-party-strategies): Plan Path of Exile 3.30 party strategies with group roles, shared strategy notes, public subscriptions, and economy snapshots.
+- [PoE 3.30 duo league start strategy](https://poe-party.com/poe-strategies/poe-3-30-duo-start): Plan a Path of Exile 3.30 duo league start with complementary roles, atlas progress, shared upgrades, and strategy tracking.
+
 ## 3.29 Strategy Pages
 
 - [PoE 3.29 league starter strategies](https://poe-party.com/poe-strategies/poe-3-29-league-starters): Track Path of Exile 3.29 league starter strategy sources, early mapping readiness, party roles, and launch planning notes in PoE Party.
@@ -52,7 +64,7 @@ PoE Party is built for Path of Exile players who coordinate groups, track shared
 
 - [PoE Harvest farming strategy tracker](https://poe-party.com/poe-strategies/harvest-farming): Track a Path of Exile Harvest farming strategy with setup notes, map costs, party roles, snapshot history, and currency per hour context.
 - [PoE Essence farming strategy tracker](https://poe-party.com/poe-strategies/essence-farming): Plan and track a Path of Exile Essence farming strategy with map cost, difficulty, stash snapshot outcomes, and public strategy discovery.
-- [PoE Strongbox farming strategy tracker](https://poe-party.com/poe-strategies/strongbox-farming): Track Path of Exile Strongbox farming with investment notes, map cost context, scarab planning where supported, and strategy-linked results.
+- [PoE Strongbox farming strategy tracker](https://poe-party.com/poe-strategies/strongbox-farming): Track Path of Exile Strongbox farming with investment notes, map cost context, Thread planning where supported, and strategy-linked results.
 - [PoE boss rush strategy tracker](https://poe-party.com/poe-strategies/boss-rush): Plan and track a Path of Exile boss rush strategy with public strategy sharing, map investment, service context, and profit snapshots.
 - [PoE Ultimatum farming strategy tracker](https://poe-party.com/poe-strategies/ultimatum-farming): Track a Path of Exile Ultimatum farming strategy with setup notes, party suitability, snapshot outcomes, and currency per hour context.
 

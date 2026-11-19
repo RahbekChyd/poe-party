@@ -1,7 +1,9 @@
+import type { SnapshotPricingSummary } from '../lib/snapshot-pricing'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { queryKeys } from '../lib/queryKeys'
 export interface LatestSnapshot {
+  pricing_summary: SnapshotPricingSummary | null
   id: string
   user_id: string
   group_id: string
@@ -42,7 +44,7 @@ export function useLatestSnapshots(groupId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('latest_snapshots')
-        .select('id, user_id, group_id, tab_count, item_count, completed_at')
+        .select('id, user_id, group_id, tab_count, item_count, completed_at, pricing_summary')
         .eq('group_id', groupId!)
       if (error) throw error
       return data as LatestSnapshot[]

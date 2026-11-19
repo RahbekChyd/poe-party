@@ -1,3 +1,4 @@
+import { readAllPages } from '../lib/supabase-pagination'
 import { useQuery } from '@tanstack/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
@@ -84,14 +85,16 @@ export function useGroupSnapshotItems(groupId: string | null) {
     queryKey: queryKeys.snapshots.groupItems(groupId),
     enabled: !!groupId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('latest_stash_items')
-        .select(
-          'id, name, type_line, base_type, frame_type, ilvl, icon_url, stack_size, user_id, tab_name, tab_type, colour_r, colour_g, colour_b',
-        )
-        .eq('group_id', groupId!)
-
-      if (error) throw error
+      const data = await readAllPages((from, to) =>
+        supabase
+          .from('latest_stash_items')
+          .select(
+            'id, name, type_line, base_type, frame_type, ilvl, icon_url, stack_size, user_id, tab_name, tab_type, colour_r, colour_g, colour_b, price_chaos, is_excluded, excluded_reason',
+          )
+          .eq('group_id', groupId!)
+          .order('id')
+          .range(from, to),
+      )
 
       return (data ?? []).map((item) => ({
         ...toSnapshotItem(item as RawItem),
@@ -143,15 +146,17 @@ export function useSnapshotItems(
 
         if (tabMap.size === 0) return []
 
-        const { data: items, error: itemsError } = await supabase
-          .from('stash_items')
-          .select(
-            'id, tab_id, name, type_line, base_type, frame_type, ilvl, icon_url, stack_size, price_chaos, is_excluded, excluded_reason',
-          )
-          .in('tab_id', [...tabMap.keys()])
-          .eq('user_id', userId!)
-
-        if (itemsError) throw itemsError
+        const items = await readAllPages((from, to) =>
+          supabase
+            .from('stash_items')
+            .select(
+              'id, tab_id, name, type_line, base_type, frame_type, ilvl, icon_url, stack_size, price_chaos, is_excluded, excluded_reason',
+            )
+            .in('tab_id', [...tabMap.keys()])
+            .eq('user_id', userId!)
+            .order('id')
+            .range(from, to),
+        )
 
         return (items ?? []).map((item) => {
           const tab = tabMap.get(item.tab_id as string)
@@ -160,15 +165,17 @@ export function useSnapshotItems(
       }
 
       // Latest snapshot: use the view
-      const { data, error } = await supabase
-        .from('latest_stash_items')
-        .select(
-          'id, name, type_line, base_type, frame_type, ilvl, icon_url, stack_size, tab_name, tab_type, colour_r, colour_g, colour_b, price_chaos, is_excluded, excluded_reason',
-        )
-        .eq('group_id', groupId!)
-        .eq('user_id', userId!)
-
-      if (error) throw error
+      const data = await readAllPages((from, to) =>
+        supabase
+          .from('latest_stash_items')
+          .select(
+            'id, name, type_line, base_type, frame_type, ilvl, icon_url, stack_size, tab_name, tab_type, colour_r, colour_g, colour_b, price_chaos, is_excluded, excluded_reason',
+          )
+          .eq('group_id', groupId!)
+          .eq('user_id', userId!)
+          .order('id')
+          .range(from, to),
+      )
 
       return (data ?? []).map((item) => toSnapshotItem(item as RawItem))
     },

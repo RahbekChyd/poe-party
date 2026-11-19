@@ -65,7 +65,7 @@ export function useStashSnapshotFlow() {
   const runOAuthSnapshot = async (groupId: string, league: string, tabIds: string[]) => {
     const userId = await getAuthenticatedUserId()
 
-    const { error } = await supabase.functions.invoke('poe-snapshot', {
+    const { data, error } = await supabase.functions.invoke('poe-snapshot', {
       body: {
         group_id: groupId,
         user_id: userId,
@@ -79,6 +79,10 @@ export function useStashSnapshotFlow() {
     queryClient.invalidateQueries({ queryKey: [...queryKeys.economy(groupId)] })
     queryClient.invalidateQueries({ queryKey: [...queryKeys.snapshots.groupHistory(groupId)] })
     queryClient.invalidateQueries({ queryKey: [...queryKeys.characters.active(groupId)] })
+    queryClient.invalidateQueries({ queryKey: queryKeys.snapshots.groupItems(groupId) })
+    queryClient.invalidateQueries({ queryKey: ['snapshot-items', groupId] })
+    queryClient.invalidateQueries({ queryKey: ['snapshot-history', groupId] })
+    return typeof data?.warning === 'string' ? data.warning : null
   }
 
   const triggerSnapshot = async (groupId: string, league: string) => {
@@ -133,7 +137,7 @@ export function useStashSnapshotFlow() {
         tabsTotal: selectedTabs.length,
         message: `Syncing ${selectedTabs.length} tabs...`,
       })
-      await runOAuthSnapshot(
+      const warning = await runOAuthSnapshot(
         pendingGroupId,
         pendingLeague,
         selectedTabs.map((tab) => tab.id),
@@ -142,7 +146,7 @@ export function useStashSnapshotFlow() {
         phase: 'done',
         tabsCurrent: selectedTabs.length,
         tabsTotal: selectedTabs.length,
-        message: `Synced ${selectedTabs.length} tabs`,
+        message: warning ?? `Synced ${selectedTabs.length} tabs`,
       })
       resetTimer()
       trackProductEvent('activation_stash_snapshot_completed', {
@@ -179,12 +183,12 @@ export function useStashSnapshotFlow() {
         tabsTotal: selectedTabIds.length,
         message: `Syncing ${selectedTabIds.length} tabs...`,
       })
-      await runOAuthSnapshot(groupId, league, selectedTabIds)
+      const warning = await runOAuthSnapshot(groupId, league, selectedTabIds)
       setProgress({
         phase: 'done',
         tabsCurrent: selectedTabIds.length,
         tabsTotal: selectedTabIds.length,
-        message: `Synced ${selectedTabIds.length} tabs`,
+        message: warning ?? `Synced ${selectedTabIds.length} tabs`,
       })
       resetTimer()
       trackProductEvent('activation_stash_snapshot_completed', {

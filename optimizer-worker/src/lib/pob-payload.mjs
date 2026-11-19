@@ -32,6 +32,7 @@ const OVERLAY_SLOT_IDS = new Set([
   'Flask',
   'BrequelGrafts',
   'BrequelGrafts2',
+  'VisceraHead', 'VisceraBody', 'VisceraArm', 'VisceraLeg',
 ])
 
 function normalizeStageSlot(slot) {
@@ -42,10 +43,14 @@ function normalizeStageSlot(slot) {
   )
 }
 
-function normalizeProfileSlot(slot) {
+export function normalizeProfileSlot(slot) {
   const value = String(slot ?? '').trim()
   if (!value) return null
   switch (value) {
+    case 'VisceraHead': return 'Head'
+    case 'VisceraBody': return 'Body'
+    case 'VisceraArm': return 'Arm'
+    case 'VisceraLeg': return 'Leg'
     case 'Helm':
       return 'Helmet'
     case 'BodyArmour':
@@ -124,17 +129,26 @@ function toOwnedCandidatePayload(item) {
   }
 }
 
-function cloneOverlayImportItem(item) {
+export function normalizePobApiItem(item) {
+  return {
+    ...item,
+    ilvl: item.ilvl ?? item.itemLevel ?? 0,
+    socketedItems: asArray(item.socketedItems).map(normalizePobApiItem),
+    sockets: asArray(item.sockets).map((socket) => ({ ...socket, sColour: socket.sColour ?? socket.color ?? ({ S: 'R', D: 'G', I: 'B', G: 'W', A: 'A', DV: 'DV' })[socket.attr] })),
+  }
+}
+
+export function cloneOverlayImportItem(item) {
   if (!item || typeof item !== 'object' || Array.isArray(item)) return null
   const slot = String(item.inventoryId ?? '').trim()
   if (!slot || !OVERLAY_SLOT_IDS.has(slot)) return null
 
-  const clone = { ...item }
+  const clone = normalizePobApiItem(item)
   delete clone.socketedItems
   return clone
 }
 
-function collectOverlayImportItems(profile) {
+export function collectOverlayImportItems(profile) {
   const rawCharacter = asRecord(profile?.raw_character)
   const primaryItems = asArray(rawCharacter.items)
   const candidateArrays =
@@ -144,7 +158,7 @@ function collectOverlayImportItems(profile) {
 
   const deduped = new Map()
 
-  for (const items of candidateArrays) {
+  for (const items of [...candidateArrays, asArray(rawCharacter.wickerman)]) {
     for (const item of items) {
       const overlayItem = cloneOverlayImportItem(item)
       if (!overlayItem) continue
@@ -160,43 +174,61 @@ function collectOverlayImportItems(profile) {
   return [...deduped.values()]
 }
 
-function buildCurrentImportPayload(profile) {
-  const rawCharacter = asRecord(profile?.raw_character)
-  const passiveTree = asRecord(profile?.passive_tree)
-  const hasRawCharacter = Object.keys(rawCharacter).length > 0
-  const hasPassiveTree = Object.keys(passiveTree).length > 0
-  const rawCharacterImport = hasRawCharacter
-    ? {
-        ...rawCharacter,
-        character: {
-          ...(asRecord(rawCharacter.character)),
-          name: rawCharacter.character?.name ?? profile?.character_name ?? '',
-          class: rawCharacter.character?.class ?? profile?.class ?? profile?.ascendancy_class ?? '',
-          league: rawCharacter.character?.league ?? profile?.league ?? '',
-          level: rawCharacter.character?.level ?? profile?.level ?? 1,
-        },
-      }
-    : null
-  const passiveTreeImport = hasPassiveTree
-    ? {
-        character: passiveTree.character ?? passiveTree.classId ?? null,
-        ascendancy: passiveTree.ascendancy ?? passiveTree.ascendancyId ?? null,
-        alternate_ascendancy: passiveTree.alternate_ascendancy ?? passiveTree.alternateAscendancy ?? 0,
-        hashes: asArray(passiveTree.hashes),
-        hashes_ex: asArray(passiveTree.hashes_ex ?? passiveTree.hashesEx),
-        jewel_data: asRecord(passiveTree.jewel_data ?? passiveTree.jewelData),
-        mastery_effects: passiveTree.mastery_effects ?? passiveTree.masteryEffects ?? {},
-        skill_overrides: passiveTree.skill_overrides ?? passiveTree.skillOverrides ?? {},
-        items: asArray(passiveTree.items),
-      }
-    : null
-
-  return {
-    raw_character: rawCharacterImport,
-    passive_tree: hasPassiveTree ? passiveTree : null,
-    raw_character_json: rawCharacterImport ? JSON.stringify(rawCharacterImport) : null,
-    passive_tree_json: passiveTreeImport ? JSON.stringify(passiveTreeImport) : null,
+/** Flatten OAuth and legacy character-window responses for PoB 2.68+. */
+export function buildCurrentImportPayload(profile) {
+  const raw = asRecord(profile?.raw_character)
+  if (Object.keys(raw).length === 0) return { character: null, completeness: { equipment: false, passives: false, wickerman: false } }
+  const identity = asRecord(raw.character)
+  const items = asArray(raw.items)
+  const legacyPassives = asRecord(raw.passives ?? raw.passive_tree ?? profile?.passive_tree)
+  const isEquipped = (item) => OVERLAY_SLOT_IDS.has(item?.inventoryId)
+  const wickerman = asArray(raw.wickerman).length ? asArray(raw.wickerman) : items.filter((item) => String(item?.inventoryId ?? '').startsWith('Viscera'))
+  const character = {
+    ...identity, ...raw,
+    name: raw.name ?? identity.name ?? profile?.character_name ?? '',
+    class: raw.class ?? identity.class ?? profile?.class ?? '',
+    league: raw.league ?? identity.league ?? profile?.league ?? '',
+    level: raw.level ?? identity.level ?? profile?.level ?? 1,
+    equipment: Array.isArray(raw.equipment) ? raw.equipment : items.filter(isEquipped).filter((item) => !String(item.inventoryId).startsWith('Viscera')),
+    wickerman,
+    guardian: asArray(raw.guardian),
+    jewels: Array.isArray(raw.jewels) ? raw.jewels : [...items, ...asArray(legacyPassives.items)].filter((item) => item?.inventoryId === 'PassiveJewels'),
+    passives: {
+      ...legacyPassives,
+      hashes: asArray(legacyPassives.hashes),
+      hashes_ex: asArray(legacyPassives.hashes_ex ?? legacyPassives.hashesEx),
+      mastery_effects: asRecord(legacyPassives.mastery_effects ?? legacyPassives.masteryEffects),
+      jewel_data: asRecord(legacyPassives.jewel_data ?? legacyPassives.jewelData),
+      skill_overrides: asRecord(legacyPassives.skill_overrides ?? legacyPassives.skillOverrides),
+    },
   }
+  character.equipment = character.equipment.map(normalizePobApiItem)
+  character.wickerman = character.wickerman.map(normalizePobApiItem)
+  character.guardian = character.guardian.map(normalizePobApiItem)
+  character.jewels = character.jewels.map(normalizePobApiItem)
+  const hasOAuthEquipment = Array.isArray(raw.equipment)
+  const completeness = {
+    equipment: hasOAuthEquipment || Array.isArray(raw.items),
+    passives: Object.keys(legacyPassives).length > 0,
+    wickerman: hasOAuthEquipment || Array.isArray(raw.wickerman) || wickerman.length > 0,
+  }
+  const unsupportedFlags = [...character.equipment, ...character.wickerman, ...character.jewels].flatMap((item) => [...asArray(item.implicitMods), ...asArray(item.explicitMods)]).some((mod) => mod?.flags?.rareonly === true) ? ['rareonly'] : []
+  return { character, completeness, unsupported_flags: unsupportedFlags }
+}
+
+/** Use stage base identity to constrain stash parts; PoB validates slot compatibility. */
+export function collectOwnedVisceraCandidates(ownedItems, stageItems) {
+  return asArray(stageItems).flatMap((stage) => {
+    const slot = normalizeStageSlot(stage.slot)
+    if (!['Head', 'Body', 'Arm', 'Leg'].includes(slot)) return []
+    const baseType = stage.type_line ?? stage.typeLine
+    if (!baseType) return []
+    return asArray(ownedItems).filter((item) => !item.is_excluded && (item.base_type ?? item.type_line) === baseType && item.pob_item_text).map((item) => ({
+      slot, baseType, rawText: item.pob_item_text, itemName: item.display_name ?? item.name,
+      chaosValue: 0, candidateSource: 'owned', ownedItemId: item.id, ownerUserId: item.user_id,
+      iconUrl: item.icon_url,
+    }))
+  })
 }
 
 export function buildPobRuntimePayload({
@@ -237,7 +269,8 @@ export function buildPobRuntimePayload({
   }))
 
   return {
-    schema_version: 1,
+    schema_version: 2,
+    engine_contract: 'pob-2.68.1-adapter-1',
     generated_at: new Date().toISOString(),
     run: {
       id: run.id,
@@ -320,7 +353,10 @@ export function buildPobRuntimePayload({
       price_source: item?.priceSource ?? null,
       league,
     })),
-    rare_candidates: asArray(marketRares).map((item) => ({
+    rare_candidates: [...collectOwnedVisceraCandidates(ownedCandidates, selectedItemSetItems), ...asArray(marketRares)].map((item) => ({
+      candidate_source: item?.candidateSource ?? 'market',
+      owned_item_id: item?.ownedItemId ?? null,
+      owner_user_id: item?.ownerUserId ?? null,
       slot: item?.slot ?? null,
       name: item?.itemName ?? null,
       base_type: item?.baseType ?? null,

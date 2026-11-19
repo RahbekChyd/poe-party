@@ -38,7 +38,6 @@ import { PreviewNotice, PreviewPageIntro } from './PreviewShared'
 const GUEST_RUN_TOKEN_STORAGE_KEY = 'poe-party:guest-analysis-run-token:v1'
 const ALL_GUEST_LEAGUES_KEY = '__all__'
 const UNKNOWN_GUEST_LEAGUE_KEY = '__unknown__'
-const DEFAULT_DIVINE_PRICE = 200
 
 function readStoredGuestRunToken(): string | null {
   if (typeof window === 'undefined') return null
@@ -533,7 +532,7 @@ export function GuestAnalysisPage() {
   const activePlans = statusData?.plans ?? []
   const activeLeague = activeRun?.character_league ?? selectedCharacter?.league ?? null
   const { data: ninjaData } = useNinjaPrices(activeLeague, 'poe1')
-  const divinePrice = ninjaData?.divinePrice ?? DEFAULT_DIVINE_PRICE
+  const divinePrice = ninjaData?.divinePrice ?? 0
   const leagueFilterOptions = useMemo(() => {
     const leagueTitles = new Map<string, string>()
     for (const character of characters) {

@@ -519,6 +519,8 @@ export async function analyzeWithPob({
     partialReason: typeof result.partialReason === 'string' ? result.partialReason : null,
     summary: {
       engine: 'pob',
+      engine_contract: 'pob-2.68.1-adapter-1',
+      pob_revision: 'a41fec6c20f822a658ae5df1273e8c69d5969bac',
       runtime_command: resolvedRuntime.command,
       runtime_command_source: resolvedRuntime.source,
       runtime_command_warning: resolvedRuntime.warning,

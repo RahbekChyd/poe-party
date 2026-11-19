@@ -53,8 +53,12 @@ function getGemTextColorClassByName(gemName: string): string {
   }
 }
 
-function normalizeModifierLines(lines: string[] | undefined): string[] {
-  return (lines ?? []).filter((line) => typeof line === 'string' && line.trim().length > 0)
+function normalizeModifierLines(lines: unknown): string[] {
+  if (!Array.isArray(lines)) return []
+  return lines.flatMap((line) => {
+    const value = typeof line === 'string' ? line : line?.description
+    return typeof value === 'string' ? value.split(/\r?\n/).map((text) => text.trim()).filter(Boolean) : []
+  })
 }
 
 function getVeiledModLabel(mod: string): string {

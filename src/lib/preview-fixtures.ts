@@ -61,7 +61,7 @@ export const previewMembers: PreviewMember[] = [
     wealth_chaos: 6480,
     tabs: [
       { name: 'Currency', value: 2410 },
-      { name: 'Scarabs', value: 1950 },
+      { name: 'Threads', value: 1950 },
       { name: 'Fragments', value: 2120 },
     ],
     focus: '',

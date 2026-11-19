@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { queryKeys } from '../lib/queryKeys'
 import type { PoeGame } from '../lib/poe-game'
+import { normalizeThreads, type Thread } from '../lib/strategy-threads'
 import { normalizeScarabs, type Scarab } from '../lib/strategy-scarabs'
 import type { MapRequirements } from './useStrategies'
 import {
@@ -21,6 +22,7 @@ export interface GuestPublicStrategyPreview {
   created_at: string
   atlas_tree_url: string | null
   scarabs: Scarab[]
+  threads: Thread[]
   map_trade_link: string | null
   map_requirements: MapRequirements
   map_cost: number | null
@@ -75,6 +77,7 @@ function normalizeGuestStrategy(row: Record<string, unknown>): GuestPublicStrate
     created_at: String(row.created_at ?? new Date(0).toISOString()),
     atlas_tree_url: typeof row.atlas_tree_url === 'string' ? row.atlas_tree_url : null,
     scarabs: normalizeScarabs(row.scarabs),
+    threads: normalizeThreads(row.threads),
     map_trade_link: typeof row.map_trade_link === 'string' ? row.map_trade_link : null,
     map_requirements:
       row.map_requirements && typeof row.map_requirements === 'object'

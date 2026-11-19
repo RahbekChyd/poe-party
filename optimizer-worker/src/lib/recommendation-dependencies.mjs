@@ -80,6 +80,10 @@ function normalizeProfileSlot(slot) {
   if (!value) return null
 
   switch (value) {
+    case 'VisceraHead': return 'Head'
+    case 'VisceraBody': return 'Body'
+    case 'VisceraArm': return 'Arm'
+    case 'VisceraLeg': return 'Leg'
     case 'Helm':
       return 'Helmet'
     case 'BodyArmour':

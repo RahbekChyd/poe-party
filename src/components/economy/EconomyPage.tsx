@@ -1,3 +1,5 @@
+import { useLatestSnapshots } from '../../hooks/useSnapshots'
+import { comparablePricing } from '../../lib/snapshot-pricing'
 import { useMemo, useState } from 'react'
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
@@ -64,6 +66,7 @@ function Poe1EconomyPage() {
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
   const { data: members } = useGroupMembers(activeGroupId)
   const { data: economy, isLoading } = useGroupEconomy(activeGroupId)
+  const { data: latestSnapshots } = useLatestSnapshots(activeGroupId)
   const { data: groupHistory } = useGroupWealthHistory(activeGroupId)
   const { data: characters } = useActiveCharacters(activeGroupId)
   const { data: myGroups } = useMyGroups()
@@ -84,7 +87,7 @@ function Poe1EconomyPage() {
 
   // Live divine price from poe.ninja — 30 min stale time
   const { data: ninjaData } = useNinjaPrices(activeLeague)
-  const divinePrice = ninjaData?.divinePrice ?? 200
+  const divinePrice = ninjaData?.divinePrice ?? null
 
   const handleSnapshot = () => {
     if (!activeGroupId || !activeLeague) return
@@ -93,14 +96,14 @@ function Poe1EconomyPage() {
 
   // Format a chaos value according to the current display mode
   const fmt = (chaos: number): string => {
-    if (display === 'divine') {
+    if (display === 'divine' && divinePrice != null && divinePrice > 0) {
       return `${(chaos / divinePrice).toFixed(1)} div`
     }
     return `${Math.round(chaos).toLocaleString()}c`
   }
 
   const fmtRate = (chaos: number): string => {
-    if (display === 'divine') {
+    if (display === 'divine' && divinePrice != null && divinePrice > 0) {
       return `${(chaos / divinePrice).toFixed(1)} div/hr`
     }
     return `${Math.round(chaos).toLocaleString()} chaos/hr`
@@ -120,7 +123,9 @@ function Poe1EconomyPage() {
     () => filterHistoryByRange(groupHistory ?? [], groupHistoryRange, (point) => point.created_at),
     [groupHistory, groupHistoryRange],
   )
-  const groupChaosPerHour = calculateChaosPerHour(
+  const valuationUnavailable = latestSnapshots?.some((snapshot) => snapshot.pricing_summary?.status === 'unavailable') ?? false
+  const valuationPartial = latestSnapshots?.some((snapshot) => snapshot.pricing_summary?.status === 'partial') ?? false
+  const groupChaosPerHour = valuationUnavailable || !comparablePricing(visibleGroupHistory) ? null : calculateChaosPerHour(
     visibleGroupHistory,
     (point) => point.created_at,
     (point) => point.total_wealth_chaos,
@@ -133,7 +138,7 @@ function Poe1EconomyPage() {
         : groupChaosPerHour < 0
           ? 'text-danger'
           : 'text-default-400'
-  const groupTrend = calculateTrendStats(visibleGroupHistory, (point) => point.total_wealth_chaos)
+  const groupTrend = valuationUnavailable || !comparablePricing(visibleGroupHistory) ? null : calculateTrendStats(visibleGroupHistory, (point) => point.total_wealth_chaos)
   const groupTrendColor =
     groupTrend == null
       ? 'text-default-400'
@@ -341,6 +346,9 @@ function Poe1EconomyPage() {
           </DashboardEmptyState>
         ) : (
           <>
+            {valuationPartial && (
+              <p role="status" className="text-warning text-sm">Partial pricing: this subtotal excludes items without available price estimates.</p>
+            )}
             {/* Group total */}
             <Card>
               <button
@@ -348,22 +356,22 @@ function Poe1EconomyPage() {
                 className="w-full text-left"
                 onClick={() => navigate({ to: '/dashboard/economy/group' })}
               >
-                <Card.Content className="flex flex-row items-center gap-4 p-5">
+                <Card.Content className="flex flex-row flex-wrap items-center gap-4 p-5">
                   <div className="bg-success/15 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
                     <TrendingUp size={20} className="text-success" />
                   </div>
                   <div>
                     <p className="text-default-400 text-xs tracking-wider uppercase">
-                      Total Group Wealth
+                      {valuationPartial ? 'Priced subtotal' : 'Total Group Wealth'}
                     </p>
-                    <p className="text-foreground text-2xl font-bold">{fmt(totalChaos)}</p>
+                    <p className="text-foreground text-2xl font-bold">{valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}</p>
                   </div>
-                  <div className="ml-auto flex items-center gap-4">
+                  <div className="flex w-full items-center justify-between gap-4 sm:ml-auto sm:w-auto">
                     <div className="text-right">
                       <p className="text-default-400 text-xs">
                         {sorted.length} member{sorted.length !== 1 ? 's' : ''} synced
                       </p>
-                      <p className="text-default-500 text-xs">1 div = {divinePrice.toFixed(0)}c</p>
+                      <p className="text-default-500 text-xs">{divinePrice == null ? 'Divine conversion unavailable' : `1 div = ${divinePrice.toFixed(0)}c`}</p>
                     </div>
                     <span className="text-default-600 inline-flex h-8 items-center rounded-md px-3 text-sm">
                       Details

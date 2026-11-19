@@ -16,9 +16,9 @@ This document tracks what the current app supports for each game after the dual-
 | Stash snapshots | `poe1-only` | Snapshot creation, scheduling, and stash sync are blocked for PoE2 because official PoE2 stash and account APIs are not available in the same way. |
 | Group economy and wealth history | `poe1-only` | Group stash valuation, wealth history, tab pricing, and stash-based totals stay unchanged for PoE1. |
 | Market overview | `both` | PoE1 keeps existing economy flows and PoE2 gets a market-only overview backed by game-aware market adapters. |
-| poe.ninja integrations | `both` | Market endpoints are game-aware; PoE1-only item and scarab flows are disabled for PoE2 where the data shape does not map cleanly. |
+| poe.ninja integrations | `both` | Market endpoints are game-aware; PoE1-only item and Thread flows are disabled for PoE2 where the data shape does not map cleanly. |
 | Strategy basics | `both` | Strategy name, description, difficulty, visibility, subscriptions, active-strategy selection, and shared notes work in both games. |
-| Atlas, scarab, and map strategy planning | `poe1-only` | Atlas tree URLs, scarab planning, and map-cost-specific planning stay hidden for PoE2 workspaces. |
+| Atlas, Thread, and map strategy planning | `poe1-only` | Atlas tree URLs, Thread planning (with saved Scarabs retained as legacy references), and map-cost-specific planning stay hidden for PoE2 workspaces. |
 | Public strategy discovery and subscriptions | `both` | Public listings, previews, and subscriptions are scoped by both `game` and `league`. |
 | Public character and group directory | `both` | Search and detail flows are scoped by both `game` and `league`, preventing PoE1 and PoE2 bleed-through. |
 | Gear suggestions | `both` | Shared collaboration around manual gear suggestions remains available in both games. |

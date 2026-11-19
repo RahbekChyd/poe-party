@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { queryKeys } from '../lib/queryKeys'
+import { normalizeThreads, type Thread } from '../lib/strategy-threads'
 import { normalizeScarabs, type Scarab } from '../lib/strategy-scarabs'
 import {
   normalizeStrategyContentMetadata,
@@ -9,6 +10,8 @@ import {
 import { trackProductEvent } from '../lib/analytics'
 
 export interface MapRequirements {
+  atlas_drops?: number | null
+  more_threads?: number | null
   item_quantity?: number | null
   item_rarity?: number | null
   pack_size?: number | null
@@ -21,6 +24,7 @@ export type StrategyVisibility = 'group_only' | 'public'
 export type StrategySubscriptionState = 'live' | 'frozen' | null
 
 export interface Strategy {
+  setup_cutoff_at: string | null
   id: string
   group_id: string
   name: string
@@ -32,6 +36,7 @@ export interface Strategy {
   created_at: string
   atlas_tree_url: string | null
   scarabs: Scarab[]
+  threads: Thread[]
   map_trade_link: string | null
   map_requirements: MapRequirements
   map_cost: number | null
@@ -58,6 +63,7 @@ export interface PublicStrategy {
   created_at: string
   atlas_tree_url: string | null
   scarabs: Scarab[]
+  threads: Thread[]
   map_trade_link: string | null
   map_requirements: MapRequirements
   map_cost: number | null
@@ -72,7 +78,9 @@ function normalizeStrategy(row: Record<string, unknown>): Strategy {
   const strategy = row as unknown as Strategy
   return {
     ...strategy,
+    setup_cutoff_at: typeof row.setup_cutoff_at === 'string' ? row.setup_cutoff_at : null,
     scarabs: normalizeScarabs(row.scarabs),
+    threads: normalizeThreads(row.threads),
     map_requirements:
       row.map_requirements && typeof row.map_requirements === 'object'
         ? (row.map_requirements as MapRequirements)
@@ -95,6 +103,7 @@ function normalizePublicStrategy(row: Record<string, unknown>): PublicStrategy {
     created_at: String(row.created_at ?? new Date(0).toISOString()),
     atlas_tree_url: typeof row.atlas_tree_url === 'string' ? row.atlas_tree_url : null,
     scarabs: normalizeScarabs(row.scarabs),
+    threads: normalizeThreads(row.threads),
     map_trade_link: typeof row.map_trade_link === 'string' ? row.map_trade_link : null,
     map_requirements:
       row.map_requirements && typeof row.map_requirements === 'object'
@@ -127,7 +136,7 @@ export function useStrategies(groupId: string | null) {
         .select(
           `
           id, group_id, name, description, colour, difficulty, is_active, created_by, created_at,
-          atlas_tree_url, scarabs, map_trade_link, map_requirements, map_cost, admin_locked,
+          atlas_tree_url, scarabs, threads, setup_cutoff_at, map_trade_link, map_requirements, map_cost, admin_locked,
           visibility, source_strategy_id, source_group_id, source_group_name, subscription_state, last_synced_from_source_at,
           content_slug, content_metadata
         `,
@@ -152,7 +161,7 @@ export function useStrategy(strategyId: string | undefined) {
         .select(
           `
           id, group_id, name, description, colour, difficulty, is_active, created_by, created_at,
-          atlas_tree_url, scarabs, map_trade_link, map_requirements, map_cost, admin_locked,
+          atlas_tree_url, scarabs, threads, setup_cutoff_at, map_trade_link, map_requirements, map_cost, admin_locked,
           visibility, source_strategy_id, source_group_id, source_group_name, subscription_state, last_synced_from_source_at,
           content_slug, content_metadata
         `,
@@ -271,7 +280,8 @@ export function useUpdateStrategy() {
       colour: string
       difficulty: 'easy' | 'normal' | 'hard'
       atlas_tree_url?: string | null
-      scarabs: Scarab[]
+      scarabs?: Scarab[]
+      threads: Thread[]
       map_trade_link?: string | null
       map_requirements: MapRequirements
       map_cost?: number | null

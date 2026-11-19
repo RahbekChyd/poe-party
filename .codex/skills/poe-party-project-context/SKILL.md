@@ -43,6 +43,8 @@ launcher form: `npm exec --yes pnpm@10.33.2 -- <script>`.
 
 Use `pnpm generate` after changing TanStack route files if route generation is not handled by the dev/build flow.
 
+Run repository-wide lint after Vite build/config generation finishes. Concurrent runs can make ESLint scan a temporary Vite config module that disappears before it is read.
+
 ## Environment Files
 
 - Keep root `.env.local` browser-safe and limited to `VITE_*` values.

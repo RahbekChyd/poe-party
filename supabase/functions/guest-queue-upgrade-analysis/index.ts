@@ -27,7 +27,7 @@ type GuestQueueBody = {
   config_set_id?: unknown
 }
 
-const GUEST_UPGRADE_ANALYSIS_INPUT_VERSION = 1
+const GUEST_UPGRADE_ANALYSIS_INPUT_VERSION = 2
 const GUEST_RUN_EXPIRES_DAYS = 7
 const GUEST_ACCOUNT_DAILY_LIMIT = 1
 const GUEST_IP_DAILY_LIMIT = 20
@@ -165,6 +165,7 @@ Deno.serve(async (req) => {
     const inputHash = await sha256Hex(
       JSON.stringify({
         version: GUEST_UPGRADE_ANALYSIS_INPUT_VERSION,
+        engine_contract: 'pob-2.68.1-adapter-1',
         normalized_account_name: normalizedAccountName,
         character_name: selectedCharacter.name,
         character_league: profile.league,
