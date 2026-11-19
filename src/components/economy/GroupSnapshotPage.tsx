@@ -1,7 +1,6 @@
 import { SnapshotPricingNotice } from './SnapshotPricingNotice'
 import { storedSnapshotPrice } from '../../lib/snapshot-pricing'
 import { useState, useMemo } from 'react'
-import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
 import { Dropdown } from '@heroui/react/dropdown'
@@ -26,6 +25,7 @@ import { contrastColor, getAvatarColor } from '../../lib/utils'
 import { useCurrencyStore } from '../../store/currency-store'
 import { useGroupStore } from '../../store/group-store'
 import { KpiCardsSkeleton, ItemTableSkeleton } from '../layout/Skeletons'
+import { QueryStatePanel } from '../ui/QueryStatePanel'
 import { DropdownCaret, FieldInput, SimplePagination, UserAvatar } from '../ui/heroui-native'
 type SortKey = 'display_name' | 'stack_size' | 'unit_price' | 'price_chaos' | 'tab_name' | 'member'
 
@@ -55,7 +55,7 @@ const PAGE_SIZE = 25
 
 export function GroupSnapshotPage() {
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
-  const { data: rawItems, isLoading } = useGroupSnapshotItems(activeGroupId)
+  const { data: rawItems, isLoading, isError, refetch } = useGroupSnapshotItems(activeGroupId)
   const { data: snapshots } = useLatestSnapshots(activeGroupId)
   const { data: members } = useGroupMembers(activeGroupId)
   const { data: myGroups } = useMyGroups()
@@ -263,15 +263,13 @@ export function GroupSnapshotPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Link to="/dashboard/economy">
-            <Button variant="tertiary" size="sm" className="mb-2 -ml-2">
-              Economy
-            </Button>
+          <Link to="/dashboard/economy" className="button button--sm button--tertiary mb-2 -ml-2">
+            Back to Economy
           </Link>
-          <h1 className="text-foreground text-2xl font-semibold">Group Snapshot</h1>
+          <h1 className="text-foreground text-2xl font-semibold">Group snapshot</h1>
           <p className="text-default-400 mt-1 text-sm">
-            {activeLeague ?? '…'} · {items.length.toLocaleString()} items across{' '}
-            {uniqueMembers.length} member{uniqueMembers.length !== 1 ? 's' : ''}
+            {activeLeague ?? '…'}
+            {rawItems && ` · ${items.length.toLocaleString()} items across ${uniqueMembers.length} member${uniqueMembers.length !== 1 ? 's' : ''}`}
           </p>
         </div>
       </div>
@@ -284,12 +282,14 @@ export function GroupSnapshotPage() {
           <KpiCardsSkeleton />
           <ItemTableSkeleton />
         </>
+      ) : isError && !rawItems ? (
+        <QueryStatePanel kind="error" title="Couldn’t load the group snapshot" description="Try again to view stash items." onRetry={refetch} />
       ) : !items.length ? (
         <Card>
           <Card.Content className="flex flex-col items-center gap-3 p-12 text-center">
             <Package size={32} className="text-default-300" />
             <p className="text-default-400 text-sm">
-              No items found. Snapshot stashes from the Economy page first.
+              No stash items yet. Take a snapshot from Economy.
             </p>
           </Card.Content>
         </Card>
@@ -517,7 +517,7 @@ export function GroupSnapshotPage() {
           {/* Table */}
           <Card>
             <Card.Content className="p-0">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-primary" role="region" aria-label="Group stash items" tabIndex={0}>
                 <table className="w-full">
                   <thead>
                     <tr className="border-divider border-b">

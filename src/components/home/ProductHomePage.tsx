@@ -82,7 +82,7 @@ function SignInLink({
 
 export function ProductHomePage() {
   return (
-    <div className="bg-background min-h-screen">
+    <div className="bg-background min-h-dvh">
       <a
         href="#main-content"
         className="bg-content1 text-foreground fixed top-2 left-2 z-50 -translate-y-20 rounded-lg px-3 py-2 text-sm shadow-lg transition-transform focus:translate-y-0"
@@ -152,15 +152,12 @@ export function ProductHomePage() {
           />
           <div className="relative mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[1.08fr_0.92fr]">
             <div className="max-w-3xl">
-              <p className="text-warning text-sm font-semibold tracking-[0.18em] uppercase">
-                The league workspace for your next decision
-              </p>
               <h1 className="text-foreground mt-4 text-4xl leading-[1.05] font-bold tracking-tight sm:text-6xl">
                 Plan the run. See what changed. Choose the next upgrade.
               </h1>
               <p className="text-default-500 mt-5 max-w-2xl text-base leading-relaxed sm:text-lg">
-                PoE Party keeps strategies, characters, PoE1 stash snapshots, market context, and
-                build analysis together for groups and serious solo players.
+                Plan strategies, track PoE1 stash value, and find gear upgrades in one workspace
+                for solo and group play.
               </p>
               <div
                 className="mt-7 flex flex-col gap-3 sm:flex-row"
@@ -240,22 +237,15 @@ export function ProductHomePage() {
           <div className="mx-auto max-w-7xl">
             <div className="max-w-2xl">
               <h2 id="workflow-title" className="text-foreground text-2xl font-bold sm:text-3xl">
-                A loop built around the way a league actually moves
+                From strategy to upgrades
               </h2>
-              <p className="text-default-500 mt-3 leading-relaxed">
-                Start with a useful decision, keep the run context close, then use the result to
-                choose what happens next.
-              </p>
             </div>
             <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {loop.map(({ title, description, icon: Icon }, index) => (
+              {loop.map(({ title, description, icon: Icon }) => (
                 <Card key={title} className="h-full">
                   <Card.Content className="gap-4 p-5">
-                    <div className="flex items-center justify-between">
-                      <div className="bg-warning/12 flex h-10 w-10 items-center justify-center rounded-xl">
-                        <Icon size={18} className="text-warning" aria-hidden="true" />
-                      </div>
-                      <span className="text-default-300 text-xs font-semibold">0{index + 1}</span>
+                    <div className="bg-warning/12 flex h-10 w-10 items-center justify-center rounded-xl">
+                      <Icon size={18} className="text-warning" aria-hidden="true" />
                     </div>
                     <div>
                       <h3 className="text-foreground font-semibold">{title}</h3>

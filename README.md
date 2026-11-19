@@ -99,7 +99,7 @@ npm exec --yes pnpm@10.33.2 -- build
 npm exec --yes pnpm@10.33.2 -- check:bundle
 ```
 
-Public browser smoke and accessibility checks run with:
+Public and signed-in browser checks use loopback fixtures for Supabase and external APIs. Run them with:
 
 ```powershell
 npm exec --yes pnpm@10.33.2 -- exec playwright install chromium

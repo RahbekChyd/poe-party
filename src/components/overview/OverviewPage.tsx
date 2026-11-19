@@ -1,6 +1,5 @@
 import { comparablePricing } from '../../lib/snapshot-pricing'
 import { useMemo, useState } from 'react'
-import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
 import { Skeleton } from '@heroui/react/skeleton'
@@ -56,6 +55,7 @@ import { getAvatarColor } from '../../lib/utils'
 import { WealthHistoryRangeSelector } from '../economy/WealthHistoryRangeSelector'
 import { IconTooltip, UserAvatar } from '../ui/heroui-native'
 import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
+import { QueryStatePanel } from '../ui/QueryStatePanel'
 export function OverviewPage() {
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
   const isSolo = useIsSoloGroup(activeGroupId)
@@ -65,7 +65,7 @@ export function OverviewPage() {
   const { data: economy } = useGroupEconomy(activeGroupId)
   const { data: groupHistory } = useGroupWealthHistory(activeGroupId)
   const { data: gear, isLoading: gearLoading } = useGearSuggestions(activeGroupId)
-  const { data: strategyList, isLoading: strategiesLoading } = useStrategies(activeGroupId)
+  const { data: strategyList, isLoading: strategiesLoading, isError: strategiesError, refetch: retryStrategies } = useStrategies(activeGroupId)
   const { data: strategyEconomy } = useStrategyHourlyEstimates(activeGroupId)
   const { data: currentUser } = useCurrentUser()
   const currentStrategyId = useCurrentStrategyId(activeGroupId)
@@ -197,8 +197,8 @@ export function OverviewPage() {
         tone="accent"
         description={
           isSolo
-            ? 'Your current character, wealth, strategy, and upgrade queue at a glance.'
-            : 'Group situational awareness across wealth, strategy, members, and upgrades.'
+            ? 'Your economy, strategies, and suggested upgrades.'
+            : 'Party economy, strategies, and suggested upgrades.'
         }
       />
 
@@ -206,20 +206,20 @@ export function OverviewPage() {
         <p role="status" className="text-warning text-sm">Partial pricing: this subtotal excludes items without available price estimates.</p>
       )}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Link to="/dashboard/economy" className="block h-30">
+        <Link to="/dashboard/economy" className="block min-h-30">
           <Card className="hover:bg-default-50 h-full cursor-pointer transition-colors">
             <Card.Content className="flex h-full flex-row items-center gap-3 p-4 md:gap-4 md:p-5">
               <div className="bg-success/15 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg">
                 <TrendingUp size={26} className="text-success" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-default-400 text-xs tracking-wider uppercase">
                   {isMarketOnly ? 'Market Overview' : valuationPartial ? 'Priced subtotal' : isSolo ? 'Your Wealth' : 'Group Value'}
                 </p>
                 {snapsLoading ? (
                   <Skeleton className="mt-1 h-7 w-24 rounded-md" />
                 ) : (
-                  <p className="text-foreground text-2xl font-bold">
+                  <p className="text-foreground text-2xl font-bold wrap-anywhere">
                     {isMarketOnly ? 'Live' : valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}
                   </p>
                 )}
@@ -235,15 +235,13 @@ export function OverviewPage() {
                 <Users size={26} className="text-primary" />
               </div>
               <div>
-                <p className="text-default-400 text-xs tracking-wider uppercase">Synced Members</p>
-                {snapsLoading ? (
+                <p className="text-default-400 text-xs tracking-wider uppercase">{isMarketOnly ? 'Party members' : 'Synced members'}</p>
+                {!isMarketOnly && snapsLoading ? (
                   <Skeleton className="mt-1 h-7 w-16 rounded-md" />
                 ) : (
                   <p className="text-foreground text-2xl font-bold">
-                    {syncedCount}
-                    <span className="text-default-400 text-base font-normal">
-                      /{members?.length ?? '…'}
-                    </span>
+                    {isMarketOnly ? members?.length ?? '…' : syncedCount}
+                    {!isMarketOnly && <span className="text-default-400 text-base font-normal">/{members?.length ?? '…'}</span>}
                   </p>
                 )}
               </div>
@@ -265,7 +263,7 @@ export function OverviewPage() {
           </Card>
         </Link>
 
-        {!isSolo && (
+        {!isSolo && !isMarketOnly && (
           <Card className="h-30">
             <Card.Content className="flex h-full flex-row items-center gap-3 p-4 md:gap-4 md:p-5">
               <div
@@ -294,7 +292,7 @@ export function OverviewPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-default-400 flex items-center gap-1 text-xs tracking-wider uppercase">
-                  Stalest Snapshot
+                  Oldest snapshot
                   <IconTooltip content="The group member who has gone the longest without taking a snapshot">
                     <Info size={12} className="text-default-300 shrink-0 cursor-help" />
                   </IconTooltip>
@@ -303,7 +301,7 @@ export function OverviewPage() {
                   <Skeleton className="mt-1 h-7 w-20 rounded-md" />
                 ) : stalestMember ? (
                   <>
-                    <p className="text-foreground truncate text-sm font-bold">
+                    <p className="text-foreground truncate text-sm font-bold" title={stalestMember.name}>
                       {stalestMember.name}
                     </p>
                     <p className="text-default-400 text-xs">{stalestMember.age.label}</p>
@@ -430,14 +428,14 @@ export function OverviewPage() {
           <h2 className="text-foreground mb-3 text-sm font-semibold">Strategies</h2>
           <CarouselSkeleton cards={3} width="w-60" />
         </div>
+      ) : strategiesError && !strategyList ? (
+        <QueryStatePanel kind="error" title="Couldn’t load strategies" description="Try again to view your strategies." onRetry={retryStrategies} />
       ) : sortedStrategies.length > 0 ? (
         <div>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-foreground text-sm font-semibold">Strategies</h2>
-            <Link to="/dashboard/strategies">
-              <Button size="sm" variant="tertiary">
-                View All
-              </Button>
+            <Link to="/dashboard/strategies" className="button button--sm button--tertiary">
+              View strategies
             </Link>
           </div>
           <div
@@ -523,10 +521,8 @@ export function OverviewPage() {
             <Card.Content className="flex flex-col items-center gap-3 p-8 text-center">
               <Target size={24} className="text-default-300" />
               <p className="text-default-400 text-sm">No strategies yet.</p>
-              <Link to="/dashboard/strategies">
-                <Button size="sm" variant="tertiary">
-                  Create Strategy
-                </Button>
+              <Link to="/dashboard/strategies" className="button button--sm button--tertiary">
+                Go to Strategies
               </Link>
             </Card.Content>
           </Card>
@@ -543,10 +539,8 @@ export function OverviewPage() {
         <div>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-foreground text-sm font-semibold">Gear Suggestions</h2>
-            <Link to="/dashboard/gear">
-              <Button size="sm" variant="tertiary">
-                View All
-              </Button>
+            <Link to="/dashboard/gear" className="button button--sm button--tertiary">
+              View suggestions
             </Link>
           </div>
           <div
@@ -558,7 +552,7 @@ export function OverviewPage() {
               return (
                 <Card
                   key={s.id}
-                  className="hover:bg-default-50 h-full w-72 shrink-0 transition-colors"
+                  className="hover:bg-default-50 h-full w-72 max-w-[calc(100vw-2rem)] shrink-0 transition-colors"
                   style={{ scrollSnapAlign: 'start' }}
                 >
                   <Card.Content className="gap-1.5 p-4">
@@ -614,18 +608,19 @@ export function OverviewPage() {
                     </div>
                     <div className="flex items-center justify-between gap-2 pt-2">
                       {s.item_trade_link ? (
-                        <a href={s.item_trade_link} target="_blank" rel="noopener noreferrer">
-                          <Button size="sm" variant="tertiary" type="button">
-                            Trade link
-                          </Button>
+                        <a href={s.item_trade_link} target="_blank" rel="noopener noreferrer" className="button button--sm button--tertiary">
+                          Trade link
                         </a>
                       ) : (
                         <span />
                       )}
-                      <Link to="/dashboard/gear/$suggestionId" params={{ suggestionId: s.id }}>
-                        <Button size="sm" variant="tertiary">
-                          Open
-                        </Button>
+                      <Link
+                        to="/dashboard/gear/$suggestionId"
+                        params={{ suggestionId: s.id }}
+                        className="button button--sm button--tertiary"
+                        aria-label={s.item_name ? `Open suggestion for ${s.item_name}` : 'Open gear suggestion'}
+                      >
+                        Open
                       </Link>
                     </div>
                   </Card.Content>

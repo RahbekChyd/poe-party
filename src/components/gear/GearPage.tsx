@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
-import { Sword, ArrowRight, Sparkles } from 'lucide-react'
+import { Sword, ArrowRight } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useGroupStore } from '../../store/group-store'
 import { useGearSuggestions, type GearSuggestion } from '../../hooks/useGear'
@@ -15,10 +15,10 @@ import { CardListSkeleton } from '../layout/Skeletons'
 import { UserAvatar } from '../ui/heroui-native'
 import {
   DashboardEmptyState,
-  DashboardNotice,
   DashboardPage,
   DashboardPageHeader,
 } from '../ui/dashboard'
+import { QueryStatePanel } from '../ui/QueryStatePanel'
 const importanceOrder = { high: 0, medium: 1, low: 2 } as const
 type NativeChipColor = 'default' | 'accent' | 'success' | 'warning' | 'danger'
 
@@ -48,12 +48,12 @@ function SuggestionCard({ s, showTarget = false }: { s: GearSuggestion; showTarg
   const importanceChip = IMPORTANCE_CHIP[s.importance] ?? IMPORTANCE_CHIP.medium
 
   return (
-    <div className="rounded-medium hover:bg-default-50 flex items-center gap-3 px-4 py-3">
+    <div className="rounded-medium hover:bg-default-50 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-2 px-3 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-4">
       {s.item_data?.icon_url ? (
         <img
           src={s.item_data.icon_url}
           alt=""
-          className="h-8 w-8 object-contain"
+          className="h-8 w-8 shrink-0 object-contain"
           loading="lazy"
         />
       ) : (
@@ -65,8 +65,8 @@ function SuggestionCard({ s, showTarget = false }: { s: GearSuggestion; showTarg
         />
       )}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="text-foreground truncate text-sm font-medium">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-foreground min-w-0 text-sm font-medium wrap-anywhere">
             {s.item_name ?? 'Unnamed item'}
           </p>
           <Chip size="sm" variant="soft" color={toNativeChipColor(importanceChip.color)}>
@@ -78,27 +78,28 @@ function SuggestionCard({ s, showTarget = false }: { s: GearSuggestion; showTarg
             </Chip>
           ) : null}
         </div>
-        <p className="text-default-400 text-xs">
+        <p className="text-default-500 mt-1 text-xs wrap-anywhere">
           {showTarget && <>For {s.target_user.display_name ?? s.target_user.poe_account_name} · </>}
           From {s.suggester.display_name ?? s.suggester.poe_account_name}
           {s.notes && <span> · {s.notes}</span>}
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="col-start-2 flex flex-wrap items-center gap-2 sm:col-start-3">
         {s.item_trade_link && (
-          <a href={s.item_trade_link} target="_blank" rel="noopener noreferrer">
-            <Button size="sm" variant="tertiary" type="button">
-              Trade link
-            </Button>
+          <a href={s.item_trade_link} target="_blank" rel="noopener noreferrer" className="button button--sm button--tertiary">
+            Trade link
           </a>
         )}
         <Chip size="sm" color={STATUS_COLOR[s.status]} variant="soft" className="capitalize">
           {s.status}
         </Chip>
-        <Link to="/dashboard/gear/$suggestionId" params={{ suggestionId: s.id }}>
-          <Button isIconOnly size="sm" variant="tertiary">
-            <ArrowRight size={14} />
-          </Button>
+        <Link
+          to="/dashboard/gear/$suggestionId"
+          params={{ suggestionId: s.id }}
+          className="button button--sm button--tertiary button--icon-only"
+          aria-label={s.item_name ? `Open suggestion for ${s.item_name}` : 'Open gear suggestion'}
+        >
+          <ArrowRight size={14} aria-hidden="true" />
         </Link>
       </div>
     </div>
@@ -107,7 +108,7 @@ function SuggestionCard({ s, showTarget = false }: { s: GearSuggestion; showTarg
 
 export function GearPage() {
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
-  const { data: suggestions, isLoading } = useGearSuggestions(activeGroupId)
+  const { data: suggestions, isLoading, isError, refetch } = useGearSuggestions(activeGroupId)
   const { data: members, isLoading: membersLoading } = useGroupMembers(activeGroupId)
   const myRole = useMyGroupRole(activeGroupId)
   const [createOpen, setCreateOpen] = useState(false)
@@ -131,39 +132,25 @@ export function GearPage() {
         title="Gear Planning"
         eyebrow="Upgrade queue"
         tone="arcane"
-        description="Collaborative upgrade queue for accepted analysis output and manual suggestions."
+        description="Track suggested upgrades and builds from Analysis."
         actions={
           <>
-            <Link to="/dashboard/analysis">
-              <Button size="sm" variant="tertiary">
-                Open Analysis
-              </Button>
+            <Link to="/dashboard/analysis" className="button button--sm button--tertiary">
+              Open Analysis
             </Link>
-            {activeGroupId && myRole !== 'viewer' ? (
+            {activeGroupId && (myRole === 'admin' || myRole === 'editor') ? (
               <Button size="sm" onPress={() => setCreateOpen(true)}>
-                Suggest Upgrade
+                Suggest upgrade
               </Button>
             ) : null}
           </>
         }
       />
 
-      <DashboardNotice icon={Sparkles} title="Analysis handoff" tone="warning">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p>
-              Run PoB analysis, choose the target build setup, and review future build planning in
-              Analysis, then push accepted upgrades back into this gear queue.
-            </p>
-          </div>
-          <Link to="/dashboard/analysis" className="shrink-0">
-            <Button size="sm">Go to Analysis</Button>
-          </Link>
-        </div>
-      </DashboardNotice>
-
       {isLoading ? (
         <CardListSkeleton rows={4} />
+      ) : isError && !suggestions ? (
+        <QueryStatePanel kind="error" title="Couldn’t load gear suggestions" description="Try again to load the upgrade queue." onRetry={refetch} />
       ) : !suggestions?.length ? (
         <DashboardEmptyState icon={Sword} tone="arcane">
           No gear suggestions yet.

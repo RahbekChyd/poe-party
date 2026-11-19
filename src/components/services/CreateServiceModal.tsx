@@ -121,11 +121,11 @@ const detailsSchema = z.discriminatedUnion('service_type', [
 
 const schema = z.object({
   service_type: z.enum(['boss_carry', 'map_carry', 'five_way_host', 'gold_rota']),
-  title: z.string().min(2, 'Title is required').max(80),
+  title: z.string().trim().min(2, 'Enter a title with at least 2 characters').max(80),
   description: z.string().max(1000).optional(),
   region: z.string().max(16).optional(),
   price_divine: nullableDivine,
-  poe_ign: z.string().min(1, 'PoE IGN is required').max(32),
+  poe_ign: z.string().trim().min(1, 'Enter an in-game name').max(32),
   whisper_template: z.string().max(400).optional(),
   availability: availabilitySchema,
   visibility: visibilitySchema,
@@ -842,7 +842,7 @@ function MapDetailsFields({ form }: { form: ServiceForm }) {
         ) : (
           <div className="flex flex-col gap-2">
             {extraFields.map((field, idx) => (
-              <div key={field.id} className="grid grid-cols-[1fr_140px_auto] items-end gap-2">
+              <div key={field.id} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8.75rem_auto] sm:items-end">
                 <FieldInput
                   size="sm"
                   label="Label"

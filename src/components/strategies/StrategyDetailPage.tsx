@@ -59,6 +59,7 @@ import { useThreadData, type ThreadEntry } from '../../hooks/useThreadData'
 import { useCurrencyStore } from '../../store/currency-store'
 import { DIFFICULTY_OPTIONS, MAP_REQ_FIELDS as MAP_REQ_FIELDS_CONST } from '../../lib/constants'
 import { DetailPageSkeleton } from '../layout/Skeletons'
+import { QueryStatePanel } from '../ui/QueryStatePanel'
 import { formatCurrencyAmount } from '../../lib/utils'
 import { StrategyLinkedSnapshotsModal } from './StrategyLinkedSnapshotsModal'
 import {
@@ -92,7 +93,7 @@ const threadSchema = z.object({
 })
 
 const schema = z.object({
-  name: z.string().min(1, 'Name is required').max(64),
+  name: z.string().trim().min(1, 'Enter a strategy name').max(64),
   description: z.string().max(1000).optional().nullable(),
   difficulty: z.enum(['easy', 'normal', 'hard']),
   map_trade_link: z.string().optional().nullable(),
@@ -393,7 +394,7 @@ export function StrategyDetailPage() {
   const navigate = useNavigate()
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
 
-  const { data: strategy, isLoading } = useStrategy(strategyId)
+  const { data: strategy, isLoading, isError, refetch } = useStrategy(strategyId)
   const { data: members } = useGroupMembers(activeGroupId)
   const { game, league: activeLeague, capabilities } = useActiveGroupContext()
   const { data: strategyEconomy } = useStrategyHourlyEstimates(activeGroupId)
@@ -572,13 +573,15 @@ export function StrategyDetailPage() {
   if (!strategy) {
     return (
       <div className="flex flex-col gap-4">
-        <Link to="/dashboard/strategies" className="self-start">
-          <Button variant="tertiary" size="sm">
-            <ArrowLeft size={14} />
-            Back to Strategies
-          </Button>
+        <Link to="/dashboard/strategies" className="button button--sm button--tertiary self-start">
+          <ArrowLeft size={14} aria-hidden="true" /> Back to strategies
         </Link>
-        <p className="text-default-400 text-sm">Strategy not found.</p>
+        <h1 className="text-2xl font-semibold">{isError ? 'Strategy unavailable' : 'Strategy not found'}</h1>
+        {isError ? (
+          <QueryStatePanel kind="error" title="Could not load strategy" description="Try again to open this strategy." onRetry={refetch} />
+        ) : (
+          <p className="text-default-500 text-sm">It may have been deleted or moved out of your workspace.</p>
+        )}
       </div>
     )
   }
@@ -650,20 +653,11 @@ export function StrategyDetailPage() {
       />
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <div className="flex flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-6 wrap-anywhere">
           {/* Top nav row with Save button */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <Link to="/dashboard/strategies">
-              <Button
-                variant="tertiary"
-                size="sm"
-                className="-ml-2"
-                type="button"
-                onPress={() => setConfirmingDelete(false)}
-              >
-                <ArrowLeft size={14} />
-                Back to Strategies
-              </Button>
+            <Link to="/dashboard/strategies" className="button button--sm button--tertiary self-start">
+              <ArrowLeft size={14} aria-hidden="true" /> Back to strategies
             </Link>
             <div className="flex flex-wrap items-center gap-2">
               {canManageStrategy && (
@@ -777,8 +771,8 @@ export function StrategyDetailPage() {
                 </Button>
               )}
               {canEditContent && saveError && (
-                <p className="text-danger text-xs">
-                  Failed to save: {(saveError as Error).message}
+                <p className="text-danger text-xs" role="alert">
+                  Could not save this strategy. Your edits are still here.
                 </p>
               )}
               {canManageStrategy &&
@@ -848,10 +842,11 @@ export function StrategyDetailPage() {
                       </Button>
                     ) : canEditContent && saveFeedback === 'saved' ? (
                       <div
-                        aria-label="Saved"
+                        role="status"
                         className="border-success/40 bg-success/10 text-success flex min-w-32 items-center justify-center rounded-md border px-3 py-2 transition-all duration-200"
                       >
-                        <Check size={14} className="animate-in zoom-in-50 fade-in duration-200" />
+                        <Check size={14} aria-hidden="true" className="animate-in zoom-in-50 fade-in duration-200" />
+                        <span className="sr-only">Changes saved.</span>
                       </div>
                     ) : null}
                   </>
@@ -859,6 +854,7 @@ export function StrategyDetailPage() {
             </div>
           </div>
 
+          <h1 className="text-foreground text-2xl font-semibold">{strategy.name}</h1>
           <div className="flex flex-wrap items-center gap-2">
             {isSubscribed ? (
               <>

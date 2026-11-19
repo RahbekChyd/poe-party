@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from 'react'
+import { useId, useState } from 'react'
+import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
 import { Separator } from '@heroui/react/separator'
@@ -13,7 +14,7 @@ import { PartyFillBar } from './PartyFillBar'
 import { ServiceDetailSection } from './ServiceDetailSection'
 import { ServiceTypeChip } from './ServiceTypeChip'
 import { WhisperCopyButton } from './WhisperCopyButton'
-const CARD_CHIP_CLASS_NAME = 'px-3'
+const CARD_CHIP_CLASS_NAME = 'max-w-full px-3 wrap-anywhere [&_.chip__label]:min-w-0'
 
 function BossCarryBody({ service }: { service: PublicServiceRow }) {
   if (service.details.service_type !== 'boss_carry') return null
@@ -27,8 +28,8 @@ function BossCarryBody({ service }: { service: PublicServiceRow }) {
     <div className="flex flex-wrap gap-1.5">
       {bosses.map((boss, idx) => (
         <Chip key={`${boss.name}-${idx}`} size="sm" variant="soft" className={CARD_CHIP_CLASS_NAME}>
-          <span className="inline-flex items-center gap-1">
-            {boss.name}
+          <span className="inline-flex min-w-0 items-center gap-1">
+            <span className="min-w-0">{boss.name}</span>
             {boss.price_divine != null ? (
               <>
                 <span className="text-default-400">·</span>
@@ -191,43 +192,22 @@ function ServiceBody({ service }: { service: PublicServiceRow }) {
 export function ServiceCard({
   service,
   isOwned = false,
-  rightExtra,
 }: {
   service: PublicServiceRow
   isOwned?: boolean
-  rightExtra?: ReactNode
 }) {
   const [expanded, setExpanded] = useState(false)
+  const detailsId = useId()
   const game = service.group_game
-
-  function toggle() {
-    setExpanded((v) => !v)
-  }
 
   return (
     <Card className="transition-colors hover:bg-default-50">
       <Card.Content className="gap-0 p-0">
-        <div
-          role="button"
-          tabIndex={0}
-          aria-expanded={expanded}
-          className="flex cursor-pointer flex-col gap-4 p-5"
-          onClick={(event) => {
-            const target = event.target as HTMLElement
-            if (target.closest('button, a, input, [role="menuitem"]')) return
-            toggle()
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault()
-              toggle()
-            }
-          }}
-        >
+        <div className="flex flex-col gap-4 p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <div className="flex min-w-0 basis-full flex-col gap-2 sm:flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-base font-semibold text-foreground">{service.title}</p>
+                <h2 className="text-base font-semibold wrap-anywhere text-foreground">{service.title}</h2>
                 <ServiceTypeChip type={service.service_type} className={CARD_CHIP_CLASS_NAME} />
                 {isOwned ? (
                   <Chip
@@ -247,43 +227,47 @@ export function ServiceCard({
                 ) : null}
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 text-xs text-default-500">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 wrap-anywhere text-xs text-default-500">
                 <span className="inline-flex items-center gap-1">
-                  <User size={12} />
-                  {service.owner_name}
+                  <User size={12} className="shrink-0" aria-hidden="true" />
+                  <span className="min-w-0">{service.owner_name}</span>
                 </span>
                 {service.region ? (
                   <span className="inline-flex items-center gap-1">
-                    <MapPin size={12} />
+                    <MapPin size={12} className="shrink-0" aria-hidden="true" />
                     {service.region}
                   </span>
                 ) : null}
                 <span className="inline-flex items-center gap-1">
-                  <Globe size={12} />
-                  {getPoeGameShortLabel(game)} · {service.group_league}
+                  <Globe size={12} className="shrink-0" aria-hidden="true" />
+                  <span className="min-w-0">{getPoeGameShortLabel(game)} · {service.group_league}</span>
                 </span>
                 <span className="text-default-400">· from {service.group_name}</span>
               </div>
             </div>
 
-            <div className="flex shrink-0 items-start gap-2">
-              <div className="flex flex-col items-end gap-2">
-                <WhisperCopyButton
-                  ign={service.poe_ign}
-                  serviceType={service.service_type}
-                  title={service.title}
-                  whisperTemplate={service.whisper_template}
-                />
-                {rightExtra}
-              </div>
-              <ChevronDown
-                size={18}
-                className={cn(
-                  'mt-1.5 shrink-0 text-default-400 transition-transform',
-                  expanded && 'rotate-180',
-                )}
-                aria-hidden
+            <div className="flex min-w-0 max-w-full items-start gap-2 sm:max-w-xs">
+              <WhisperCopyButton
+                ign={service.poe_ign}
+                serviceType={service.service_type}
+                title={service.title}
+                whisperTemplate={service.whisper_template}
               />
+              <Button
+                isIconOnly
+                size="sm"
+                variant="tertiary"
+                aria-label={expanded ? 'Hide service details' : 'Show service details'}
+                aria-expanded={expanded}
+                aria-controls={expanded ? detailsId : undefined}
+                onPress={() => setExpanded((value) => !value)}
+              >
+                <ChevronDown
+                  size={18}
+                  className={cn('transition-transform', expanded && 'rotate-180')}
+                  aria-hidden
+                />
+              </Button>
             </div>
           </div>
 
@@ -293,14 +277,14 @@ export function ServiceCard({
         {expanded ? (
           <>
             <Separator />
-            <div className="flex flex-col gap-4 p-5">
+            <div id={detailsId} className="flex flex-col gap-4 p-4 wrap-anywhere sm:p-5">
               {service.description ? (
                 <p className="text-sm leading-relaxed text-default-600">{service.description}</p>
               ) : null}
               <ServiceDetailSection service={service} />
               {!service.description && !hasServiceDetailContent(service.details) ? (
                 <p className="text-sm text-default-400">
-                  No extra details — everything's on the card above.
+                  No additional details.
                 </p>
               ) : null}
             </div>

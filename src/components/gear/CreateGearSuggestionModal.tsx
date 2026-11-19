@@ -31,7 +31,7 @@ interface Props {
 
 export function CreateGearSuggestionModal({ isOpen, onClose, members, membersLoading }: Props) {
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
-  const { mutate: create, isPending, error } = useCreateGearSuggestion()
+  const { mutate: create, isPending, isError, reset: resetCreate } = useCreateGearSuggestion()
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null)
 
   const {
@@ -47,6 +47,7 @@ export function CreateGearSuggestionModal({ isOpen, onClose, members, membersLoa
 
   function handleClose() {
     reset()
+    resetCreate()
     setSelectedItem(null)
     onClose()
   }
@@ -70,121 +71,119 @@ export function CreateGearSuggestionModal({ isOpen, onClose, members, membersLoa
   const selectableMembers = members ?? []
 
   return (
-    <>
-      <Modal.Backdrop
-        isOpen={isOpen}
-        onOpenChange={(open) => {
-          if (!open) handleClose()
-        }}
-      >
-        <Modal.Container>
-          <Modal.Dialog>
-            <form onSubmit={handleSubmit(onSubmit)}>
-              <Modal.Header>
-                <Modal.Heading>Suggest an Upgrade</Modal.Heading>
-              </Modal.Header>
-              <Modal.Body className="gap-4">
-                <Controller
-                  control={control}
-                  name="target_user_id"
-                  render={({ field }) => (
-                    <SelectField
-                      label="For"
-                      description={membersLoading ? 'Loading members...' : undefined}
-                      selectedKey={field.value || undefined}
-                      onSelectionChange={(key) => {
-                        if (typeof key === 'string') field.onChange(key)
-                      }}
-                      onBlur={field.onBlur}
-                      isInvalid={!!errors.target_user_id}
-                      errorMessage={errors.target_user_id?.message}
-                      isDisabled={membersLoading || selectableMembers.length === 0}
-                    >
-                      {selectableMembers.map((member) => {
-                        const name = member.user.display_name ?? member.user.poe_account_name
-                        return (
-                          <ListBox.Item key={member.user.id} id={member.user.id} textValue={name}>
-                            {name}
-                          </ListBox.Item>
-                        )
-                      })}
-                    </SelectField>
-                  )}
-                />
-                <Controller
-                  control={control}
-                  name="item_name"
-                  render={({ field }) => (
-                    <ItemSearchAutocomplete
-                      label="Item name"
-                      value={field.value ?? ''}
-                      onValueChange={field.onChange}
-                      onItemSelect={setSelectedItem}
-                      isInvalid={!!errors.item_name}
-                      errorMessage={errors.item_name?.message}
-                    />
-                  )}
-                />
-                <FieldInput
-                  label="Trade link"
-                  placeholder="https://www.pathofexile.com/trade/..."
-                  isInvalid={!!errors.item_trade_link}
-                  errorMessage={errors.item_trade_link?.message}
-                  {...register('item_trade_link')}
-                />
-                <FieldTextArea
-                  label="Notes"
-                  placeholder="Why this upgrade? What slot? Any context..."
-                  minRows={2}
-                  isInvalid={!!errors.notes}
-                  errorMessage={errors.notes?.message}
-                  {...register('notes')}
-                />
-                <Controller
-                  control={control}
-                  name="importance"
-                  render={({ field }) => (
-                    <SelectField
-                      label="Importance"
-                      selectedKey={field.value}
-                      onSelectionChange={(key) => {
-                        if (key === 'high' || key === 'medium' || key === 'low') field.onChange(key)
-                      }}
-                      onBlur={field.onBlur}
-                      isInvalid={!!errors.importance}
-                      errorMessage={errors.importance?.message}
-                    >
-                      {IMPORTANCE_OPTIONS.map((opt) => (
-                        <ListBox.Item key={opt.value} id={opt.value} textValue={opt.label}>
-                          {opt.label}
+    <Modal.Backdrop
+      isOpen={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isPending) handleClose()
+      }}
+      isDismissable={!isPending}
+      isKeyboardDismissDisabled={isPending}
+    >
+      <Modal.Container>
+        <Modal.Dialog className="max-h-[calc(100dvh-2rem)] overflow-hidden">
+          <form className="flex min-h-0 flex-col" onSubmit={handleSubmit(onSubmit)}>
+            <Modal.Header>
+              <Modal.Heading>Suggest an Upgrade</Modal.Heading>
+            </Modal.Header>
+            <Modal.Body className="min-h-0 gap-4 overflow-y-auto">
+              <Controller
+                control={control}
+                name="target_user_id"
+                render={({ field }) => (
+                  <SelectField
+                    label="For"
+                    description={membersLoading ? 'Loading members…' : selectableMembers.length === 0 ? 'No members available.' : undefined}
+                    selectedKey={field.value || undefined}
+                    onSelectionChange={(key) => {
+                      if (typeof key === 'string') field.onChange(key)
+                    }}
+                    onBlur={field.onBlur}
+                    isInvalid={!!errors.target_user_id}
+                    errorMessage={errors.target_user_id?.message}
+                    isDisabled={membersLoading || selectableMembers.length === 0}
+                  >
+                    {selectableMembers.map((member) => {
+                      const name = member.user.display_name ?? member.user.poe_account_name
+                      return (
+                        <ListBox.Item key={member.user.id} id={member.user.id} textValue={name} className="wrap-anywhere">
+                          {name}
                         </ListBox.Item>
-                      ))}
-                    </SelectField>
-                  )}
-                />
-                {error && (
-                  <p className="text-danger text-sm">
-                    {error instanceof Error ? error.message : 'Something went wrong'}
-                  </p>
+                      )
+                    })}
+                  </SelectField>
                 )}
-              </Modal.Body>
-              <Modal.Footer>
-                <Button variant="tertiary" onPress={handleClose}>
-                  Cancel
-                </Button>
-                <Button type="submit" isPending={isPending}>
-                  {({ isPending }) => (
-                    <>
-                      {isPending ? <Spinner color="current" size="sm" /> : null}
-                      Suggest
-                    </>
-                  )}
-                </Button>
-              </Modal.Footer>
-            </form>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </>
+              />
+              <Controller
+                control={control}
+                name="item_name"
+                render={({ field }) => (
+                  <ItemSearchAutocomplete
+                    label="Item name"
+                    value={field.value ?? ''}
+                    onValueChange={field.onChange}
+                    onItemSelect={setSelectedItem}
+                    isInvalid={!!errors.item_name}
+                    errorMessage={errors.item_name?.message}
+                  />
+                )}
+              />
+              <FieldInput
+                label="Trade link"
+                placeholder="https://www.pathofexile.com/trade/..."
+                isInvalid={!!errors.item_trade_link}
+                errorMessage={errors.item_trade_link?.message}
+                {...register('item_trade_link')}
+              />
+              <FieldTextArea
+                label="Notes"
+                placeholder="What improves with this upgrade?"
+                minRows={2}
+                isInvalid={!!errors.notes}
+                errorMessage={errors.notes?.message}
+                {...register('notes')}
+              />
+              <Controller
+                control={control}
+                name="importance"
+                render={({ field }) => (
+                  <SelectField
+                    label="Importance"
+                    selectedKey={field.value}
+                    onSelectionChange={(key) => {
+                      if (key === 'high' || key === 'medium' || key === 'low') field.onChange(key)
+                    }}
+                    onBlur={field.onBlur}
+                    isInvalid={!!errors.importance}
+                    errorMessage={errors.importance?.message}
+                  >
+                    {IMPORTANCE_OPTIONS.map((opt) => (
+                      <ListBox.Item key={opt.value} id={opt.value} textValue={opt.label}>
+                        {opt.label}
+                      </ListBox.Item>
+                    ))}
+                  </SelectField>
+                )}
+              />
+              {isError && (
+                <p role="alert" className="text-danger text-sm">Couldn’t save the suggestion. Try again.</p>
+              )}
+            </Modal.Body>
+            <Modal.Footer>
+              <Button variant="tertiary" onPress={handleClose} isDisabled={isPending}>
+                Cancel
+              </Button>
+              <Button type="submit" isPending={isPending} isDisabled={membersLoading || selectableMembers.length === 0}>
+                {({ isPending }) => (
+                  <>
+                    {isPending ? <Spinner color="current" size="sm" /> : null}
+                    Suggest
+                  </>
+                )}
+              </Button>
+            </Modal.Footer>
+          </form>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   )
 }

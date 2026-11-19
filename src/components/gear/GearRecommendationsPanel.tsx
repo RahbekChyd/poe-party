@@ -7,7 +7,6 @@ import {
   useState,
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import { Accordion } from '@heroui/react/accordion'
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
@@ -108,6 +107,7 @@ import {
   SelectField,
 } from '../ui/heroui-native'
 import { HoverTooltip, type HoverTooltipPlacement } from '../ui/hover-tooltip'
+import { QueryFreshnessNotice, QueryStatePanel } from '../ui/QueryStatePanel'
 const FIXED_PRIMARY_METRIC = 'totalDps'
 
 type TooltipPlacement = HoverTooltipPlacement
@@ -1947,7 +1947,8 @@ export function StageSummaryCard({
 export function GearRecommendationsPanel() {
   const activeGroupId = useGroupStore((state) => state.activeGroupId)
   const { data: currentUser } = useCurrentUser()
-  const { data: members, isLoading: membersLoading } = useGroupMembers(activeGroupId)
+  const membersQuery = useGroupMembers(activeGroupId)
+  const { data: members, isLoading: membersLoading } = membersQuery
   const { data: myGroups } = useMyGroups()
   const myRole = useMyGroupRole(activeGroupId)
   const { mutateAsync: createBuildTarget, isPending: importingTarget } = useCreateBuildTarget()
@@ -2020,10 +2021,8 @@ export function GearRecommendationsPanel() {
   const targetUserId = currentUser?.id ?? null
   const currentMember = members?.find((member) => member.user.id === targetUserId) ?? null
   const { data: activeCharacters = [] } = useActiveCharacters(activeGroupId)
-  const { data: myCharacters = [], isLoading: myCharactersLoading } = useMyCharacters(
-    activeGroupId,
-    activeLeague,
-  )
+  const charactersQuery = useMyCharacters(activeGroupId, activeLeague)
+  const { data: myCharacters = [], isLoading: myCharactersLoading } = charactersQuery
   const { data: characterProfiles = [] } = useCharacterProfiles(activeGroupId)
   const membersPageSelectedCharacterId =
     activeCharacters.find((character) => character.user_id === targetUserId)?.id ?? null
@@ -2128,10 +2127,8 @@ export function GearRecommendationsPanel() {
     () => buildGemVisualLookup(selectedCharacterProfile, ninjaGemIcons ?? []),
     [ninjaGemIcons, selectedCharacterProfile],
   )
-  const { data: buildTargets = [], isLoading: buildTargetsLoading } = useBuildTargets(
-    activeGroupId,
-    targetUserId,
-  )
+  const buildTargetsQuery = useBuildTargets(activeGroupId, targetUserId)
+  const { data: buildTargets = [], isLoading: buildTargetsLoading } = buildTargetsQuery
 
   useEffect(() => {
     if (
@@ -2280,7 +2277,12 @@ export function GearRecommendationsPanel() {
     )
   }, [buildTargetStages, selectedBuildTarget, selectedStageId])
 
-  const { data: analysisRuns = [], isLoading: runsLoading } = useUpgradeAnalysisRuns(
+  const {
+    data: analysisRuns = [],
+    isLoading: runsLoading,
+    isError: runsFailed,
+    refetch: retryRuns,
+  } = useUpgradeAnalysisRuns(
     activeGroupId,
     targetUserId,
     selectedBuildTarget?.id ?? null,
@@ -2341,16 +2343,6 @@ export function GearRecommendationsPanel() {
       setPendingRunPreview(null)
     }
 
-    if (latestLiveRun) {
-      if (selectedRunId !== latestLiveRun.id) {
-        setSelectedRunId(latestLiveRun.id)
-      }
-      if (pendingSelectedRunId === latestLiveRun.id) {
-        setPendingSelectedRunId(null)
-      }
-      return
-    }
-
     if (selectedRunId && displayedAnalysisRuns.some((run) => run.id === selectedRunId)) {
       if (pendingSelectedRunId === selectedRunId) {
         setPendingSelectedRunId(null)
@@ -2362,13 +2354,11 @@ export function GearRecommendationsPanel() {
       return
     }
 
-    setSelectedRunId(latestFreshRun?.id ?? null)
+    setSelectedRunId(null)
   }, [
     analysisRuns,
     contextualPendingRunPreview,
     displayedAnalysisRuns,
-    latestLiveRun,
-    latestFreshRun,
     pendingSelectedRunId,
     selectedRunId,
   ])
@@ -2390,7 +2380,12 @@ export function GearRecommendationsPanel() {
     ? (selectedRun?.analysis_mode ?? analysisMode)
     : analysisMode
   const { data: runtimeEstimate } = useAnalysisRuntimeEstimate(runtimeEstimateMode)
-  const { data: recommendationPlans = [], isLoading: recommendationsLoading } =
+  const {
+    data: recommendationPlans = [],
+    isLoading: recommendationsLoading,
+    isError: recommendationsFailed,
+    refetch: retryRecommendations,
+  } =
     useUpgradeRecommendationPlans(
       selectedRunIsLive ? null : (selectedRun?.id ?? null),
       selectedRunIsLive ? null : (selectedRun?.status ?? null),
@@ -2761,8 +2756,8 @@ export function GearRecommendationsPanel() {
     }
   }, [allowTemplateRareFallbackInPrimary, recommendationSections])
 
-  const canQueueRun = myRole !== 'viewer'
-  const canPromote = myRole !== 'viewer'
+  const canQueueRun = myRole === 'admin' || myRole === 'editor'
+  const canPromote = canQueueRun
 
   function startAnalysisSubmitFlow() {
     const flowId = submitFlowSequenceRef.current + 1
@@ -3155,7 +3150,7 @@ export function GearRecommendationsPanel() {
     analysisModeOverride?: UpgradeAnalysisMode
     attemptIncrementalRerun?: boolean
   }) {
-    if (!activeGroupId || !selectedBuildTarget) return
+    if (!activeGroupId || !selectedBuildTarget || !canQueueRun || latestLiveRun || activeSubmitFlowIdRef.current !== null) return
     const submitFlowId = startAnalysisSubmitFlow()
     const effectiveAnalysisMode = options?.analysisModeOverride ?? analysisMode
     const effectiveBudgetChaos = effectiveAnalysisMode === 'thorough' ? normalizedBudgetChaos : 0
@@ -3302,7 +3297,7 @@ export function GearRecommendationsPanel() {
       return
     }
 
-    if (!selectedRun || !activeGroupId || !selectedBuildTarget) return
+    if (!selectedRunIsLive || !selectedRun || !activeGroupId || !selectedBuildTarget || !canQueueRun) return
 
     try {
       await cancelUpgradeAnalysis({
@@ -3517,24 +3512,27 @@ export function GearRecommendationsPanel() {
     }
   }
 
+  const failedInputQuery = [membersQuery, charactersQuery].find(
+    (query) => query.isError && query.data === undefined,
+  )
+  if (failedInputQuery) {
+    return (
+      <QueryStatePanel
+        kind="error"
+        title="Could not load analysis setup"
+        description="Try loading your workspace and characters again."
+        onRetry={failedInputQuery.refetch}
+      />
+    )
+  }
   if (membersLoading || myCharactersLoading) {
     return <CardListSkeleton rows={4} />
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-foreground text-lg font-semibold">Optimizer Recommendations</h2>
-          <p className="text-default-500 mt-1 text-sm">
-            Import a target PoB, choose the tree, item set, and skill set you want to compare
-            against, then run cached analysis against your current character and stash pool.
-          </p>
-        </div>
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-6">
+    <div className="min-w-0">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-6">
           <Card>
             <Card.Header className="px-4 pt-4 pb-0">
               <div>
@@ -3606,20 +3604,33 @@ export function GearRecommendationsPanel() {
               <div>
                 <p className="text-foreground text-sm font-semibold">Imported targets</p>
                 <p className="text-default-500 mt-1 text-sm">
-                  Choose a target for this character. The setup on the right controls what the next
-                  analysis run compares against.
+                  Choose a target to configure your next analysis.
                 </p>
               </div>
             </Card.Header>
             <Card.Content className="gap-3 px-4 pt-3 pb-4">
-              {buildTargetsLoading ? (
+              {buildTargetsQuery.isError && buildTargetsQuery.data ? (
+                <QueryFreshnessNotice
+                  refreshFailed
+                  isRefreshing={buildTargetsQuery.isFetching}
+                  onRetry={buildTargetsQuery.refetch}
+                />
+              ) : null}
+              {buildTargetsQuery.isError && !buildTargetsQuery.data ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <p role="alert" className="text-danger text-sm">Could not load build targets.</p>
+                  <Button size="sm" variant="tertiary" onPress={() => void buildTargetsQuery.refetch()}>
+                    Try again
+                  </Button>
+                </div>
+              ) : buildTargetsLoading ? (
                 <p className="text-default-500 text-sm">Loading build targets...</p>
               ) : !selectedCharacter ? (
                 <p className="text-default-500 text-sm">
                   Select one of your characters to load build targets.
                 </p>
               ) : visibleBuildTargets.length === 0 ? (
-                <p className="text-default-500 text-sm">
+                <p className="text-default-500 wrap-anywhere text-sm">
                   No build targets imported for {selectedCharacter.name} yet.
                 </p>
               ) : (
@@ -3631,9 +3642,9 @@ export function GearRecommendationsPanel() {
                     }`}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-foreground text-sm font-semibold">{target.name}</p>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-foreground wrap-anywhere text-sm font-semibold">{target.name}</p>
                           {target.is_selected ? (
                             <Chip size="sm" color="warning" variant="soft">
                               Selected
@@ -3717,7 +3728,7 @@ export function GearRecommendationsPanel() {
           </Card>
         </div>
 
-        <div className="flex flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-6">
           <Card>
             <Card.Header className="px-4 pt-4 pb-0">
               <div className="flex flex-1 flex-wrap items-start justify-between gap-3">
@@ -3735,18 +3746,24 @@ export function GearRecommendationsPanel() {
               </div>
             </Card.Header>
             <Card.Content className="gap-4 px-4 pt-3 pb-4">
-              {selectedRunIsLive ? (
-                <div className="rounded-large border-warning/40 bg-warning/10 flex items-center gap-2 border p-3">
+              {latestLiveRun ? (
+                <div className="rounded-large border-warning/40 bg-warning/10 flex flex-wrap items-center gap-2 border p-3">
                   <Spinner size="sm" color="warning" />
                   <p className="text-warning text-sm font-semibold">
-                    {selectedRun?.summary?.queue_submission_pending === true
-                      ? 'Preparing analysis — configuration locked'
-                      : 'Analysis running — configuration locked until complete'}
+                    {latestLiveRun.summary?.queue_submission_pending === true
+                      ? 'Preparing analysis'
+                      : 'Settings are locked during the active run.'}
                   </p>
+                  {!selectedRunIsLive ? (
+                    <Button size="sm" variant="tertiary" onPress={() => setSelectedRunId(latestLiveRun.id)}>
+                      View active run
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
               <div
-                className={`transition-opacity duration-200 ${selectedRunIsLive ? 'pointer-events-none opacity-50' : ''}`}
+                inert={!!latestLiveRun}
+                className={`transition-opacity duration-200 ${latestLiveRun ? 'opacity-50' : ''}`}
               >
                 <div className="flex flex-col gap-4">
                   <div className="grid gap-3 md:grid-cols-2">
@@ -4095,7 +4112,7 @@ export function GearRecommendationsPanel() {
               {selectedBuildTarget ? (
                 <div className="flex flex-col items-end gap-2">
                   <div className="flex w-full justify-end">
-                    {selectedRunIsLive ? (
+                    {selectedRunIsLive && canQueueRun ? (
                       <Button
                         variant="danger-soft"
                         className="w-full md:w-auto"
@@ -4108,7 +4125,7 @@ export function GearRecommendationsPanel() {
                           </PendingButtonContent>
                         )}
                       </Button>
-                    ) : (
+                    ) : !latestLiveRun ? (
                       <Button
                         className="w-full md:w-auto"
                         isDisabled={!canQueueRun}
@@ -4121,7 +4138,7 @@ export function GearRecommendationsPanel() {
                           </PendingButtonContent>
                         )}
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                   {!selectedRunIsLive && runtimeEstimateSummary ? (
                     <p className="text-default-400 text-right text-xs leading-snug">
@@ -4366,26 +4383,32 @@ export function GearRecommendationsPanel() {
                   <AccordionPanelItem
                     id="run-history"
                     title="Run history"
-                    subtitle="Older and alternate runs live here when you need them."
                   >
+                    {runsFailed ? (
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <p role="status" className="text-danger text-sm">Could not refresh run history.</p>
+                        <Button size="sm" variant="tertiary" onPress={() => void retryRuns()}>Try again</Button>
+                      </div>
+                    ) : null}
                     {runsLoading ? (
                       <p className="text-default-500 text-sm">Loading runs...</p>
                     ) : displayedAnalysisRuns.length === 0 ? (
-                      <p className="text-default-500 text-sm">No runs queued yet.</p>
+                      runsFailed ? null : <p className="text-default-500 text-sm">No runs queued yet.</p>
                     ) : (
                       <div className="flex flex-col gap-2">
                         {displayedAnalysisRuns.map((run) => (
                           <button
                             key={run.id}
                             type="button"
-                            className={`rounded-large border p-3 text-left transition-colors ${
+                            aria-pressed={run.id === selectedRun?.id}
+                            className={`rounded-large border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-primary ${
                               run.id === selectedRun?.id
                                 ? 'border-warning/60 bg-warning/10'
                                 : 'border-divider'
                             }`}
                             onClick={() => setSelectedRunId(run.id)}
                           >
-                            <div className="flex items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
                               <div className="flex flex-wrap items-center gap-2">
                                 <Chip
                                   size="sm"
@@ -4441,16 +4464,14 @@ export function GearRecommendationsPanel() {
                 <div>
                   <p className="text-foreground text-sm font-semibold">Recommendations</p>
                   <p className="text-default-500 mt-1 text-sm">
-                    Results are grouped into best singles and target uniques, with setup notes
-                    called out separately when they matter. Accepted picks can be added back into
-                    Gear Planning.
+                    Review upgrades and send useful picks to Gear Planning.
                   </p>
                 </div>
-                <div className="flex shrink-0 flex-wrap gap-2">
+                <div className="flex min-w-0 flex-wrap gap-2">
                   {canQueueRun && selectedRun && selectedRun.analysis_mode === 'thorough' ? (
                     <Button
                       size="sm"
-                      isDisabled={!selectedBuildTarget || selectedRunIsLive}
+                      isDisabled={!selectedBuildTarget || !!latestLiveRun}
                       isPending={analysisActionPending}
                       onPress={handleOpenManualTuningDialog}
                     >
@@ -4461,22 +4482,17 @@ export function GearRecommendationsPanel() {
                       )}
                     </Button>
                   ) : null}
-                  <Link to="/dashboard/gear" className="shrink-0">
-                    <Button size="sm" variant="tertiary">
-                      Open Gear Planning
-                    </Button>
-                  </Link>
                 </div>
               </div>
             </Card.Header>
             <Card.Content className="px-4 pt-3 pb-4">
               <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(19rem,22rem)] xl:items-start">
-                <div className="order-2 flex flex-col gap-5 xl:order-1">
+                <div className="order-2 flex min-w-0 flex-col gap-5 xl:order-1">
                   {!selectedRun ? (
                     <p className="text-default-500 text-sm">Queue or select a run first.</p>
                   ) : selectedRunIsLive ? (
                     <LiveRecommendationsSkeleton />
-                  ) : recommendationsLoading ? (
+                  ) : recommendationsLoading && selectedRun.status !== 'failed' ? (
                     <LiveRecommendationsSkeleton />
                   ) : selectedRun.status === 'failed' ? (
                     <div className="rounded-large border-danger/40 bg-danger/10 border p-4">
@@ -4506,6 +4522,13 @@ export function GearRecommendationsPanel() {
                           </Button>
                         </div>
                       ) : null}
+                    </div>
+                  ) : recommendationsFailed && recommendationPlans.length === 0 ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p role="alert" className="text-danger text-sm">Could not load recommendations.</p>
+                      <Button size="sm" variant="tertiary" onPress={() => void retryRecommendations()}>
+                        Try again
+                      </Button>
                     </div>
                   ) : recommendationPlans.length === 0 ? (
                     <div className="rounded-large border-divider bg-default-50/60 border p-4">
@@ -4542,6 +4565,11 @@ export function GearRecommendationsPanel() {
                     </div>
                   ) : (
                     <>
+                      <QueryFreshnessNotice
+                        refreshFailed={recommendationsFailed}
+                        isRefreshing={false}
+                        onRetry={retryRecommendations}
+                      />
                       {selectedRun.status === 'stale' ? (
                         <div className="rounded-large border-warning/40 bg-warning/10 border p-4">
                           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -4873,11 +4901,11 @@ export function GearRecommendationsPanel() {
               }}
             >
               <Modal.Container>
-                <Modal.Dialog>
+                <Modal.Dialog className="max-h-[calc(100dvh-2rem)]">
                   <Modal.Header>
                     <Modal.Heading>Party buffs applied</Modal.Heading>
                   </Modal.Header>
-                  <Modal.Body className="pb-5">
+                  <Modal.Body className="min-h-0 overflow-y-auto pb-5">
                     {(() => {
                       const effects = selectedRun.summary?.party_effects as
                         | {
@@ -4957,12 +4985,12 @@ export function GearRecommendationsPanel() {
                 if (!open) setConfigInsightDetailOpen(false)
               }}
             >
-              <Modal.Container className="max-h-[85vh] overflow-hidden">
-                <Modal.Dialog>
+              <Modal.Container>
+                <Modal.Dialog className="max-h-[calc(100dvh-2rem)]">
                   <Modal.Header>
                     <Modal.Heading>PoB configuration insights</Modal.Heading>
                   </Modal.Header>
-                  <Modal.Body className="overflow-y-auto pb-5">
+                  <Modal.Body className="min-h-0 overflow-y-auto pb-5">
                     {(() => {
                       const configInsights = getPobConfigurationInsights(selectedRun.summary)
                       const configSetTitle =
@@ -5053,15 +5081,15 @@ export function GearRecommendationsPanel() {
                 if (!open) setManualTuningDialogOpen(false)
               }}
             >
-              <Modal.Container className="max-h-[85vh] overflow-hidden">
-                <Modal.Dialog>
+              <Modal.Container>
+                <Modal.Dialog className="max-h-[calc(100dvh-2rem)]">
                   <Modal.Header className="flex flex-col gap-1">
                     <Modal.Heading>Rerun analysis with manual tunings</Modal.Heading>
                     <span className="text-default-500 text-sm font-normal">
                       This launches a fresh live-market pass for {selectedRunStageLabel}.
                     </span>
                   </Modal.Header>
-                  <Modal.Body className="overflow-y-auto pb-2">
+                  <Modal.Body className="min-h-0 overflow-y-auto pb-2">
                     {renderManualTuningEditor()}
                   </Modal.Body>
                   <Modal.Footer>

@@ -15,7 +15,7 @@ export function TeaserMembersPage() {
       <PreviewPageIntro
         mode="teaser"
         title="Members"
-        description="A slim sample of the roster view. The preview keeps the same character-card rhythm as the signed-in page, but stops at the roster surface instead of simulating deeper member state."
+        description="Explore a sample party roster and the characters assigned to it."
       />
 
       <div className="-mx-1 overflow-x-auto pb-2">
@@ -104,8 +104,8 @@ export function TeaserMembersPage() {
       </div>
 
       <UnlockCard
-        title="What the members page unlocks after sign-in"
-        description="The signed-in members page opens the real roster workflow for your own group."
+        title="Manage your party"
+        description="Sign in to invite members and sync their shared characters."
         points={[
           'Sync your own characters and keep active builds current.',
           'Share builds publicly or keep them group-only.',

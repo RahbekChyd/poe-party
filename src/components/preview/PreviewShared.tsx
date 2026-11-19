@@ -40,7 +40,7 @@ export function PreviewPageIntro({
 
   return (
     <div className="border-divider/70 flex flex-col gap-4 border-b pb-5 md:flex-row md:items-end md:justify-between">
-      <div className="max-w-3xl">
+      <div className="min-w-0 max-w-3xl wrap-anywhere">
         <div className="mb-2 flex items-center gap-2">
           <span
             className="h-5 w-1 rounded-full"
@@ -114,17 +114,17 @@ export function UnlockCard({
   }
 
   const pointsList = (
-    <div className="space-y-2">
+    <ul className="space-y-2">
       {points.map((point) => (
-        <div
+        <li
           key={point}
           className="rounded-large border-divider/70 bg-default-50/50 text-default-600 flex items-start gap-3 border px-4 py-3 text-sm"
         >
-          <span className="bg-warning mt-1 h-1.5 w-1.5 shrink-0 rounded-full" />
+          <span className="bg-warning mt-1.5 size-1.5 shrink-0 rounded-full" aria-hidden="true" />
           <span>{point}</span>
-        </div>
+        </li>
       ))}
-    </div>
+    </ul>
   )
 
   if (presentation === 'dialog-button') {
@@ -265,20 +265,16 @@ export function GuestGateModal() {
             </Modal.Header>
             <Modal.Body className="gap-3">
               <p className="text-default-500 text-sm leading-relaxed">{description}</p>
-              <div className="rounded-large border-divider bg-default-50/60 text-default-500 border px-4 py-3 text-sm">
-                After connecting, you can inspect full details, set up solo or group play, build
-                your own strategies, and work with real stash and character data.
-              </div>
-              <p className="text-default-400 text-xs">
-                After connecting, you&apos;ll return to this page.
+              <p className="text-default-500 text-xs">
+                You&apos;ll return here after signing in.
               </p>
             </Modal.Body>
             <Modal.Footer>
               <Button variant="tertiary" onPress={close}>
-                Keep Browsing
+                Keep browsing
               </Button>
               <a href={getLoginHref(nextTarget)} className="button">
-                Connect Account
+                Sign in
               </a>
             </Modal.Footer>
           </Modal.Dialog>

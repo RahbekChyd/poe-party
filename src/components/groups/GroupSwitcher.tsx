@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@heroui/react/button'
 import { Description } from '@heroui/react/description'
 import { Dropdown } from '@heroui/react/dropdown'
@@ -16,6 +16,7 @@ import { CreateGroupModal } from './CreateGroupModal'
 import { JoinGroupModal } from './JoinGroupModal'
 
 type GroupActionIntent = 'leave' | 'delete'
+type GroupAction = { intent: GroupActionIntent; id: string; name: string }
 
 export function GroupSwitcher() {
   const { data: memberships, isLoading } = useMyGroups()
@@ -26,111 +27,141 @@ export function GroupSwitcher() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [joinOpen, setJoinOpen] = useState(false)
-  const [pendingAction, setPendingAction] = useState<GroupActionIntent | null>(null)
+  const [pendingAction, setPendingAction] = useState<GroupAction | null>(null)
+  const [inviteFeedback, setInviteFeedback] = useState('')
 
   const activeMembership = memberships?.find((membership) => membership.group.id === activeGroupId)
   const activeGroup = activeMembership?.group
   const isMutating = leaveGroup.isPending || deleteGroup.isPending
-  const destructiveActionLabel = pendingAction === 'delete' ? 'Delete Group' : 'Leave Group'
+  const mutation = pendingAction?.intent === 'delete' ? deleteGroup : leaveGroup
+  const destructiveActionLabel = pendingAction?.intent === 'delete' ? 'Delete group' : 'Leave group'
 
-  const label = isLoading ? <Spinner size="sm" /> : activeGroup ? activeGroup.name : 'Select Group'
+  useEffect(() => {
+    if (!inviteFeedback) return
+    const timeout = window.setTimeout(() => setInviteFeedback(''), 5000)
+    return () => window.clearTimeout(timeout)
+  }, [inviteFeedback])
+
+  async function copyInvite(code: string) {
+    try {
+      await navigator.clipboard.writeText(code)
+      setInviteFeedback('Invite code copied')
+    } catch {
+      setInviteFeedback('Couldn’t copy the invite code')
+    }
+  }
 
   return (
     <>
-      <Dropdown>
-        <Dropdown.Trigger
-          className="select__trigger h-9 min-h-9 max-w-[180px] min-w-0 items-center"
-          isDisabled={isMutating}
-        >
-          {isMutating ? <Spinner color="current" size="sm" /> : null}
-          <span className="select__value min-w-0 truncate">{label}</span>
-          <DropdownCaret className="select__indicator" />
-        </Dropdown.Trigger>
-        <Dropdown.Popover placement="bottom start">
-          <Dropdown.Menu
-            aria-label="Group switcher"
-            selectionMode="single"
-            selectedKeys={activeGroupId ? new Set([activeGroupId]) : new Set()}
-            disabledKeys={[
-              '__empty__',
-              ...(activeGroupId ? [activeGroupId] : []),
-              ...(isMutating ? ['__leave__', '__delete__'] : []),
-            ]}
-            onAction={(key) => {
-              if (key === '__create__') {
-                setCreateOpen(true)
-              } else if (key === '__join__') {
-                setJoinOpen(true)
-              } else if (key === '__invite__') {
-                const code = activeGroup?.invite_code
-                if (code) navigator.clipboard.writeText(code)
-              } else if (key === '__leave__') {
-                if (activeGroup) setPendingAction('leave')
-              } else if (key === '__delete__') {
-                if (activeGroup) setPendingAction('delete')
-              } else if (key !== '__empty__') {
-                setActiveGroupId(key as string)
-              }
-            }}
+      <div className="relative min-w-0">
+        <Dropdown>
+          <Dropdown.Trigger
+            aria-label={activeGroup ? `Switch group, current group: ${activeGroup.name}` : 'Switch group'}
+            className="select__trigger h-9 min-h-9 max-w-full min-w-0 items-center sm:max-w-56"
+            isDisabled={isMutating}
           >
-            {memberships && memberships.length > 0 ? (
-              <Dropdown.Section>
-                <Header>Your Groups</Header>
-                {memberships.map(({ group, role }) => (
-                  <Dropdown.Item key={group.id} id={group.id} textValue={group.name}>
-                    <Dropdown.ItemIndicator />
-                    <div className="flex flex-col">
-                      <Label>{group.name}</Label>
-                      <Description>
-                        {getPoeGameShortLabel(group.game)} - {group.league} - {role}
-                      </Description>
-                    </div>
+            <span className="select__value min-w-0">
+              <span className="flex min-w-0 items-center gap-2">
+                {isLoading || isMutating ? <Spinner color="current" size="sm" /> : null}
+                <span className="truncate">{activeGroup?.name ?? (isLoading ? 'Loading groups…' : 'Select group')}</span>
+              </span>
+            </span>
+            <DropdownCaret className="select__indicator" />
+          </Dropdown.Trigger>
+          <Dropdown.Popover placement="bottom start" className="max-w-[calc(100vw-1.5rem)]">
+            <Dropdown.Menu
+              aria-label="Group switcher"
+              selectionMode="single"
+              selectedKeys={activeGroupId ? new Set([activeGroupId]) : new Set()}
+              disabledKeys={[
+                '__empty__',
+                ...(activeGroupId ? [activeGroupId] : []),
+                ...(isMutating ? ['__leave__', '__delete__'] : []),
+              ]}
+              onAction={(key) => {
+                if (key === '__create__') {
+                  setCreateOpen(true)
+                } else if (key === '__join__') {
+                  setJoinOpen(true)
+                } else if (key === '__invite__') {
+                  const code = activeGroup?.invite_code
+                  if (code) void copyInvite(code)
+                } else if (key === '__leave__') {
+                  leaveGroup.reset()
+                  if (activeGroup) setPendingAction({ intent: 'leave', id: activeGroup.id, name: activeGroup.name })
+                } else if (key === '__delete__') {
+                  deleteGroup.reset()
+                  if (activeGroup) setPendingAction({ intent: 'delete', id: activeGroup.id, name: activeGroup.name })
+                } else if (key !== '__empty__') {
+                  setActiveGroupId(key as string)
+                }
+              }}
+            >
+              {memberships && memberships.length > 0 ? (
+                <Dropdown.Section>
+                  <Header>Your Groups</Header>
+                  {memberships.map(({ group, role }) => (
+                    <Dropdown.Item key={group.id} id={group.id} textValue={group.name}>
+                      <Dropdown.ItemIndicator />
+                      <div className="flex min-w-0 flex-col">
+                        <Label className="wrap-anywhere">{group.name}</Label>
+                        <Description>
+                          {getPoeGameShortLabel(group.game)} - {group.league} - {role}
+                        </Description>
+                      </div>
+                    </Dropdown.Item>
+                  ))}
+                </Dropdown.Section>
+              ) : (
+                <Dropdown.Section>
+                  <Dropdown.Item
+                    id="__empty__"
+                    textValue="No groups yet"
+                    className="text-default-400"
+                  >
+                    <Label>No groups yet</Label>
                   </Dropdown.Item>
-                ))}
-              </Dropdown.Section>
-            ) : (
+                </Dropdown.Section>
+              )}
+              <Separator />
               <Dropdown.Section>
-                <Dropdown.Item
-                  id="__empty__"
-                  textValue="No groups yet"
-                  className="text-default-400"
-                >
-                  <Label>No groups yet</Label>
+                {activeGroup && !activeGroup.is_solo ? (
+                  <Dropdown.Item id="__invite__" textValue="Copy Invite Code">
+                    <Copy size={14} className="text-muted shrink-0" />
+                    <Label>Copy Invite Code</Label>
+                  </Dropdown.Item>
+                ) : null}
+                {activeGroup && activeMembership?.role !== 'admin' ? (
+                  <Dropdown.Item id="__leave__" textValue="Leave Group" variant="danger">
+                    <LogOut size={14} className="text-danger shrink-0" />
+                    <Label>Leave Group</Label>
+                  </Dropdown.Item>
+                ) : null}
+                {activeGroup && activeMembership?.role === 'admin' ? (
+                  <Dropdown.Item id="__delete__" textValue="Delete Group" variant="danger">
+                    <Trash2 size={14} className="text-danger shrink-0" />
+                    <Label>Delete Group</Label>
+                  </Dropdown.Item>
+                ) : null}
+                <Dropdown.Item id="__create__" textValue="Create Group">
+                  <Plus size={14} className="text-muted shrink-0" />
+                  <Label>Create Group</Label>
+                </Dropdown.Item>
+                <Dropdown.Item id="__join__" textValue="Join Group">
+                  <LogIn size={14} className="text-muted shrink-0" />
+                  <Label>Join Group</Label>
                 </Dropdown.Item>
               </Dropdown.Section>
-            )}
-            <Separator />
-            <Dropdown.Section>
-              {activeGroup && !activeGroup.is_solo ? (
-                <Dropdown.Item id="__invite__" textValue="Copy Invite Code">
-                  <Copy size={14} className="text-muted shrink-0" />
-                  <Label>Copy Invite Code</Label>
-                </Dropdown.Item>
-              ) : null}
-              {activeGroup && activeMembership?.role !== 'admin' ? (
-                <Dropdown.Item id="__leave__" textValue="Leave Group" variant="danger">
-                  <LogOut size={14} className="text-danger shrink-0" />
-                  <Label>Leave Group</Label>
-                </Dropdown.Item>
-              ) : null}
-              {activeGroup && activeMembership?.role === 'admin' ? (
-                <Dropdown.Item id="__delete__" textValue="Delete Group" variant="danger">
-                  <Trash2 size={14} className="text-danger shrink-0" />
-                  <Label>Delete Group</Label>
-                </Dropdown.Item>
-              ) : null}
-              <Dropdown.Item id="__create__" textValue="Create Group">
-                <Plus size={14} className="text-muted shrink-0" />
-                <Label>Create Group</Label>
-              </Dropdown.Item>
-              <Dropdown.Item id="__join__" textValue="Join Group">
-                <LogIn size={14} className="text-muted shrink-0" />
-                <Label>Join Group</Label>
-              </Dropdown.Item>
-            </Dropdown.Section>
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
+        <div
+          role="status"
+          className={inviteFeedback ? 'border-divider bg-content1 text-foreground absolute top-full left-0 z-20 mt-1 w-max max-w-[calc(100vw-1.5rem)] rounded-md border px-3 py-2 text-sm shadow-sm' : 'sr-only'}
+        >
+          {inviteFeedback}
+        </div>
+      </div>
 
       <CreateGroupModal isOpen={createOpen} onClose={() => setCreateOpen(false)} />
       <JoinGroupModal isOpen={joinOpen} onClose={() => setJoinOpen(false)} />
@@ -147,11 +178,16 @@ export function GroupSwitcher() {
                 <Modal.Heading>{destructiveActionLabel}</Modal.Heading>
               </Modal.Header>
               <Modal.Body className="gap-3">
-                <p className="text-default-600 text-sm">
-                  {pendingAction === 'delete'
-                    ? `Delete "${activeGroup?.name}" for everyone? This permanently removes the group and all related data.`
-                    : `Leave "${activeGroup?.name}"? You will lose access until you join again with an invite code.`}
+                <p className="text-default-600 text-sm wrap-anywhere">
+                  {pendingAction?.intent === 'delete'
+                    ? `Permanently delete “${pendingAction.name}” and its data for everyone?`
+                    : pendingAction && `Leave “${pendingAction.name}”? You’ll need an invite code to rejoin.`}
                 </p>
+                {mutation.isError && (
+                  <p role="alert" className="text-danger text-sm">
+                    {pendingAction?.intent === 'delete' ? 'Couldn’t delete the group. Try again.' : 'Couldn’t leave the group. Try again.'}
+                  </p>
+                )}
               </Modal.Body>
               <Modal.Footer>
                 <Button
@@ -162,20 +198,10 @@ export function GroupSwitcher() {
                   Cancel
                 </Button>
                 <Button
-                  isPending={
-                    pendingAction === 'delete' ? deleteGroup.isPending : leaveGroup.isPending
-                  }
+                  isPending={mutation.isPending}
                   onPress={() => {
-                    if (!activeGroup || !pendingAction) return
-
-                    if (pendingAction === 'delete') {
-                      deleteGroup.mutate(activeGroup.id, {
-                        onSuccess: () => setPendingAction(null),
-                      })
-                      return
-                    }
-
-                    leaveGroup.mutate(activeGroup.id, {
+                    if (!pendingAction) return
+                    mutation.mutate(pendingAction.id, {
                       onSuccess: () => setPendingAction(null),
                     })
                   }}

@@ -16,7 +16,7 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
 } from 'recharts'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { useGroupMembers, useMyGroups } from '../../hooks/useGroups'
 import { useActiveCharacters, useGroupEconomy } from '../../hooks/useSnapshots'
 import { useGroupWealthHistory } from '../../hooks/useGroupWealthHistory'
@@ -44,6 +44,7 @@ import { Poe2EconomyPage } from './Poe2EconomyPage'
 import { hasActiveProAccess } from '../../lib/billing'
 import { ListBox, SelectField, UserAvatar } from '../ui/heroui-native'
 import { DashboardEmptyState, DashboardPage, DashboardPageHeader } from '../ui/dashboard'
+import { QueryStatePanel } from '../ui/QueryStatePanel'
 const SNAPSHOT_INTERVAL_OPTIONS: { value: SnapshotIntervalHours; label: string }[] = [
   { value: 1, label: 'Every hour' },
   { value: 2, label: 'Every 2 hours' },
@@ -62,10 +63,9 @@ export function EconomyPage() {
 }
 
 function Poe1EconomyPage() {
-  const navigate = useNavigate()
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
   const { data: members } = useGroupMembers(activeGroupId)
-  const { data: economy, isLoading } = useGroupEconomy(activeGroupId)
+  const { data: economy, isLoading, isError, refetch } = useGroupEconomy(activeGroupId)
   const { data: latestSnapshots } = useLatestSnapshots(activeGroupId)
   const { data: groupHistory } = useGroupWealthHistory(activeGroupId)
   const { data: characters } = useActiveCharacters(activeGroupId)
@@ -172,9 +172,8 @@ function Poe1EconomyPage() {
       <DashboardPage>
         <DashboardPageHeader
           title="Economy"
-          eyebrow="Stash intelligence"
           tone="currency"
-          description="Shared stash value, snapshot schedule, and per-member wealth movement."
+          description="Track stash value and manage snapshots."
           actions={
             canSnapshot ? (
               <Button
@@ -187,7 +186,7 @@ function Poe1EconomyPage() {
                 {({ isPending }) => (
                   <>
                     {isPending ? <Spinner color="current" size="sm" /> : null}
-                    {isPending ? 'Snapshotting...' : 'Snapshot'}
+                    {isPending ? 'Taking snapshot…' : 'Snapshot stash'}
                   </>
                 )}
               </Button>
@@ -201,7 +200,7 @@ function Poe1EconomyPage() {
               <div>
                 <p className="text-foreground text-sm font-semibold">Snapshot schedule</p>
                 <p className="text-default-400 mt-1 text-sm">
-                  Manual only is the default. Supporters can switch to Mix and set an interval.
+                  Take snapshots manually, or schedule them with Supporter access.
                 </p>
               </div>
               {!isPro && (
@@ -217,6 +216,7 @@ function Poe1EconomyPage() {
               <button
                 type="button"
                 onClick={() => setSnapshotMode('manual')}
+                aria-pressed={snapshotMode === 'manual'}
                 className={`rounded-xl border p-4 text-left transition-colors ${
                   snapshotMode === 'manual'
                     ? 'border-primary bg-primary/10'
@@ -227,7 +227,7 @@ function Poe1EconomyPage() {
                   <div>
                     <p className="text-foreground text-sm font-medium">Manual only</p>
                     <p className="text-default-400 mt-1 text-xs">
-                      Snapshots run only when you trigger them yourself.
+                      Take snapshots on demand.
                     </p>
                   </div>
                   {snapshotMode === 'manual' && (
@@ -245,6 +245,7 @@ function Poe1EconomyPage() {
                   setSnapshotMode('mix')
                 }}
                 disabled={!isPro}
+                aria-pressed={snapshotMode === 'mix'}
                 className={`rounded-xl border p-4 text-left transition-colors ${
                   snapshotMode === 'mix'
                     ? 'border-primary bg-primary/10'
@@ -255,7 +256,7 @@ function Poe1EconomyPage() {
                   <div>
                     <p className="text-foreground text-sm font-medium">Mix</p>
                     <p className="text-default-400 mt-1 text-xs">
-                      Keep manual snapshots and allow interval-based snapshotting.
+                      Take snapshots on demand and at a set interval.
                     </p>
                   </div>
                   {snapshotMode === 'mix' ? (
@@ -291,15 +292,7 @@ function Poe1EconomyPage() {
                     </ListBox.Item>
                   ))}
                 </SelectField>
-                <p className="text-default-400 text-xs">
-                  Current interval:{' '}
-                  {
-                    SNAPSHOT_INTERVAL_OPTIONS.find(
-                      (option) => option.value === snapshotIntervalHours,
-                    )?.label
-                  }
-                </p>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Chip size="sm" color={isEligible ? 'accent' : 'default'} variant="soft">
                     {isEligible && countdownLabel
                       ? `Next snapshot in ${countdownLabel}`
@@ -319,6 +312,8 @@ function Poe1EconomyPage() {
 
         {isLoading ? (
           <TableSkeleton rows={4} cols={5} />
+        ) : isError && !economy ? (
+          <QueryStatePanel kind="error" title="Couldn’t load economy data" description="Try again to view your stash values." onRetry={refetch} />
         ) : !sorted.length ? (
           <DashboardEmptyState
             icon={TrendingUp}
@@ -335,7 +330,7 @@ function Poe1EconomyPage() {
                   {({ isPending }) => (
                     <>
                       {isPending ? <Spinner color="current" size="sm" /> : null}
-                      {isPending ? 'Snapshotting...' : 'Snapshot stash'}
+                      {isPending ? 'Taking snapshot…' : 'Snapshot stash'}
                     </>
                   )}
                 </Button>
@@ -351,20 +346,19 @@ function Poe1EconomyPage() {
             )}
             {/* Group total */}
             <Card>
-              <button
-                type="button"
-                className="w-full text-left"
-                onClick={() => navigate({ to: '/dashboard/economy/group' })}
+              <Link
+                to="/dashboard/economy/group"
+                className="block w-full rounded-lg text-left focus-visible:outline-2 focus-visible:outline-primary"
               >
                 <Card.Content className="flex flex-row flex-wrap items-center gap-4 p-5">
                   <div className="bg-success/15 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
                     <TrendingUp size={20} className="text-success" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-default-400 text-xs tracking-wider uppercase">
                       {valuationPartial ? 'Priced subtotal' : 'Total Group Wealth'}
                     </p>
-                    <p className="text-foreground text-2xl font-bold">{valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}</p>
+                    <p className="text-foreground text-2xl font-bold wrap-anywhere">{valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}</p>
                   </div>
                   <div className="flex w-full items-center justify-between gap-4 sm:ml-auto sm:w-auto">
                     <div className="text-right">
@@ -378,7 +372,7 @@ function Poe1EconomyPage() {
                     </span>
                   </div>
                 </Card.Content>
-              </button>
+              </Link>
             </Card>
 
             {/* Group wealth history chart */}
@@ -487,9 +481,14 @@ function Poe1EconomyPage() {
             {/* Per-member table */}
             <Card>
               <Card.Header className="px-4 pt-4 pb-0">
-                <h2 className="text-foreground text-sm font-semibold">Member Breakdown</h2>
+                <h2 className="text-foreground text-sm font-semibold" id="economy-members">Member breakdown</h2>
               </Card.Header>
-              <Card.Content className="p-0">
+              <Card.Content
+                className="block min-w-0 overflow-x-auto p-0 focus-visible:outline-2 focus-visible:outline-primary"
+                role="region"
+                aria-labelledby="economy-members"
+                tabIndex={0}
+              >
                 <table className="w-full">
                   <thead>
                     <tr className="border-divider border-b">
@@ -520,16 +519,14 @@ function Poe1EconomyPage() {
                       return (
                         <tr
                           key={row.user_id}
-                          className={`hover:bg-default-50 cursor-pointer transition-colors ${i < sorted.length - 1 ? 'border-divider border-b' : ''}`}
-                          onClick={() =>
-                            navigate({
-                              to: '/dashboard/economy/$userId',
-                              params: { userId: row.user_id },
-                            })
-                          }
+                          className={`hover:bg-default-50 transition-colors ${i < sorted.length - 1 ? 'border-divider border-b' : ''}`}
                         >
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
+                            <Link
+                              to="/dashboard/economy/$userId"
+                              params={{ userId: row.user_id }}
+                              className="flex min-w-0 items-center gap-2 rounded-sm hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+                            >
                               <UserAvatar
                                 src={user?.avatar_url ?? undefined}
                                 name={user?.display_name ?? user?.poe_account_name ?? '?'}
@@ -542,21 +539,21 @@ function Poe1EconomyPage() {
                                     : undefined
                                 }
                               />
-                              <div>
-                                <p className="text-foreground text-sm font-medium">
-                                  {user?.display_name ?? user?.poe_account_name ?? '—'}
+                              <div className="min-w-0">
+                                <p className="text-foreground text-sm font-medium break-words">
+                                  {user?.display_name ?? user?.poe_account_name ?? 'View snapshot'}
                                 </p>
                                 <p className="text-default-400 text-xs">
                                   {pct.toFixed(1)}% of group
                                 </p>
                               </div>
-                            </div>
+                            </Link>
                           </td>
 
                           <td className="px-4 py-3">
                             {char ? (
                               <div>
-                                <p className="text-foreground text-sm">{char.name}</p>
+                                <p className="text-foreground text-sm break-words">{char.name}</p>
                                 <p className="text-default-400 text-xs">
                                   {char.class} {char.level}
                                 </p>

@@ -57,13 +57,13 @@ export function LoginPage() {
   }
 
   return (
-    <div className="from-background via-background to-warning/5 min-h-screen bg-gradient-to-br px-4 py-5 md:py-10">
+    <div className="from-background via-background to-warning/5 min-h-dvh bg-gradient-to-br px-4 py-5 md:py-10">
       <main className="mx-auto flex w-full max-w-4xl flex-col gap-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="" className="h-12 w-12 rounded-2xl shadow-sm md:h-14 md:w-14" />
-            <div>
-              <div className="flex items-center gap-2">
+            <img src={logo} alt="" className="h-12 w-12 shrink-0 rounded-2xl shadow-sm md:h-14 md:w-14" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-foreground text-2xl font-bold tracking-tight md:text-4xl">
                   Connect to PoE Party
                 </h1>
@@ -72,7 +72,7 @@ export function LoginPage() {
                 </Chip>
               </div>
               <p className="text-default-500 mt-1 text-sm md:text-base">
-                Plan, play, snapshot, and learn in one league workspace.
+                Sign in to manage your characters and league workspaces.
               </p>
             </div>
           </div>
@@ -81,7 +81,7 @@ export function LoginPage() {
             activeOptions={{ exact: true }}
             className="button button--sm button--tertiary"
           >
-            <ArrowLeft size={16} aria-hidden="true" /> Back to explore
+            <ArrowLeft size={16} aria-hidden="true" /> Back to home
           </Link>
         </div>
 
@@ -90,7 +90,7 @@ export function LoginPage() {
             <div className="flex flex-col gap-1">
               <h2 className="text-foreground text-xl font-semibold">Connect your PoE account</h2>
               <p className="text-default-500 text-sm">
-                Continue through Path of Exile OAuth. PoE Party never asks for your game password.
+                Sign in on the Path of Exile website.
               </p>
             </div>
 
@@ -100,8 +100,8 @@ export function LoginPage() {
                 <div>
                   <p className="text-foreground text-sm font-medium">Read-only game access</p>
                   <p className="text-default-500 mt-1 text-sm leading-relaxed">
-                    OAuth is exchanged server-side and is limited to account, character, league,
-                    and PoE1 stash data used by the app.
+                    PoE Party reads account, character, league, and PoE1 stash data. Your game
+                    password stays with Path of Exile.
                   </p>
                 </div>
               </div>
@@ -124,14 +124,13 @@ export function LoginPage() {
 
             {oauthStatus === 'error' ? (
               <div role="alert" className="text-danger flex items-center justify-center gap-2 text-sm">
-                <AlertCircle size={15} aria-hidden="true" />
-                Could not start OAuth. Open the configured preview domain or check this
-                deployment&apos;s configuration.
+                <AlertCircle size={15} className="shrink-0" aria-hidden="true" />
+                Could not open Path of Exile sign-in. Try again.
               </div>
             ) : null}
 
             <p className="text-default-400 text-center text-xs">
-              You will return to the page or workspace you were trying to open.
+              After signing in, you’ll return to the page you were opening.
             </p>
 
           </Card.Content>

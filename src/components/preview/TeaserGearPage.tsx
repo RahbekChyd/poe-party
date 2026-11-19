@@ -15,7 +15,7 @@ export function TeaserGearPage() {
       <PreviewPageIntro
         mode="teaser"
         title="Gear"
-        description="A lighter sample of the upgrade planning queue. The entries here are illustrative, but the layout mirrors how real suggestions are surfaced after sign-in."
+        description="Explore a sample queue of gear suggestions, priorities, and upgrade statuses."
       />
 
       <Card>
@@ -31,7 +31,7 @@ export function TeaserGearPage() {
               variant="tertiary"
               onPress={() =>
                 openGuestGate({
-                  title: 'Sign in to add real upgrade suggestions',
+                  title: 'Sign in to suggest an upgrade',
                   description:
                     'Gear planning is only available inside your signed-in workspace.',
                 })
@@ -110,12 +110,12 @@ export function TeaserGearPage() {
       </Card>
 
       <UnlockCard
-        title="What gear planning unlocks after sign-in"
-        description="The real gear page becomes a working queue for your upgrades and handoffs."
+        title="Plan your upgrades"
+        description="Sign in to share and track gear suggestions in your workspace."
         points={[
-          'Create and manage real upgrade suggestions.',
-          'Open full suggestion details, status notes, and item links.',
-          'Track which upgrades are still open and which ones are already handled.',
+          'Suggest upgrades for yourself or a party member.',
+          'Keep item links and notes with each suggestion.',
+          'Track open and completed upgrades.',
         ]}
       />
     </div>

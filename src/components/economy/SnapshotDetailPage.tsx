@@ -41,6 +41,7 @@ import {
   useSnapshotItems,
 } from '../../hooks/useSnapshotItems'
 import { useSnapshotHistory, type SnapshotDataPoint } from '../../hooks/useSnapshotHistory'
+import { QueryStatePanel } from '../ui/QueryStatePanel'
 import { useGroupMembers, useMyGroups } from '../../hooks/useGroups'
 import { useLatestSnapshots, useLinkSnapshotStrategy } from '../../hooks/useSnapshots'
 import { useStrategies } from '../../hooks/useStrategies'
@@ -55,7 +56,7 @@ import { filterHistoryByRange, type WealthHistoryRange } from '../../lib/wealth-
 import { useCurrencyStore } from '../../store/currency-store'
 import { useGroupStore } from '../../store/group-store'
 import { KpiCardsSkeleton, ItemTableSkeleton } from '../layout/Skeletons'
-import { useMyProfile } from '../../hooks/useCurrentUser'
+import { useCurrentUser, useMyProfile } from '../../hooks/useCurrentUser'
 import { WealthHistoryRangeSelector } from './WealthHistoryRangeSelector'
 import { SNAPSHOT_LIMITS, hasActiveProAccess } from '../../lib/billing'
 import { DropdownCaret, FieldInput, SimplePagination } from '../ui/heroui-native'
@@ -125,24 +126,28 @@ export function SnapshotDetailPage() {
     [history, historyRange],
   )
 
-  const { data: rawItems, isLoading } = useSnapshotItems(activeGroupId, userId, effectiveSnapshotId)
+  const { data: rawItems, isLoading, isError, refetch } = useSnapshotItems(activeGroupId, userId, effectiveSnapshotId)
   const { data: members } = useGroupMembers(activeGroupId)
   const { data: myGroups } = useMyGroups()
   const { data: strategyList } = useStrategies(activeGroupId)
-  const { mutate: linkStrategy, isPending: linkingStrategy } = useLinkSnapshotStrategy()
-  const { mutate: setItemExcluded, isPending: updatingExclusion } = useSetSnapshotItemExcluded(
+  const { mutate: linkStrategy, isPending: linkingStrategy, isError: linkError } = useLinkSnapshotStrategy()
+  const { mutate: setItemExcluded, isPending: updatingExclusion, isError: exclusionError } = useSetSnapshotItemExcluded(
     activeGroupId,
     userId,
     effectiveSnapshotId,
   )
-  const { mutate: setItemExcludedAllHistory, isPending: updatingExclusionAllHistory } =
+  const { mutate: setItemExcludedAllHistory, isPending: updatingExclusionAllHistory, isError: allHistoryError } =
     useSetSnapshotItemExcludedAllHistory(activeGroupId, userId, effectiveSnapshotId)
   const display = useCurrencyStore((s) => s.display)
   const { triggerSnapshot, isBusy, modal } = useStashSnapshotFlow()
   const { data: myProfile } = useMyProfile()
+  const { data: currentUser } = useCurrentUser()
   const isPro = hasActiveProAccess(myProfile)
 
-  const activeLeague = myGroups?.find((g) => g.group.id === activeGroupId)?.group.league ?? null
+  const membership = myGroups?.find((g) => g.group.id === activeGroupId)
+  const activeLeague = membership?.group.league ?? null
+  const isSnapshotOwner = currentUser?.id === userId
+  const canLinkStrategy = isSnapshotOwner || membership?.role === 'admin' || membership?.role === 'editor'
   const canSnapshot = !!myProfile?.poe_token_expires_at && !!activeLeague
 
   const { data: ninjaData } = useNinjaPrices(activeLeague)
@@ -370,7 +375,7 @@ export function SnapshotDetailPage() {
     )
   }
 
-  const canEditExclusions = !!currentHistoryPoint?.snapshot_id
+  const canEditExclusions = isSnapshotOwner && !!currentHistoryPoint?.snapshot_id
   const promptMsRemaining = excludeAllPrompt
     ? Math.max(0, excludeAllPrompt.expiresAt - promptNow)
     : 0
@@ -409,14 +414,12 @@ export function SnapshotDetailPage() {
       {modal}
       <div className="flex flex-col gap-6">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <Link to="/dashboard/economy">
-              <Button variant="tertiary" size="sm" className="mb-2 -ml-2">
-                Economy
-              </Button>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <Link to="/dashboard/economy" className="button button--sm button--tertiary mb-2 -ml-2">
+              Back to Economy
             </Link>
-            <h1 className="text-foreground text-2xl font-semibold">{displayName}'s Snapshot</h1>
+            <h1 className="text-foreground text-2xl font-semibold wrap-anywhere">{displayName}’s snapshot</h1>
             <p className="text-default-400 mt-1 text-sm">
               {activeLeague ?? '…'} · {age.label}
             </p>
@@ -428,12 +431,12 @@ export function SnapshotDetailPage() {
               isPending={isBusy}
               isDisabled={!activeGroupId}
               onPress={() => triggerSnapshot(activeGroupId!, activeLeague)}
-              className="mt-8 shrink-0"
+              className="shrink-0 sm:mt-8"
             >
               {({ isPending }) => (
                 <>
                   {isPending ? <Spinner color="current" size="sm" /> : null}
-                  {isPending ? 'Snapshotting...' : 'Snapshot'}
+                  {isPending ? 'Taking snapshot…' : 'Snapshot stash'}
                 </>
               )}
             </Button>
@@ -448,14 +451,14 @@ export function SnapshotDetailPage() {
           if (!currentHistoryPoint) return null
           const snapshotStrategyId = currentHistoryPoint.strategy_id ?? null
           const linkedStrategy = strategyList?.find((s) => s.id === snapshotStrategyId)
-          const canEditLink = !!currentHistoryPoint.snapshot_id
+          const canEditLink = canLinkStrategy && !!currentHistoryPoint.snapshot_id
           return (
-            <div className="rounded-large border-divider flex items-center gap-3 border px-4 py-3">
+            <div className="rounded-large border-divider flex min-w-0 flex-wrap items-center gap-3 border px-4 py-3">
               <Target size={16} className="text-default-400 shrink-0" />
               <span className="text-default-400 shrink-0 text-sm">Strategy:</span>
               {linkedStrategy ? (
-                <Chip size="sm" variant="soft" color="accent">
-                  {linkedStrategy.name}
+                <Chip size="sm" variant="soft" color="accent" className="max-w-full min-w-0">
+                  <span className="truncate" title={linkedStrategy.name}>{linkedStrategy.name}</span>
                 </Chip>
               ) : (
                 <span className="text-default-500 text-sm">None</span>
@@ -467,7 +470,7 @@ export function SnapshotDetailPage() {
                     isDisabled={linkingStrategy}
                   >
                     {linkingStrategy ? <Spinner color="current" size="sm" /> : null}
-                    {snapshotStrategyId ? 'Change' : 'Link'}
+                    {snapshotStrategyId ? 'Change strategy' : 'Link strategy'}
                     <DropdownCaret className="ml-1" />
                   </Dropdown.Trigger>
                   <Dropdown.Popover>
@@ -495,24 +498,32 @@ export function SnapshotDetailPage() {
                     </Dropdown.Menu>
                   </Dropdown.Popover>
                 </Dropdown>
-              ) : (
+              ) : !currentHistoryPoint.snapshot_id ? (
                 <span className="text-default-400 text-xs">Raw snapshot removed by retention</span>
-              )}
+              ) : null}
+              {linkError && <p role="alert" className="text-danger text-sm">Couldn’t update the strategy link. Try again.</p>}
             </div>
           )
         })()}
 
+        {(exclusionError || allHistoryError) && (
+          <p role="alert" className="text-danger text-sm">
+            {allHistoryError ? 'Couldn’t apply the exclusion to history.' : 'Couldn’t update the item.'} Try again.
+          </p>
+        )}
         {isLoading ? (
           <>
             <KpiCardsSkeleton />
             <ItemTableSkeleton />
           </>
+        ) : isError && !rawItems ? (
+          <QueryStatePanel kind="error" title="Couldn’t load the snapshot" description="Try again to view stash items." onRetry={refetch} />
         ) : !items.length && !currentHistoryPoint ? (
           <Card>
             <Card.Content className="flex flex-col items-center gap-3 p-12 text-center">
               <Package size={32} className="text-default-300" />
               <p className="text-default-400 text-sm">
-                No items found. Snapshot the stash from the Economy page first.
+                No stash items in this snapshot.
               </p>
             </Card.Content>
           </Card>
@@ -964,7 +975,7 @@ export function SnapshotDetailPage() {
             {/* Table — columns: Icon | Item | Tab | Stack | Unit | Total */}
             <Card>
               <Card.Content className="p-0">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-primary" role="region" aria-label="Snapshot stash items" tabIndex={0}>
                   <table className="w-full">
                     <thead>
                       <tr className="border-divider border-b">
@@ -1032,6 +1043,7 @@ export function SnapshotDetailPage() {
                               {canEditExclusions ? (
                                 <div className="relative inline-flex items-center justify-center">
                                   <div
+                                    inert={!promptActive}
                                     className={`absolute top-1/2 left-full z-30 ml-2 w-52 -translate-y-1/2 transition-all duration-300 ${
                                       promptActive
                                         ? 'pointer-events-auto translate-x-0 opacity-100'

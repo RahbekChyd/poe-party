@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { Button } from '@heroui/react/button'
 import { ButtonGroup } from '@heroui/react/button-group'
 import { Card } from '@heroui/react/card'
@@ -8,7 +8,7 @@ import { Separator } from '@heroui/react/separator'
 import { ToggleButton } from '@heroui/react/toggle-button'
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
 import { ChevronDown, Handshake, Minus, Plus, Search, Trash2 } from 'lucide-react'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { Route } from '../../routes/dashboard/services'
 import { useGroupStore } from '../../store/group-store'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
@@ -41,6 +41,7 @@ import { ServiceDetailSection } from './ServiceDetailSection'
 import { ServiceTypeChip } from './ServiceTypeChip'
 import { FieldInput, SelectField } from '../ui/heroui-native'
 import { DashboardEmptyState, DashboardPage, DashboardPageHeader } from '../ui/dashboard'
+import { QueryFreshnessNotice, QueryStatePanel } from '../ui/QueryStatePanel'
 type Mode = 'own' | 'public'
 type TypeFilter = ServiceType | 'all'
 const SERVICE_HEADER_CHIP_CLASS_NAME = 'px-3'
@@ -61,11 +62,15 @@ export function ServicesPage() {
   const [createOpen, setCreateOpen] = useState(false)
 
   const serverTypeFilter = typeFilter === 'all' ? null : typeFilter
-  const { data: myServices = [], isLoading: loadingOwn } = useMyServices(activeGroupId)
-  const { data: publicServices = [], isLoading: loadingPublic } = usePublicServicesInMyLeague(
+  const myServicesQuery = useMyServices(activeGroupId)
+  const publicServicesQuery = usePublicServicesInMyLeague(
     activeGroupId,
     serverTypeFilter,
   )
+  const { data: myServices = [] } = myServicesQuery
+  const { data: publicServices = [] } = publicServicesQuery
+  const activeQuery = mode === 'own' ? myServicesQuery : publicServicesQuery
+  const activeCount = mode === 'own' ? myServices.length : publicServices.length
 
   const filteredOwn = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase()
@@ -110,18 +115,13 @@ export function ServicesPage() {
     <DashboardPage>
       <DashboardPageHeader
         title="Services"
-        eyebrow="Market board"
         tone="currency"
-        description={
-          <>
-            Advertise boss carries, map carries, 5-way runs, and gold rotas — or browse what other
-            groups in {league ?? 'your league'} are offering.
-          </>
-        }
+        description={`Manage your listings or browse services in ${league ?? 'your league'}.`}
         actions={
           <>
             <ToggleButtonGroup
               size="sm"
+              aria-label="Listing source"
               selectionMode="single"
               disallowEmptySelection
               selectedKeys={new Set([mode])}
@@ -130,7 +130,7 @@ export function ServicesPage() {
                 if (value === 'own' || value === 'public') setMode(value)
               }}
             >
-              <ToggleButton id="own">Own</ToggleButton>
+              <ToggleButton id="own">My listings</ToggleButton>
               <ToggleButton id="public">
                 <ToggleButtonGroup.Separator />
                 Public
@@ -138,7 +138,7 @@ export function ServicesPage() {
             </ToggleButtonGroup>
             {activeGroupId && !isViewer ? (
               <Button size="sm" onPress={() => setCreateOpen(true)}>
-                New Service
+                New service
               </Button>
             ) : null}
           </>
@@ -148,18 +148,10 @@ export function ServicesPage() {
       <Card>
         <Card.Content className="gap-4 p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-foreground text-sm font-medium">
-                {mode === 'own' ? 'Your services' : 'Public services in your league'}
-              </p>
-              <p className="text-default-500 mt-1 text-sm">
-                {mode === 'own'
-                  ? 'Everything you’ve posted. Toggle availability to control whether buyers see you.'
-                  : 'Live listings from other groups matched to your current league.'}
-              </p>
-            </div>
             <ToggleButtonGroup
               size="sm"
+              aria-label="Service type"
+              className="max-w-full flex-wrap"
               selectionMode="single"
               disallowEmptySelection
               selectedKeys={new Set([typeFilter])}
@@ -177,9 +169,9 @@ export function ServicesPage() {
               ))}
             </ToggleButtonGroup>
           </div>
-          <div className="grid gap-3 md:grid-cols-[1fr_160px]">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(8rem,10rem)]">
             <FieldInput
-              aria-label="Search services"
+              label="Search services"
               placeholder={
                 mode === 'own'
                   ? 'Search title, IGN, description...'
@@ -192,7 +184,7 @@ export function ServicesPage() {
               onClear={() => setSearch('')}
             />
             <SelectField
-              aria-label="Region"
+              label="Region"
               selectedKey={region}
               onSelectionChange={(value) =>
                 setRegion(regionFromSelection(new Set([value ?? 'Any'])))
@@ -208,25 +200,29 @@ export function ServicesPage() {
         </Card.Content>
       </Card>
 
-      {mode === 'own' ? (
-        loadingOwn ? (
-          <Card>
-            <Card.Content className="text-default-400 p-10 text-center text-sm">
-              Loading your services...
-            </Card.Content>
-          </Card>
-        ) : filteredOwn.length === 0 ? (
+      <QueryFreshnessNotice
+        isRefreshing={activeQuery.isFetching && activeCount > 0}
+        refreshFailed={activeQuery.isError && activeCount > 0}
+        onRetry={activeQuery.refetch}
+      />
+
+      {activeQuery.isLoading ? (
+        <QueryStatePanel kind="loading" title="Loading services" description={mode === 'own' ? 'Getting your listings.' : 'Getting listings for your league.'} />
+      ) : activeQuery.isError && activeCount === 0 ? (
+        <QueryStatePanel kind="error" title="Could not load services" description="Try again with your current filters." onRetry={activeQuery.refetch} />
+      ) : mode === 'own' ? (
+        filteredOwn.length === 0 ? (
           <Card>
             <Card.Content className="flex flex-col items-center gap-3 p-12 text-center">
               <Handshake size={32} className="text-default-300" />
               <p className="text-default-500 text-sm">
                 {myServices.length === 0
-                  ? 'No services yet — click New Service to post your first listing.'
+                  ? isViewer ? 'No listings yet.' : 'Select New service to post your first listing.'
                   : 'No services match your filters.'}
               </p>
               {myServices.length === 0 ? (
                 <Button variant="tertiary" size="sm" onPress={() => setMode('public')}>
-                  See public available services
+                  Browse public services
                 </Button>
               ) : null}
             </Card.Content>
@@ -238,12 +234,6 @@ export function ServicesPage() {
             ))}
           </div>
         )
-      ) : loadingPublic ? (
-        <Card>
-          <Card.Content className="text-default-400 p-10 text-center text-sm">
-            Loading public services...
-          </Card.Content>
-        </Card>
       ) : filteredPublic.length === 0 ? (
         <DashboardEmptyState icon={Handshake} tone="currency">
           No public services in {league ?? 'your league'} match your filters yet.
@@ -363,21 +353,14 @@ function PartyQuickControls({ service }: { service: OwnedService }) {
 }
 
 function OwnedServiceRow({ service }: { service: OwnedService }) {
-  const navigate = useNavigate()
-  const { mutate: deleteService, isPending: deletingService } = useDeleteService()
+  const { mutate: deleteService, isPending: deletingService, isError: deleteFailed } = useDeleteService()
   const {
     availability: displayAvailability,
     availabilityPending,
     updateAvailability,
   } = useServiceAvailabilityControl(service.id, service.availability)
   const [expanded, setExpanded] = useState(false)
-
-  function goToEdit() {
-    navigate({
-      to: '/dashboard/services/$serviceId',
-      params: { serviceId: service.id },
-    })
-  }
+  const detailsId = useId()
 
   function handleDelete() {
     if (!confirm(`Delete “${service.title}”? This cannot be undone.`)) return
@@ -387,24 +370,8 @@ function OwnedServiceRow({ service }: { service: OwnedService }) {
   return (
     <Card className="hover:bg-default-50 transition-colors">
       <Card.Content className="gap-0 p-0">
-        <div
-          role="button"
-          tabIndex={0}
-          aria-expanded={expanded}
-          className="flex cursor-pointer items-start gap-3 p-5"
-          onClick={(event) => {
-            const target = event.target as HTMLElement
-            if (target.closest('button, a, input, [role="menuitem"]')) return
-            setExpanded((v) => !v)
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault()
-              setExpanded((v) => !v)
-            }
-          }}
-        >
-          <div className="min-w-0 flex-1">
+        <div className="flex flex-col items-start gap-3 p-4 sm:p-5 xl:flex-row">
+          <div className="min-w-0 flex-1 wrap-anywhere">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-foreground font-semibold">{service.title}</h2>
               <ServiceTypeChip
@@ -440,16 +407,16 @@ function OwnedServiceRow({ service }: { service: OwnedService }) {
             <PartyQuickControls service={service} />
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex max-w-full flex-wrap items-center gap-2">
             <AvailabilitySelector
               availability={displayAvailability}
               isDisabled={availabilityPending}
               onChange={updateAvailability}
             />
 
-            <Button size="sm" variant="tertiary" onPress={goToEdit}>
+            <Link to="/dashboard/services/$serviceId" params={{ serviceId: service.id }} className="button button--sm button--tertiary">
               Edit
-            </Button>
+            </Link>
 
             <Button
               size="sm"
@@ -462,28 +429,35 @@ function OwnedServiceRow({ service }: { service: OwnedService }) {
               Delete
             </Button>
 
-            <ChevronDown
-              size={18}
-              className={cn(
-                'text-default-400 shrink-0 transition-transform',
-                expanded && 'rotate-180',
-              )}
-              aria-hidden
-            />
+            <Button
+              isIconOnly
+              size="sm"
+              variant="tertiary"
+              aria-label={expanded ? 'Hide service details' : 'Show service details'}
+              aria-expanded={expanded}
+              aria-controls={expanded ? detailsId : undefined}
+              onPress={() => setExpanded((value) => !value)}
+            >
+              <ChevronDown size={18} className={cn('transition-transform', expanded && 'rotate-180')} aria-hidden="true" />
+            </Button>
           </div>
         </div>
+
+        {deleteFailed ? (
+          <p className="text-danger px-4 pb-4 text-sm sm:px-5" role="alert">Could not delete this listing. Try again.</p>
+        ) : null}
 
         {expanded ? (
           <>
             <Separator />
-            <div className="flex flex-col gap-4 p-5">
+            <div id={detailsId} className="flex flex-col gap-4 p-4 wrap-anywhere sm:p-5">
               {service.description ? (
                 <p className="text-default-600 text-sm leading-relaxed">{service.description}</p>
               ) : null}
               <ServiceDetailSection service={ownedAsPublic(service)} />
               {!service.description && !hasServiceDetailContent(service.details) ? (
                 <p className="text-default-400 text-sm">
-                  No extra details — everything's on the card above.
+                  No additional details.
                 </p>
               ) : null}
             </div>

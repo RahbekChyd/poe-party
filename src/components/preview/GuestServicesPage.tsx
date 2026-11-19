@@ -8,7 +8,7 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useGuestPublicServices } from '../../hooks/useGuestServices'
 import { usePoeGameAccess } from '../../hooks/usePoeGameAccess'
 import { usePreviewLeague } from '../../hooks/usePreviewLeague'
-import { PreviewNotice, PreviewPageIntro } from './PreviewShared'
+import { PreviewPageIntro } from './PreviewShared'
 import {
   SERVICE_TYPE_OPTIONS,
   REGION_OPTIONS,
@@ -72,27 +72,16 @@ export function GuestServicesPage() {
       <PreviewPageIntro
         mode="public"
         title="Services"
-        description="Live boss carries, map carries, 5-way hosts, and gold rotas from real providers. Copy a whisper in one click and hit them up in-game."
-        aside={
-          <PreviewNotice
-            mode="public"
-            title="Live public listings"
-            description="These are real providers advertising real services in the selected league. Posting and management stay inside private workspaces."
-          />
-        }
+        description="Find carries, 5-way runs, and gold rotas. Copy a whisper to contact the provider in-game."
       />
 
       <Card>
         <Card.Content className="gap-4 p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-foreground text-sm font-medium">Filter live services</p>
-              <p className="text-default-500 mt-1 text-sm">
-                Pick the service type, region, and league. Search by title, IGN, or boss name.
-              </p>
-            </div>
             <ToggleButtonGroup
               size="sm"
+              aria-label="Service type"
+              className="max-w-full flex-wrap"
               selectionMode="single"
               disallowEmptySelection
               selectedKeys={new Set([typeFilter])}
@@ -111,9 +100,9 @@ export function GuestServicesPage() {
             </ToggleButtonGroup>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-[1fr_180px_180px_160px]">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
             <FieldInput
-              aria-label="Search services"
+              label="Search services"
               placeholder="Search title, IGN, or boss..."
               startContent={<Search size={18} className="text-default-400" />}
               value={search}
@@ -122,7 +111,7 @@ export function GuestServicesPage() {
               onClear={() => setSearch('')}
             />
             <SelectField
-              aria-label="Game"
+              label="Game"
               selectedKey={selectedGame}
               onSelectionChange={(value) => {
                 if (value === 'poe1' || value === 'poe2') setSelectedGame(value)
@@ -135,12 +124,12 @@ export function GuestServicesPage() {
               ))}
             </SelectField>
             <SelectField
-              aria-label="League"
+              label="League"
               selectedKey={selectedLeague}
               onSelectionChange={(value) =>
                 setSelectedLeague(typeof value === 'string' ? value : null)
               }
-              isDisabled={leagueLoading}
+              isDisabled={leagues.length === 0}
             >
               {leagues.map((league) => (
                 <ListBox.Item key={league.id} id={league.id} textValue={league.label}>
@@ -149,7 +138,7 @@ export function GuestServicesPage() {
               ))}
             </SelectField>
             <SelectField
-              aria-label="Region"
+              label="Region"
               selectedKey={region}
               onSelectionChange={(value) =>
                 setRegion(regionFromSelection(new Set([value ?? 'Any'])))
@@ -165,11 +154,11 @@ export function GuestServicesPage() {
         </Card.Content>
       </Card>
 
-      {leagueError && leagues.length === 0 ? (
+      {!selectedLeague && leagueError ? (
         <QueryStatePanel
           kind="error"
           title="Leagues are unavailable"
-          description="We could not load the current league list. This is a connection problem, not an empty league."
+          description="Try again to load the league list."
           onRetry={refetchLeagues}
         />
       ) : null}
@@ -183,11 +172,17 @@ export function GuestServicesPage() {
         }}
       />
 
-      {isError && services.length === 0 ? (
+      {!selectedLeague ? (
+        leagueLoading ? (
+          <QueryStatePanel kind="loading" title="Loading leagues" description="Getting leagues for the selected game." />
+        ) : !leagueError ? (
+          <QueryStatePanel kind="empty" title="No leagues available" description="Choose another game to browse its services." />
+        ) : null
+      ) : isError && services.length === 0 ? (
         <QueryStatePanel
           kind="error"
           title="Services could not be loaded"
-          description="The public service directory did not respond. Try again instead of changing filters."
+          description="Try again to reload listings with your current filters."
           onRetry={refetch}
         />
       ) : isLoading ? (

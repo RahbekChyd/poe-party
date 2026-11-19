@@ -9,7 +9,7 @@ import { useJoinGroup } from '../../hooks/useGroups'
 import { CharacterPickerStep } from './CharacterPickerStep'
 import { FieldInput } from '../ui/heroui-native'
 const schema = z.object({
-  inviteCode: z.string().min(1, 'Invite code is required'),
+  inviteCode: z.string().trim().min(1, 'Enter an invite code'),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -39,9 +39,8 @@ export function JoinGroupModal({ isOpen, onClose }: JoinGroupModalProps) {
     onClose()
   }
 
-  const onSubmit = async (values: FormValues) => {
-    const groupId = await joinGroup.mutateAsync(values.inviteCode)
-    setJoinedGroupId(groupId)
+  const onSubmit = (values: FormValues) => {
+    joinGroup.mutate(values.inviteCode, { onSuccess: setJoinedGroupId })
   }
 
   return (
@@ -51,18 +50,19 @@ export function JoinGroupModal({ isOpen, onClose }: JoinGroupModalProps) {
         onOpenChange={(open) => {
           if (!open) handleClose()
         }}
-        isDismissable={!joinedGroupId}
+        isDismissable={!joinedGroupId && !joinGroup.isPending}
+        isKeyboardDismissDisabled={!!joinedGroupId || joinGroup.isPending}
       >
         <Modal.Container>
-          <Modal.Dialog>
+          <Modal.Dialog className="max-h-[calc(100dvh-2rem)] overflow-hidden">
             {joinedGroupId ? (
               <CharacterPickerStep groupId={joinedGroupId} onDone={handleClose} />
             ) : (
-              <form onSubmit={handleSubmit(onSubmit)}>
+              <form className="flex min-h-0 flex-col" onSubmit={handleSubmit(onSubmit)}>
                 <Modal.Header>
                   <Modal.Heading>Join a Group</Modal.Heading>
                 </Modal.Header>
-                <Modal.Body className="gap-4">
+                <Modal.Body className="min-h-0 gap-4 overflow-y-auto">
                   <FieldInput
                     label="Invite Code"
                     placeholder="e.g. a1b2c3d4"
@@ -71,16 +71,15 @@ export function JoinGroupModal({ isOpen, onClose }: JoinGroupModalProps) {
                     {...register('inviteCode')}
                   />
                   {joinGroup.error && (
-                    <p className="text-danger text-sm">
-                      {joinGroup.error instanceof Error &&
-                      joinGroup.error.message.includes('Invalid')
+                    <p role="alert" className="text-danger text-sm">
+                      {joinGroup.error.message.includes('Invalid invite code')
                         ? 'Invalid invite code — double-check and try again.'
-                        : 'Something went wrong'}
+                        : 'Couldn?t join the group. Try again.'}
                     </p>
                   )}
                 </Modal.Body>
                 <Modal.Footer>
-                  <Button variant="tertiary" onPress={handleClose}>
+                  <Button variant="tertiary" onPress={handleClose} isDisabled={joinGroup.isPending}>
                     Cancel
                   </Button>
                   <Button type="submit" isPending={joinGroup.isPending}>

@@ -1,8 +1,6 @@
-import { expect, test, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { expect, groupId, seedSignedIn, test, user, userId } from './fixture'
 
-const userId = '10000000-0000-0000-0000-000000000001'
-const groupId = '20000000-0000-0000-0000-000000000001'
-const user = { id: userId, aud: 'authenticated', role: 'authenticated', email: 'fixture@example.invalid', app_metadata: {}, user_metadata: {}, created_at: '2026-11-18T00:00:00Z' }
 const summary = { status: 'complete', version: 1, source: 'poe.ninja', priced_at: '2026-11-18T00:00:00Z', divine_price: null, priced_item_count: 1000, unpriced_item_count: 1, failed_categories: [] as string[] }
 const items = Array.from({ length: 1001 }, (_, i) => ({ id: `item-${String(i).padStart(4, '0')}`, user_id: userId, name: i === 1000 ? 'Unpriced keepsake' : 'Chaos Orb', type_line: 'Chaos Orb', base_type: null, frame_type: 5, ilvl: 1, icon_url: null, stack_size: 2, tab_name: 'Currency', tab_type: 'CurrencyStash', colour_r: 100, colour_g: 100, colour_b: 100, price_chaos: i === 1000 ? null : 6, is_excluded: false, excluded_reason: null }))
 const exclusionItems = [
@@ -21,12 +19,8 @@ async function mockCapture(page: Page, status: PricingStatus = 'complete', rows:
     unpriced_item_count: captureItems.filter((item) => item.price_chaos === null).length,
     failed_categories: status === 'complete' ? [] : ['Currency'],
   }
-  await page.addInitScript(({ user, groupId }) => {
-    sessionStorage.setItem('sb-127-auth-token', JSON.stringify({ access_token: 'fixture-access', refresh_token: 'fixture-refresh', expires_at: Math.floor(Date.now() / 1000) + 3600, expires_in: 3600, token_type: 'bearer', user }))
-    localStorage.setItem('poe-group-tool:active-group', JSON.stringify({ state: { activeGroupId: groupId }, version: 0 }))
-  }, { user, groupId })
+  await seedSignedIn(page)
   await page.route('**/api/ninja/**', (route) => route.fulfill({ status: 503, body: '{}' }))
-  await page.route('**/auth/v1/**', (route) => route.fulfill({ json: user }))
   await page.route('**/rest/v1/**', async (route) => {
     const url = new URL(route.request().url())
     const table = url.pathname.split('/').at(-1)

@@ -17,16 +17,15 @@ export function TeaserEconomyPage() {
       <PreviewPageIntro
         mode="teaser"
         title="Economy"
-        description="Sample values show how the stash economy view turns snapshots into a wealth overview once you start syncing."
+        description="Explore how a PoE1 stash snapshot tracks value over time and across party members."
       />
 
       <Card>
         <Card.Content className="gap-4 p-5 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-foreground">Sample stash coordination flow</p>
+            <p className="text-sm font-medium text-foreground">Stash snapshots</p>
             <p className="mt-2 text-sm leading-relaxed text-default-500">
-              Once your account is connected, this page becomes the place where you capture
-              snapshots, track wealth movement, and check when your last sync was.
+              Capture the value of selected stash tabs at a point in time.
             </p>
           </div>
           <Button
@@ -35,7 +34,7 @@ export function TeaserEconomyPage() {
               openGuestGate({
                 title: 'Sign in to run stash snapshots',
                 description:
-                  'Snapshots are only available inside your signed-in workspace, where they can be linked to real stash tabs, characters, and strategy tracking.',
+                  'Connect a PoE account to capture stash value in your workspace.',
               })
             }
           >
@@ -58,7 +57,7 @@ export function TeaserEconomyPage() {
           <div className="ml-auto flex items-center gap-3">
             <div className="text-right text-xs text-default-500">
               <p>{previewMembers.length} synced members</p>
-              <p>Illustrative sample values</p>
+              <p>Sample values</p>
             </div>
             <Chip size="sm" variant="soft" color="warning">
               Sign in for details
@@ -141,7 +140,7 @@ export function TeaserEconomyPage() {
           <div>
             <p className="text-sm font-semibold text-foreground">Illustrative member breakdown</p>
             <p className="mt-1 text-sm text-default-500">
-              A smaller sample of the per-member comparison you get once you start taking snapshots.
+              Compare stash value and snapshot activity by member.
             </p>
           </div>
         </Card.Header>
@@ -188,12 +187,12 @@ export function TeaserEconomyPage() {
       </Card>
 
       <UnlockCard
-        title="What economy unlocks after sign-in"
-        description="The signed-in economy workspace turns sample values into your own stash history and wealth comparisons."
+        title="Track your stash"
+        description="Sign in to capture snapshots in a PoE1 workspace."
         points={[
-          'Capture manual snapshots against your real stash tabs and characters.',
-          'Track your wealth movement over time instead of sample charts.',
-          'Inspect member-by-member value and snapshot freshness in your own workspace.',
+          'Capture snapshots of selected stash tabs.',
+          'Track changes in stash value over time.',
+          'Compare party members’ snapshots.',
         ]}
       />
     </div>

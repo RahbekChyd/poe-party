@@ -176,11 +176,23 @@ function TreeSection({
   subtitle: string
   linkHint?: string | null
 }) {
+  const [copyFeedback, setCopyFeedback] = useState('')
+
+  async function copyTreeLink() {
+    if (!url) return
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopyFeedback('Tree link copied')
+    } catch {
+      setCopyFeedback('Couldn’t copy the tree link')
+    }
+  }
+
   return (
     <div className="rounded-large border border-divider bg-default-50/60 p-4">
       <SectionTitle title={title} subtitle={subtitle} />
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Chip size="sm" variant="soft">
             {hashCount} allocated
           </Chip>
@@ -195,20 +207,20 @@ function TreeSection({
               size="sm"
               variant="tertiary"
               isIconOnly
-              onPress={() => navigator.clipboard.writeText(url)}
+              aria-label={`Copy ${title.toLowerCase()} link`}
+              onPress={() => void copyTreeLink()}
             >
               <Copy size={12} />
             </Button>
-            <a href={url} target="_blank" rel="noopener noreferrer">
-              <Button size="sm" variant="tertiary">
-                Open Official Tree
-              </Button>
+            <a href={url} target="_blank" rel="noopener noreferrer" className="button button--sm button--tertiary">
+              Open official tree
             </a>
           </div>
         ) : (
           <span className="text-default-400 text-xs">No tree link available</span>
         )}
       </div>
+      <p role="status" className="text-default-600 text-xs">{copyFeedback}</p>
     </div>
   )
 }
@@ -760,7 +772,7 @@ export function MemberCharacterDetails({
                     Who can discover this character?
                   </p>
                   <p className="mt-1 text-sm text-default-500">
-                    Pick a visibility option for {profile.character_name}. Changes apply immediately.
+                    Visibility changes take effect immediately.
                   </p>
                 </div>
                 <Chip
@@ -850,8 +862,8 @@ export function MemberCharacterDetails({
         <div className="rounded-large border border-divider bg-default-50/60 p-4">
           <SectionTitle title={selectionTitle} subtitle={selectionSubtitle} />
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Chip size="sm" color="accent" variant="soft">
-              {profile.character_name}
+            <Chip size="sm" color="accent" variant="soft" className="max-w-full">
+              <span className="min-w-0 wrap-anywhere">{profile.character_name}</span>
             </Chip>
             <Chip size="sm" color="accent" variant="soft">
               Last synced {formatRelativeTimestamp(profile.last_synced_at)}

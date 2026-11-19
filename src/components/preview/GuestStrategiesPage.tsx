@@ -12,7 +12,7 @@ import { usePoeGameAccess } from '../../hooks/usePoeGameAccess'
 import { usePreviewLeague } from '../../hooks/usePreviewLeague'
 import { DIFFICULTY_CHIP } from '../../lib/constants'
 import { formatCurrencyAmount } from '../../lib/utils'
-import { PreviewNotice, PreviewPageIntro } from './PreviewShared'
+import { PreviewPageIntro } from './PreviewShared'
 import { getPoeGameCapabilities, getPoeGameShortLabel } from '../../lib/poe-game'
 import { trackPublicEvent } from '../../lib/analytics'
 import { SelectField } from '../ui/heroui-native'
@@ -72,26 +72,12 @@ export function GuestStrategiesPage() {
       <PreviewPageIntro
         mode="public"
         title="Strategies"
-        description="Browse real public community strategies for the selected game and league. Public summaries, benchmarks, and PoE1 setup details are readable here."
-        aside={
-          <PreviewNotice
-            mode="public"
-            title="Real public listings"
-            description="Titles, publishers, benchmark data, atlas setup, threads, and map cost come from live public listings. Workspace actions stay private."
-          />
-        }
+        description="Browse community strategies, compare benchmarks, and see how PoE1 players set up their runs."
       />
 
       <Card>
-        <Card.Content className="gap-4 p-5 md:flex-row md:items-center md:justify-between">
-          <div className="min-w-0 flex-1">
-            <p className="text-foreground text-sm font-medium">League-scoped live public data</p>
-            <p className="text-default-500 mt-1 text-sm leading-relaxed">
-              Browse real public strategies here. Creating, subscribing, and active-strategy
-              tracking stay inside private workspaces.
-            </p>
-          </div>
-          <div className="grid w-full gap-3 md:max-w-xl md:grid-cols-2">
+        <Card.Content className="gap-4 p-5">
+          <div className="grid w-full max-w-xl gap-3 sm:grid-cols-2">
             <SelectField
               label="Game"
               selectedKey={selectedGame}
@@ -113,7 +99,7 @@ export function GuestStrategiesPage() {
               onSelectionChange={(value) => {
                 setSelectedLeague(typeof value === 'string' ? value : null)
               }}
-              isDisabled={leagueLoading}
+              isDisabled={leagues.length === 0}
             >
               {leagues.map((league) => (
                 <ListBox.Item key={league.id} id={league.id} textValue={league.label}>
@@ -128,6 +114,7 @@ export function GuestStrategiesPage() {
       <div className="flex flex-wrap items-center gap-2">
         <ToggleButtonGroup
           size="sm"
+          aria-label="Strategy stage"
           className="flex max-w-full flex-wrap"
           selectionMode="single"
           disallowEmptySelection
@@ -151,11 +138,11 @@ export function GuestStrategiesPage() {
         </ToggleButtonGroup>
       </div>
 
-      {leagueError && leagues.length === 0 ? (
+      {!selectedLeague && leagueError ? (
         <QueryStatePanel
           kind="error"
           title="Leagues are unavailable"
-          description="We could not load the current league list. Retry before browsing strategies."
+          description="Try again to load the league list."
           onRetry={refetchLeagues}
         />
       ) : null}
@@ -169,11 +156,17 @@ export function GuestStrategiesPage() {
         }}
       />
 
-      {isError && strategies.length === 0 ? (
+      {!selectedLeague ? (
+        leagueLoading ? (
+          <QueryStatePanel kind="loading" title="Loading leagues" description="Getting leagues for the selected game." />
+        ) : !leagueError ? (
+          <QueryStatePanel kind="empty" title="No leagues available" description="Choose another game to browse its strategies." />
+        ) : null
+      ) : isError && strategies.length === 0 ? (
         <QueryStatePanel
           kind="error"
           title="Strategies could not be loaded"
-          description="The public strategy directory did not respond. This is not an empty league result."
+          description="Try again to reload the selected league’s strategies."
           onRetry={refetch}
         />
       ) : isLoading ? (
@@ -194,21 +187,13 @@ export function GuestStrategiesPage() {
           kind="empty"
           icon={<Globe size={32} className="text-default-300" />}
           title="No strategies match this stage"
-          description={`Try another stage or league. The current league is ${selectedLeague ?? 'not selected'}.`}
+          description="Choose another stage or league."
         />
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-default-500 text-sm">
-              Showing {filteredStrategies.length} live public strateg
-              {filteredStrategies.length === 1 ? 'y' : 'ies'}
-              {selectedLeague ? ` for ${getPoeGameShortLabel(selectedGame)} ${selectedLeague}` : ''}
-              .
-            </p>
-            <Link to="/preview/search" className="button button--sm button--tertiary">
-              Open Directory
-            </Link>
-          </div>
+          <p className="text-default-500 text-sm wrap-anywhere" role="status">
+            {filteredStrategies.length} {filteredStrategies.length === 1 ? 'strategy' : 'strategies'}
+          </p>
 
           {filteredStrategies.map((strategy) => {
             const diffChip = DIFFICULTY_CHIP[strategy.difficulty] ?? DIFFICULTY_CHIP.normal
@@ -228,17 +213,11 @@ export function GuestStrategiesPage() {
               <Card key={strategy.id}>
                 <Card.Content className="gap-0 p-0">
                   <div className="flex flex-wrap items-start justify-between gap-4 px-5 pt-5 pb-4">
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 basis-full wrap-anywhere sm:flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-foreground font-semibold">{strategy.name}</p>
+                        <h2 className="text-foreground font-semibold">{strategy.name}</h2>
                         <Chip size="sm" color={diffChip.color} variant="soft">
                           {diffChip.label}
-                        </Chip>
-                        <Chip size="sm" color="accent" variant="soft">
-                          Public
-                        </Chip>
-                        <Chip size="sm" variant="soft">
-                          {strategy.group_name}
                         </Chip>
                         <Chip size="sm" variant="soft" color={benchmarkColor}>
                           {strategy.benchmark_chaos_per_hour == null
@@ -263,8 +242,8 @@ export function GuestStrategiesPage() {
                       ) : null}
 
                       <p className="text-default-400 mt-2 text-xs">
-                        {getPoeGameShortLabel(strategyGame)} {strategy.group_league} | Benchmark
-                        samples: {strategy.benchmark_sample_count.toLocaleString()}
+                        {strategy.group_name} · {getPoeGameShortLabel(strategyGame)} {strategy.group_league}
+                        {' · '}{strategy.benchmark_sample_count.toLocaleString()} benchmark {strategy.benchmark_sample_count === 1 ? 'sample' : 'samples'}
                       </p>
                     </div>
 
@@ -281,7 +260,7 @@ export function GuestStrategiesPage() {
                           })
                         }
                       >
-                        Open
+                        View strategy
                       </Link>
                     </div>
                   </div>

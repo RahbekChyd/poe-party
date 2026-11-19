@@ -21,6 +21,7 @@ export const queryKeys = {
 
   characters: {
     active: (groupId: string | null) => ['characters', 'active', groupId] as const,
+    mineGroup: (groupId: string | null) => ['my-characters', groupId] as const,
     mine: (groupId: string | null, league?: string | null) =>
       ['my-characters', groupId, league] as const,
   },

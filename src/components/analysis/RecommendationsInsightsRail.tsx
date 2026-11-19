@@ -772,13 +772,12 @@ export function RecommendationsInsightsRail({
           }}
         >
           <Modal.Container>
-            <Modal.Dialog className="w-[calc(100vw-2rem)] max-w-[96rem] max-h-[calc(100vh-2rem)] overflow-hidden sm:w-[calc(100vw-4rem)]">
+            <Modal.Dialog className="w-[calc(100vw-2rem)] max-w-[96rem] max-h-[calc(100dvh-2rem)] overflow-hidden sm:w-[calc(100vw-4rem)]">
               <Modal.Header className="flex flex-col gap-2">
                 <div>
                   <Modal.Heading>Passive tree details</Modal.Heading>
                   <p className="text-default-500 mt-1 text-sm">
-                    Full alignment details, links, and manual override live here so the
-                    recommendation rail stays clean.
+                    Compare allocated nodes and adjust the tree used for analysis.
                   </p>
                 </div>
               </Modal.Header>
@@ -794,11 +793,11 @@ export function RecommendationsInsightsRail({
                   passiveImpactMetricLabel={comparePowerReport?.metricLabel ?? null}
                 />
               </Modal.Body>
-              <div className="flex justify-end px-6 pb-6">
+              <Modal.Footer>
                 <Button size="sm" variant="tertiary" onPress={() => setTreeDetailsOpen(false)}>
                   Close
                 </Button>
-              </div>
+              </Modal.Footer>
             </Modal.Dialog>
           </Modal.Container>
         </Modal.Backdrop>
@@ -964,7 +963,7 @@ export function RecommendationsInsightsRail({
           }}
         >
           <Modal.Container>
-            <Modal.Dialog className="w-[calc(100vw-2rem)] max-w-3xl max-h-[calc(100vh-2rem)] overflow-hidden sm:w-[calc(100vw-4rem)]">
+            <Modal.Dialog className="w-[calc(100vw-2rem)] max-w-3xl max-h-[calc(100dvh-2rem)] overflow-hidden sm:w-[calc(100vw-4rem)]">
               <Modal.Header className="flex flex-col gap-2">
                 <div>
                   <Modal.Heading>Skill gem details</Modal.Heading>
@@ -1256,11 +1255,11 @@ export function RecommendationsInsightsRail({
                   </div>
                 )}
               </Modal.Body>
-              <div className="flex justify-end px-6 pb-6">
+              <Modal.Footer>
                 <Button size="sm" variant="tertiary" onPress={() => setSkillDetailsOpen(false)}>
                   Close
                 </Button>
-              </div>
+              </Modal.Footer>
             </Modal.Dialog>
           </Modal.Container>
         </Modal.Backdrop>

@@ -22,11 +22,11 @@ export function QueryStatePanel({
 }: QueryStatePanelProps) {
   const defaultIcon =
     kind === 'loading' ? (
-      <LoaderCircle size={28} className="animate-spin text-warning" />
+      <LoaderCircle size={28} className="animate-spin text-warning" aria-hidden="true" />
     ) : kind === 'error' ? (
-      <AlertTriangle size={28} className="text-danger" />
+      <AlertTriangle size={28} className="text-danger" aria-hidden="true" />
     ) : (
-      <Inbox size={28} className="text-default-300" />
+      <Inbox size={28} className="text-default-300" aria-hidden="true" />
     )
 
   return (
@@ -34,10 +34,10 @@ export function QueryStatePanel({
       <Card.Content
         role={kind === 'error' ? 'alert' : kind === 'loading' ? 'status' : undefined}
         aria-live={kind === 'loading' ? 'polite' : undefined}
-        className="flex flex-col items-center gap-3 p-10 text-center"
+        className="flex flex-col items-center gap-3 p-6 text-center sm:p-10"
       >
         {icon ?? defaultIcon}
-        <div className="max-w-lg">
+        <div className="min-w-0 max-w-lg wrap-anywhere">
           <p className="text-foreground text-sm font-semibold">{title}</p>
           <p className="text-default-500 mt-1 text-sm leading-relaxed">{description}</p>
         </div>
@@ -73,14 +73,14 @@ export function QueryFreshnessNotice({
           : 'border-divider bg-default-50 text-default-500'
       }`}
     >
-      <span className="inline-flex items-center gap-2">
+      <span className="inline-flex min-w-0 items-center gap-2">
         {refreshFailed ? (
           <AlertTriangle size={15} className="text-warning" aria-hidden="true" />
         ) : (
           <LoaderCircle size={15} className="animate-spin text-warning" aria-hidden="true" />
         )}
         {refreshFailed
-          ? 'Showing the last available results because the latest refresh failed.'
+          ? 'Refresh failed. Showing the last loaded results.'
           : 'Refreshing results…'}
       </span>
       {refreshFailed ? (

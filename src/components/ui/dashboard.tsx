@@ -61,7 +61,7 @@ export function DashboardPage({
   className?: string
 }) {
   return (
-    <div className={cn('mx-auto flex w-full max-w-[96rem] flex-col gap-6', className)}>
+    <div className={cn('mx-auto flex w-full min-w-0 max-w-[96rem] flex-col gap-6', className)}>
       {children}
     </div>
   )
@@ -86,11 +86,11 @@ export function DashboardPageHeader({
     <header
       style={dashboardToneStyle(tone)}
       className={cn(
-        'border-divider/70 flex flex-col gap-4 border-b pb-5 md:flex-row md:items-end md:justify-between',
+        'border-divider/70 flex flex-col gap-x-6 gap-y-4 border-b pb-5 md:flex-row md:flex-wrap md:items-end md:justify-between',
         className,
       )}
     >
-      <div className="min-w-0">
+      <div className="min-w-0 md:flex-[1_1_22rem]">
         <div className="mb-2 flex items-center gap-2">
           <span
             className="h-5 w-1 rounded-full bg-[color:var(--dashboard-tone)]"
@@ -102,14 +102,14 @@ export function DashboardPageHeader({
             </span>
           ) : null}
         </div>
-        <h1 className="text-foreground text-2xl leading-8 font-semibold tracking-normal">
+        <h1 className="text-foreground text-2xl leading-8 font-semibold tracking-normal wrap-anywhere">
           {title}
         </h1>
         {description ? (
-          <p className="text-default-500 mt-1 max-w-3xl text-sm leading-5">{description}</p>
+          <p className="text-default-500 mt-1 max-w-3xl text-sm leading-5 wrap-anywhere">{description}</p>
         ) : null}
       </div>
-      {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+      {actions ? <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div> : null}
     </header>
   )
 }
@@ -154,7 +154,7 @@ export function DashboardEmptyState({
     <Card>
       <Card.Content
         style={dashboardToneStyle(tone)}
-        className="flex flex-col items-center gap-3 p-10 text-center sm:p-12"
+        className="flex flex-col items-center gap-3 p-6 text-center sm:p-10"
       >
         {Icon ? (
           <Icon size={32} className="text-[color:var(--dashboard-tone)]" aria-hidden="true" />

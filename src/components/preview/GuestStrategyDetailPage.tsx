@@ -8,13 +8,14 @@ import { DIFFICULTY_CHIP, MAP_REQ_LABELS } from '../../lib/constants'
 import { getPoeGameCapabilities, getPoeGameShortLabel } from '../../lib/poe-game'
 import { formatCurrencyAmount } from '../../lib/utils'
 import { Route } from '../../routes/preview/strategies/$strategyId'
-import { PreviewNotice, PreviewPageIntro } from './PreviewShared'
+import { PreviewPageIntro } from './PreviewShared'
 import { StrategyMetadataBadges, StrategySourceLinks } from '../strategies/StrategyMetadataBadges'
+import { QueryStatePanel } from '../ui/QueryStatePanel'
 const divinePrice = 205
 
 export function GuestStrategyDetailPage() {
   const { strategyId } = Route.useParams()
-  const { data: strategy, isLoading } = useGuestPublicStrategyPreview(strategyId)
+  const { data: strategy, isLoading, isError, refetch } = useGuestPublicStrategyPreview(strategyId)
   const reqChips = useMemo(
     () =>
       Object.entries(strategy?.map_requirements ?? {})
@@ -25,11 +26,7 @@ export function GuestStrategyDetailPage() {
 
   if (isLoading) {
     return (
-      <Card>
-        <Card.Content className="text-default-400 p-10 text-center text-sm">
-          Loading live public strategy summary...
-        </Card.Content>
-      </Card>
+      <QueryStatePanel kind="loading" title="Loading strategy" description="Getting the public setup." />
     )
   }
 
@@ -40,7 +37,12 @@ export function GuestStrategyDetailPage() {
           <ArrowLeft size={14} />
           Back to Strategies
         </Link>
-        <p className="text-default-400 text-sm">This public strategy could not be found.</p>
+        <h1 className="text-2xl font-semibold">{isError ? 'Strategy unavailable' : 'Strategy not found'}</h1>
+        {isError ? (
+          <QueryStatePanel kind="error" title="Could not load strategy" description="Try again to open the public setup." onRetry={refetch} />
+        ) : (
+          <p className="text-default-500 text-sm">This strategy may have been removed or made private.</p>
+        )}
       </div>
     )
   }
@@ -60,31 +62,12 @@ export function GuestStrategyDetailPage() {
       <PreviewPageIntro
         mode="public"
         title={strategy.name}
-        description="This page shows the live public strategy setup so anyone can inspect the plan directly."
-        aside={
-          <PreviewNotice
-            mode="public"
-            title="Live public summary"
-            description="The title, description, publisher, league, benchmark, atlas setup, threads, and map cost below come from the real public listing."
-          />
-        }
+        description={`Published by ${strategy.group_name} · ${getPoeGameShortLabel(game)} ${strategy.group_league}`}
       />
 
       <div className="flex flex-wrap items-center gap-2">
         <Chip size="sm" color={diffChip.color} variant="soft">
           {diffChip.label}
-        </Chip>
-        <Chip size="sm" color="accent" variant="soft">
-          Public
-        </Chip>
-        <Chip size="sm" variant="soft">
-          {strategy.group_name}
-        </Chip>
-        <Chip size="sm" variant="soft">
-          {getPoeGameShortLabel(game)}
-        </Chip>
-        <Chip size="sm" variant="soft">
-          {strategy.group_league}
         </Chip>
         {strategy.map_cost != null ? (
           <Chip size="sm" variant="soft">
@@ -106,7 +89,7 @@ export function GuestStrategyDetailPage() {
       {strategy.description ? (
         <Card>
           <Card.Content className="p-5">
-            <p className="text-default-600 text-sm leading-relaxed">{strategy.description}</p>
+            <p className="text-default-600 text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap">{strategy.description}</p>
           </Card.Content>
         </Card>
       ) : null}

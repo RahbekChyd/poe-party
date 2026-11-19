@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { ListBox } from '@heroui/react/list-box'
 import { ToggleButton } from '@heroui/react/toggle-button'
@@ -13,7 +12,7 @@ import {
 } from '../../hooks/useGuestPreview'
 import { usePoeGameAccess } from '../../hooks/usePoeGameAccess'
 import { usePreviewLeague } from '../../hooks/usePreviewLeague'
-import { PreviewNotice, PreviewPageIntro } from './PreviewShared'
+import { PreviewPageIntro } from './PreviewShared'
 import { getPoeGameShortLabel } from '../../lib/poe-game'
 import { trackPublicEvent } from '../../lib/analytics'
 import { FieldInput, SelectField } from '../ui/heroui-native'
@@ -54,7 +53,7 @@ export function GuestDirectoryPage() {
   const resultCount = mode === 'characters' ? publicCharacters.length : publicGroups.length
 
   useEffect(() => {
-    if (!hasSearch || isLoading) return
+    if (!hasSearch || !selectedLeague || !activeQuery.isSuccess || activeQuery.isFetching) return
     trackPublicEvent('directory_search', {
       mode,
       query_length: debouncedQuery.trim().length,
@@ -62,35 +61,22 @@ export function GuestDirectoryPage() {
       game: selectedGame,
       league: selectedLeague ?? '',
     })
-  }, [debouncedQuery, hasSearch, isLoading, mode, resultCount, selectedGame, selectedLeague])
+  }, [activeQuery.isFetching, activeQuery.isSuccess, debouncedQuery, hasSearch, mode, resultCount, selectedGame, selectedLeague])
 
   return (
     <div className="flex flex-col gap-6">
       <PreviewPageIntro
         mode="public"
         title="Directory"
-        description="Search real public characters and groups for the selected game and league. Result cards open read-only public detail pages with shared profile data."
-        aside={
-          <PreviewNotice
-            mode="public"
-            title="Real public discovery"
-            description="The directory uses live public listings. Private stash, party management, and workspace actions stay out of the public view."
-          />
-        }
+        description="Find public characters and groups by game and league."
       />
 
       <Card>
         <Card.Content className="gap-4 p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-foreground text-sm font-medium">League-scoped public search</p>
-              <p className="text-default-500 mt-1 text-sm">
-                Search public characters or groups in the selected league. Result cards are live,
-                and their public detail pages open from the cards.
-              </p>
-            </div>
             <ToggleButtonGroup
               size="sm"
+              aria-label="Search for"
               selectionMode="single"
               disallowEmptySelection
               selectedKeys={new Set([mode])}
@@ -107,16 +93,11 @@ export function GuestDirectoryPage() {
             </ToggleButtonGroup>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-[0.5fr_0.2fr_0.3fr]">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.5fr)]">
             <FieldInput
-              aria-label={
-                mode === 'characters' ? 'Search public characters' : 'Search public groups'
-              }
-              placeholder={
-                mode === 'characters'
-                  ? 'Search public character names (min. 2 characters)...'
-                  : 'Search public groups (min. 2 characters)...'
-              }
+              label={mode === 'characters' ? 'Character name' : 'Group name'}
+              placeholder="At least 2 characters"
+              className="sm:col-span-2 xl:col-span-1"
               startContent={<Search size={18} className="text-default-400" />}
               value={query}
               onValueChange={setQuery}
@@ -124,7 +105,7 @@ export function GuestDirectoryPage() {
               onClear={() => setQuery('')}
             />
             <SelectField
-              aria-label="Game"
+              label="Game"
               selectedKey={selectedGame}
               onSelectionChange={(value) => {
                 if (typeof value === 'string' && (value === 'poe1' || value === 'poe2')) {
@@ -139,12 +120,12 @@ export function GuestDirectoryPage() {
               ))}
             </SelectField>
             <SelectField
-              aria-label="League"
+              label="League"
               selectedKey={selectedLeague}
               onSelectionChange={(value) => {
                 setSelectedLeague(typeof value === 'string' ? value : null)
               }}
-              isDisabled={leagueLoading}
+              isDisabled={leagues.length === 0}
             >
               {leagues.map((league) => (
                 <ListBox.Item key={league.id} id={league.id} textValue={league.label}>
@@ -156,11 +137,11 @@ export function GuestDirectoryPage() {
         </Card.Content>
       </Card>
 
-      {leagueError && leagues.length === 0 ? (
+      {!selectedLeague && leagueError ? (
         <QueryStatePanel
           kind="error"
           title="Leagues are unavailable"
-          description="We could not load the current league list. Retry before searching the directory."
+          description="Try again to load the league list."
           onRetry={refetchLeagues}
         />
       ) : null}
@@ -175,28 +156,28 @@ export function GuestDirectoryPage() {
         }
         onRetry={() => {
           void refetchLeagues()
-          void activeQuery.refetch()
+          if (selectedLeague && hasSearch) void activeQuery.refetch()
         }}
       />
 
-      {hasSearch && !isLoading ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-default-500 text-sm">
-            Showing {resultCount} live public {mode} result{resultCount === 1 ? '' : 's'} for{' '}
-            <span className="text-default-700 font-medium">{debouncedQuery.trim()}</span>
-            {selectedLeague ? ` in ${getPoeGameShortLabel(selectedGame)} ${selectedLeague}` : ''}.
-          </p>
-          <Button size="sm" variant="tertiary" onPress={() => setQuery('')}>
-            Clear Search
-          </Button>
-        </div>
+      {selectedLeague && hasSearch && resultCount > 0 ? (
+        <p className="text-default-500 text-sm wrap-anywhere" role="status">
+          {resultCount} result{resultCount === 1 ? '' : 's'} for <strong>{debouncedQuery.trim()}</strong>
+          { ` in ${getPoeGameShortLabel(selectedGame)} ${selectedLeague}.` }
+        </p>
       ) : null}
 
-      {hasSearch && activeQuery.isError && resultCount === 0 ? (
+      {!selectedLeague ? (
+        leagueLoading ? (
+          <QueryStatePanel kind="loading" title="Loading leagues" description="Getting leagues for the selected game." />
+        ) : !leagueError ? (
+          <QueryStatePanel kind="empty" title="No leagues available" description="Choose another game to search its directory." />
+        ) : null
+      ) : hasSearch && activeQuery.isError && resultCount === 0 ? (
         <QueryStatePanel
           kind="error"
           title="Directory search failed"
-          description="The public directory did not respond. Your search is still here; retry when ready."
+          description="Try again to repeat your search."
           onRetry={activeQuery.refetch}
         />
       ) : !hasSearch ? (
@@ -204,8 +185,7 @@ export function GuestDirectoryPage() {
           <Card.Content className="flex flex-col items-center gap-3 p-12 text-center">
             <Search size={32} className="text-default-300" />
             <p className="text-default-400 text-sm">
-              Start with at least two characters to search the live public directory for{' '}
-              {selectedLeague ?? 'the selected league'}.
+              Enter at least two characters to search {selectedLeague}.
             </p>
           </Card.Content>
         </Card>
@@ -226,13 +206,12 @@ export function GuestDirectoryPage() {
                 <Link
                   to="/preview/search/characters/$profileId"
                   params={{ profileId: character.profile_id }}
-                  className="block h-full"
+                  aria-label={`View ${character.character_name}`}
+                  className="block h-full rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   <DirectoryCharacterCardContent
                     character={character}
                     fallbackGame={selectedGame}
-                    actionLabel="Open"
-                    statusLabel="Live result"
                   />
                 </Link>
               </Card>
@@ -256,13 +235,12 @@ export function GuestDirectoryPage() {
               <Link
                 to="/preview/search/groups/$groupId"
                 params={{ groupId: group.group_id }}
-                className="block h-full"
+                aria-label={`View ${group.group_name}`}
+                className="block h-full rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 <DirectoryGroupCardContent
                   group={group}
                   fallbackGame={selectedGame}
-                  actionLabel="Open"
-                  statusLabel="Live result"
                 />
               </Link>
             </Card>

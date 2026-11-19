@@ -10,14 +10,14 @@ interface LegalLayoutProps {
 
 export function LegalLayout({ title, lastUpdated, children }: LegalLayoutProps) {
   return (
-    <div className="bg-background flex min-h-screen flex-col">
-      <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-12">
+    <div className="bg-background flex min-h-dvh flex-col">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 wrap-anywhere sm:px-6 sm:py-12">
         <Link
-          to="/preview"
+          to="/"
           className="text-default-400 hover:text-foreground mb-8 inline-flex items-center gap-2 text-sm transition-colors"
         >
-          <ArrowLeft size={14} />
-          Back to PoE Party
+          <ArrowLeft size={14} aria-hidden="true" />
+          Back to home
         </Link>
         <h1 className="text-foreground mb-2 text-3xl font-bold">{title}</h1>
         <p className="text-default-400 mb-8 text-xs">Last updated: {lastUpdated}</p>

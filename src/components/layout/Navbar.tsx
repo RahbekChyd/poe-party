@@ -1,11 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Avatar } from '@heroui/react/avatar'
 import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
 import { Dropdown } from '@heroui/react/dropdown'
 import { ToggleButton } from '@heroui/react/toggle-button'
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { FlaskConical, Moon, Sun } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { GroupSwitcher } from '../groups/GroupSwitcher'
@@ -24,6 +24,8 @@ export function Navbar() {
   const navigate = useNavigate()
   const { theme, toggle, setTheme } = useThemeStore()
   const { display: currencyDisplay, toggle: toggleCurrency } = useCurrencyStore()
+  const [signOutError, setSignOutError] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
   const { data: snapshots } = useLatestSnapshots(activeGroupId)
@@ -79,8 +81,17 @@ export function Navbar() {
     : null
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    navigate({ to: '/auth/login' })
+    setSignOutError(false)
+    setIsSigningOut(true)
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+      await navigate({ to: '/auth/login' })
+    } catch {
+      setSignOutError(true)
+    } finally {
+      setIsSigningOut(false)
+    }
   }
 
   const freshnessColor =
@@ -112,136 +123,147 @@ export function Navbar() {
   const canOpenSupport = hasActiveProAccess(profile) || isBillingAvailableForProfile(profile)
 
   return (
-    <nav className="border-divider/70 bg-content1/90 flex min-h-14 shrink-0 items-center gap-2 border-b px-3 backdrop-blur sm:gap-3 sm:px-4">
-      <div className="mr-auto flex min-w-0 flex-1 items-center gap-2">
-        <div className="inline-flex min-w-0 items-center">
-          <GroupSwitcher />
-        </div>
-      </div>
-
-      <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2">
-        <div className="hidden min-w-0 items-center sm:inline-flex">
-          <ToggleButtonGroup
-            size="sm"
-            selectionMode="single"
-            disallowEmptySelection
-            selectedKeys={new Set([currencyDisplay])}
-            onSelectionChange={(keys) => {
-              const [value] = Array.from(keys)
-              if ((value === 'chaos' || value === 'divine') && value !== currencyDisplay) {
-                toggleCurrency()
-              }
-            }}
-          >
-            <ToggleButton id="chaos">Chaos</ToggleButton>
-            <ToggleButton id="divine">
-              <ToggleButtonGroup.Separator />
-              Divine
-            </ToggleButton>
-          </ToggleButtonGroup>
-        </div>
-
-        <div className="inline-flex min-w-0 items-center">
-          <Button
-            isIconOnly
-            size="sm"
-            variant="tertiary"
-            onPress={handleThemeToggle}
-            aria-label="Toggle theme"
-          >
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          </Button>
-        </div>
-
-        {analysisChipLabel ? (
-          <div className="hidden min-w-0 items-center lg:inline-flex">
-            <button
-              type="button"
-              onClick={() => void navigate({ to: '/dashboard/analysis' })}
-              className="block max-w-44 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-              aria-label={analysisChipLabel}
-            >
-              <Chip
-                className="h-8 max-w-44 cursor-pointer justify-start px-3 transition-opacity hover:opacity-80"
-                size="sm"
-                variant="soft"
-                color={analysisChipColor}
-              >
-                {liveRun ? (
-                  <span className="mr-1.5 flex h-2 w-2 items-center justify-center">
-                    <span
-                      className={`block h-2 w-2 animate-pulse rounded-full ${analysisChipColor === 'warning' ? 'bg-warning' : 'bg-success'}`}
-                    />
-                  </span>
-                ) : (
-                  <FlaskConical size={12} className="mr-1.5 shrink-0" />
-                )}
-                <span className="truncate">{analysisChipLabel}</span>
-              </Chip>
-            </button>
+    <>
+      <header className="border-divider/70 bg-content1/90 flex min-h-14 shrink-0 items-center gap-2 border-b px-3 backdrop-blur sm:gap-3 sm:px-4">
+        <div className="mr-auto flex min-w-0 flex-1 items-center gap-2">
+          <div className="inline-flex min-w-0 items-center">
+            <GroupSwitcher />
           </div>
-        ) : null}
-
-        <div className="hidden min-w-0 items-center xl:inline-flex">
-          <Chip
-            className="h-8 max-w-52 justify-start px-3"
-            size="sm"
-            variant="soft"
-            color={chipColor}
-          >
-            <span className="truncate">{chipLabel}</span>
-          </Chip>
         </div>
 
-        <div className="inline-flex min-w-0 items-center">
-          <Dropdown>
-            <Dropdown.Trigger
-              aria-label="Account menu"
-              className="button button--sm button--tertiary button--icon-only"
+        <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2">
+          <div className="hidden min-w-0 items-center sm:inline-flex">
+            <ToggleButtonGroup
+              aria-label="Display currency"
+              size="sm"
+              selectionMode="single"
+              disallowEmptySelection
+              selectedKeys={new Set([currencyDisplay])}
+              onSelectionChange={(keys) => {
+                const [value] = Array.from(keys)
+                if ((value === 'chaos' || value === 'divine') && value !== currencyDisplay) {
+                  toggleCurrency()
+                }
+              }}
             >
-              <Avatar size="sm">
-                <Avatar.Fallback>{userDisplayName.slice(0, 2).toUpperCase()}</Avatar.Fallback>
-              </Avatar>
-            </Dropdown.Trigger>
-            <Dropdown.Popover placement="bottom end">
-              <Dropdown.Menu>
-                <Dropdown.Item
-                  id="profile"
-                  textValue={userDisplayName}
-                  className="text-default-500"
-                  isDisabled
+              <ToggleButton id="chaos">Chaos</ToggleButton>
+              <ToggleButton id="divine">
+                <ToggleButtonGroup.Separator />
+                Divine
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </div>
+
+          <div className="inline-flex min-w-0 items-center">
+            <Button
+              isIconOnly
+              size="sm"
+              variant="tertiary"
+              onPress={handleThemeToggle}
+              aria-label="Toggle theme"
+            >
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            </Button>
+          </div>
+
+          {analysisChipLabel ? (
+            <div className="hidden min-w-0 items-center lg:inline-flex">
+              <Link
+                to="/dashboard/analysis"
+                className="focus-visible:outline-primary block max-w-44 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+                aria-label={analysisChipLabel}
+              >
+                <Chip
+                  className="h-8 max-w-44 cursor-pointer justify-start px-3 transition-opacity hover:opacity-80"
+                  size="sm"
+                  variant="soft"
+                  color={analysisChipColor}
                 >
-                  {userDisplayName}
-                </Dropdown.Item>
-                {canOpenSupport ? (
+                  {liveRun ? (
+                    <span className="mr-1.5 flex h-2 w-2 items-center justify-center">
+                      <span
+                        className={`block h-2 w-2 animate-pulse rounded-full ${analysisChipColor === 'warning' ? 'bg-warning' : 'bg-success'}`}
+                      />
+                    </span>
+                  ) : (
+                    <FlaskConical size={12} className="mr-1.5 shrink-0" />
+                  )}
+                  <span className="truncate">{analysisChipLabel}</span>
+                </Chip>
+              </Link>
+            </div>
+          ) : null}
+
+          <div className="hidden min-w-0 items-center xl:inline-flex">
+            <Chip
+              className="h-8 max-w-52 justify-start px-3"
+              size="sm"
+              variant="soft"
+              color={chipColor}
+            >
+              <span className="truncate">{chipLabel}</span>
+            </Chip>
+          </div>
+
+          <div className="inline-flex min-w-0 items-center">
+            <Dropdown>
+              <Dropdown.Trigger
+                aria-label="Account menu"
+                className="button button--sm button--tertiary button--icon-only"
+              >
+                <Avatar size="sm">
+                  <Avatar.Fallback>{userDisplayName.slice(0, 2).toUpperCase()}</Avatar.Fallback>
+                </Avatar>
+              </Dropdown.Trigger>
+              <Dropdown.Popover placement="bottom end">
+                <Dropdown.Menu>
                   <Dropdown.Item
-                    id="support"
-                    textValue="Support PoE Party"
-                    onAction={() => navigate({ to: '/dashboard/support' })}
+                    id="profile"
+                    textValue={userDisplayName}
+                    className="text-default-500 wrap-anywhere"
+                    isDisabled
                   >
-                    Support PoE Party
+                    {userDisplayName}
                   </Dropdown.Item>
-                ) : null}
-                <Dropdown.Item
-                  id="early-access"
-                  textValue="Early Access"
-                  onAction={openEarlyAccessNotice}
-                >
-                  Early Access
-                </Dropdown.Item>
-                <Dropdown.Item
-                  id="signout"
-                  textValue="Sign out"
-                  className="text-danger"
-                  onAction={handleSignOut}
-                >
-                  Sign out
-                </Dropdown.Item>
-              </Dropdown.Menu>
-            </Dropdown.Popover>
-          </Dropdown>
+                  {canOpenSupport ? (
+                    <Dropdown.Item
+                      id="support"
+                      textValue="Support PoE Party"
+                      onAction={() => navigate({ to: '/dashboard/support' })}
+                    >
+                      Support PoE Party
+                    </Dropdown.Item>
+                  ) : null}
+                  <Dropdown.Item id="display-currency" onAction={toggleCurrency}>
+                    Show amounts in {currencyDisplay === 'chaos' ? 'Divine Orbs' : 'Chaos Orbs'}
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    id="early-access"
+                    textValue="Early Access"
+                    onAction={openEarlyAccessNotice}
+                  >
+                    Early Access
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    id="signout"
+                    textValue="Sign out"
+                    className="text-danger"
+                    isDisabled={isSigningOut}
+                    onAction={handleSignOut}
+                  >
+                    Sign out
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
+          </div>
         </div>
-      </div>
-    </nav>
+      </header>
+      {signOutError ? (
+        <p role="alert" className="text-danger border-divider/70 border-b px-4 py-2 text-sm">
+          Could not sign out. Open the account menu to try again.
+        </p>
+      ) : null}
+    </>
   )
 }

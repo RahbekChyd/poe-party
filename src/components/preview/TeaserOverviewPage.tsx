@@ -41,7 +41,7 @@ export function TeaserOverviewPage() {
       <PreviewPageIntro
         mode="teaser"
         title="Overview"
-        description="A lighter sample of the dashboard. Wealth, roster health, and next actions are shown with illustrative values — sign in to see your own."
+        description="See a sample workspace with stash history, members, strategies, and gear suggestions."
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -93,7 +93,7 @@ export function TeaserOverviewPage() {
           <div>
             <p className="text-foreground text-sm font-semibold">Illustrative wealth trend</p>
             <p className="text-default-500 mt-1 text-sm">
-              A single sample chart to show how snapshots turn into momentum over time.
+              Stash value from recent snapshots.
             </p>
           </div>
         </Card.Header>
@@ -288,10 +288,10 @@ export function TeaserOverviewPage() {
       </div>
 
       <UnlockCard
-        title="What the overview page unlocks after sign-in"
-        description="The signed-in overview becomes your real command board, tied to your own snapshots, strategies, and upgrade work."
+        title="Set up your workspace"
+        description="Sign in to bring your characters and group into PoE Party."
         points={[
-          'Track your own wealth trend instead of sample values.',
+          'Track your PoE1 stash value over time.',
           'See your sync status and which strategy is active.',
           'Jump from overview cards into your real strategy and gear workflows.',
         ]}

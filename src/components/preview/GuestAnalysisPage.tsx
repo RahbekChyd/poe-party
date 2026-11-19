@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
@@ -9,11 +9,9 @@ import {
   CheckCircle2,
   Clock3,
   FileText,
-  PlayCircle,
   Search,
   Sparkles,
   UserRound,
-  type LucideIcon,
 } from 'lucide-react'
 import {
   guestPlanForRecommendationRow,
@@ -33,7 +31,7 @@ import type {
 } from '../../types/app'
 import { RecommendationItemRow } from '../gear/RecommendationItemRow'
 import { FieldInput, FieldTextArea, SelectField } from '../ui/heroui-native'
-import { PreviewNotice, PreviewPageIntro } from './PreviewShared'
+import { PreviewPageIntro } from './PreviewShared'
 
 const GUEST_RUN_TOKEN_STORAGE_KEY = 'poe-party:guest-analysis-run-token:v1'
 const ALL_GUEST_LEAGUES_KEY = '__all__'
@@ -325,11 +323,13 @@ function GuestRecommendations({
 
 function CharacterPicker({
   characters,
-  selectedCharacterName,
+  selectedCharacter,
+  isDisabled,
   onSelect,
 }: {
   characters: GuestCharacterSummary[]
-  selectedCharacterName: string | null
+  selectedCharacter: GuestCharacterSummary | null
+  isDisabled: boolean
   onSelect: (character: GuestCharacterSummary) => void
 }) {
   if (characters.length === 0) return null
@@ -337,11 +337,14 @@ function CharacterPicker({
   return (
     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
       {characters.map((character) => {
-        const selected = character.name === selectedCharacterName
+        const selected = character.name === selectedCharacter?.name &&
+          character.realm === selectedCharacter.realm
         return (
           <button
             key={`${character.realm}-${character.name}`}
             type="button"
+            aria-pressed={selected}
+            disabled={isDisabled}
             className={`rounded-large border p-3 text-left transition ${
               selected
                 ? 'border-accent bg-accent/10'
@@ -351,7 +354,7 @@ function CharacterPicker({
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-foreground truncate text-sm font-semibold">{character.name}</p>
+                <p className="text-foreground wrap-anywhere text-sm font-semibold">{character.name}</p>
                 <p className="text-default-500 mt-1 text-xs">
                   {character.class ?? 'Unknown class'}
                   {character.level ? ` - level ${character.level}` : ''}
@@ -371,142 +374,11 @@ function CharacterPicker({
   )
 }
 
-function PublicAnalysisFirstRunGuide({
-  activeRun,
-  rawImport,
-  selectedCharacter,
-}: {
-  activeRun: GuestUpgradeAnalysisRun | null
-  rawImport: string
-  selectedCharacter: GuestCharacterSummary | null
-}) {
-  const hasCharacter = Boolean(selectedCharacter)
-  const hasTarget = rawImport.trim().length > 0
-  const hasRun = Boolean(activeRun)
-  const hasReviewableRun = activeRun?.status === 'completed' || activeRun?.status === 'partial'
-  const steps: Array<{
-    description: string
-    href: string
-    icon: LucideIcon
-    isComplete: boolean
-    isCurrent: boolean
-    title: string
-  }> = [
-    {
-      title: 'Find a public character',
-      description: 'Use an account name with discriminator, then pick the league character to score.',
-      href: '#public-character',
-      icon: UserRound,
-      isComplete: hasCharacter,
-      isCurrent: !hasCharacter,
-    },
-    {
-      title: 'Add the target PoB',
-      description: 'Paste the build you want to compare against the selected public character.',
-      href: '#target-pob',
-      icon: FileText,
-      isComplete: hasTarget,
-      isCurrent: hasCharacter && !hasTarget,
-    },
-    {
-      title: 'Queue Quick Analysis',
-      description: 'Run the public worker once the character and target are ready.',
-      href: '#target-pob',
-      icon: PlayCircle,
-      isComplete: hasRun,
-      isCurrent: hasCharacter && hasTarget && !hasRun,
-    },
-    {
-      title: 'Review the result',
-      description: 'Completed public runs show item recommendations below the setup form.',
-      href: hasRun ? '#public-recommendations' : '#current-public-run',
-      icon: Sparkles,
-      isComplete: hasReviewableRun,
-      isCurrent: hasRun && !hasReviewableRun,
-    },
-  ]
-  const completedSteps = steps.filter((step) => step.isComplete).length
-
-  return (
-    <Card className="border-accent/25 bg-accent/5 border">
-      <Card.Content className="gap-4 p-5">
-        <div className="flex items-start gap-3">
-          <div className="bg-accent/10 text-accent flex h-10 w-10 items-center justify-center rounded-large">
-            <Sparkles size={18} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-foreground text-sm font-semibold">First Public Analysis</p>
-            <p className="text-default-600 mt-1 text-sm">
-              {completedSteps} of {steps.length} steps ready. Follow the path once, then repeat
-              with any public PoE1 character and target build.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          {steps.map((step, index) => {
-            const Icon = step.icon
-            const StepIcon = step.isComplete ? CheckCircle2 : Icon
-
-            return (
-              <a
-                key={step.title}
-                href={step.href}
-                aria-current={step.isCurrent ? 'step' : undefined}
-                className={`rounded-large border px-3 py-3 transition ${
-                  step.isCurrent
-                    ? 'border-accent/50 bg-accent/10'
-                    : step.isComplete
-                      ? 'border-success/35 bg-success/10'
-                      : 'border-divider/70 bg-content1/80 hover:border-accent/35'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                      step.isComplete
-                        ? 'bg-success/15 text-success'
-                        : step.isCurrent
-                          ? 'bg-accent/15 text-accent'
-                          : 'bg-default-100 text-default-500'
-                    }`}
-                  >
-                    <StepIcon size={16} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-foreground text-sm font-medium">{step.title}</p>
-                      <Chip
-                        size="sm"
-                        color={step.isComplete ? 'success' : step.isCurrent ? 'accent' : 'default'}
-                        variant="soft"
-                      >
-                        {step.isComplete ? 'Done' : step.isCurrent ? 'Now' : `Step ${index + 1}`}
-                      </Chip>
-                    </div>
-                    <p className="text-default-500 mt-1 text-xs leading-relaxed">
-                      {step.description}
-                    </p>
-                  </div>
-                </div>
-              </a>
-            )
-          })}
-        </div>
-
-        <div className="rounded-large border-divider/70 bg-content1/70 border px-4 py-3">
-          <p className="text-default-600 text-sm">
-            Public mode only needs an account name, a visible PoE1 character, and a target PoB.
-            This browser remembers your latest run.
-          </p>
-        </div>
-      </Card.Content>
-    </Card>
-  )
-}
-
 export function GuestAnalysisPage() {
   const [accountName, setAccountName] = useState('')
+  const [resolvedAccountName, setResolvedAccountName] = useState<string | null>(null)
+  const [characterMessage, setCharacterMessage] = useState<{ text: string; error?: boolean } | null>(null)
+  const lookupRevision = useRef(0)
   const [characters, setCharacters] = useState<GuestCharacterSummary[]>([])
   const [leagueFilter, setLeagueFilter] = useState(ALL_GUEST_LEAGUES_KEY)
   const [selectedCharacter, setSelectedCharacter] = useState<GuestCharacterSummary | null>(null)
@@ -518,7 +390,10 @@ export function GuestAnalysisPage() {
   const [skillSetId, setSkillSetId] = useState<string | null>(null)
   const [configSetId, setConfigSetId] = useState<string | null>(null)
   const [parseError, setParseError] = useState<string | null>(null)
-  const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const [queueError, setQueueError] = useState<string | null>(null)
+  const [targetAction, setTargetAction] = useState<'parse' | 'queue' | null>(null)
+  const targetActionPending = useRef(false)
+  const [runNotice, setRunNotice] = useState<string | null>(null)
   const [runToken, setRunToken] = useState<string | null>(() => readStoredGuestRunToken())
   const characterLookup = useGuestCharacterLookup()
   const queueGuestRun = useQueueGuestUpgradeAnalysis()
@@ -527,6 +402,7 @@ export function GuestAnalysisPage() {
     error: statusError,
     isLoading: statusLoading,
     isResultPending,
+    retry: retryStatus,
   } = useGuestUpgradeAnalysisStatus(runToken)
   const activeRun = statusData?.run ?? null
   const activePlans = statusData?.plans ?? []
@@ -562,24 +438,49 @@ export function GuestAnalysisPage() {
   }, [runToken])
 
   useEffect(() => {
-    if (!statusError) return
-    const message = statusError instanceof Error ? statusError.message : 'Public run not found'
-    if (message.toLowerCase().includes('not found') || message.toLowerCase().includes('expired')) {
+    if (statusError?.message.match(/^Public Analysis run not found(?: or expired)?\.?$/i)) {
       setRunToken(null)
+      setRunNotice('This analysis is no longer available. Run a new analysis to get fresh results.')
     }
   }, [statusError])
 
-  async function handleLookupCharacters() {
-    setActionMessage(null)
+  function clearCharacterLookup() {
+    setResolvedAccountName(null)
+    setCharacters([])
     setSelectedCharacter(null)
     setLeagueFilter(ALL_GUEST_LEAGUES_KEY)
+    setCharacterMessage(null)
+  }
+
+  function handleAccountChange(value: string) {
+    setAccountName(value)
+    if (value.trim() !== accountName.trim()) {
+      lookupRevision.current += 1
+      clearCharacterLookup()
+      characterLookup.reset()
+      setQueueError(null)
+    }
+  }
+
+  async function handleLookupCharacters() {
+    if (!accountName.trim() || characterLookup.isPending || targetActionPending.current) return
+    const revision = ++lookupRevision.current
+    clearCharacterLookup()
     try {
-      const result = await characterLookup.mutateAsync(accountName)
+      const result = await characterLookup.mutateAsync(accountName.trim())
+      if (lookupRevision.current !== revision) return
+      setResolvedAccountName(result.account_name)
       setCharacters(result.characters)
       setSelectedCharacter(result.characters[0] ?? null)
+      if (!result.characters.length) {
+        setCharacterMessage({ text: 'No public PoE1 characters found for this account.' })
+      }
     } catch (error) {
-      setCharacters([])
-      setActionMessage(error instanceof Error ? error.message : 'Failed to load characters.')
+      if (lookupRevision.current !== revision) return
+      setCharacterMessage({
+        text: error instanceof Error ? error.message : 'Could not load characters. Try again.',
+        error: true,
+      })
     }
   }
 
@@ -640,7 +541,7 @@ export function GuestAnalysisPage() {
     }
   }
 
-  async function handleParseTarget() {
+  async function readTarget() {
     setParseError(null)
     setParsedMetadata(null)
     try {
@@ -652,51 +553,47 @@ export function GuestAnalysisPage() {
     }
   }
 
-  async function handleQueueRun() {
-    setActionMessage(null)
-    let selectedTreeSpecId = treeSpecId
-    let selectedItemSetId = itemSetId
-    let selectedSkillSetId = skillSetId
-    let selectedConfigSetId = configSetId
-    let selectedTargetName = targetName
+  async function handleParseTarget() {
+    if (targetActionPending.current || !rawImport.trim()) return
+    targetActionPending.current = true
+    setTargetAction('parse')
+    try {
+      await readTarget()
+    } finally {
+      targetActionPending.current = false
+      setTargetAction(null)
+    }
+  }
 
-    if (!parsedMetadata && rawImport.trim()) {
-      const parsedSelection = await handleParseTarget()
-      if (!parsedSelection) return
-      selectedTreeSpecId = parsedSelection.tree_spec_id
-      selectedItemSetId = parsedSelection.item_set_id
-      selectedSkillSetId = parsedSelection.skill_set_id
-      selectedConfigSetId = parsedSelection.config_set_id
-      selectedTargetName = parsedSelection.target_name
-    }
-    if (!selectedCharacter) {
-      setActionMessage('Choose one public character first.')
-      return
-    }
-    if (!rawImport.trim()) {
-      setParseError('Paste a PoB share code or XML export first.')
-      return
-    }
+  async function handleQueueRun() {
+    if (targetActionPending.current || !selectedCharacter || !resolvedAccountName || !rawImport.trim()) return
+    targetActionPending.current = true
+    setTargetAction('queue')
+    setQueueError(null)
 
     try {
+      const selection = parsedMetadata ? {
+        target_name: targetName,
+        tree_spec_id: treeSpecId,
+        item_set_id: itemSetId,
+        skill_set_id: skillSetId,
+        config_set_id: configSetId,
+      } : await readTarget()
+      if (!selection) return
+
       const result = await queueGuestRun.mutateAsync({
-        account_name: accountName,
+        account_name: resolvedAccountName,
         character_name: selectedCharacter.name,
         raw_import: rawImport,
-        target_name: selectedTargetName,
-        tree_spec_id: selectedTreeSpecId,
-        item_set_id: selectedItemSetId,
-        skill_set_id: selectedSkillSetId,
-        config_set_id: selectedConfigSetId,
+        ...selection,
       })
       setRunToken(result.run_token)
-      setActionMessage(
-        result.worker_notified
-          ? 'Public run queued. The worker has been notified.'
-          : 'Public run queued. The worker will pick it up on the next poll.',
-      )
+      setRunNotice('Quick analysis queued.')
     } catch (error) {
-      setActionMessage(error instanceof Error ? error.message : 'Failed to queue Public Analysis.')
+      setQueueError(error instanceof Error ? error.message : 'Could not queue the analysis. Try again.')
+    } finally {
+      targetActionPending.current = false
+      setTargetAction(null)
     }
   }
 
@@ -708,28 +605,21 @@ export function GuestAnalysisPage() {
       <PreviewPageIntro
         mode="public"
         title="Analysis"
-        description="Run Public Analysis from one public PoE1 character and a target PoB. Your latest run stays available in this browser."
-        aside={
-          <PreviewNotice
-            mode="public"
-            title="Public Quick limit"
-            description="Public Analysis can queue one successful Quick run per PoE account each UTC day. Failed validation does not consume the limit."
-          />
-        }
+        description="Compare a public PoE1 character with a Path of Building target to find upgrades."
       />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           <Card id="public-character" className="scroll-mt-6">
             <Card.Header className="px-5 pt-5 pb-0">
               <div className="flex items-start gap-3">
-                <div className="bg-accent/10 text-accent flex h-10 w-10 items-center justify-center rounded-large">
-                  <UserRound size={18} />
+                <div className="bg-accent/10 text-accent flex h-10 w-10 shrink-0 items-center justify-center rounded-large">
+                  <UserRound size={18} aria-hidden="true" />
                 </div>
                 <div>
-                  <p className="text-foreground text-sm font-semibold">Public character</p>
+                  <h2 className="text-foreground text-sm font-semibold">Public character</h2>
                   <p className="text-default-500 mt-1 text-sm">
-                    Enter an account name with discriminator and select one public PoE1 character.
+                    Enter your account name, including the number after #.
                   </p>
                 </div>
               </div>
@@ -739,23 +629,34 @@ export function GuestAnalysisPage() {
                 <FieldInput
                   label="PoE account"
                   value={accountName}
-                  onValueChange={setAccountName}
+                  onValueChange={handleAccountChange}
+                  isDisabled={targetAction === 'queue'}
                   placeholder="AccountName#1234"
                   startContent={<Search size={16} />}
                 />
                 <Button
                   className="md:mb-[1px]"
                   isPending={characterLookup.isPending}
+                  isDisabled={!accountName.trim() || targetAction === 'queue'}
                   onPress={() => void handleLookupCharacters()}
                 >
-                  Find Characters
+                  Find characters
                 </Button>
               </div>
+              {characterMessage ? (
+                <p
+                  role={characterMessage.error ? 'alert' : 'status'}
+                  className={characterMessage.error ? 'text-danger wrap-anywhere text-sm' : 'text-default-500 text-sm'}
+                >
+                  {characterMessage.text}
+                </p>
+              ) : null}
               {characters.length > 0 ? (
                 <div className="grid gap-3 md:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] md:items-end">
                   <SelectField
                     label="League"
                     selectedKey={leagueFilter}
+                    isDisabled={targetAction === 'queue'}
                     onSelectionChange={(key) =>
                       handleLeagueFilterChange(typeof key === 'string' ? key : null)
                     }
@@ -770,7 +671,8 @@ export function GuestAnalysisPage() {
               ) : null}
               <CharacterPicker
                 characters={filteredCharacters}
-                selectedCharacterName={selectedCharacter?.name ?? null}
+                selectedCharacter={selectedCharacter}
+                isDisabled={targetAction === 'queue'}
                 onSelect={setSelectedCharacter}
               />
             </Card.Content>
@@ -779,13 +681,13 @@ export function GuestAnalysisPage() {
           <Card id="target-pob" className="scroll-mt-6">
             <Card.Header className="px-5 pt-5 pb-0">
               <div className="flex items-start gap-3">
-                <div className="bg-warning/10 text-warning flex h-10 w-10 items-center justify-center rounded-large">
-                  <FileText size={18} />
+                <div className="bg-warning/10 text-warning flex h-10 w-10 shrink-0 items-center justify-center rounded-large">
+                  <FileText size={18} aria-hidden="true" />
                 </div>
                 <div>
-                  <p className="text-foreground text-sm font-semibold">Target PoB</p>
+                  <h2 className="text-foreground text-sm font-semibold">Target PoB</h2>
                   <p className="text-default-500 mt-1 text-sm">
-                    Paste a PoB share code or XML export and choose the target layouts to score.
+                    Paste a share code or XML export. Read the layouts to choose which ones to use.
                   </p>
                 </div>
               </div>
@@ -795,23 +697,31 @@ export function GuestAnalysisPage() {
                 label="Target name"
                 value={targetName}
                 onValueChange={setTargetName}
+                isDisabled={targetAction !== null}
                 placeholder="Mapping starter target"
               />
               <FieldTextArea
                 label="PoB import"
                 minRows={8}
                 value={rawImport}
+                isDisabled={targetAction !== null}
                 onValueChange={(value) => {
                   setRawImport(value)
                   setParsedMetadata(null)
                   setParseError(null)
+                  setQueueError(null)
                 }}
                 placeholder="Paste PoB code or XML"
               />
-              {parseError ? <p className="text-danger text-sm">{parseError}</p> : null}
+              {parseError ? <p role="alert" className="text-danger wrap-anywhere text-sm">{parseError}</p> : null}
               <div className="flex flex-wrap gap-2">
-                <Button variant="tertiary" onPress={() => void handleParseTarget()}>
-                  Read PoB Layouts
+                <Button
+                  variant="tertiary"
+                  isDisabled={!rawImport.trim() || targetAction === 'queue'}
+                  isPending={targetAction === 'parse'}
+                  onPress={() => void handleParseTarget()}
+                >
+                  Read PoB layouts
                 </Button>
                 {parsedMetadata ? (
                   <Chip size="sm" color="success" variant="soft">
@@ -826,6 +736,7 @@ export function GuestAnalysisPage() {
                   <SelectField
                     label="Tree"
                     selectedKey={treeSpecId}
+                    isDisabled={targetAction === 'queue'}
                     onSelectionChange={(key) =>
                       setTreeSpecId(typeof key === 'string' ? key : null)
                     }
@@ -835,6 +746,7 @@ export function GuestAnalysisPage() {
                   <SelectField
                     label="Item set"
                     selectedKey={itemSetId}
+                    isDisabled={targetAction === 'queue'}
                     onSelectionChange={(key) => setItemSetId(typeof key === 'string' ? key : null)}
                   >
                     {toSelectItems(parsedMetadata.item_sets)}
@@ -842,6 +754,7 @@ export function GuestAnalysisPage() {
                   <SelectField
                     label="Skill set"
                     selectedKey={skillSetId}
+                    isDisabled={targetAction === 'queue'}
                     onSelectionChange={(key) =>
                       setSkillSetId(typeof key === 'string' ? key : null)
                     }
@@ -849,8 +762,9 @@ export function GuestAnalysisPage() {
                     {toSelectItems(parsedMetadata.skill_sets)}
                   </SelectField>
                   <SelectField
-                    label="Config"
+                    label="Configuration"
                     selectedKey={configSetId}
+                    isDisabled={targetAction === 'queue'}
                     onSelectionChange={(key) =>
                       setConfigSetId(typeof key === 'string' ? key : null)
                     }
@@ -862,38 +776,33 @@ export function GuestAnalysisPage() {
 
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-divider/70 pt-4">
                 <p className="text-default-500 text-sm">
-                  Public queue mode is always Quick and never reads stash tabs.
+                  One Quick run per PoE account per UTC day. Failed validation does not count.
                 </p>
                 <Button
-                  isPending={queueGuestRun.isPending}
-                  isDisabled={!selectedCharacter || !rawImport.trim()}
+                  isPending={targetAction === 'queue'}
+                  isDisabled={!resolvedAccountName || !selectedCharacter || !rawImport.trim() || targetAction === 'parse'}
                   onPress={() => void handleQueueRun()}
                 >
-                  Run Public Quick Analysis
+                  Run Quick analysis
                 </Button>
               </div>
+              {queueError ? <p role="alert" className="text-danger wrap-anywhere text-sm">{queueError}</p> : null}
             </Card.Content>
           </Card>
         </div>
 
-        <div className="flex flex-col gap-4">
-          <PublicAnalysisFirstRunGuide
-            activeRun={activeRun}
-            rawImport={rawImport}
-            selectedCharacter={selectedCharacter}
-          />
-
+        <div className="flex min-w-0 flex-col gap-4">
           <Card id="current-public-run" className="scroll-mt-6">
             <Card.Content className="gap-4 p-5">
               <div className="flex items-start gap-3">
-                <div className="bg-default-100 text-default-500 flex h-10 w-10 items-center justify-center rounded-large">
-                  {RunIcon ? <RunIcon size={18} /> : <Sparkles size={18} />}
+                <div className="bg-default-100 text-default-500 flex h-10 w-10 shrink-0 items-center justify-center rounded-large">
+                  {RunIcon ? <RunIcon size={18} aria-hidden="true" /> : <Sparkles size={18} aria-hidden="true" />}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-foreground text-sm font-semibold">Current public run</p>
+                  <h2 className="text-foreground text-sm font-semibold">Current public run</h2>
                   {activeRun ? (
-                    <p className="text-default-500 mt-1 text-sm">
-                      {activeRun.character_name} into {activeRun.target_name}
+                    <p className="text-default-500 wrap-anywhere mt-1 text-sm">
+                      {activeRun.character_name} compared with {activeRun.target_name}
                     </p>
                   ) : (
                     <p className="text-default-500 mt-1 text-sm">
@@ -907,7 +816,7 @@ export function GuestAnalysisPage() {
               {statusLoading && runToken ? (
                 <div className="text-default-500 flex items-center gap-2 text-sm">
                   <Spinner size="sm" />
-                  Loading your latest public run...
+                  Loading your latest analysis…
                 </div>
               ) : null}
 
@@ -935,32 +844,36 @@ export function GuestAnalysisPage() {
                     variant="tertiary"
                     onPress={() => {
                       setRunToken(null)
-                      setActionMessage(null)
+                      setRunNotice(null)
                     }}
                   >
-                    Clear Stored Run
+                    Clear saved run
                   </Button>
                 </div>
               ) : null}
 
-              {actionMessage ? (
-                <div className="rounded-large border-divider/70 bg-default-50/60 border p-3">
-                  <p className="text-default-600 text-sm">{actionMessage}</p>
+              {runToken && statusError ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <p role="alert" className="text-danger text-sm">Could not load the latest analysis results.</p>
+                  <Button size="sm" variant="tertiary" onPress={() => void retryStatus()}>
+                    Try again
+                  </Button>
                 </div>
               ) : null}
+              {runNotice ? <p role="status" className="text-default-600 text-sm">{runNotice}</p> : null}
             </Card.Content>
           </Card>
 
         </div>
       </div>
 
-      {activeRun ? (
+      {activeRun && (!statusError || activePlans.length > 0) ? (
         <div id="public-recommendations" className="scroll-mt-6">
           <GuestRecommendations
             run={activeRun}
             plans={activePlans}
             divinePrice={divinePrice}
-            isResultPending={isResultPending}
+            isResultPending={isResultPending && !statusError}
           />
         </div>
       ) : null}

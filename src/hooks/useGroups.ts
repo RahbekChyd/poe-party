@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryFilters } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useGroupStore } from '../store/group-store'
 import { queryKeys } from '../lib/queryKeys'
@@ -113,8 +113,8 @@ export function useCreateGroup() {
 
       return data as unknown as Group
     },
-    onSuccess: (group, values) => {
-      queryClient.invalidateQueries({ queryKey: [...queryKeys.groups.mine] })
+    onSuccess: async (group, values) => {
+      await queryClient.invalidateQueries({ queryKey: [...queryKeys.groups.mine] })
       setActiveGroupId(group.id)
       trackProductEvent('activation_workspace_created', {
         game: values.game,
@@ -172,12 +172,29 @@ export function useUpdatePobCodes() {
       } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      const { error } = await supabase.from('users').update(values).eq('id', user.id)
+      const { data, error } = await supabase
+        .from('users')
+        .update(values)
+        .eq('id', user.id)
+        .select('id')
+        .maybeSingle()
 
       if (error) throw error
+      if (!data) throw new Error('PoB codes were not saved')
+      return data.id
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [...queryKeys.groups.mine] })
+    onSuccess: (userId, values) => {
+      const memberQueries: QueryFilters = {
+        queryKey: ['groups'],
+        predicate: ({ queryKey }) => queryKey[2] === 'members',
+      }
+      queryClient.setQueriesData<GroupMember[]>(
+        memberQueries,
+        (members) => members?.map((member) => member.user.id === userId
+          ? { ...member, user: { ...member.user, ...values } }
+          : member),
+      )
+      return queryClient.invalidateQueries(memberQueries)
     },
   })
 }
@@ -310,8 +327,8 @@ export function useJoinGroup() {
       if (error) throw error
       return data as string // returns group_id
     },
-    onSuccess: (groupId) => {
-      queryClient.invalidateQueries({ queryKey: [...queryKeys.groups.mine] })
+    onSuccess: async (groupId) => {
+      await queryClient.invalidateQueries({ queryKey: [...queryKeys.groups.mine] })
       setActiveGroupId(groupId)
     },
   })
