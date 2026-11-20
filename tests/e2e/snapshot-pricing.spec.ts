@@ -59,12 +59,31 @@ for (const route of ['/dashboard/economy/group', `/dashboard/economy/${userId}`]
         await expect(page.getByText('Pricing unavailable', { exact: true }).first()).toBeVisible()
         await expect(page.getByText(/0 priced items; 3 unpriced/)).toBeVisible()
       } else {
+        await expect(page.getByText('Priced subtotal', { exact: true })).toBeVisible()
         await expect(page.getByText('6c', { exact: true }).first()).toBeVisible()
       }
       await page.screenshot({ path: testInfo.outputPath(`${status}-snapshot.png`), fullPage: true })
     })
   }
 }
+
+test('large unfiltered stash pagination fits a compact viewport and reaches the last item', async ({ page }) => {
+  await mockCapture(page)
+  await page.setViewportSize({ width: 320, height: 740 })
+  await page.goto('/dashboard/economy/group')
+  const pager = page.getByRole('navigation', { name: 'Snapshot pages' })
+  const next = pager.getByRole('button', { name: 'Next page' })
+  await expect(next).toBeVisible()
+  await expect(pager.getByRole('status')).toHaveText('Page 1 of 41')
+  await expect.poll(() => page.getByRole('main').evaluate((main) => main.scrollWidth - main.clientWidth)).toBeLessThanOrEqual(1)
+  await next.click()
+  await expect(pager.getByRole('status')).toHaveText('Page 2 of 41')
+  await page.getByRole('spinbutton', { name: 'Go to page' }).fill('41')
+  await page.getByRole('button', { name: 'Go', exact: true }).click()
+  await expect(pager.getByRole('status')).toHaveText('Page 41 of 41')
+  await expect(next).toBeDisabled()
+  await expect(page.getByText('Unpriced keepsake', { exact: true })).toBeVisible()
+})
 
 test('group KPIs and rows consistently exclude an expensive item from totals', async ({ page }, testInfo) => {
   await mockCapture(page, 'complete', exclusionItems)

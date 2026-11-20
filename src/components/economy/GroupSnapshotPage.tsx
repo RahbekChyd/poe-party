@@ -112,6 +112,11 @@ export function GroupSnapshotPage() {
 
   // KPIs
   const valuationUnavailable = snapshots?.some((snapshot) => snapshot.pricing_summary?.status === 'unavailable') ?? false
+  const valuationPartial = snapshots?.some((snapshot) => snapshot.pricing_summary?.status === 'partial') ?? false
+  const latestCapture = snapshots?.reduce<string | null>(
+    (latest, snapshot) => snapshot.completed_at && (!latest || snapshot.completed_at > latest) ? snapshot.completed_at : latest,
+    null,
+  )
   const totalChaos = includedItems.reduce((s, i) => s + i.price_chaos, 0)
 
   const topItem = includedItems.reduce<PricedItem | null>(
@@ -274,8 +279,10 @@ export function GroupSnapshotPage() {
         </div>
       </div>
 
-      <SnapshotPricingNotice summaries={(snapshots ?? []).map((snapshot) => snapshot.pricing_summary)}
-        priced={items.filter((item) => item.has_price).length} unknown={items.filter((item) => !item.has_price).length} />
+      {snapshots?.length && !isLoading ? (
+        <SnapshotPricingNotice summaries={snapshots.map((snapshot) => snapshot.pricing_summary)}
+          priced={items.filter((item) => item.has_price).length} unknown={items.filter((item) => !item.has_price).length} />
+      ) : null}
 
       {isLoading ? (
         <>
@@ -303,9 +310,14 @@ export function GroupSnapshotPage() {
                   <TrendingUp size={18} className="text-success" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-default-400 text-xs">Total Group Wealth</p>
+                  <p className="text-default-400 text-xs">{valuationPartial && !valuationUnavailable ? 'Priced subtotal' : 'Total Group Wealth'}</p>
                   <p className="text-foreground text-lg font-bold wrap-anywhere tabular-nums">{valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}</p>
                   <p className="text-default-400 text-xs">{divinePrice == null ? 'Divine conversion unavailable' : `1 div = ${divinePrice.toFixed(0)}c`}</p>
+                  {latestCapture && (
+                    <p className="text-default-500 mt-1 text-xs">
+                      Latest capture <time dateTime={latestCapture}>{new Date(latestCapture).toLocaleString()}</time>
+                    </p>
+                  )}
                 </div>
               </Card.Content>
             </Card>
@@ -753,7 +765,7 @@ export function GroupSnapshotPage() {
                               Total
                             </span>
                             <span
-                              className={`text-sm font-semibold tabular-nums ${item.price_chaos > 0 ? 'text-foreground' : 'text-default-300'}`}
+                              className={`text-sm font-semibold tabular-nums ${item.price_chaos > 0 ? 'text-foreground' : 'text-default-500'}`}
                             >
                               {item.has_price ? fmt(item.price_chaos) : 'Unknown'}
                             </span>

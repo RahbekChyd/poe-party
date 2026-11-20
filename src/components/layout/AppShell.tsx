@@ -38,7 +38,7 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <GroupGate>
-      <div className="bg-background/85 flex h-dvh overflow-hidden pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]">
+      <div className="bg-background flex h-dvh overflow-hidden pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]">
         <a
           href="#main-content"
           className="button button--primary sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50"
@@ -48,21 +48,17 @@ export function AppShell({ children }: AppShellProps) {
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
           <Navbar />
-          <main
-            id="main-content"
-            tabIndex={-1}
-            className="flex min-h-0 flex-1 flex-col overflow-y-auto"
-          >
-            <EarlyAccessNoticeModal />
-            <div className="min-w-0 flex-1 p-4 md:p-6">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+            <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 p-4 md:p-6">
+              <EarlyAccessNoticeModal />
               <ErrorBoundary resetKey={pathname}>
                 <SnapshotIntervalRunner />
                 <CharacterProfileSyncRunner />
                 {children}
               </ErrorBoundary>
-            </div>
-            <Footer />
-          </main>
+            </main>
+            <Footer variant="workspace" />
+          </div>
           <MobileBottomNav />
         </div>
       </div>

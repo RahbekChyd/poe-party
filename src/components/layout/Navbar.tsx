@@ -124,7 +124,7 @@ export function Navbar() {
 
   return (
     <>
-      <header className="border-divider/70 bg-content1/90 flex min-h-14 shrink-0 items-center gap-2 border-b px-3 backdrop-blur sm:gap-3 sm:px-4">
+      <header className="border-divider bg-content1 flex min-h-14 shrink-0 items-center gap-2 border-b px-3 py-1.5 sm:gap-3 sm:px-4">
         <div className="mr-auto flex min-w-0 flex-1 items-center gap-2">
           <div className="inline-flex min-w-0 items-center">
             <GroupSwitcher />

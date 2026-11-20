@@ -145,14 +145,10 @@ export function ProductHomePage() {
       </header>
 
       <main id="main-content">
-        <section className="relative overflow-hidden px-4 py-12 sm:px-6 sm:py-20">
-          <div
-            aria-hidden="true"
-            className="bg-warning/10 absolute top-0 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full blur-3xl sm:h-[30rem] sm:w-[30rem]"
-          />
-          <div className="relative mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[1.08fr_0.92fr]">
+        <section className="px-4 py-12 sm:px-6 sm:py-20">
+          <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[1.08fr_0.92fr]">
             <div className="max-w-3xl">
-              <h1 className="text-foreground mt-4 text-4xl leading-[1.05] font-bold tracking-tight sm:text-6xl">
+              <h1 className="text-foreground text-4xl leading-[1.08] font-semibold tracking-tight sm:text-6xl">
                 Plan the run. See what changed. Choose the next upgrade.
               </h1>
               <p className="text-default-500 mt-5 max-w-2xl text-base leading-relaxed sm:text-lg">
@@ -196,40 +192,34 @@ export function ProductHomePage() {
               </div>
             </div>
 
-            <Card className="border-warning/20 bg-content1/90 overflow-hidden border">
-              <Card.Header className="border-divider/60 flex items-center justify-between border-b px-5 py-4">
-                <div>
-                  <p className="text-foreground text-sm font-semibold">Today</p>
-                  <p className="text-default-400 mt-0.5 text-xs">One workspace, one next action</p>
+            <section aria-labelledby="sample-today" className="border-divider bg-content1 overflow-hidden rounded-xl border">
+              <header className="border-divider flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <h2 id="sample-today" className="text-foreground text-lg font-semibold">Today</h2>
+                  <span className="text-default-500 text-xs">Sample workspace</span>
                 </div>
-                <Chip size="sm" variant="soft" color="success">
-                  League ready
-                </Chip>
-              </Card.Header>
-              <Card.Content className="gap-3 p-5">
-                <div className="border-divider bg-default-50 flex items-start gap-3 rounded-xl border p-4">
-                  <Target size={18} className="text-warning mt-0.5" aria-hidden="true" />
-                  <div>
-                    <p className="text-foreground text-sm font-medium">Run the active strategy</p>
-                    <p className="text-default-500 mt-1 text-xs">Setup and notes stay visible.</p>
-                  </div>
+                <span className="text-default-500 text-xs">PoE1 · Covens</span>
+              </header>
+              <dl className="divide-divider divide-y px-5">
+                <div className="grid gap-1 py-4 sm:grid-cols-[9rem_minmax(0,1fr)]">
+                  <dt className="text-default-500 text-sm">Active strategy</dt>
+                  <dd className="text-foreground text-sm font-semibold">Essence farming</dd>
                 </div>
-                <div className="border-divider bg-default-50 flex items-start gap-3 rounded-xl border p-4">
-                  <ChartNoAxesCombined size={18} className="text-success mt-0.5" aria-hidden="true" />
-                  <div>
-                    <p className="text-foreground text-sm font-medium">Capture the outcome</p>
-                    <p className="text-default-500 mt-1 text-xs">Connect a PoE1 snapshot to the run.</p>
-                  </div>
+                <div className="grid gap-1 py-4 sm:grid-cols-[9rem_minmax(0,1fr)]">
+                  <dt className="text-default-500 text-sm">Latest linked result</dt>
+                  <dd>
+                    <p className="text-foreground text-lg leading-6 font-semibold tabular-nums">1,240 chaos</p>
+                    <p className="text-default-500 mt-0.5 text-xs">Stash value · Captured at 20:14 UTC</p>
+                  </dd>
                 </div>
-                <div className="border-divider bg-default-50 flex items-start gap-3 rounded-xl border p-4">
-                  <Sparkles size={18} className="text-arcane mt-0.5" aria-hidden="true" />
-                  <div>
-                    <p className="text-foreground text-sm font-medium">Review the next upgrade</p>
-                    <p className="text-default-500 mt-1 text-xs">Turn analysis into a build plan.</p>
-                  </div>
-                </div>
-              </Card.Content>
-            </Card>
+              </dl>
+              <div className="border-divider flex items-center justify-between gap-3 border-t p-5">
+                <p className="text-default-500 text-sm">Review how the run went.</p>
+                <Link to="/preview" className="button button--sm button--tertiary shrink-0">
+                  Explore sample <ArrowRight size={15} aria-hidden="true" />
+                </Link>
+              </div>
+            </section>
           </div>
         </section>
 
@@ -240,19 +230,14 @@ export function ProductHomePage() {
                 From strategy to upgrades
               </h2>
             </div>
-            <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="border-divider mt-6 grid gap-x-6 gap-y-4 border-t sm:grid-cols-2 xl:grid-cols-4">
               {loop.map(({ title, description, icon: Icon }) => (
-                <Card key={title} className="h-full">
-                  <Card.Content className="gap-4 p-5">
-                    <div className="bg-warning/12 flex h-10 w-10 items-center justify-center rounded-xl">
-                      <Icon size={18} className="text-warning" aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h3 className="text-foreground font-semibold">{title}</h3>
-                      <p className="text-default-500 mt-2 text-sm leading-relaxed">{description}</p>
-                    </div>
-                  </Card.Content>
-                </Card>
+                <div key={title} className="pt-4">
+                  <h3 className="text-foreground flex items-center gap-2 font-semibold">
+                    <Icon size={16} className="text-brand-readable" aria-hidden="true" /> {title}
+                  </h3>
+                  <p className="text-default-500 mt-2 text-sm leading-relaxed">{description}</p>
+                </div>
               ))}
             </div>
           </div>

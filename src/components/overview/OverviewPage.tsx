@@ -1,20 +1,16 @@
 import { comparablePricing } from '../../lib/snapshot-pricing'
 import { useMemo, useState } from 'react'
 import { Card } from '@heroui/react/card'
+import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
 import { Skeleton } from '@heroui/react/skeleton'
 import { useNinjaPrices } from '../../hooks/useNinjaPrices'
 import {
-  TrendingUp,
-  Users,
   ArrowRight,
   ArrowUpRight,
   ArrowDownRight,
-  Star,
   Coins,
   Sword,
-  Clock,
-  Info,
   Minus,
 } from 'lucide-react'
 import {
@@ -40,7 +36,9 @@ import { useStrategies } from '../../hooks/useStrategies'
 import { useGroupWealthHistory } from '../../hooks/useGroupWealthHistory'
 import type { GroupWealthDataPoint } from '../../hooks/useGroupWealthHistory'
 import { useStrategyHourlyEstimates } from '../../hooks/useStrategyEconomy'
-import { useCurrentUser } from '../../hooks/useCurrentUser'
+import { useCurrentUser, useMyProfile } from '../../hooks/useCurrentUser'
+import { useStashSnapshotFlow } from '../../hooks/useStashSnapshotFlow'
+import { useSnapshotStore } from '../../store/snapshot-store'
 import {
   calculateChaosPerHour,
   calculateTrendStats,
@@ -51,7 +49,6 @@ import { filterHistoryByRange, type WealthHistoryRange } from '../../lib/wealth-
 import { useCurrencyStore } from '../../store/currency-store'
 import { STATUS_COLOR, DIFFICULTY_CHIP, IMPORTANCE_CHIP } from '../../lib/constants'
 import { WealthHistoryRangeSelector } from '../economy/WealthHistoryRangeSelector'
-import { IconTooltip } from '../ui/heroui-native'
 import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
 export function OverviewPage() {
@@ -60,12 +57,17 @@ export function OverviewPage() {
   const { game, league: activeLeague, capabilities } = useActiveGroupContext()
   const { data: members } = useGroupMembers(activeGroupId)
   const { data: snapshots, isLoading: snapsLoading } = useLatestSnapshots(activeGroupId)
-  const { data: economy } = useGroupEconomy(activeGroupId)
-  const { data: groupHistory } = useGroupWealthHistory(activeGroupId)
+  const { data: economy, isLoading: economyLoading, isError: economyError } = useGroupEconomy(activeGroupId)
+  const { data: groupHistory, isPending: historyPending, isError: historyError } = useGroupWealthHistory(activeGroupId)
   const { data: gear, isLoading: gearLoading } = useGearSuggestions(activeGroupId)
   const { data: strategyList, isLoading: strategiesLoading, isError: strategiesError, refetch: retryStrategies } = useStrategies(activeGroupId)
   const { data: strategyEconomy } = useStrategyHourlyEstimates(activeGroupId)
   const { data: currentUser } = useCurrentUser()
+  const { data: profile, isPending: profilePending, isError: profileError } = useMyProfile()
+  const { triggerSnapshot, isBusy: openingSnapshot, modal: snapshotModal } = useStashSnapshotFlow()
+  const snapshotRunning = useSnapshotStore(({ progress }) =>
+    progress.phase === 'characters' || progress.phase === 'stash' || progress.phase === 'pricing',
+  )
   const currentStrategyId = useCurrentStrategyId(activeGroupId)
   const [groupHistoryRange, setGroupHistoryRange] = useState<WealthHistoryRange>('7d')
 
@@ -73,6 +75,7 @@ export function OverviewPage() {
   const divinePrice = ninjaData?.divinePrice ?? null
   const display = useCurrencyStore((s) => s.display)
   const isMarketOnly = !capabilities?.supportsGroupEconomy
+  const supportsSnapshots = !!capabilities?.supportsStashSnapshots
 
   const fmt = (chaos: number): string => {
     return formatCurrencyAmount(chaos, display === 'divine' && divinePrice ? 'divine' : 'chaos', divinePrice ?? 1)
@@ -178,177 +181,189 @@ export function OverviewPage() {
     })
   }, [gear, currentUser?.id])
 
-  const sortedStrategies = useMemo(() => {
-    if (!strategyList) return []
-    return [...strategyList].sort((a, b) => {
-      if (a.id === currentStrategyId) return -1
-      if (b.id === currentStrategyId) return 1
-      return 0
-    })
-  }, [strategyList, currentStrategyId])
+  const activeStrategy = strategyList?.find((strategy) => strategy.id === currentStrategyId)
+  const libraryStrategies = strategyList?.filter((strategy) => strategy.id !== currentStrategyId) ?? []
+  const latestResult = supportsSnapshots && activeStrategy
+    ? groupHistory?.reduce<GroupWealthDataPoint | undefined>(
+        (latest, point) => point.strategy_id === activeStrategy.id ? point : latest,
+        undefined,
+      )
+    : undefined
+  const resultPricing = latestResult?.pricing_summary
+  const resultDivinePrice = resultPricing?.divine_price
+  const resultValue = latestResult && formatCurrencyAmount(
+    latestResult.total_wealth_chaos,
+    display === 'divine' && resultDivinePrice ? 'divine' : 'chaos',
+    resultDivinePrice ?? 1,
+  )
+  const canCapture = Boolean(
+    supportsSnapshots && activeGroupId && activeLeague && profile?.poe_token_expires_at,
+  )
+  const resultDate = latestResult && new Date(latestResult.created_at).toLocaleString(undefined, {
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  })
+  const wealthValue = valuationUnavailable
+    ? 'Pricing unavailable'
+    : economy?.length
+      ? fmt(totalChaos)
+      : economyError ? 'Could not load value' : 'No valuation yet'
+  const wealthLabel = valuationPartial && !valuationUnavailable ? 'Priced subtotal' : isSolo ? 'Stash value' : 'Group value'
+
+  let captureMessage = 'The next stash snapshot will be linked to this strategy.'
+  if (historyPending || profilePending) captureMessage = 'Checking linked snapshots…'
+  else if (historyError) captureMessage = 'Could not load linked snapshots.'
+  else if (profileError) captureMessage = 'Could not check account access for snapshots.'
+  else if (!profile?.poe_token_expires_at) captureMessage = 'Connect your PoE account in Economy to capture a linked snapshot.'
+  else if (!activeLeague) captureMessage = 'An active league is required to capture a linked snapshot.'
 
   return (
     <DashboardPage>
-      <DashboardPageHeader
-        title="Overview"
-        eyebrow={isSolo ? 'Solo workspace' : 'Group workspace'}
-        tone="accent"
-        description={
-          isSolo
-            ? 'Your economy, strategies, and suggested upgrades.'
-            : 'Party economy, strategies, and suggested upgrades.'
-        }
-      />
+      <DashboardPageHeader title="Today" />
+      {snapshotModal}
+      <section aria-labelledby="today-strategy" className="border-divider border-b pb-5">
+        <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+          <div className="min-w-0 space-y-2">
+            <h2 id="today-strategy" className="text-foreground text-lg font-semibold">Active strategy</h2>
+            {strategiesLoading ? (
+              <p className="text-default-500 text-sm" role="status">Loading strategies…</p>
+            ) : activeStrategy ? (
+              <>
+                <Link
+                  to="/dashboard/strategies/$strategyId"
+                  params={{ strategyId: activeStrategy.id }}
+                  className="text-foreground hover:text-brand-readable text-2xl font-semibold tracking-tight wrap-anywhere"
+                >
+                  {activeStrategy.name}
+                </Link>
+                {supportsSnapshots && latestResult ? (
+                  <div className="text-default-500 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+                    <span>{resultPricing?.status === 'partial' ? 'Latest linked priced subtotal' : 'Latest linked snapshot'}</span>
+                    <strong className="text-foreground tabular-nums">
+                      {resultPricing?.status === 'unavailable' ? 'Pricing unavailable' : resultValue}
+                    </strong>
+                    <time dateTime={latestResult.created_at}>{resultDate}</time>
+                    {resultPricing?.status === 'partial' && (
+                      <span>{resultPricing.unpriced_item_count.toLocaleString()} unpriced items</span>
+                    )}
+                  </div>
+                ) : supportsSnapshots ? (
+                  <p className="text-default-500 text-sm">{captureMessage}</p>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-default-500 text-sm">
+                {strategiesError ? 'Could not load the active strategy.' : 'Choose a strategy to use for your next run.'}
+              </p>
+            )}
+          </div>
+          {!strategiesLoading && (activeStrategy ? (
+            supportsSnapshots && !latestResult && canCapture && !historyPending && !historyError ? (
+              <Button
+                className="justify-self-start md:justify-self-end"
+                isPending={openingSnapshot}
+                isDisabled={snapshotRunning}
+                onPress={() => {
+                  if (activeGroupId && activeLeague) void triggerSnapshot(activeGroupId, activeLeague)
+                }}
+              >
+                {openingSnapshot || snapshotRunning ? 'Taking snapshot…' : 'Snapshot stash'}
+              </Button>
+            ) : (
+              <Link
+                to="/dashboard/strategies/$strategyId"
+                params={{ strategyId: activeStrategy.id }}
+                hash={latestResult ? 'strategy-results' : undefined}
+                className="button button--primary justify-self-start md:justify-self-end"
+              >
+                {latestResult ? 'View strategy results' : 'Open strategy'}
+                <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+            )
+          ) : (
+            <Link to="/dashboard/strategies" className="button button--primary justify-self-start md:justify-self-end">
+              Browse strategies <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          ))}
+        </div>
+      </section>
 
       {!isMarketOnly && valuationPartial && (
         <p role="status" className="text-warning text-sm">Partial pricing: some items have no price estimate.</p>
       )}
-      <div className="@container">
-        <div className="grid grid-cols-2 gap-3 @min-[52rem]:grid-cols-4">
-          <Link
-            to="/dashboard/economy"
-            className="focus-visible:outline-primary block min-w-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
-          >
-            <Card className="hover:bg-default-50 h-full p-0 transition-colors">
-              <Card.Content className="flex h-full flex-col items-start gap-2 p-3 @min-[35rem]:flex-row @min-[35rem]:items-center @min-[35rem]:gap-3 @min-[35rem]:p-4">
-                <div className="bg-success/15 flex size-8 shrink-0 items-center justify-center rounded-lg">
-                  <TrendingUp size={18} className="text-success" aria-hidden="true" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-default-400 text-xs tracking-wider uppercase">
-                    {isMarketOnly
-                      ? 'Market Overview'
-                      : valuationPartial
-                        ? 'Priced subtotal'
-                        : isSolo
-                          ? 'Your Wealth'
-                          : 'Group Value'}
-                  </p>
-                  {snapsLoading ? (
-                    <Skeleton className="mt-1 h-7 w-24 rounded-md" />
-                  ) : (
-                    <p className="text-foreground text-2xl font-bold wrap-anywhere">
-                      {isMarketOnly
-                        ? 'Live'
-                        : valuationUnavailable
-                          ? 'Pricing unavailable'
-                          : fmt(totalChaos)}
-                    </p>
-                  )}
-                </div>
-              </Card.Content>
-            </Card>
-          </Link>
-
-          {!isSolo && (
-            <Card className="h-full min-w-0 p-0">
-              <Card.Content className="flex h-full flex-col items-start gap-2 p-3 @min-[35rem]:flex-row @min-[35rem]:items-center @min-[35rem]:gap-3 @min-[35rem]:p-4">
-                <div className="bg-primary/15 flex size-8 shrink-0 items-center justify-center rounded-lg">
-                  <Users size={18} className="text-primary" aria-hidden="true" />
-                </div>
-                <div>
-                  <p className="text-default-400 text-xs tracking-wider uppercase">
-                    {isMarketOnly ? 'Party members' : 'Synced members'}
-                  </p>
-                  {!isMarketOnly && snapsLoading ? (
-                    <Skeleton className="mt-1 h-7 w-16 rounded-md" />
-                  ) : (
-                    <p className="text-foreground text-2xl font-bold">
-                      {isMarketOnly ? (members?.length ?? '…') : syncedCount}
-                      {!isMarketOnly && (
-                        <span className="text-default-400 text-base font-normal">
-                          /{members?.length ?? '…'}
-                        </span>
-                      )}
-                    </p>
-                  )}
-                </div>
-              </Card.Content>
-            </Card>
-          )}
-
-          <Link
-            to="/dashboard/gear"
-            className="focus-visible:outline-primary block min-w-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
-          >
-            <Card className="hover:bg-default-50 h-full p-0 transition-colors">
-              <Card.Content className="flex h-full flex-col items-start gap-2 p-3 @min-[35rem]:flex-row @min-[35rem]:items-center @min-[35rem]:gap-3 @min-[35rem]:p-4">
-                <div className="bg-warning/15 flex size-8 shrink-0 items-center justify-center rounded-lg">
-                  <Sword size={18} className="text-warning" aria-hidden="true" />
-                </div>
-                <div>
-                  <p className="text-default-400 text-xs tracking-wider uppercase">Gear For Me</p>
-                  <p className="text-foreground text-2xl font-bold">{myGearCount}</p>
-                </div>
-              </Card.Content>
-            </Card>
-          </Link>
-
-          {!isSolo && !isMarketOnly && (
-            <Card className="h-full min-w-0 p-0">
-              <Card.Content className="flex h-full flex-col items-start gap-2 p-3 @min-[35rem]:flex-row @min-[35rem]:items-center @min-[35rem]:gap-3 @min-[35rem]:p-4">
-                <div
-                  className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
-                    stalestMember?.age.color === 'success'
-                      ? 'bg-success/15'
-                      : stalestMember?.age.color === 'warning'
-                        ? 'bg-warning/15'
-                        : stalestMember?.age.color === 'danger'
-                          ? 'bg-danger/15'
-                          : 'bg-default/15'
-                  }`}
-                >
-                  <Clock
-                    size={18}
-                    aria-hidden="true"
-                    className={
-                      stalestMember?.age.color === 'success'
-                        ? 'text-success'
-                        : stalestMember?.age.color === 'warning'
-                          ? 'text-warning'
-                          : stalestMember?.age.color === 'danger'
-                            ? 'text-danger'
-                            : 'text-default-400'
-                    }
-                  />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-default-400 flex items-center gap-1 text-xs tracking-wider uppercase">
-                    Oldest snapshot
-                    <IconTooltip content="The group member who has gone the longest without taking a snapshot">
-                      <Info size={12} className="text-default-300 shrink-0 cursor-help" />
-                    </IconTooltip>
-                  </p>
-                  {snapsLoading ? (
-                    <Skeleton className="mt-1 h-7 w-20 rounded-md" />
-                  ) : stalestMember ? (
-                    <>
-                      <p className="text-foreground text-lg font-bold">{stalestMember.age.label}</p>
-                      <p
-                        className="text-default-400 line-clamp-2 text-xs wrap-anywhere"
-                        title={stalestMember.name}
-                      >
-                        {stalestMember.name}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-default-400 text-sm">—</p>
-                  )}
-                </div>
-              </Card.Content>
-            </Card>
-          )}
+      <dl className="border-divider grid grid-cols-2 gap-4 border-b pb-5 md:grid-cols-4">
+        <div className="min-w-0">
+          <dt className="text-default-500 text-sm">{isMarketOnly ? 'Market' : wealthLabel}</dt>
+          <dd className="mt-1">
+            {isMarketOnly ? (
+              <Link to="/dashboard/economy" className="text-foreground hover:text-brand-readable text-base font-semibold">
+                Market overview
+              </Link>
+            ) : snapsLoading || economyLoading ? (
+              <Skeleton className="h-6 w-24 rounded-md" />
+            ) : (
+              <Link
+                to="/dashboard/economy"
+                className="text-foreground hover:text-brand-readable text-base font-semibold wrap-anywhere tabular-nums"
+              >
+                {wealthValue}
+              </Link>
+            )}
+          </dd>
         </div>
-      </div>
+
+        {!isSolo && (
+          <div className="min-w-0">
+            <dt className="text-default-500 text-sm">{isMarketOnly ? 'Party members' : 'Synced members'}</dt>
+            <dd className="text-foreground mt-1 text-base font-semibold tabular-nums">
+              {!isMarketOnly && snapsLoading ? (
+                <Skeleton className="h-6 w-16 rounded-md" />
+              ) : (
+                isMarketOnly ? (members?.length ?? '—') : syncedCount + ' / ' + (members?.length ?? '—')
+              )}
+            </dd>
+          </div>
+        )}
+
+        <div className="min-w-0">
+          <dt className="text-default-500 text-sm">Gear for me</dt>
+          <dd className="mt-1">
+            {gearLoading ? (
+              <Skeleton className="h-6 w-14 rounded-md" />
+            ) : (
+              <Link to="/dashboard/gear" className="text-foreground hover:text-brand-readable text-base font-semibold tabular-nums">
+                {myGearCount}
+              </Link>
+            )}
+          </dd>
+        </div>
+
+        {!isSolo && !isMarketOnly && (
+          <div className="min-w-0">
+            <dt className="text-default-500 text-sm" title="The member who has gone the longest without taking a snapshot">Oldest snapshot</dt>
+            <dd className="mt-1">
+              {snapsLoading ? (
+                <Skeleton className="h-6 w-20 rounded-md" />
+              ) : stalestMember ? (
+                <>
+                  <p className="text-foreground text-base font-semibold">{stalestMember.age.label}</p>
+                  <p className="text-default-500 text-xs wrap-anywhere">{stalestMember.name}</p>
+                </>
+              ) : (
+                <p className="text-default-500 text-sm">No snapshots</p>
+              )}
+            </dd>
+          </div>
+        )}
+      </dl>
 
       {/* Group Wealth History */}
-      {groupHistory && groupHistory.length > 0 && (
+      {!isMarketOnly && groupHistory && groupHistory.length > 0 && (
         <Card className="p-0">
           <Card.Header className="px-4 pt-4 pb-0">
             <div className="flex w-full flex-wrap items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <h2 className="text-foreground text-sm font-semibold">
-                  {isSolo ? 'Wealth History' : 'Group Wealth History'}
+                  {isSolo ? 'Wealth history' : 'Group wealth history'}
                 </h2>
                 <WealthHistoryRangeSelector
                   value={groupHistoryRange}
@@ -357,7 +372,7 @@ export function OverviewPage() {
               </div>
               <div className="flex items-center justify-center gap-3">
                 <p className={`text-base font-semibold ${groupRateColor}`}>
-                  {groupChaosPerHour == null ? 'No data' : fmtRate(groupChaosPerHour)}
+                  {groupChaosPerHour == null ? 'Rate unavailable' : fmtRate(groupChaosPerHour)}
                 </p>
                 <div
                   className={`border-divider/60 flex items-center gap-1.5 border-l pl-3 text-xs ${groupTrendColor}`}
@@ -366,7 +381,6 @@ export function OverviewPage() {
                   <span>{groupTrendLabel}</span>
                 </div>
               </div>
-              <div />
             </div>
           </Card.Header>
           <Card.Content className="px-2 pt-2 pb-3">
@@ -377,18 +391,18 @@ export function OverviewPage() {
               >
                 <defs>
                   <linearGradient id="overviewWealthGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#17c964" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#17c964" stopOpacity={0} />
+                    <stop offset="5%" stopColor="var(--currency)" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="var(--currency)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
                 <XAxis
                   dataKey="created_at"
                   tickFormatter={(v: string) => {
                     const d = new Date(v)
                     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
                   }}
-                  tick={{ fontSize: 10, fill: '#888' }}
+                  tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
                   axisLine={false}
                   tickLine={false}
                 />
@@ -396,7 +410,7 @@ export function OverviewPage() {
                   tickFormatter={(v: number) =>
                     v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))
                   }
-                  tick={{ fontSize: 10, fill: '#888' }}
+                  tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
                   axisLine={false}
                   tickLine={false}
                   width={44}
@@ -415,7 +429,11 @@ export function OverviewPage() {
                       <div className="bg-content1 border-divider rounded-lg border px-3 py-2 text-xs shadow-lg">
                         <p className="text-default-400 mb-1">{label}</p>
                         <p className="text-foreground font-semibold">
-                          {fmt(point.total_wealth_chaos)}
+                          {point.pricing_summary?.status === 'unavailable'
+                            ? 'Pricing unavailable'
+                            : point.pricing_summary?.status === 'partial'
+                              ? `Priced subtotal: ${fmt(point.total_wealth_chaos)}`
+                              : fmt(point.total_wealth_chaos)}
                         </p>
                         {!isSolo && (
                           <>
@@ -436,11 +454,11 @@ export function OverviewPage() {
                 <Area
                   type="monotone"
                   dataKey="total_wealth_chaos"
-                  stroke="#17c964"
+                  stroke="var(--currency)"
                   fill="url(#overviewWealthGrad)"
                   strokeWidth={2}
-                  dot={{ r: 3, fill: '#17c964' }}
-                  activeDot={{ r: 6, fill: '#17c964', stroke: 'white', strokeWidth: 2 }}
+                  dot={{ r: 3, fill: 'var(--currency)' }}
+                  activeDot={{ r: 6, fill: 'var(--currency)', stroke: 'var(--foreground)', strokeWidth: 2 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -452,7 +470,7 @@ export function OverviewPage() {
         <div className="grid items-start gap-4 @min-[52rem]:grid-cols-2">
           <Card className="min-w-0 gap-0 p-0">
             <Card.Header className="border-divider flex-row flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
-              <h2 className="text-foreground text-sm font-semibold">Strategies</h2>
+              <h2 className="text-foreground text-sm font-semibold">Strategy library</h2>
               <Link to="/dashboard/strategies" className="button button--sm button--tertiary">
                 View strategies
               </Link>
@@ -464,10 +482,9 @@ export function OverviewPage() {
               </div>
             ) : strategiesError && !strategyList ? (
               <QueryStatePanel kind="error" title="Couldn’t load strategies" description="Try again to view your strategies." onRetry={retryStrategies} />
-            ) : sortedStrategies.length > 0 ? (
+            ) : libraryStrategies.length > 0 ? (
               <ul className="divide-divider divide-y">
-                {sortedStrategies.map((strategy) => {
-                  const isCurrent = strategy.id === currentStrategyId
+                {libraryStrategies.map((strategy) => {
                   const diff = DIFFICULTY_CHIP[strategy.difficulty] ?? DIFFICULTY_CHIP.normal
                   const strategyScope = strategy.source_strategy_id
                     ? 'Subscribed'
@@ -492,12 +509,10 @@ export function OverviewPage() {
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start gap-2">
-                            {isCurrent && <Star size={14} className="fill-primary text-primary mt-0.5 shrink-0" aria-hidden="true" />}
                             <p className="text-foreground text-sm font-medium wrap-anywhere">{strategy.name}</p>
                           </div>
                           <div className="text-default-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                             <span>{strategyScope}</span>
-                            {isCurrent && <span className="text-warning font-medium">Active</span>}
                             <Chip size="sm" variant="soft" color={diff.color}>{diff.label}</Chip>
                             {strategy.map_cost != null && strategy.map_cost > 0 && (
                               <span className="inline-flex items-center gap-1 tabular-nums">
@@ -514,7 +529,7 @@ export function OverviewPage() {
                 })}
               </ul>
             ) : (
-              <p className="text-default-500 px-4 py-3 text-sm">No strategies yet.</p>
+              <p className="text-default-500 px-4 py-3 text-sm">{activeStrategy ? 'No other strategies yet.' : 'No strategies yet.'}</p>
             )}
           </Card>
 

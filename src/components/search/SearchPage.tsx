@@ -53,7 +53,6 @@ export function SearchPage() {
     <DashboardPage>
       <DashboardPageHeader
         title="Directory"
-        tone="arcane"
         description={`Find public characters and groups in ${activeScopeLabel}.`}
         actions={
           <ToggleButtonGroup

@@ -107,6 +107,7 @@ export function SoloGroupModal({ isOpen, onClose }: SoloGroupModalProps) {
               <form className="flex min-h-0 flex-col" onSubmit={handleSubmit(onSubmit)}>
                 <Modal.Header>
                   <Modal.Heading>Play Solo</Modal.Heading>
+                  <p className="text-default-500 text-xs">Step 1 of 2 · Workspace</p>
                 </Modal.Header>
                 <Modal.Body className="min-h-0 gap-4 overflow-y-auto">
                   <p className="text-default-500 text-sm">

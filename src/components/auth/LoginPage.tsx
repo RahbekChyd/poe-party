@@ -5,11 +5,8 @@ import { Spinner } from '@heroui/react/spinner'
 import {
   AlertCircle,
   ArrowLeft,
-  Coins,
   Github,
   Shield,
-  Sparkles,
-  Swords,
 } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
@@ -18,24 +15,6 @@ import { storePostLoginTarget } from '../../lib/auth-redirect'
 import { usePoeOAuthUrl } from '../../hooks/usePoeOAuthUrl'
 import { GITHUB_URL } from '../../lib/seo'
 import { trackPublicEvent } from '../../lib/analytics'
-
-const teaserItems = [
-  {
-    icon: Coins,
-    title: 'Measure the outcome',
-    description: 'Track PoE1 stash snapshots and wealth movement across a run.',
-  },
-  {
-    icon: Swords,
-    title: 'Keep the plan together',
-    description: 'Carry strategies, characters, and party context into the next decision.',
-  },
-  {
-    icon: Sparkles,
-    title: 'Choose the next upgrade',
-    description: 'Turn build analysis into recommendations your workspace can revisit.',
-  },
-] as const
 
 export function LoginPage() {
   const { getOAuthUrl } = usePoeOAuthUrl()
@@ -57,8 +36,8 @@ export function LoginPage() {
   }
 
   return (
-    <div className="from-background via-background to-warning/5 min-h-dvh bg-gradient-to-br px-4 py-5 md:py-10">
-      <main className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+    <div className="bg-background min-h-dvh px-4 py-6 md:py-12">
+      <main className="mx-auto flex w-full max-w-xl flex-col gap-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <img src={logo} alt="" className="h-12 w-12 shrink-0 rounded-2xl shadow-sm md:h-14 md:w-14" />
@@ -85,18 +64,17 @@ export function LoginPage() {
           </Link>
         </div>
 
-        <Card className="border-warning/20 bg-content1/90 w-full border">
+        <Card className="border-divider bg-content1 w-full border">
           <Card.Content className="gap-4 p-5 sm:p-6">
             <div className="flex flex-col gap-1">
-              <h2 className="text-foreground text-xl font-semibold">Connect your PoE account</h2>
               <p className="text-default-500 text-sm">
                 Sign in on the Path of Exile website.
               </p>
             </div>
 
-            <div className="bg-warning/8 rounded-2xl border border-warning/20 px-4 py-3">
+            <div className="border-divider border-y py-3">
               <div className="flex items-start gap-3">
-                <Shield size={17} className="text-warning mt-0.5 shrink-0" aria-hidden="true" />
+                <Shield size={17} className="text-brand-readable mt-0.5 shrink-0" aria-hidden="true" />
                 <div>
                   <p className="text-foreground text-sm font-medium">Read-only game access</p>
                   <p className="text-default-500 mt-1 text-sm leading-relaxed">
@@ -129,31 +107,12 @@ export function LoginPage() {
               </div>
             ) : null}
 
-            <p className="text-default-400 text-center text-xs">
+            <p className="text-default-500 text-center text-xs">
               After signing in, you’ll return to the page you were opening.
             </p>
 
           </Card.Content>
         </Card>
-
-        <section aria-labelledby="why-connect-title">
-          <h2 id="why-connect-title" className="sr-only">What a connected workspace adds</h2>
-          <div className="grid gap-3 md:grid-cols-3">
-            {teaserItems.map(({ icon: Icon, title, description }) => (
-              <Card key={title} className="border-divider/70 bg-content1/80 border">
-                <Card.Content className="gap-3 p-5">
-                  <div className="bg-warning/12 flex h-10 w-10 items-center justify-center rounded-xl">
-                    <Icon size={18} className="text-warning" aria-hidden="true" />
-                  </div>
-                  <div>
-                    <h3 className="text-foreground text-sm font-semibold">{title}</h3>
-                    <p className="text-default-500 mt-1 text-sm leading-relaxed">{description}</p>
-                  </div>
-                </Card.Content>
-              </Card>
-            ))}
-          </div>
-        </section>
 
         <nav aria-label="Login help and trust" className="text-default-400 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs">
           <Link to="/legal/privacy" activeOptions={{ exact: true }} className="hover:text-foreground">Privacy</Link>

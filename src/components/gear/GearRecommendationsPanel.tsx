@@ -1752,22 +1752,14 @@ function RunActivityStrip({
 }) {
   const isWarm = phase !== 'submitting'
   return (
-    <div
-      className={`rounded-large border p-4 transition-colors duration-300 ${
-        isWarm ? 'border-warning/30 bg-warning/10' : 'border-default-200/60 bg-default-50/60'
-      }`}
-    >
+    <div className="rounded-medium border-divider bg-content1 border p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div
-            className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-300 ${
-              isWarm ? 'bg-warning/15' : 'bg-default-100'
-            }`}
-          >
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="mt-0.5 shrink-0" aria-hidden="true">
             <Spinner size="sm" color={isWarm ? 'warning' : 'current'} />
           </div>
-          <div>
-            <p className="text-foreground text-sm font-semibold">{title}</p>
+          <div className="min-w-0 wrap-anywhere">
+            <p role="status" className="text-foreground text-sm font-semibold">{title}</p>
             <p className="text-default-500 mt-1 text-sm">{detail}</p>
           </div>
         </div>
@@ -1797,52 +1789,44 @@ function RunActivityStrip({
         </div>
       </div>
       {timeline && timeline.length > 0 ? (
-        <ol className="mt-4 flex flex-col gap-1.5">
-          {timeline.map((step) => {
-            const dotClass =
-              step.status === 'done'
-                ? 'bg-success'
-                : step.status === 'active'
-                  ? isWarm
-                    ? 'bg-warning animate-pulse'
-                    : 'bg-default-500 animate-pulse'
-                  : 'bg-default-300'
-            const textClass =
-              step.status === 'active'
-                ? 'text-foreground font-semibold'
-                : step.status === 'done'
-                  ? 'text-default-600'
-                  : 'text-default-400'
-            return (
-              <li key={step.id} className="flex items-center gap-2 text-xs">
-                <span className={`inline-flex h-2 w-2 shrink-0 rounded-full ${dotClass}`} />
-                <span className={textClass}>{step.label}</span>
-              </li>
-            )
-          })}
-        </ol>
-      ) : (
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          <div
-            className={`h-1 animate-pulse rounded-full [animation-delay:0ms] ${isWarm ? 'bg-warning/30' : 'bg-default-200'}`}
-          />
-          <div
-            className={`h-1 animate-pulse rounded-full [animation-delay:200ms] ${isWarm ? 'bg-warning/45' : 'bg-default-200'}`}
-          />
-          <div
-            className={`h-1 animate-pulse rounded-full [animation-delay:400ms] ${isWarm ? 'bg-warning/60' : 'bg-default-200'}`}
-          />
-        </div>
-      )}
+        <details className="mt-3">
+          <summary className="cursor-pointer text-sm font-medium">Run progress</summary>
+          <ol className="mt-2 flex flex-col gap-1.5">
+            {timeline.map((step) => {
+              const dotClass =
+                step.status === 'done'
+                  ? 'bg-success'
+                  : step.status === 'active'
+                    ? isWarm
+                      ? 'bg-warning animate-pulse'
+                      : 'bg-default-500 animate-pulse'
+                    : 'bg-default-300'
+              const textClass =
+                step.status === 'active'
+                  ? 'text-foreground font-semibold'
+                  : step.status === 'done'
+                    ? 'text-default-600'
+                    : 'text-default-400'
+              return (
+                <li key={step.id} className="flex items-center gap-2 text-xs">
+                  <span className={`inline-flex h-2 w-2 shrink-0 rounded-full ${dotClass}`} />
+                  <span className={textClass}>{step.label}</span>
+                </li>
+              )
+            })}
+          </ol>
+        </details>
+      ) : null}
     </div>
   )
 }
 
 function LiveRecommendationsSkeleton() {
   return (
-    <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading recommendations">
+    <div className="flex flex-col gap-3">
+      <p role="status" className="text-default-500 text-sm">Loading recommendations…</p>
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="rounded-large border-divider overflow-hidden border">
+        <div key={i} aria-hidden="true" className="rounded-large border-divider overflow-hidden border">
           <div className="flex items-center gap-3 p-4">
             <div
               className="bg-default-100 h-11 w-11 shrink-0 animate-pulse rounded-lg"
@@ -1971,6 +1955,8 @@ export function GearRecommendationsPanel() {
   const [hasManuallySelectedCharacter, setHasManuallySelectedCharacter] = useState(false)
   const [selectedBuildTargetId, setSelectedBuildTargetId] = useState<string | null>(null)
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null)
+  const [setupExpanded, setSetupExpanded] = useState(false)
+  const [historyExpanded, setHistoryExpanded] = useState(false)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [pendingSelectedRunId, setPendingSelectedRunId] = useState<string | null>(null)
   const [pendingRunPreview, setPendingRunPreview] = useState<UpgradeAnalysisRun | null>(null)
@@ -2317,10 +2303,7 @@ export function GearRecommendationsPanel() {
     () => getLatestLiveRun(displayedAnalysisRuns),
     [displayedAnalysisRuns],
   )
-  const latestFreshRun = useMemo(
-    () => getPreferredRun(displayedAnalysisRuns),
-    [displayedAnalysisRuns],
-  )
+  const latestCompletedRun = displayedAnalysisRuns.find((run) => run.status === 'completed')
 
   useEffect(() => {
     if (!displayedAnalysisRuns.length) {
@@ -2373,12 +2356,10 @@ export function GearRecommendationsPanel() {
       ? contextualPendingRunPreview
       : null) ??
     latestLiveRun ??
-    latestFreshRun
+    getPreferredRun(displayedAnalysisRuns)
   const reservationAuditAnchorId = selectedRun ? `reservation-audit-${selectedRun.id}` : undefined
   const selectedRunIsLive = selectedRun?.status === 'queued' || selectedRun?.status === 'running'
-  const runtimeEstimateMode = selectedRunIsLive
-    ? (selectedRun?.analysis_mode ?? analysisMode)
-    : analysisMode
+  const runtimeEstimateMode = latestLiveRun?.analysis_mode ?? analysisMode
   const { data: runtimeEstimate } = useAnalysisRuntimeEstimate(runtimeEstimateMode)
   const {
     data: recommendationPlans = [],
@@ -2541,10 +2522,10 @@ export function GearRecommendationsPanel() {
   const recommendationStageTreeSpec = selectedRun ? selectedRunStageTreeSpec : inspectedTreeSpec
   const recommendationStageSkillSet = selectedRun ? selectedRunStageSkillSet : inspectedSkillSet
   const recommendationStageIsDraft = !selectedRun && isDraftStageTree
-  const selectedRunWaitInfo = getTradeRateLimitWaitInfo(selectedRun, nowMs)
+  const liveRunWaitInfo = getTradeRateLimitWaitInfo(latestLiveRun, nowMs)
   const runtimeEstimateSummary = formatRuntimeEstimateSummary(runtimeEstimate)
   const runtimeEstimateChipLabel =
-    selectedRun?.analysis_mode === 'thorough'
+    latestLiveRun?.analysis_mode === 'thorough'
       ? formatRuntimeEstimateChipLabel(runtimeEstimate)
       : null
   const selectedRunPlanCount = getSummaryNumber(selectedRun?.summary, 'generated_plan_count')
@@ -2603,8 +2584,6 @@ export function GearRecommendationsPanel() {
     }
     return details
   }, [currencyDisplay, divinePrice, selectedRun, selectedRunStageLabel])
-  const staleRunCount = displayedAnalysisRuns.filter((run) => run.status === 'stale').length
-  const freshRunCount = displayedAnalysisRuns.length - staleRunCount
   const analysisActionPending = analysisSubmitFlowPending
   const draftCraftedLineState = useMemo(() => {
     let total = 0
@@ -3182,6 +3161,7 @@ export function GearRecommendationsPanel() {
     })
     setPendingRunPreview(prelimDraft)
     setSelectedRunId(prelimDraft.id)
+    let submittedDraftId = prelimDraft.id
 
     try {
       const syncCharacterId = selectedCharacter?.id ?? selectedBuildTarget.character_id ?? null
@@ -3207,7 +3187,8 @@ export function GearRecommendationsPanel() {
 
       setPendingSelectedRunId(draftRun.id)
       setPendingRunPreview(draftRun)
-      setSelectedRunId(draftRun.id)
+      setSelectedRunId((current) => current === prelimDraft.id ? draftRun.id : current)
+      submittedDraftId = draftRun.id
 
       const incrementalChangedSlots =
         options?.attemptIncrementalRerun && selectedRun
@@ -3264,7 +3245,7 @@ export function GearRecommendationsPanel() {
 
       setPendingSelectedRunId(result.run.id)
       setPendingRunPreview(result.run)
-      setSelectedRunId(result.run.id)
+      setSelectedRunId((current) => current === draftRun.id ? result.run.id : current)
       setActionMessage(
         result.reused
           ? `Reused the latest cached ${getAnalysisModeLabel(result.run.analysis_mode).toLowerCase()} for these exact inputs.`
@@ -3277,7 +3258,7 @@ export function GearRecommendationsPanel() {
       setRunTransitionLoading(false)
       setPendingSelectedRunId(null)
       setPendingRunPreview(null)
-      setSelectedRunId(previousRunId)
+      setSelectedRunId((current) => current === submittedDraftId ? previousRunId : current)
       setActionMessage(error instanceof Error ? error.message : 'Failed to queue analysis run.')
     } finally {
       finishAnalysisSubmitFlow(submitFlowId)
@@ -3288,20 +3269,20 @@ export function GearRecommendationsPanel() {
     setActionMessage(null)
 
     // Still in the submit flow (pre-persistence) — abort and restore previous state
-    if (analysisActionPending || selectedRun?.summary?.queue_submission_pending === true) {
+    if (analysisActionPending || latestLiveRun?.summary?.queue_submission_pending === true) {
       cancelAnalysisSubmitFlow()
       setPendingRunPreview(null)
       setPendingSelectedRunId(null)
       setRunTransitionLoading(false)
-      setSelectedRunId(preRunSelectedRunId)
+      setSelectedRunId((current) => current === latestLiveRun?.id ? preRunSelectedRunId : current)
       return
     }
 
-    if (!selectedRunIsLive || !selectedRun || !activeGroupId || !selectedBuildTarget || !canQueueRun) return
+    if (!latestLiveRun || !activeGroupId || !selectedBuildTarget || !canQueueRun) return
 
     try {
       await cancelUpgradeAnalysis({
-        run_id: selectedRun.id,
+        run_id: latestLiveRun.id,
         group_id: activeGroupId,
         target_user_id: targetUserId ?? selectedBuildTarget.user_id,
         build_target_id: selectedBuildTarget.id,
@@ -3309,7 +3290,7 @@ export function GearRecommendationsPanel() {
       setPendingRunPreview(null)
       setPendingSelectedRunId(null)
       setRunTransitionLoading(false)
-      setSelectedRunId(preRunSelectedRunId)
+      setSelectedRunId((current) => current === latestLiveRun.id ? preRunSelectedRunId : current)
     } catch (error) {
       setActionMessage(error instanceof Error ? error.message : 'Failed to cancel the run.')
     }
@@ -3529,9 +3510,158 @@ export function GearRecommendationsPanel() {
     return <CardListSkeleton rows={4} />
   }
 
+  const showSetup = setupExpanded || !selectedRun
+
   return (
-    <div className="@container min-w-0">
-      <div className="grid grid-cols-1 gap-5 @min-[48rem]:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
+    <div className="@container flex min-w-0 flex-col gap-5">
+      {selectedRun || runsLoading || runsFailed ? (
+        <section aria-labelledby="analysis-run-title" className="border-divider min-w-0 border-b pb-4">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 id="analysis-run-title" className="text-foreground text-base font-semibold">Analysis run</h2>
+              <p className="text-default-500 mt-1 text-sm wrap-anywhere">
+                Setup: {[selectedCharacter?.name, selectedBuildTarget?.name, getAnalysisModeLabel(analysisMode),
+                  analysisMode === 'thorough'
+                    ? getRunBudgetLabel({ analysis_mode: analysisMode, budget_chaos: normalizedBudgetChaos }, currencyDisplay, divinePrice)
+                    : null,
+                ].filter(Boolean).join(' · ')}
+              </p>
+              {selectedRun ? (
+                <p className="text-default-500 mt-1 text-sm wrap-anywhere">
+                  Selected run: {getAnalysisModeLabel(selectedRun.analysis_mode)} · {selectedRun.status}
+                  {selectedRun.completed_at ? ' · ' + formatRelativeTimestamp(selectedRun.completed_at) : ''}
+                  {selectedRunContextDetails.length ? ' · ' + selectedRunContextDetails.join(' · ') : ''}
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="tertiary"
+                aria-controls="analysis-run-history"
+                aria-expanded={historyExpanded}
+                onPress={() => setHistoryExpanded((current) => !current)}
+              >
+                Run history
+                <ChevronDown size={14} aria-hidden="true" className={historyExpanded ? 'rotate-180' : undefined} />
+              </Button>
+              {selectedRun ? (
+                <Button
+                  size="sm"
+                  variant="tertiary"
+                  aria-controls="analysis-setup"
+                  aria-expanded={showSetup}
+                  onPress={() => setSetupExpanded((current) => !current)}
+                >
+                  {showSetup ? 'Hide setup' : latestLiveRun ? 'View setup' : 'Edit setup'}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          <div id="analysis-run-history" hidden={!historyExpanded} className="mt-3">
+            {runsFailed ? (
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <p role="status" className="text-danger text-sm">Could not refresh run history.</p>
+                <Button size="sm" variant="tertiary" onPress={() => void retryRuns()}>Try again</Button>
+              </div>
+            ) : null}
+            {runsLoading ? (
+              <p className="text-default-500 text-sm">Loading runs...</p>
+            ) : displayedAnalysisRuns.length === 0 ? (
+              runsFailed ? null : <p className="text-default-500 text-sm">No runs queued yet.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {displayedAnalysisRuns.map((run) => (
+                  <button
+                    key={run.id}
+                    type="button"
+                    aria-pressed={run.id === selectedRun?.id}
+                    className={`rounded-large border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-primary ${
+                      run.id === selectedRun?.id
+                        ? 'border-warning/60 bg-warning/10'
+                        : 'border-divider'
+                    }`}
+                    onClick={() => setSelectedRunId(run.id)}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Chip
+                          size="sm"
+                          color={RUN_STATUS_COLORS[run.status]}
+                          variant="soft"
+                        >
+                          {run.status}
+                        </Chip>
+                        {latestCompletedRun?.id === run.id ? (
+                          <Chip size="sm" variant="soft" color="success">
+                            Latest completed
+                          </Chip>
+                        ) : null}
+                        <Chip
+                          size="sm"
+                          variant="soft"
+                          color={run.analysis_mode === 'thorough' ? 'accent' : 'default'}
+                        >
+                          {run.analysis_mode === 'thorough' ? 'Live' : 'Quick'}
+                        </Chip>
+                      </div>
+                      <span className="text-default-400 text-xs">
+                        {formatRelativeTimestamp(run.created_at)}
+                      </span>
+                    </div>
+                    <p className="text-foreground mt-2 text-sm font-medium">
+                      {getRunBudgetLabel(run, currencyDisplay, divinePrice)}
+                    </p>
+                    <p className="text-default-500 mt-1 text-xs">
+                      {getRunStatusCopy(run, nowMs)}
+                    </p>
+                    {getDisplayedPartialReason(run, nowMs) ? (
+                      <p className="text-default-500 mt-1 text-xs">
+                        {getDisplayedPartialReason(run, nowMs)}
+                      </p>
+                    ) : null}
+                    {run.error_detail ? (
+                      <p className="text-danger wrap-anywhere mt-1 text-xs">{run.error_detail}</p>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      ) : null}
+      {latestLiveRun ? (
+        <RunActivityStrip
+          phase={latestLiveRun.summary?.queue_submission_pending === true ? 'submitting' : latestLiveRun.status === 'running' ? 'running' : 'queued'}
+          title={
+            latestLiveRun.summary?.queue_submission_pending === true
+              ? 'Preparing your analysis'
+              : liveRunWaitInfo
+                ? 'Waiting for trade cooldown'
+                : latestLiveRun.status === 'queued'
+                  ? 'Analysis queued'
+                  : 'Analysis running'
+          }
+          detail={getRunStatusCopy(latestLiveRun, nowMs)}
+          waitLabel={liveRunWaitInfo ? 'Resumes in ' + formatCountdown(liveRunWaitInfo.remainingMs) : null}
+          timeline={
+            latestLiveRun.status === 'running'
+              ? getRunPhaseTimeline(latestLiveRun, getCurrentRunPhaseId(latestLiveRun)?.id ?? null)
+              : undefined
+          }
+          elapsedLabel={latestLiveRun.status === 'running' && !liveRunWaitInfo ? formatElapsedSince(latestLiveRun.started_at, nowMs) : null}
+          estimatedLabel={runtimeEstimateChipLabel}
+          onCancel={canQueueRun ? () => void handleCancelRun() : undefined}
+          cancelLoading={cancellingAnalysis}
+        />
+      ) : null}
+      {actionMessage ? <p role="status" className="text-default-600 text-sm wrap-anywhere">{actionMessage}</p> : null}
+      <div
+        id="analysis-setup"
+        className={showSetup
+          ? 'grid min-w-0 grid-cols-1 gap-5 @min-[48rem]:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]'
+          : 'hidden'}
+      >
         <div className="flex min-w-0 flex-col gap-6">
           <Card className="gap-0 p-0">
             <Card.Header className="px-4 pt-4 pb-0">
@@ -3744,24 +3874,9 @@ export function GearRecommendationsPanel() {
             </Card.Header>
             <Card.Content className="gap-4 px-4 pt-3 pb-4">
               {latestLiveRun ? (
-                <div className="rounded-large border-warning/40 bg-warning/10 flex flex-wrap items-center gap-2 border p-3">
-                  <Spinner size="sm" color="warning" />
-                  <p className="text-warning text-sm font-semibold">
-                    {latestLiveRun.summary?.queue_submission_pending === true
-                      ? 'Preparing analysis'
-                      : 'Settings are locked during the active run.'}
-                  </p>
-                  {!selectedRunIsLive ? (
-                    <Button size="sm" variant="tertiary" onPress={() => setSelectedRunId(latestLiveRun.id)}>
-                      View active run
-                    </Button>
-                  ) : null}
-                </div>
+                <p className="text-default-600 text-sm">Settings are locked during the active run.</p>
               ) : null}
-              <div
-                inert={!!latestLiveRun}
-                className={`transition-opacity duration-200 ${latestLiveRun ? 'opacity-50' : ''}`}
-              >
+              <div inert={!!latestLiveRun} className={latestLiveRun ? 'opacity-60' : undefined}>
                 <div className="flex flex-col gap-4">
                   <div className="grid gap-3 md:grid-cols-2">
                     <SelectField
@@ -3900,13 +4015,14 @@ export function GearRecommendationsPanel() {
                             setAnalysisMode(value)
                           }
                         }}
-                        className="grid w-full gap-3 md:grid-cols-2"
+                        aria-label="Analysis mode"
+                        className="!grid w-full min-w-0 grid-cols-1 gap-3 @min-[63rem]:grid-cols-2"
                       >
                         {ANALYSIS_MODE_OPTIONS.map((option) => (
                           <ToggleButton
                             key={option.key}
                             id={option.key}
-                            className="rounded-large border-divider bg-content1 data-[selected=true]:border-warning/60 data-[selected=true]:bg-warning/10 h-auto min-h-24 w-full justify-start border p-3 text-left"
+                            className="rounded-large border-divider bg-content1 data-[selected=true]:border-warning/60 data-[selected=true]:bg-warning/10 h-auto min-w-0 w-full justify-start border p-3 text-left whitespace-normal"
                           >
                             <span className="flex w-full min-w-0 flex-col gap-2">
                               <span className="flex flex-wrap items-center justify-between gap-2">
@@ -3921,7 +4037,7 @@ export function GearRecommendationsPanel() {
                                   {option.key === 'thorough' ? 'Minutes' : 'Fast'}
                                 </Chip>
                               </span>
-                              <span className="text-default-500 text-sm">{option.description}</span>
+                              <span className="text-default-500 text-sm wrap-anywhere">{option.description}</span>
                             </span>
                           </ToggleButton>
                         ))}
@@ -4109,20 +4225,7 @@ export function GearRecommendationsPanel() {
               {selectedBuildTarget ? (
                 <div className="flex flex-col items-end gap-2">
                   <div className="flex w-full justify-end">
-                    {selectedRunIsLive && canQueueRun ? (
-                      <Button
-                        variant="danger-soft"
-                        className="w-full md:w-auto"
-                        isPending={cancellingAnalysis}
-                        onPress={() => void handleCancelRun()}
-                      >
-                        {({ isPending }) => (
-                          <PendingButtonContent isPending={isPending}>
-                            Cancel run
-                          </PendingButtonContent>
-                        )}
-                      </Button>
-                    ) : !latestLiveRun ? (
+                    {!latestLiveRun ? (
                       <Button
                         className="w-full md:w-auto"
                         isDisabled={!canQueueRun}
@@ -4142,11 +4245,6 @@ export function GearRecommendationsPanel() {
                       {runtimeEstimateSummary}
                     </p>
                   ) : null}
-                  {actionMessage ? (
-                    <p className="text-default-400 text-right text-xs leading-snug">
-                      {actionMessage}
-                    </p>
-                  ) : null}
                 </div>
               ) : null}
               {!canQueueRun && selectedBuildTarget ? (
@@ -4156,302 +4254,9 @@ export function GearRecommendationsPanel() {
               ) : null}
             </Card.Content>
           </Card>
-
-          <Card className="gap-0 p-0">
-            <Card.Header className="px-4 pt-4 pb-0">
-              <h2 className="text-foreground text-sm font-semibold">Analysis run</h2>
-            </Card.Header>
-            <Card.Content className="gap-4 px-4 pt-3 pb-4">
-              {selectedRun?.status === 'stale' ? (
-                <div className="rounded-large border-warning/40 bg-warning/10 border p-3">
-                  <p className="text-foreground text-sm font-semibold">Selected run is stale</p>
-                  <p className="text-default-600 mt-1 text-sm">
-                    {formatStaleReason(selectedRun.stale_reason)} Run analysis again from the setup
-                    box to refresh the recommendations.
-                  </p>
-                </div>
-              ) : null}
-              <div className="flex flex-col gap-3">
-                <div className="rounded-large border-divider border p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-foreground text-sm font-semibold">Selected run</p>
-                    <div className="flex flex-wrap gap-2">
-                      {freshRunCount > 0 ? (
-                        <Chip size="sm" variant="soft" color="success">
-                          {freshRunCount} fresh
-                        </Chip>
-                      ) : null}
-                      {staleRunCount > 0 ? (
-                        <Chip size="sm" variant="soft" color="warning">
-                          {staleRunCount} stale
-                        </Chip>
-                      ) : null}
-                      {selectedRun?.status === 'completed' || selectedRun?.status === 'partial' ? (
-                        <a href="#analysis-recommendations" className="button button--sm button--secondary">
-                          View recommendations
-                        </a>
-                      ) : null}
-                    </div>
-                  </div>
-                  {!selectedRun ? (
-                    <p className="text-default-500 mt-4 text-sm">
-                      Choose a run to inspect recommendations.
-                    </p>
-                  ) : (
-                    <div className="mt-4 flex flex-col gap-4">
-                      {selectedRun.status === 'queued' || selectedRun.status === 'running' ? (
-                        <RunActivityStrip
-                          phase={
-                            selectedRun.summary?.queue_submission_pending === true
-                              ? 'submitting'
-                              : selectedRun.status === 'running'
-                                ? 'running'
-                                : 'queued'
-                          }
-                          title={
-                            selectedRun.summary?.queue_submission_pending === true
-                              ? 'Preparing your analysis'
-                              : selectedRunWaitInfo
-                                ? 'Waiting for trade cooldown'
-                                : selectedRun.status === 'queued'
-                                  ? 'Analysis queued'
-                                  : 'Analysis running'
-                          }
-                          detail={getRunStatusCopy(selectedRun, nowMs)}
-                          waitLabel={
-                            selectedRun.summary?.queue_submission_pending === true
-                              ? null
-                              : selectedRunWaitInfo
-                                ? `Resumes in ${formatCountdown(selectedRunWaitInfo.remainingMs)}`
-                                : selectedRun.status === 'queued'
-                                  ? 'Queued'
-                                  : null
-                          }
-                          timeline={
-                            selectedRun.status === 'running'
-                              ? getRunPhaseTimeline(
-                                  selectedRun,
-                                  getCurrentRunPhaseId(selectedRun)?.id ?? null,
-                                )
-                              : undefined
-                          }
-                          elapsedLabel={
-                            selectedRun.status === 'running' && !selectedRunWaitInfo
-                              ? formatElapsedSince(selectedRun.started_at, nowMs)
-                              : null
-                          }
-                          estimatedLabel={runtimeEstimateChipLabel}
-                          onCancel={canQueueRun ? () => void handleCancelRun() : undefined}
-                          cancelLoading={cancellingAnalysis}
-                        />
-                      ) : null}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div
-                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${
-                            selectedRun.analysis_mode === 'thorough'
-                              ? 'border-accent/40 bg-accent/10 text-accent'
-                              : 'border-default-300 bg-default-100/80 text-default-700'
-                          }`}
-                        >
-                          <span
-                            className={`h-2 w-2 rounded-full ${
-                              selectedRun.analysis_mode === 'thorough'
-                                ? 'bg-accent'
-                                : 'bg-default-400'
-                            }`}
-                          />
-                          <span>{getAnalysisModeLabel(selectedRun.analysis_mode)}</span>
-                        </div>
-                        {selectedRunMainSkillName ? (
-                          <div className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
-                            <span className="text-default-400 text-[11px] font-medium tracking-[0.14em] uppercase">
-                              Main skill
-                            </span>
-                            {selectedRunMainSkillVisual?.icon ? (
-                              <img
-                                src={selectedRunMainSkillVisual.icon}
-                                alt=""
-                                className="h-4 w-4 rounded-full object-contain"
-                              />
-                            ) : (
-                              <span className="bg-default-400/40 h-3 w-3 shrink-0 rounded-full" />
-                            )}
-                            <span
-                              className={`wrap-anywhere text-xs font-medium ${getSocketTextColorClass(selectedRunMainSkillVisual?.socketColor ?? null)}`}
-                            >
-                              {selectedRunMainSkillName}
-                            </span>
-                          </div>
-                        ) : null}
-                        {selectedRun.completed_at ? (
-                          <Chip size="sm" variant="soft">
-                            Completed {formatRelativeTimestamp(selectedRun.completed_at)}
-                          </Chip>
-                        ) : null}
-                      </div>
-                      {selectedRunContextDetails.length > 0 ? (
-                        <p className="text-default-400 wrap-anywhere text-sm">
-                          {selectedRunContextDetails.join(' · ')}
-                        </p>
-                      ) : null}
-                      {(selectedRun.party_config.length > 0 &&
-                        selectedRunAppliedPartyCount !== null) ||
-                      selectedRunHasConfigurationInsightButton ? (
-                        <div className="flex flex-wrap gap-2">
-                          {selectedRun.party_config.length > 0 &&
-                          selectedRunAppliedPartyCount !== null ? (
-                            <Button
-                              size="sm"
-                              variant="tertiary"
-                              onPress={() => setPartyBuffDetailOpen(true)}
-                            >
-                              {selectedRunAppliedPartyCount > 0
-                                ? `Party buffs ${selectedRunAppliedPartyCount}/${selectedRun.party_config.length}`
-                                : 'Party buffs: none applied'}
-                            </Button>
-                          ) : null}
-                          {selectedRunHasConfigurationInsightButton ? (
-                            <Button
-                              size="sm"
-                              variant="tertiary"
-                              onPress={() => setConfigInsightDetailOpen(true)}
-                            >
-                              PoB configuration insights
-                            </Button>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      {selectedRun.status !== 'queued' && selectedRun.status !== 'running' ? (
-                        <p className="text-default-500 text-sm">
-                          {getRunStatusCopy(selectedRun, nowMs)}
-                        </p>
-                      ) : null}
-                      <div className="flex flex-wrap gap-2">
-                        {selectedRunPlanCount != null ? (
-                          <Chip size="sm" variant="soft">
-                            {selectedRunPlanCount} plans
-                          </Chip>
-                        ) : null}
-                        {selectedRunBlockers.length ? (
-                          <Chip size="sm" variant="soft" color="warning">
-                            {selectedRunBlockers.length} blockers
-                          </Chip>
-                        ) : null}
-                      </div>
-                      {selectedRunBlockers.length ? (
-                        <div className="rounded-large border-divider/70 bg-default-50/70 border p-3">
-                          <p className="text-default-500 text-xs font-semibold tracking-wide uppercase">
-                            Progress blockers
-                          </p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {selectedRunBlockers.slice(0, 4).map((blocker) => (
-                              <Chip key={blocker} size="sm" variant="soft" color="warning">
-                                {blocker}
-                              </Chip>
-                            ))}
-                            {selectedRunBlockers.length > 4 ? (
-                              <Chip size="sm" variant="soft">
-                                +{selectedRunBlockers.length - 4} more
-                              </Chip>
-                            ) : null}
-                          </div>
-                        </div>
-                      ) : null}
-                      {getDisplayedPartialReason(selectedRun, nowMs) ? (
-                        <p className="text-warning text-sm">
-                          {(getSummaryNumber(selectedRun.summary, 'exact_plan_count') ?? 0) > 0
-                            ? `Current scope: ${getDisplayedPartialReason(selectedRun, nowMs)}`
-                            : `Partial confidence: ${getDisplayedPartialReason(selectedRun, nowMs)}`}
-                        </p>
-                      ) : null}
-                      {selectedRun.error_detail ? (
-                        <p className="text-danger wrap-anywhere text-sm">{selectedRun.error_detail}</p>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-                <Accordion variant="surface">
-                  <AccordionPanelItem
-                    id="run-history"
-                    title="Run history"
-                  >
-                    {runsFailed ? (
-                      <div className="mb-2 flex flex-wrap items-center gap-2">
-                        <p role="status" className="text-danger text-sm">Could not refresh run history.</p>
-                        <Button size="sm" variant="tertiary" onPress={() => void retryRuns()}>Try again</Button>
-                      </div>
-                    ) : null}
-                    {runsLoading ? (
-                      <p className="text-default-500 text-sm">Loading runs...</p>
-                    ) : displayedAnalysisRuns.length === 0 ? (
-                      runsFailed ? null : <p className="text-default-500 text-sm">No runs queued yet.</p>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {displayedAnalysisRuns.map((run) => (
-                          <button
-                            key={run.id}
-                            type="button"
-                            aria-pressed={run.id === selectedRun?.id}
-                            className={`rounded-large border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-primary ${
-                              run.id === selectedRun?.id
-                                ? 'border-warning/60 bg-warning/10'
-                                : 'border-divider'
-                            }`}
-                            onClick={() => setSelectedRunId(run.id)}
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Chip
-                                  size="sm"
-                                  color={RUN_STATUS_COLORS[run.status]}
-                                  variant="soft"
-                                >
-                                  {run.status}
-                                </Chip>
-                                {latestFreshRun?.id === run.id && run.status !== 'stale' ? (
-                                  <Chip size="sm" variant="soft" color="success">
-                                    Latest fresh
-                                  </Chip>
-                                ) : null}
-                                <Chip
-                                  size="sm"
-                                  variant="soft"
-                                  color={run.analysis_mode === 'thorough' ? 'accent' : 'default'}
-                                >
-                                  {run.analysis_mode === 'thorough' ? 'Live' : 'Quick'}
-                                </Chip>
-                              </div>
-                              <span className="text-default-400 text-xs">
-                                {formatRelativeTimestamp(run.created_at)}
-                              </span>
-                            </div>
-                            <p className="text-foreground mt-2 text-sm font-medium">
-                              {getRunBudgetLabel(run, currencyDisplay, divinePrice)}
-                            </p>
-                            <p className="text-default-500 mt-1 text-xs">
-                              {getRunStatusCopy(run, nowMs)}
-                            </p>
-                            {getDisplayedPartialReason(run, nowMs) ? (
-                              <p className="text-default-500 mt-1 text-xs">
-                                {getDisplayedPartialReason(run, nowMs)}
-                              </p>
-                            ) : null}
-                            {run.error_detail ? (
-                              <p className="text-danger wrap-anywhere mt-1 text-xs">{run.error_detail}</p>
-                            ) : null}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </AccordionPanelItem>
-                </Accordion>
-              </div>
-            </Card.Content>
-          </Card>
-
         </div>
-
-        <Card role="region" aria-labelledby="analysis-recommendations" className="min-w-0 gap-0 p-0 @min-[48rem]:col-span-2">
+      </div>
+        <Card role="region" aria-labelledby="analysis-recommendations" className="min-w-0 gap-0 p-0">
           <Card.Header className="px-4 pt-4 pb-0">
             <div className="flex flex-1 flex-wrap items-start justify-between gap-3">
               <div>
@@ -4481,6 +4286,107 @@ export function GearRecommendationsPanel() {
             </div>
           </Card.Header>
           <Card.Content className="@container/recommendations px-4 pt-3 pb-4">
+            {selectedRun ? (
+              <details className="border-divider mb-4 border-b pb-3">
+                <summary className="cursor-pointer text-sm font-medium">Run details</summary>
+                <div className="mt-4 flex flex-col gap-4">
+                  {selectedRunMainSkillName ? (
+                    <div className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+                      <span className="text-default-400 text-[11px] font-medium tracking-[0.14em] uppercase">
+                        Main skill
+                      </span>
+                      {selectedRunMainSkillVisual?.icon ? (
+                        <img
+                          src={selectedRunMainSkillVisual.icon}
+                          alt=""
+                          className="h-4 w-4 rounded-full object-contain"
+                        />
+                      ) : (
+                        <span className="bg-default-400/40 h-3 w-3 shrink-0 rounded-full" />
+                      )}
+                      <span
+                        className={`wrap-anywhere text-xs font-medium ${getSocketTextColorClass(selectedRunMainSkillVisual?.socketColor ?? null)}`}
+                      >
+                        {selectedRunMainSkillName}
+                      </span>
+                    </div>
+                  ) : null}
+                  {(selectedRun.party_config.length > 0 &&
+                    selectedRunAppliedPartyCount !== null) ||
+                  selectedRunHasConfigurationInsightButton ? (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedRun.party_config.length > 0 &&
+                      selectedRunAppliedPartyCount !== null ? (
+                        <Button
+                          size="sm"
+                          variant="tertiary"
+                          onPress={() => setPartyBuffDetailOpen(true)}
+                        >
+                          {selectedRunAppliedPartyCount > 0
+                            ? `Party buffs ${selectedRunAppliedPartyCount}/${selectedRun.party_config.length}`
+                            : 'Party buffs: none applied'}
+                        </Button>
+                      ) : null}
+                      {selectedRunHasConfigurationInsightButton ? (
+                        <Button
+                          size="sm"
+                          variant="tertiary"
+                          onPress={() => setConfigInsightDetailOpen(true)}
+                        >
+                          PoB configuration insights
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {selectedRun.status !== 'queued' && selectedRun.status !== 'running' ? (
+                    <p className="text-default-500 text-sm">
+                      {getRunStatusCopy(selectedRun, nowMs)}
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    {selectedRunPlanCount != null ? (
+                      <Chip size="sm" variant="soft">
+                        {selectedRunPlanCount} plans
+                      </Chip>
+                    ) : null}
+                    {selectedRunBlockers.length ? (
+                      <Chip size="sm" variant="soft" color="warning">
+                        {selectedRunBlockers.length} blockers
+                      </Chip>
+                    ) : null}
+                  </div>
+                  {selectedRunBlockers.length ? (
+                    <div className="rounded-large border-divider/70 bg-default-50/70 border p-3">
+                      <p className="text-default-500 text-xs font-semibold tracking-wide uppercase">
+                        Progress blockers
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {selectedRunBlockers.slice(0, 4).map((blocker) => (
+                          <Chip key={blocker} size="sm" variant="soft" color="warning">
+                            {blocker}
+                          </Chip>
+                        ))}
+                        {selectedRunBlockers.length > 4 ? (
+                          <Chip size="sm" variant="soft">
+                            +{selectedRunBlockers.length - 4} more
+                          </Chip>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                  {getDisplayedPartialReason(selectedRun, nowMs) ? (
+                    <p className="text-warning text-sm">
+                      {(getSummaryNumber(selectedRun.summary, 'exact_plan_count') ?? 0) > 0
+                        ? `Current scope: ${getDisplayedPartialReason(selectedRun, nowMs)}`
+                        : `Partial confidence: ${getDisplayedPartialReason(selectedRun, nowMs)}`}
+                    </p>
+                  ) : null}
+                  {selectedRun.error_detail ? (
+                    <p className="text-danger wrap-anywhere text-sm">{selectedRun.error_detail}</p>
+                  ) : null}
+                </div>
+              </details>
+            ) : null}
             <div className="grid grid-cols-1 items-start gap-5 @min-[52rem]/recommendations:grid-cols-[minmax(0,1fr)_19rem]">
               <div className="flex min-w-0 flex-col gap-5">
                 {!selectedRun ? (
@@ -4578,13 +4484,13 @@ export function GearRecommendationsPanel() {
                             </p>
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            {latestFreshRun && latestFreshRun.id !== selectedRun.id ? (
+                            {latestCompletedRun && latestCompletedRun.id !== selectedRun.id ? (
                               <Button
                                 size="sm"
                                 variant="tertiary"
-                                onPress={() => setSelectedRunId(latestFreshRun.id)}
+                                onPress={() => setSelectedRunId(latestCompletedRun.id)}
                               >
-                                View latest fresh
+                                View latest completed run
                               </Button>
                             ) : null}
                             {canQueueRun ? (
@@ -4886,7 +4792,6 @@ export function GearRecommendationsPanel() {
             </div>
           </Card.Content>
         </Card>
-      </div>
 
       {selectedRun ? (
         <>

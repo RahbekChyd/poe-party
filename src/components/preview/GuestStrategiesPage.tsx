@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
-import { ListBox } from '@heroui/react/list-box'
 import { Globe } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useThreadData } from '../../hooks/useThreadData'
@@ -11,9 +10,9 @@ import { usePreviewLeague } from '../../hooks/usePreviewLeague'
 import { DIFFICULTY_CHIP } from '../../lib/constants'
 import { formatCurrencyAmount } from '../../lib/utils'
 import { PreviewPageIntro } from './PreviewShared'
+import { DiscoveryScope } from './DiscoveryFilters'
 import { getPoeGameCapabilities, getPoeGameShortLabel } from '../../lib/poe-game'
 import { trackPublicEvent } from '../../lib/analytics'
-import { SelectField } from '../ui/heroui-native'
 import { StrategyInfoSection } from '../strategies/StrategyInfoSection'
 import { StrategyMetadataBadges } from '../strategies/StrategyMetadataBadges'
 import {
@@ -67,7 +66,7 @@ export function GuestStrategiesPage() {
   )
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 sm:gap-5">
       <PreviewPageIntro
         mode="public"
         title="Strategies"
@@ -76,36 +75,15 @@ export function GuestStrategiesPage() {
 
       <Card className="@container p-3 sm:p-4">
         <Card.Content className="gap-3">
-          <div className="grid w-full max-w-xl gap-3 @min-[24rem]:grid-cols-2">
-            <SelectField
-              label="Game"
-              selectedKey={selectedGame}
-              onSelectionChange={(value) => {
-                if (typeof value === 'string' && (value === 'poe1' || value === 'poe2')) {
-                  setSelectedGame(value)
-                }
-              }}
-            >
-              {availableGames.map((game) => (
-                <ListBox.Item key={game.id} id={game.id} textValue={game.label}>
-                  {game.label}
-                </ListBox.Item>
-              ))}
-            </SelectField>
-            <SelectField
-              label="League"
-              selectedKey={selectedLeague}
-              onSelectionChange={(value) => {
-                setSelectedLeague(typeof value === 'string' ? value : null)
-              }}
-              isDisabled={leagues.length === 0}
-            >
-              {leagues.map((league) => (
-                <ListBox.Item key={league.id} id={league.id} textValue={league.label}>
-                  {league.label}
-                </ListBox.Item>
-              ))}
-            </SelectField>
+          <div className="w-full max-w-xl">
+            <DiscoveryScope
+              game={selectedGame}
+              league={selectedLeague}
+              games={availableGames}
+              leagues={leagues}
+              onGameChange={setSelectedGame}
+              onLeagueChange={setSelectedLeague}
+            />
           </div>
           <ResponsiveFilter
             label="Strategy stage"

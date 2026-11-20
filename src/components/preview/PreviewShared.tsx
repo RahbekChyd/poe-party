@@ -36,20 +36,13 @@ export function PreviewPageIntro({
   aside?: ReactNode
   asideClassName?: string
 }) {
-  const railColor = mode === 'teaser' ? 'var(--warning)' : 'var(--arcane)'
-
   return (
     <div className="border-divider/70 flex flex-col gap-3 border-b pb-4 md:flex-row md:flex-wrap md:items-end md:justify-between">
       <div className="min-w-0 max-w-3xl wrap-anywhere md:flex-[1_1_24rem]">
-        <div className="mb-2 flex items-center gap-2">
-          <span
-            className="h-4 w-1 shrink-0 rounded-full"
-            style={{ backgroundColor: railColor }}
-            aria-hidden="true"
-          />
-          <PreviewModeChip mode={mode} />
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="text-foreground text-2xl leading-8 font-semibold">{title}</h1>
+          {mode === 'teaser' ? <PreviewModeChip mode={mode} /> : null}
         </div>
-        <h1 className="text-foreground text-2xl leading-8 font-semibold">{title}</h1>
         <p className="text-default-500 mt-1 max-w-2xl text-sm leading-5">{description}</p>
       </div>
       {aside ? <div className={asideClassName}>{aside}</div> : null}

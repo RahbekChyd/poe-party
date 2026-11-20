@@ -11,7 +11,6 @@ import { Label } from '@heroui/react/label'
 import { Spinner } from '@heroui/react/spinner'
 import {
   ArrowLeft,
-  Check,
   Coins,
   ExternalLink,
   Info,
@@ -54,6 +53,7 @@ import {
   useStrategyLinkedSnapshots,
 } from '../../hooks/useSnapshots'
 import { useStrategyHourlyEstimates } from '../../hooks/useStrategyEconomy'
+import { useGroupWealthHistory, type GroupWealthDataPoint } from '../../hooks/useGroupWealthHistory'
 import { useGroupStore } from '../../store/group-store'
 import { useThreadData, type ThreadEntry } from '../../hooks/useThreadData'
 import { useCurrencyStore } from '../../store/currency-store'
@@ -61,7 +61,9 @@ import { DIFFICULTY_OPTIONS, MAP_REQ_FIELDS as MAP_REQ_FIELDS_CONST } from '../.
 import { DetailPageSkeleton } from '../layout/Skeletons'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
 import { formatCurrencyAmount } from '../../lib/utils'
+import { getPoeGameShortLabel } from '../../lib/poe-game'
 import { StrategyLinkedSnapshotsModal } from './StrategyLinkedSnapshotsModal'
+import { StrategyInfoSection } from './StrategyInfoSection'
 import {
   FieldInput,
   FieldTextArea,
@@ -165,11 +167,6 @@ const MAP_REQ_FIELDS = MAP_REQ_FIELDS_CONST as {
 function formatChaosValue(chaos: number): string {
   if (chaos > 0 && chaos < 1) return chaos.toFixed(1)
   return Math.round(chaos).toLocaleString()
-}
-
-function getReadOnlyFieldClassName(isReadOnly: boolean) {
-  if (!isReadOnly) return undefined
-  return 'opacity-90'
 }
 
 function toFieldStringValue(value: unknown): string {
@@ -395,23 +392,29 @@ export function StrategyDetailPage() {
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
 
   const { data: strategy, isLoading, isError, refetch } = useStrategy(strategyId)
-  const { data: members } = useGroupMembers(activeGroupId)
-  const { game, league: activeLeague, capabilities } = useActiveGroupContext()
-  const { data: strategyEconomy } = useStrategyHourlyEstimates(activeGroupId)
-  const { data: linkedSnapshots = [] } = useStrategyLinkedSnapshots(activeGroupId, strategyId)
+  const strategyGroupId = strategy?.group_id ?? activeGroupId
+  const { data: members } = useGroupMembers(strategyGroupId)
+  const { game, league: activeLeague, capabilities } = useActiveGroupContext(strategyGroupId)
+  const { data: strategyEconomy } = useStrategyHourlyEstimates(strategyGroupId)
+  const { data: groupHistory } = useGroupWealthHistory(strategyGroupId)
+  const { data: linkedSnapshots = [] } = useStrategyLinkedSnapshots(strategyGroupId, strategyId)
   const myRole = useMyGroupRole(activeGroupId)
   const canEdit = myRole === 'admin' || myRole === 'editor'
   const isAdmin = myRole === 'admin'
 
   const { mutate: saveStrategy, isPending: savingForm, error: saveError } = useUpdateStrategy()
-  const { mutate: updateQuickAction } = useUpdateStrategy()
-  const { mutate: deleteStrategy, isPending: deleting } = useDeleteStrategy()
-  const { mutate: clearStrategySnapshots, isPending: clearingSnapshots } =
+  const { mutate: updateQuickAction, isError: quickActionFailed } = useUpdateStrategy()
+  const { mutate: deleteStrategy, isPending: deleting, isError: deleteFailed } = useDeleteStrategy()
+  const { mutate: clearStrategySnapshots, isPending: clearingSnapshots, isError: clearFailed } =
     useClearStrategySnapshots()
   const { mutateAsync: setGroupHistoryStrategyLink, isPending: updatingLinkedSnapshots } =
     useSetGroupHistoryStrategyLink()
-  const currentStrategyId = useCurrentStrategyId(activeGroupId)
-  const { mutate: setCurrentStrategy } = useSetCurrentStrategy()
+  const currentStrategyId = useCurrentStrategyId(strategyGroupId)
+  const { mutate: setCurrentStrategy, isError: activeActionFailed } = useSetCurrentStrategy()
+  const editButton = useRef<HTMLButtonElement>(null)
+  const editorHeading = useRef<HTMLHeadingElement>(null)
+  const [editingStrategyId, setEditingStrategyId] = useState<string | null>(null)
+  const [confirmingPublish, setConfirmingPublish] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [confirmingReset, setConfirmingReset] = useState(false)
   const [linkedSnapshotsOpen, setLinkedSnapshotsOpen] = useState(false)
@@ -468,12 +471,17 @@ export function StrategyDetailPage() {
   const displayCurrentStrategyId =
     optimisticCurrentStrategyId === undefined ? currentStrategyId : optimisticCurrentStrategyId
   const isCurrentStrategy = strategy?.id === displayCurrentStrategyId
-  const canEditContent = canEdit && !isSubscribed && (!displayAdminLocked || isAdmin)
-  const canManageStrategy = canEdit
-  const canToggleAdminLock = isAdmin && !isSubscribed
+  const canManageStrategy = canEdit && strategy?.group_id === activeGroupId
+  const canEditContent = canManageStrategy && !isSubscribed && (!displayAdminLocked || isAdmin)
+  const isEditing = canEditContent && editingStrategyId === strategyId
+  const canToggleAdminLock = isAdmin && canManageStrategy && !isSubscribed
   const canToggleVisibility = canEditContent
-  const readOnlyFieldClassName = getReadOnlyFieldClassName(isSubscribed)
   const showsPoe1PlanningFields = !!capabilities?.supportsAtlasTree
+  const canTrackSnapshotResults = !!capabilities?.supportsStashSnapshots
+
+  useEffect(() => {
+    if (isEditing) editorHeading.current?.focus()
+  }, [isEditing])
 
   useEffect(() => {
     isDirtyRef.current = isDirty
@@ -520,7 +528,7 @@ export function StrategyDetailPage() {
   }, [threadFields])
 
   const onSubmit: SubmitHandler<FormValues> = (values) => {
-    if (!strategy || !canEditContent) return
+    if (!strategy || !isEditing) return
     setSaveFeedback('saving')
     saveStrategy(
       {
@@ -587,6 +595,12 @@ export function StrategyDetailPage() {
   }
 
   const strategyRate = strategyEconomy[strategy.id]
+  const latestResult = groupHistory?.reduce<GroupWealthDataPoint | undefined>(
+    (latest, point) => point.strategy_id === strategy.id ? point : latest,
+    undefined,
+  )
+  const latestPricing = latestResult?.pricing_summary
+  const snapshotDivinePrice = latestPricing?.divine_price
   const rateColor = !strategyRate
     ? 'default'
     : strategyRate.chaosPerHour > 0
@@ -654,207 +668,166 @@ export function StrategyDetailPage() {
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="flex min-w-0 flex-col gap-6 wrap-anywhere">
-          {/* Top nav row with Save button */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <Link to="/dashboard/strategies" className="button button--sm button--tertiary self-start">
+          <div>
+            <Link to="/dashboard/strategies" className="text-default-500 hover:text-foreground inline-flex min-h-9 items-center gap-2 text-sm">
               <ArrowLeft size={14} aria-hidden="true" /> Back to strategies
             </Link>
-            <div className="flex flex-wrap items-center gap-2">
-              {canManageStrategy && (
+            <h1 className="text-foreground mt-2 text-2xl font-semibold tracking-tight wrap-anywhere">{strategy.name}</h1>
+          </div>
+          <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+            {canEditContent && !isEditing && (
+              <Button
+                ref={editButton}
+                type="button"
+                size="sm"
+                variant={isCurrentStrategy ? 'primary' : 'secondary'}
+                onPress={() => setEditingStrategyId(strategy.id)}
+              >
+                Edit setup
+              </Button>
+            )}
+            {canManageStrategy && (
+              <>
                 <Button
-                  size="sm"
-                  variant={isCurrentStrategy ? 'tertiary' : 'secondary'}
                   type="button"
+                  size="sm"
+                  variant={isCurrentStrategy || isEditing ? 'secondary' : 'primary'}
                   isPending={currentStrategyPending}
-                  className="min-w-32"
+                  aria-describedby={canTrackSnapshotResults ? 'strategy-activation-effect' : undefined}
                   onPress={() => {
+                    if (!activeGroupId) return
                     const nextStrategyId = isCurrentStrategy ? null : strategy.id
                     setOptimisticCurrentStrategyId(nextStrategyId)
                     setCurrentStrategyPending(true)
                     setCurrentStrategy(
-                      {
-                        groupId: activeGroupId!,
-                        strategyId: nextStrategyId,
-                      },
+                      { groupId: activeGroupId, strategyId: nextStrategyId },
                       {
                         onError: () => {
                           setOptimisticCurrentStrategyId(undefined)
                           setCurrentStrategyPending(false)
                         },
-                        onSuccess: () => {
-                          setCurrentStrategyPending(false)
-                        },
+                        onSuccess: () => setCurrentStrategyPending(false),
                       },
                     )
                   }}
                 >
-                  {({ isPending }) => (
-                    <>
-                      {isPending ? <Spinner color="current" size="sm" /> : null}
-                      {isCurrentStrategy ? 'Active Strategy' : 'Set as Active'}
-                    </>
-                  )}
+                  {isCurrentStrategy ? 'Clear active strategy' : 'Set active'}
                 </Button>
-              )}
-              {canToggleVisibility && (
-                <Button
-                  size="sm"
-                  variant={displayVisibility === 'public' ? 'tertiary' : 'secondary'}
-                  type="button"
-                  isPending={visibilityPending}
-                  className="min-w-28"
-                  onPress={() => {
-                    const nextVisibility: StrategyVisibility =
-                      displayVisibility === 'public' ? 'group_only' : 'public'
-                    runQuickUpdate(
-                      { visibility: nextVisibility },
-                      {
-                        onOptimistic: () => {
-                          setOptimisticVisibility(nextVisibility)
-                          setVisibilityPending(true)
-                        },
-                        onRollback: () => {
-                          setOptimisticVisibility(null)
-                        },
-                        onSettled: () => {
-                          setVisibilityPending(false)
-                        },
-                      },
-                    )
-                  }}
-                >
-                  {({ isPending }) => (
-                    <>
-                      {isPending ? <Spinner color="current" size="sm" /> : null}
-                      {displayVisibility === 'public' ? 'Public' : 'Make Public'}
-                    </>
-                  )}
-                </Button>
-              )}
-              {canToggleAdminLock && (
-                <Button
-                  isIconOnly
-                  size="sm"
-                  variant={displayAdminLocked ? 'tertiary' : 'secondary'}
-                  type="button"
-                  isPending={adminLockPending}
-                  aria-label={displayAdminLocked ? 'Disable admin lock' : 'Enable admin lock'}
-                  className={displayAdminLocked ? 'text-warning' : ''}
-                  onPress={() => {
-                    const nextAdminLocked = !displayAdminLocked
-                    runQuickUpdate(
-                      { admin_locked: nextAdminLocked },
-                      {
-                        onOptimistic: () => {
-                          setOptimisticAdminLocked(nextAdminLocked)
-                          setAdminLockPending(true)
-                        },
-                        onRollback: () => {
-                          setOptimisticAdminLocked(null)
-                        },
-                        onSettled: () => {
-                          setAdminLockPending(false)
-                        },
-                      },
-                    )
-                  }}
-                >
-                  {({ isPending }) =>
-                    isPending ? (
-                      <Spinner color="current" size="sm" />
-                    ) : displayAdminLocked ? (
-                      <Lock size={14} />
-                    ) : (
-                      <Unlock size={14} />
-                    )
-                  }
-                </Button>
-              )}
-              {canEditContent && saveError && (
-                <p className="text-danger text-xs" role="alert">
-                  Could not save this strategy. Your edits are still here.
-                </p>
-              )}
-              {canManageStrategy &&
-                (confirmingDelete ? (
-                  <>
-                    <span className="text-default-500 text-xs">
-                      {isSubscribed ? 'Remove this subscription?' : 'Delete this strategy?'}
-                    </span>
-                    <Button
-                      size="sm"
-                      type="button"
-                      isPending={deleting}
-                      onPress={() =>
-                        deleteStrategy(
-                          { id: strategy.id, group_id: strategy.group_id },
-                          { onSuccess: () => navigate({ to: '/dashboard/strategies' }) },
-                        )
-                      }
-                      variant="danger"
-                    >
-                      {({ isPending }) => (
-                        <>
-                          {isPending ? <Spinner color="current" size="sm" /> : null}
-                          Yes, delete
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="tertiary"
-                      type="button"
-                      onPress={() => setConfirmingDelete(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="danger-soft"
-                      type="button"
-                      className="opacity-95 hover:opacity-100"
-                      onPress={() => setConfirmingDelete(true)}
-                    >
-                      <Trash2 size={14} />
-                      {isSubscribed ? 'Unsubscribe' : 'Remove'}
-                    </Button>
-                    {canEditContent && (savingForm || isDirty) ? (
+                <details className="min-w-0">
+                  <summary className="text-default-500 hover:text-foreground min-h-8 cursor-pointer rounded-md px-2 py-1.5 text-sm">
+                    Manage strategy
+                  </summary>
+                  <div className="border-divider bg-content1 mt-2 flex flex-wrap items-center gap-2 rounded-lg border p-3">
+                    {canToggleVisibility && (
+                      <>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="tertiary"
+                          isPending={visibilityPending}
+                          isDisabled={adminLockPending || savingForm}
+                          onPress={() => {
+                            const nextVisibility: StrategyVisibility = displayVisibility === 'public' ? 'group_only' : 'public'
+                            if (nextVisibility === 'public' && !confirmingPublish) {
+                              setConfirmingPublish(true)
+                              return
+                            }
+                            setConfirmingPublish(false)
+                            runQuickUpdate(
+                              { visibility: nextVisibility },
+                              {
+                                onOptimistic: () => {
+                                  setOptimisticVisibility(nextVisibility)
+                                  setVisibilityPending(true)
+                                },
+                                onRollback: () => setOptimisticVisibility(null),
+                                onSettled: () => setVisibilityPending(false),
+                              },
+                            )
+                          }}
+                        >
+                          {displayVisibility === 'public' ? 'Make group-only' : confirmingPublish ? 'Publish strategy' : 'Make public'}
+                        </Button>
+                        {confirmingPublish && (
+                          <>
+                            <p className="text-default-500 text-xs">Players in your game and league can find this strategy and its setup.</p>
+                            <Button type="button" size="sm" variant="tertiary" onPress={() => setConfirmingPublish(false)}>Cancel publishing</Button>
+                          </>
+                        )}
+                      </>
+                    )}
+                    {canToggleAdminLock && (
                       <Button
-                        type="submit"
+                        type="button"
                         size="sm"
-                        isPending={savingForm}
-                        isDisabled={!isDirty}
-                        className="min-w-32 transition-all duration-200"
-                      >
-                        {({ isPending }) =>
-                          isPending ? (
-                            <>
-                              <Spinner color="current" size="sm" />
-                              Saving...
-                            </>
-                          ) : (
-                            'Save Changes'
+                        variant="tertiary"
+                        isPending={adminLockPending}
+                          isDisabled={visibilityPending || savingForm}
+                        onPress={() => {
+                          const nextAdminLocked = !displayAdminLocked
+                          runQuickUpdate(
+                            { admin_locked: nextAdminLocked },
+                            {
+                              onOptimistic: () => {
+                                setOptimisticAdminLocked(nextAdminLocked)
+                                setAdminLockPending(true)
+                              },
+                              onRollback: () => setOptimisticAdminLocked(null),
+                              onSettled: () => setAdminLockPending(false),
+                            },
                           )
-                        }
-                      </Button>
-                    ) : canEditContent && saveFeedback === 'saved' ? (
-                      <div
-                        role="status"
-                        className="border-success/40 bg-success/10 text-success flex min-w-32 items-center justify-center rounded-md border px-3 py-2 transition-all duration-200"
+                        }}
                       >
-                        <Check size={14} aria-hidden="true" className="animate-in zoom-in-50 fade-in duration-200" />
-                        <span className="sr-only">Changes saved.</span>
-                      </div>
-                    ) : null}
-                  </>
-                ))}
-            </div>
+                        {displayAdminLocked ? <Lock size={14} aria-hidden="true" /> : <Unlock size={14} aria-hidden="true" />}
+                        {displayAdminLocked ? 'Disable admin lock' : 'Enable admin lock'}
+                      </Button>
+                    )}
+                    {confirmingDelete ? (
+                      <>
+                        <span className="text-default-500 text-xs">
+                          {isSubscribed ? 'Remove this subscription?' : 'Delete this strategy?'}
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="danger"
+                          isPending={deleting}
+                          onPress={() => deleteStrategy(
+                            { id: strategy.id, group_id: strategy.group_id },
+                            { onSuccess: () => navigate({ to: '/dashboard/strategies' }) },
+                          )}
+                        >
+                          {isSubscribed ? 'Confirm unsubscribe' : 'Delete strategy'}
+                        </Button>
+                        <Button type="button" size="sm" variant="tertiary" onPress={() => setConfirmingDelete(false)}>Cancel removal</Button>
+                      </>
+                    ) : (
+                      <Button type="button" size="sm" variant="danger-soft" onPress={() => setConfirmingDelete(true)}>
+                        <Trash2 size={14} aria-hidden="true" />
+                        {isSubscribed ? 'Unsubscribe' : 'Remove strategy'}
+                      </Button>
+                    )}
+                  </div>
+                </details>
+              </>
+            )}
           </div>
-
-          <h1 className="text-foreground text-2xl font-semibold">{strategy.name}</h1>
+          {canTrackSnapshotResults && canManageStrategy && (
+            <p id="strategy-activation-effect" className="text-default-500 -mt-4 text-xs">
+              {isCurrentStrategy
+                ? 'New stash snapshots are linked to this strategy.'
+                : 'Setting this strategy active links new stash snapshots to it.'}
+            </p>
+          )}
+          {(activeActionFailed || quickActionFailed || deleteFailed) && (
+            <p className="text-danger text-sm" role="alert">Could not update the strategy. Try again.</p>
+          )}
+          {strategyGroupId !== activeGroupId && (
+            <p className="text-default-500 text-sm">
+              {game && activeLeague ? `${getPoeGameShortLabel(game)} · ${activeLeague}. ` : null}
+              Switch to the strategy’s workspace to make changes.
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             {isSubscribed ? (
               <>
@@ -877,6 +850,7 @@ export function StrategyDetailPage() {
                 {displayVisibility === 'public' ? 'Public strategy' : 'Private strategy'}
               </Chip>
             )}
+            {isCurrentStrategy && <span className="text-brand-readable text-sm font-medium">Active strategy</span>}
             {displayAdminLocked ? (
               <Chip size="sm" variant="soft" color="warning">
                 Admin locked
@@ -967,474 +941,553 @@ export function StrategyDetailPage() {
             )
           })()}
 
-          <div
-            className={`rounded-large flex items-center justify-between border px-5 py-4 ${
-              rateColor === 'success'
-                ? 'border-success/30 bg-success/5'
-                : rateColor === 'danger'
-                  ? 'border-danger/30 bg-danger/5'
-                  : 'border-divider bg-default-50'
-            }`}
-          >
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <div className="flex flex-col gap-1">
-                <span className="text-foreground text-sm font-medium">
-                  Estimated currency per hour
-                </span>
-                <span className="text-default-400 text-xs">
-                  {strategyRate
-                    ? `Based on ${strategyRate.sampleCount} tagged snapshot${strategyRate.sampleCount === 1 ? '' : 's'}`
-                    : 'Needs tagged snapshots to estimate'}
-                </span>
-              </div>
-              {canManageStrategy && linkedSnapshots.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="tertiary"
-                    type="button"
-                    onPress={() => setLinkedSnapshotsOpen(true)}
-                  >
-                    Linked snapshots ({linkedSnapshots.length})
-                  </Button>
-                  {confirmingReset ? (
-                    <>
-                      <span className="text-default-500 text-xs">Clear linked snapshots?</span>
+          {canTrackSnapshotResults && (
+            <section id="strategy-results" aria-label="Strategy results"
+              className={`rounded-large flex flex-wrap items-center justify-between gap-2 scroll-mt-4 border px-5 py-4 ${
+                rateColor === 'success'
+                  ? 'border-success/30 bg-success/5'
+                  : rateColor === 'danger'
+                    ? 'border-danger/30 bg-danger/5'
+                    : 'border-divider bg-default-50'
+              }`}
+            >
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <div className="flex flex-col gap-1">
+                  <h2 className="text-foreground text-sm font-medium">
+                    Estimated currency per hour
+                  </h2>
+                  <span className="text-default-400 text-xs">
+                    {strategyRate
+                      ? `Based on ${strategyRate.sampleCount} tagged snapshot${strategyRate.sampleCount === 1 ? '' : 's'}`
+                      : 'Needs comparable linked snapshots to estimate'}
+                  </span>
+                  {latestResult && (
+                    <div className="text-default-500 flex flex-wrap gap-x-2 gap-y-1 text-xs">
+                      <span>{latestPricing?.status === 'partial' ? 'Latest linked priced subtotal' : 'Latest linked snapshot'}</span>
+                      <strong className="text-foreground tabular-nums">
+                        {latestPricing?.status === 'unavailable'
+                          ? 'Pricing unavailable'
+                          : formatCurrencyAmount(
+                            latestResult.total_wealth_chaos,
+                            display === 'divine' && snapshotDivinePrice ? 'divine' : 'chaos',
+                            snapshotDivinePrice ?? 1,
+                          )}
+                      </strong>
+                      <time dateTime={latestResult.created_at}>
+                        {new Date(latestResult.created_at).toLocaleString(undefined, {
+                          month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                        })}
+                      </time>
+                      {latestPricing?.status === 'partial' && (
+                        <span>{latestPricing.unpriced_item_count.toLocaleString()} unpriced items</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {canManageStrategy && linkedSnapshots.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="tertiary"
+                      type="button"
+                      onPress={() => setLinkedSnapshotsOpen(true)}
+                    >
+                      Linked snapshots ({linkedSnapshots.length})
+                    </Button>
+                    {confirmingReset ? (
+                      <>
+                        <span className="text-default-500 text-xs">Clear linked snapshots?</span>
+                        <Button
+                          size="sm"
+                          variant="danger-soft"
+                          type="button"
+                          isPending={clearingSnapshots}
+                          onPress={() =>
+                            clearStrategySnapshots(
+                              {
+                                groupId: strategy.group_id,
+                                strategyId: strategy.id,
+                              },
+                              { onSuccess: () => setConfirmingReset(false) },
+                            )
+                          }
+                        >
+                          {({ isPending }) => (
+                            <>
+                              {isPending ? <Spinner color="current" size="sm" /> : null}
+                              Reset
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="tertiary"
+                          type="button"
+                          onPress={() => setConfirmingReset(false)}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
                       <Button
                         size="sm"
                         variant="danger-soft"
                         type="button"
-                        isPending={clearingSnapshots}
-                        onPress={() =>
-                          clearStrategySnapshots(
-                            {
-                              groupId: strategy.group_id,
-                              strategyId: strategy.id,
-                            },
-                            { onSuccess: () => setConfirmingReset(false) },
-                          )
-                        }
+                        onPress={() => setConfirmingReset(true)}
                       >
-                        {({ isPending }) => (
-                          <>
-                            {isPending ? <Spinner color="current" size="sm" /> : null}
-                            Reset
-                          </>
-                        )}
+                        Clear snapshots
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="tertiary"
-                        type="button"
-                        onPress={() => setConfirmingReset(false)}
-                      >
-                        Cancel
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="danger-soft"
-                      type="button"
-                      onPress={() => setConfirmingReset(true)}
-                    >
-                      Clear snapshots
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-            <span className="text-foreground text-2xl font-bold tabular-nums">
-              {strategyRate ? `${fmt(strategyRate.chaosPerHour)}/hr` : '—'}
-            </span>
-          </div>
-
-          {/* Identity */}
-          <Card>
-            <Card.Content className="gap-4 p-5">
-              <Controller
-                control={control}
-                name="name"
-                render={({ field }) => (
-                  <FieldInput
-                    ref={field.ref}
-                    name={field.name}
-                    label="Name"
-                    size="sm"
-                    isReadOnly={!canEditContent}
-                    className={readOnlyFieldClassName}
-                    isInvalid={!!errors.name}
-                    errorMessage={errors.name?.message}
-                    value={toFieldStringValue(field.value)}
-                    onValueChange={field.onChange}
-                    onBlur={field.onBlur}
-                  />
+                    )}
+                  </div>
                 )}
-              />
-              <Controller
-                control={control}
-                name="description"
-                render={({ field }) => (
-                  <FieldTextArea
-                    label="Description"
-                    placeholder="Describe the strategy, goals, and setup notes..."
-                    minRows={2}
-                    size="sm"
-                    isRequired={false}
-                    isReadOnly={!canEditContent}
-                    className={readOnlyFieldClassName}
-                    isInvalid={!!errors.description}
-                    errorMessage={errors.description?.message}
-                    value={field.value ?? ''}
-                    onValueChange={field.onChange}
-                    onBlur={field.onBlur}
-                  />
-                )}
-              />
-              <Controller
-                control={control}
-                name="difficulty"
-                render={({ field }) => (
-                  <SelectField
-                    label="Difficulty"
-                    isDisabled={!canEditContent}
-                    selectedKey={field.value}
-                    onSelectionChange={(key) => {
-                      if (key === 'easy' || key === 'normal' || key === 'hard') field.onChange(key)
-                    }}
-                  >
-                    {DIFFICULTY_OPTIONS.map((opt) => (
-                      <ListBox.Item key={opt.value} id={opt.value} textValue={opt.label}>
-                        {opt.label}
-                      </ListBox.Item>
-                    ))}
-                  </SelectField>
-                )}
-              />
-            </Card.Content>
-          </Card>
-
-          {/* Atlas Tree & Threads — two sections in one card */}
-          <Card className={!showsPoe1PlanningFields ? 'hidden' : undefined}>
-            {/* Section: Atlas Tree */}
-            <Card.Header className="px-5 pt-5 pb-0">
-              <h2 className="text-foreground text-sm font-semibold">Atlas Tree</h2>
-            </Card.Header>
-            <Card.Content className="px-5 pt-3 pb-5">
-              <div className="flex items-center gap-2">
-                <Controller
-                  control={control}
-                  name="atlas_tree_url"
-                  render={({ field }) => (
-                    <FieldInput
-                      ref={field.ref}
-                      name={field.name}
-                      label="Atlas tree URL"
-                      placeholder="https://www.pathofexile.com/fullscreen-atlas-skill-tree/…"
-                      size="sm"
-                      className={`flex-1 ${readOnlyFieldClassName ?? ''}`}
-                      isReadOnly={!canEditContent}
-                      value={toFieldStringValue(field.value)}
-                      onValueChange={field.onChange}
-                      onBlur={field.onBlur}
-                    />
-                  )}
-                />
-                <a
-                  href={
-                    atlasUrl?.trim() || 'https://www.pathofexile.com/fullscreen-atlas-skill-tree/'
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  tabIndex={-1}
-                  className="shrink-0"
-                >
-                  <Button isIconOnly size="sm" variant="tertiary" type="button">
-                    <ExternalLink size={14} />
-                  </Button>
-                </a>
               </div>
-            </Card.Content>
+              <span className="text-foreground text-2xl font-bold tabular-nums">
+                {strategyRate ? `${fmt(strategyRate.chaosPerHour)}/hr` : '—'}
+              </span>
+              {clearFailed && <p className="text-danger w-full text-sm" role="alert">Could not clear linked snapshots. Try again.</p>}
+            </section>
+          )}
 
-            {/* Divider */}
-            <div className="border-divider mx-5 border-t" />
-
-            {/* Section: Threads */}
-            <Card.Header className="px-5 pt-4 pb-0">
-              <div className="flex w-full flex-wrap items-center justify-between gap-3">
-                <h2 className="text-foreground text-sm font-semibold">Threads</h2>
-                {canEditContent && (
+          {!isEditing ? (
+            <section aria-labelledby="strategy-setup" className="border-divider space-y-3 border-t pt-4">
+              <h2 id="strategy-setup" className="text-foreground text-lg font-semibold">Setup</h2>
+              <p className="text-default-500 max-w-[65ch] text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere">
+                {strategy.description || 'No setup notes yet.'}
+              </p>
+              <dl className="text-default-500 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+                <div className="flex flex-wrap gap-x-2">
+                  <dt>Difficulty</dt>
+                  <dd className="text-foreground font-medium">
+                    {DIFFICULTY_OPTIONS.find(({ value }) => value === strategy.difficulty)?.label ?? 'Normal'}
+                  </dd>
+                </div>
+                {showsPoe1PlanningFields && strategy.map_cost != null && (
+                  <div className="flex flex-wrap gap-x-2">
+                    <dt>Base map cost</dt>
+                    <dd className="text-foreground font-medium tabular-nums">{fmt(strategy.map_cost)}</dd>
+                  </div>
+                )}
+              </dl>
+              {showsPoe1PlanningFields && (
+                <StrategyInfoSection
+                  atlasTreeUrl={strategy.atlas_tree_url || 'https://www.pathofexile.com/fullscreen-atlas-skill-tree/'}
+                  threads={strategy.threads}
+                  mapTradeLink={strategy.map_trade_link}
+                  mapRequirements={strategy.map_requirements}
+                  threadPriceMap={threadPriceMap}
+                  threadIconMap={threadIconMap}
+                />
+              )}
+            </section>
+          ) : (
+            <div id="strategy-setup-editor" className="flex min-w-0 flex-col gap-4">
+              <div className="border-divider flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+                <h2 ref={editorHeading} tabIndex={-1} className="text-foreground text-lg font-semibold">Edit setup</h2>
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
-                    size="sm"
-                    variant="tertiary"
                     type="button"
-                    className="shrink-0"
+                    variant="tertiary"
+                    size="sm"
+                    isDisabled={savingForm}
                     onPress={() => {
-                      pendingThreadFocusIndexRef.current = threadFields.length
-                      setPendingThreadFocusIndex(threadFields.length)
-                      appendThread(
-                        { name: '', quantity: 1, required: true, alternatives: [] },
-                        { shouldFocus: false },
-                      )
+                      if (isDirty && !window.confirm('Discard your unsaved strategy edits?')) return
+                      reset(buildDefaults(strategy))
+                      setSaveFeedback('idle')
+                      setEditingStrategyId(null)
+                      requestAnimationFrame(() => editButton.current?.focus())
                     }}
                   >
-                    <Plus size={14} />
-                    Add thread
+                    Close editor
                   </Button>
-                )}
-              </div>
-            </Card.Header>
-            <Card.Content className="px-5 pt-3 pb-5">
-              {threadFields.length === 0 ? (
-                <p className="text-default-400 text-sm">No Threads added yet. Spend up to eight per map; free Atlas Threads are additional.</p>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {threadFields.map((field, i) => {
-                    const threadName = watchedThreads?.[i]?.name ?? ''
-                    const threadIcon = threadIconMap.get(threadName)
-                    const qty = Number(watchedThreads?.[i]?.quantity) || 1
-                    const unitPrice = threadPriceMap.get(threadName) ?? null
-                    const rowTotal = unitPrice != null ? unitPrice * qty : null
-                    const alternativeCount = watchedThreads?.[i]?.alternatives?.length ?? 0
-
-                    return (
-                      <div
-                        key={field.id}
-                        className="rounded-large border-divider bg-default-50/40 border p-3"
-                      >
-                        <div className="flex flex-wrap items-center gap-2">
-                          {threadIcon ? (
-                            <img
-                              src={threadIcon}
-                              alt={threadName}
-                              className="h-10 w-10 bg-transparent object-contain"
-                            />
-                          ) : (
-                            <div className="h-10 w-10 bg-transparent" aria-hidden="true" />
-                          )}
-                          <Controller
-                            control={control}
-                            name={`threads.${i}.name`}
-                            render={({ field: f }) => (
-                              <ThreadAutocompleteField
-                                inputRef={(node) => {
-                                  threadInputRefs.current[i] = node
-                                }}
-                                value={f.value ?? ''}
-                                onChange={f.onChange}
-                                isReadOnly={!canEditContent}
-                                isInvalid={!!errors.threads?.[i]?.name}
-                                errorMessage={errors.threads?.[i]?.name?.message}
-                                threadData={threadData}
-                                autoFocus={pendingThreadFocusIndex === i}
-                                className="flex-1"
-                              />
-                            )}
-                          />
-                          <Controller
-                            control={control}
-                            name={`threads.${i}.quantity`}
-                            render={({ field: quantityField }) => (
-                              <FieldInput
-                                ref={quantityField.ref}
-                                name={quantityField.name}
-                                placeholder="Qty"
-                                aria-label="Thread quantity"
-                                min={1}
-                                max={8}
-                                step={1}
-                                type="number"
-                                size="sm"
-                                className={`w-16 shrink-0 ${readOnlyFieldClassName ?? ''}`}
-                                isReadOnly={!canEditContent}
-                                isInvalid={!!errors.threads?.[i]?.quantity}
-                                value={toFieldStringValue(quantityField.value)}
-                                onValueChange={quantityField.onChange}
-                                onBlur={quantityField.onBlur}
-                              />
-                            )}
-                          />
-                          <span className="shrink-0 px-2 text-right tabular-nums">
-                            {rowTotal != null ? (
-                              <>
-                                <span className="text-foreground text-sm font-semibold">
-                                  ~ {formatChaosValue(rowTotal)}
-                                </span>
-                                <span className="text-foreground ml-0.5 text-sm font-semibold">
-                                  c
-                                </span>
-                              </>
-                            ) : (
-                              <span className="text-default-300 text-xs">—</span>
-                            )}
-                          </span>
-                          <Controller
-                            control={control}
-                            name={`threads.${i}.required`}
-                            render={({ field: f }) => (
-                              <NativeCheckbox
-                                id={`thread-${field.id}-required`}
-                                isSelected={f.value}
-                                onChange={canEditContent ? f.onChange : undefined}
-                                isDisabled={!canEditContent}
-                              >
-                                Required
-                              </NativeCheckbox>
-                            )}
-                          />
-                          {alternativeCount > 0 ? (
-                            <Chip size="sm" variant="soft">
-                              {alternativeCount} alternative{alternativeCount === 1 ? '' : 's'}
-                            </Chip>
-                          ) : null}
-                          {canEditContent && (
-                            <Button
-                              isIconOnly
-                              size="sm"
-                              variant="tertiary"
-                              type="button"
-                              className="text-default-400 hover:text-danger shrink-0"
-                              aria-label="Remove Thread"
-                              onPress={() => removeThread(i)}
-                            >
-                              <Trash2 size={14} />
-                            </Button>
-                          )}
-                        </div>
-                        <ThreadAlternativesField
-                          control={control}
-                          threadIndex={i}
-                          canEditContent={canEditContent}
-                          errors={errors}
-                          threadData={threadData}
-                          threadIconMap={threadIconMap}
-                          threadPriceMap={threadPriceMap}
-                        />
-                      </div>
-                    )
-                  })}
-
-                  {/* Total */}
-                  {(() => {
-                    const total = (watchedThreads ?? []).reduce((sum, s) => {
-                      const p = threadPriceMap.get(s.name ?? '')
-                      return p != null ? sum + p * (Number(s.quantity) || 1) : sum
-                    }, 0)
-                    const knownCount = (watchedThreads ?? []).filter((s) =>
-                      threadPriceMap.get(s.name ?? '') != null,
-                    ).length
-                    if (knownCount === 0) return null
-                    return (
-                      <div className="border-divider border-t pt-2 text-right">
-                        <span className="text-default-500 text-xs">
-                          {hasThreadAlternatives
-                            ? 'Primary thread cost per map:'
-                            : 'Estimated cost per map:'}{' '}
-                          <span className="text-foreground font-medium">
-                            ~ {formatChaosValue(total)}
-                            <span className="text-default-500 ml-0.5 text-xs font-semibold">c</span>
-                          </span>
-                          {knownCount < (watchedThreads ?? []).length && (
-                            <span className="text-default-400"> (partial)</span>
-                          )}
-                          {hasThreadAlternatives && (
-                            <span className="text-default-400"> (alternatives excluded)</span>
-                          )}
-                        </span>
-                      </div>
-                    )
-                  })()}
+                  <Button type="submit" size="sm" isPending={savingForm} isDisabled={!isDirty || visibilityPending || adminLockPending}>
+                    Save Changes
+                  </Button>
                 </div>
-              )}
-            </Card.Content>
-          </Card>
-
-          {/* Map — trade link + requirements */}
-          <Card className={!showsPoe1PlanningFields ? 'hidden' : undefined}>
-            <Card.Header className="px-5 pt-5 pb-0">
-              <h2 className="text-foreground text-sm font-semibold">Map</h2>
-            </Card.Header>
-            <Card.Content className="gap-4 px-5 pt-3 pb-5">
-              <div className="flex items-center gap-2">
-                <Controller
-                  control={control}
-                  name="map_trade_link"
-                  render={({ field }) => (
-                    <FieldInput
-                      ref={field.ref}
-                      name={field.name}
-                      label="Trade link"
-                      placeholder="https://www.pathofexile.com/trade/…"
-                      size="sm"
-                      className={`flex-1 ${readOnlyFieldClassName ?? ''}`}
-                      isReadOnly={!canEditContent}
-                      value={toFieldStringValue(field.value)}
-                      onValueChange={field.onChange}
-                      onBlur={field.onBlur}
-                    />
-                  )}
-                />
-                {mapTradeUrl && (
-                  <a
-                    href={mapTradeUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    tabIndex={-1}
-                    className="shrink-0"
-                  >
-                    <Button isIconOnly size="sm" variant="tertiary" type="button">
-                      <ExternalLink size={14} />
-                    </Button>
-                  </a>
-                )}
               </div>
-              <Controller
-                control={control}
-                name="map_cost"
-                render={({ field }) => (
-                  <FieldInput
-                    ref={field.ref}
-                    name={field.name}
-                    label="Estimated map cost"
-                    placeholder="—"
-                    type="number"
-                    size="sm"
-                    className={`max-w-50 ${readOnlyFieldClassName ?? ''}`}
-                    isReadOnly={!canEditContent}
-                    endContent={<span className="text-default-600 text-sm font-semibold">c</span>}
-                    value={toFieldStringValue(field.value)}
-                    onValueChange={field.onChange}
-                    onBlur={field.onBlur}
-                  />
-                )}
-              />
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {MAP_REQ_FIELDS.map(({ key, label }) => (
+              {saveFeedback === 'saved' && <p role="status" className="text-success text-sm">Changes saved.</p>}
+              {saveError && <p className="text-danger text-sm" role="alert">Could not save the strategy. Your edits are still here.</p>}
+
+              <Card>
+                <Card.Content className="gap-4 p-5">
                   <Controller
-                    key={key}
                     control={control}
-                    name={`map_requirements.${key}`}
+                    name="name"
                     render={({ field }) => (
                       <FieldInput
                         ref={field.ref}
                         name={field.name}
-                        label={label}
-                        placeholder="—"
-                        type="number"
+                        label="Name"
                         size="sm"
                         isReadOnly={!canEditContent}
-                        className={readOnlyFieldClassName}
-                        endContent={<span className="text-default-400 text-xs">%</span>}
+                        isInvalid={!!errors.name}
+                        errorMessage={errors.name?.message}
                         value={toFieldStringValue(field.value)}
                         onValueChange={field.onChange}
                         onBlur={field.onBlur}
                       />
                     )}
                   />
-                ))}
-              </div>
-            </Card.Content>
-          </Card>
+                  <Controller
+                    control={control}
+                    name="description"
+                    render={({ field }) => (
+                      <FieldTextArea
+                        label="Description"
+                        placeholder="Describe the strategy, goals, and setup notes..."
+                        minRows={2}
+                        size="sm"
+                        isRequired={false}
+                        isReadOnly={!canEditContent}
+                        isInvalid={!!errors.description}
+                        errorMessage={errors.description?.message}
+                        value={field.value ?? ''}
+                        onValueChange={field.onChange}
+                        onBlur={field.onBlur}
+                      />
+                    )}
+                  />
+                  <Controller
+                    control={control}
+                    name="difficulty"
+                    render={({ field }) => (
+                      <SelectField
+                        label="Difficulty"
+                        isDisabled={!canEditContent}
+                        selectedKey={field.value}
+                        onSelectionChange={(key) => {
+                          if (key === 'easy' || key === 'normal' || key === 'hard') field.onChange(key)
+                        }}
+                      >
+                        {DIFFICULTY_OPTIONS.map((opt) => (
+                          <ListBox.Item key={opt.value} id={opt.value} textValue={opt.label}>
+                            {opt.label}
+                          </ListBox.Item>
+                        ))}
+                      </SelectField>
+                    )}
+                  />
+                </Card.Content>
+              </Card>
+
+              {/* Atlas Tree & Threads — two sections in one card */}
+              <Card className={!showsPoe1PlanningFields ? 'hidden' : undefined}>
+                {/* Section: Atlas Tree */}
+                <Card.Header className="px-5 pt-5 pb-0">
+                  <h2 className="text-foreground text-sm font-semibold">Atlas Tree</h2>
+                </Card.Header>
+                <Card.Content className="px-5 pt-3 pb-5">
+                  <div className="flex items-center gap-2">
+                    <Controller
+                      control={control}
+                      name="atlas_tree_url"
+                      render={({ field }) => (
+                        <FieldInput
+                          ref={field.ref}
+                          name={field.name}
+                          label="Atlas tree URL"
+                          placeholder="https://www.pathofexile.com/fullscreen-atlas-skill-tree/…"
+                          size="sm"
+                          className="flex-1"
+                          isReadOnly={!canEditContent}
+                          value={toFieldStringValue(field.value)}
+                          onValueChange={field.onChange}
+                          onBlur={field.onBlur}
+                        />
+                      )}
+                    />
+                    <a
+                      href={
+                        atlasUrl?.trim() || 'https://www.pathofexile.com/fullscreen-atlas-skill-tree/'
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Open Atlas tree (new tab)"
+                      className="button button--sm button--tertiary button--icon-only shrink-0"
+                    >
+                      <ExternalLink size={14} aria-hidden="true" />
+                    </a>
+                  </div>
+                </Card.Content>
+
+                {/* Divider */}
+                <div className="border-divider mx-5 border-t" />
+
+                {/* Section: Threads */}
+                <Card.Header className="px-5 pt-4 pb-0">
+                  <div className="flex w-full flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-foreground text-sm font-semibold">Threads</h2>
+                    {canEditContent && (
+                      <Button
+                        size="sm"
+                        variant="tertiary"
+                        type="button"
+                        className="shrink-0"
+                        onPress={() => {
+                          pendingThreadFocusIndexRef.current = threadFields.length
+                          setPendingThreadFocusIndex(threadFields.length)
+                          appendThread(
+                            { name: '', quantity: 1, required: true, alternatives: [] },
+                            { shouldFocus: false },
+                          )
+                        }}
+                      >
+                        <Plus size={14} />
+                        Add thread
+                      </Button>
+                    )}
+                  </div>
+                </Card.Header>
+                <Card.Content className="px-5 pt-3 pb-5">
+                  {threadFields.length === 0 ? (
+                    <p className="text-default-400 text-sm">No Threads added yet. Spend up to eight per map; free Atlas Threads are additional.</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {threadFields.map((field, i) => {
+                        const threadName = watchedThreads?.[i]?.name ?? ''
+                        const threadIcon = threadIconMap.get(threadName)
+                        const qty = Number(watchedThreads?.[i]?.quantity) || 1
+                        const unitPrice = threadPriceMap.get(threadName) ?? null
+                        const rowTotal = unitPrice != null ? unitPrice * qty : null
+                        const alternativeCount = watchedThreads?.[i]?.alternatives?.length ?? 0
+
+                        return (
+                          <div
+                            key={field.id}
+                            className="rounded-large border-divider bg-default-50/40 border p-3"
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              {threadIcon ? (
+                                <img
+                                  src={threadIcon}
+                                  alt={threadName}
+                                  className="h-10 w-10 bg-transparent object-contain"
+                                />
+                              ) : (
+                                <div className="h-10 w-10 bg-transparent" aria-hidden="true" />
+                              )}
+                              <Controller
+                                control={control}
+                                name={`threads.${i}.name`}
+                                render={({ field: f }) => (
+                                  <ThreadAutocompleteField
+                                    inputRef={(node) => {
+                                      threadInputRefs.current[i] = node
+                                    }}
+                                    value={f.value ?? ''}
+                                    onChange={f.onChange}
+                                    isReadOnly={!canEditContent}
+                                    isInvalid={!!errors.threads?.[i]?.name}
+                                    errorMessage={errors.threads?.[i]?.name?.message}
+                                    threadData={threadData}
+                                    autoFocus={pendingThreadFocusIndex === i}
+                                    className="flex-1"
+                                  />
+                                )}
+                              />
+                              <Controller
+                                control={control}
+                                name={`threads.${i}.quantity`}
+                                render={({ field: quantityField }) => (
+                                  <FieldInput
+                                    ref={quantityField.ref}
+                                    name={quantityField.name}
+                                    placeholder="Qty"
+                                    aria-label="Thread quantity"
+                                    min={1}
+                                    max={8}
+                                    step={1}
+                                    type="number"
+                                    size="sm"
+                                    className="w-16 shrink-0"
+                                    isReadOnly={!canEditContent}
+                                    isInvalid={!!errors.threads?.[i]?.quantity}
+                                    value={toFieldStringValue(quantityField.value)}
+                                    onValueChange={quantityField.onChange}
+                                    onBlur={quantityField.onBlur}
+                                  />
+                                )}
+                              />
+                              <span className="shrink-0 px-2 text-right tabular-nums">
+                                {rowTotal != null ? (
+                                  <>
+                                    <span className="text-foreground text-sm font-semibold">
+                                      ~ {formatChaosValue(rowTotal)}
+                                    </span>
+                                    <span className="text-foreground ml-0.5 text-sm font-semibold">
+                                      c
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className="text-default-300 text-xs">—</span>
+                                )}
+                              </span>
+                              <Controller
+                                control={control}
+                                name={`threads.${i}.required`}
+                                render={({ field: f }) => (
+                                  <NativeCheckbox
+                                    id={`thread-${field.id}-required`}
+                                    isSelected={f.value}
+                                    onChange={canEditContent ? f.onChange : undefined}
+                                    isDisabled={!canEditContent}
+                                  >
+                                    Required
+                                  </NativeCheckbox>
+                                )}
+                              />
+                              {alternativeCount > 0 ? (
+                                <Chip size="sm" variant="soft">
+                                  {alternativeCount} alternative{alternativeCount === 1 ? '' : 's'}
+                                </Chip>
+                              ) : null}
+                              {canEditContent && (
+                                <Button
+                                  isIconOnly
+                                  size="sm"
+                                  variant="tertiary"
+                                  type="button"
+                                  className="text-default-400 hover:text-danger shrink-0"
+                                  aria-label="Remove Thread"
+                                  onPress={() => removeThread(i)}
+                                >
+                                  <Trash2 size={14} />
+                                </Button>
+                              )}
+                            </div>
+                            <ThreadAlternativesField
+                              control={control}
+                              threadIndex={i}
+                              canEditContent={canEditContent}
+                              errors={errors}
+                              threadData={threadData}
+                              threadIconMap={threadIconMap}
+                              threadPriceMap={threadPriceMap}
+                            />
+                          </div>
+                        )
+                      })}
+
+                      {/* Total */}
+                      {(() => {
+                        const total = (watchedThreads ?? []).reduce((sum, s) => {
+                          const p = threadPriceMap.get(s.name ?? '')
+                          return p != null ? sum + p * (Number(s.quantity) || 1) : sum
+                        }, 0)
+                        const knownCount = (watchedThreads ?? []).filter((s) =>
+                          threadPriceMap.get(s.name ?? '') != null,
+                        ).length
+                        if (knownCount === 0) return null
+                        return (
+                          <div className="border-divider border-t pt-2 text-right">
+                            <span className="text-default-500 text-xs">
+                              {hasThreadAlternatives
+                                ? 'Primary thread cost per map:'
+                                : 'Estimated cost per map:'}{' '}
+                              <span className="text-foreground font-medium">
+                                ~ {formatChaosValue(total)}
+                                <span className="text-default-500 ml-0.5 text-xs font-semibold">c</span>
+                              </span>
+                              {knownCount < (watchedThreads ?? []).length && (
+                                <span className="text-default-400"> (partial)</span>
+                              )}
+                              {hasThreadAlternatives && (
+                                <span className="text-default-400"> (alternatives excluded)</span>
+                              )}
+                            </span>
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  )}
+                </Card.Content>
+              </Card>
+
+              {/* Map — trade link + requirements */}
+              <Card className={!showsPoe1PlanningFields ? 'hidden' : undefined}>
+                <Card.Header className="px-5 pt-5 pb-0">
+                  <h2 className="text-foreground text-sm font-semibold">Map</h2>
+                </Card.Header>
+                <Card.Content className="gap-4 px-5 pt-3 pb-5">
+                  <div className="flex items-center gap-2">
+                    <Controller
+                      control={control}
+                      name="map_trade_link"
+                      render={({ field }) => (
+                        <FieldInput
+                          ref={field.ref}
+                          name={field.name}
+                          label="Trade link"
+                          placeholder="https://www.pathofexile.com/trade/…"
+                          size="sm"
+                          className="flex-1"
+                          isReadOnly={!canEditContent}
+                          value={toFieldStringValue(field.value)}
+                          onValueChange={field.onChange}
+                          onBlur={field.onBlur}
+                        />
+                      )}
+                    />
+                    {mapTradeUrl && (
+                      <a
+                        href={mapTradeUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Open map trade search (new tab)"
+                        className="button button--sm button--tertiary button--icon-only shrink-0"
+                      >
+                        <ExternalLink size={14} aria-hidden="true" />
+                      </a>
+                    )}
+                  </div>
+                  <Controller
+                    control={control}
+                    name="map_cost"
+                    render={({ field }) => (
+                      <FieldInput
+                        ref={field.ref}
+                        name={field.name}
+                        label="Estimated map cost"
+                        placeholder="—"
+                        type="number"
+                        size="sm"
+                        className="max-w-50"
+                        isReadOnly={!canEditContent}
+                        endContent={<span className="text-default-600 text-sm font-semibold">c</span>}
+                        value={toFieldStringValue(field.value)}
+                        onValueChange={field.onChange}
+                        onBlur={field.onBlur}
+                      />
+                    )}
+                  />
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {MAP_REQ_FIELDS.map(({ key, label }) => (
+                      <Controller
+                        key={key}
+                        control={control}
+                        name={`map_requirements.${key}`}
+                        render={({ field }) => (
+                          <FieldInput
+                            ref={field.ref}
+                            name={field.name}
+                            label={label}
+                            placeholder="—"
+                            type="number"
+                            size="sm"
+                            isReadOnly={!canEditContent}
+                            endContent={<span className="text-default-400 text-xs">%</span>}
+                            value={toFieldStringValue(field.value)}
+                            onValueChange={field.onChange}
+                            onBlur={field.onBlur}
+                          />
+                        )}
+                      />
+                    ))}
+                  </div>
+                </Card.Content>
+              </Card>
+
+            </div>
+          )}
 
           {!showsPoe1PlanningFields ? (
             <Card>

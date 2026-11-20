@@ -70,6 +70,7 @@ export function CharacterPickerStep({ groupId, onDone }: Props) {
     <>
       <Modal.Header>
         <Modal.Heading>Choose Your Character</Modal.Heading>
+        <p className="text-default-500 text-xs">Step 2 of 2 · Character</p>
       </Modal.Header>
       <Modal.Body className="min-h-0 gap-3 overflow-y-auto">
         <p className="text-default-500 text-sm">

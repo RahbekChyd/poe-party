@@ -22,7 +22,6 @@ export function Poe2EconomyPage({ league }: Poe2EconomyPageProps) {
     <DashboardPage>
       <DashboardPageHeader
         title="Economy"
-        tone="currency"
         description="Follow PoE2 market prices. Stash snapshots are available in PoE1."
         actions={
           league ? (

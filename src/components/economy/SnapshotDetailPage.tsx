@@ -222,7 +222,8 @@ export function SnapshotDetailPage() {
   const member = members?.find((m) => m.user.id === userId)
   const snap = snapshots?.find((s) => s.user_id === userId)
   const displayName = member?.user.display_name ?? member?.user.poe_account_name ?? '…'
-  const age = snapshotAge(snap?.completed_at ?? null)
+  const capturedAt = selectedHistoryId ? currentHistoryPoint?.completed_at : snap?.completed_at
+  const age = snapshotAge(capturedAt ?? null)
 
   // KPIs
   const valuationUnavailable = capturePricing?.status === 'unavailable'
@@ -444,8 +445,11 @@ export function SnapshotDetailPage() {
           )}
         </div>
 
-        <SnapshotPricingNotice summaries={[selectedHistoryId ? currentHistoryPoint?.pricing_summary : snap?.pricing_summary]}
-          priced={items.filter((item) => item.has_price).length} unknown={items.filter((item) => !item.has_price).length} />
+        {(snap || currentHistoryPoint) && !isLoading && (
+          <SnapshotPricingNotice summaries={[capturePricing]}
+            priced={capturePricing?.priced_item_count ?? items.filter((item) => item.has_price).length}
+            unknown={capturePricing?.unpriced_item_count ?? items.filter((item) => !item.has_price).length} />
+        )}
 
         {/* Strategy link */}
         {(() => {
@@ -551,9 +555,10 @@ export function SnapshotDetailPage() {
                     <TrendingUp size={18} className="text-success" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-default-400 text-xs">Total Value</p>
+                    <p className="text-default-400 text-xs">{capturePricing?.status === 'partial' ? 'Priced subtotal' : 'Total Value'}</p>
                     <p className="text-foreground text-lg font-bold wrap-anywhere tabular-nums">{valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}</p>
                     <p className="text-default-400 text-xs">{divinePrice == null ? 'Divine conversion unavailable' : `1 div = ${divinePrice.toFixed(0)}c`}</p>
+                    {capturedAt && <time className="text-default-500 mt-1 block text-xs" dateTime={capturedAt}>{new Date(capturedAt).toLocaleString()}</time>}
                   </div>
                 </Card.Content>
               </Card>
@@ -1208,7 +1213,7 @@ export function SnapshotDetailPage() {
                                 <span
                                   className={`text-sm ${
                                     item.is_excluded
-                                      ? 'text-default-300 line-through'
+                                      ? 'text-default-500 line-through'
                                       : 'text-default-400'
                                   }`}
                                 >
@@ -1223,9 +1228,9 @@ export function SnapshotDetailPage() {
                                   className={`text-sm font-semibold ${
                                     item.price_chaos > 0
                                       ? item.is_excluded
-                                        ? 'text-default-300 line-through'
+                                        ? 'text-default-500 line-through'
                                         : 'text-foreground'
-                                      : 'text-default-300'
+                                      : 'text-default-500'
                                   }`}
                                 >
                                   {item.has_price ? fmt(item.price_chaos) : 'Unknown'}

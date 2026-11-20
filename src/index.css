@@ -89,17 +89,19 @@
 }
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   --accent: #f5a524;
+  --background: #f6f5f1;
+  --surface: #fdfcf9;
   --accent-foreground: var(--eclipse, oklch(21.03% 0.0059 285.89));
   --accent-hover: color-mix(in oklab, var(--accent) 90%, var(--accent-foreground) 10%);
   --accent-soft: color-mix(in oklab, var(--accent) 15%, transparent);
   --accent-readable: #754700;
   --muted-subtle-text: #66666e;
   --muted-text: #5f5f67;
-  --currency: #177a4a;
+  --currency: #136c41;
   --currency-soft: color-mix(in oklab, var(--currency) 13%, transparent);
   --currency-border: color-mix(in oklab, var(--currency) 30%, var(--separator) 70%);
   --arcane: #315f9d;
@@ -111,13 +113,7 @@
   --warning-soft: color-mix(in oklab, var(--warning) 13%, transparent);
   --danger: #b13b31;
   --danger-soft: color-mix(in oklab, var(--danger) 12%, transparent);
-  --atlas-grid-major: color-mix(in oklab, var(--separator) 16%, transparent);
-  --atlas-grid-minor: color-mix(in oklab, var(--separator) 10%, transparent);
-  --atlas-wash: color-mix(in oklab, var(--accent) 4%, transparent);
-  --surface-card-top: color-mix(in oklab, var(--surface) 97%, var(--foreground) 3%);
-  --surface-card-bottom: color-mix(in oklab, var(--surface) 95%, var(--background) 5%);
-  --surface-card-shadow: color-mix(in oklab, var(--background) 18%, transparent);
-  --focus: var(--accent);
+  --focus: var(--accent-readable);
   --field-border-width: 1px;
   --field-border: color-mix(in oklab, var(--separator) 86%, transparent);
   --field-background: color-mix(in oklab, var(--surface) 92%, var(--background) 8%);
@@ -128,6 +124,8 @@
 }
 
 .dark {
+  --background: #141515;
+  --surface: #1d1f1e;
   --accent-readable: #f5b84b;
   --muted-subtle-text: #a8a8b0;
   --muted-text: #b6b6be;
@@ -141,23 +139,18 @@
   --warning-soft: color-mix(in oklab, var(--warning) 13%, transparent);
   --danger: #ff7d70;
   --danger-soft: color-mix(in oklab, var(--danger) 12%, transparent);
-  --atlas-grid-major: color-mix(in oklab, var(--accent) 9%, transparent);
-  --atlas-grid-minor: color-mix(in oklab, var(--arcane) 7%, transparent);
-  --atlas-wash: color-mix(in oklab, var(--accent) 6%, transparent);
-  --surface-card-top: color-mix(in oklab, var(--surface) 94%, var(--accent) 6%);
-  --surface-card-bottom: color-mix(in oklab, var(--surface) 95%, var(--background) 5%);
-  --surface-card-shadow: color-mix(in oklab, black 24%, transparent);
 }
 
 body {
   margin: 0;
   min-height: 100dvh;
-  background:
-    linear-gradient(180deg, var(--atlas-wash), transparent 24rem),
-    linear-gradient(90deg, var(--atlas-grid-major) 1px, transparent 1px) 0 0 / 48px 48px,
-    linear-gradient(180deg, var(--atlas-grid-minor) 1px, transparent 1px) 0 0 / 48px 48px,
-    var(--background);
+  background: var(--background);
   color: var(--foreground);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-foreground);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -174,16 +167,14 @@ body {
 @layer components {
   :root:not(.dark) .chip--accent.chip--soft,
   :root:not(.dark) .chip--warning.chip--soft,
-  :root:not(.dark) .toggle-button[data-selected='true'] {
+  :root:not(.dark) .toggle-button[data-selected='true'],
+  :root:not(.dark) .button--secondary:is(:hover, [data-hovered='true']):not(:disabled, [aria-disabled='true']) {
     color: var(--accent-readable);
   }
 
   .card {
     border: 1px solid color-mix(in oklab, var(--separator) 80%, transparent);
-    background: linear-gradient(180deg, var(--surface-card-top), var(--surface-card-bottom));
-    box-shadow:
-      0 10px 28px var(--surface-card-shadow),
-      inset 0 1px 0 color-mix(in oklab, var(--foreground) 6%, transparent);
+    box-shadow: none;
   }
 
   .card:has(a:focus-visible),

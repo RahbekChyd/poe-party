@@ -32,6 +32,7 @@ export function GroupSwitcher() {
 
   const activeMembership = memberships?.find((membership) => membership.group.id === activeGroupId)
   const activeGroup = activeMembership?.group
+  const scopeLabel = activeGroup ? `${getPoeGameShortLabel(activeGroup.game)} · ${activeGroup.league}` : null
   const isMutating = leaveGroup.isPending || deleteGroup.isPending
   const mutation = pendingAction?.intent === 'delete' ? deleteGroup : leaveGroup
   const destructiveActionLabel = pendingAction?.intent === 'delete' ? 'Delete group' : 'Leave group'
@@ -56,14 +57,21 @@ export function GroupSwitcher() {
       <div className="relative min-w-0">
         <Dropdown>
           <Dropdown.Trigger
-            aria-label={activeGroup ? `Switch group, current group: ${activeGroup.name}` : 'Switch group'}
-            className="select__trigger h-9 min-h-9 max-w-full min-w-0 items-center sm:max-w-64 lg:max-w-88"
+            aria-label={activeGroup ? `Switch group, current group: ${activeGroup.name}, ${scopeLabel}` : 'Switch group'}
+            className="select__trigger h-auto min-h-10 max-w-full min-w-0 items-center py-1.5 sm:min-h-9 sm:max-w-72 lg:max-w-100"
             isDisabled={isMutating}
           >
             <span className="select__value min-w-0">
               <span className="flex min-w-0 items-center gap-2">
                 {isLoading || isMutating ? <Spinner color="current" size="sm" /> : null}
-                <span className="truncate">{activeGroup?.name ?? (isLoading ? 'Loading groups…' : 'Select group')}</span>
+                <span className="flex min-w-0 flex-col items-start sm:flex-row sm:items-center sm:gap-2">
+                  <span className="max-w-full truncate font-medium">{activeGroup?.name ?? (isLoading ? 'Loading groups…' : 'Select group')}</span>
+                  {scopeLabel ? (
+                    <span className="text-default-500 w-full text-left text-xs leading-tight whitespace-normal wrap-anywhere sm:w-auto sm:max-w-36 sm:shrink-0">
+                      {scopeLabel}
+                    </span>
+                  ) : null}
+                </span>
               </span>
             </span>
             <DropdownCaret className="select__indicator" />

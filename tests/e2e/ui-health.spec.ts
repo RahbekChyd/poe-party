@@ -71,7 +71,7 @@ const privatePages: Array<[string, string | RegExp, number?]> = [
   ['/dashboard/gear', 'Gear Planning'],
   [`/dashboard/gear/${gearId}`, /suggestion details/i, 2],
   ['/dashboard/strategies', 'Strategies'],
-  [`/dashboard/strategies/${strategyId}`, 'Name', 0],
+  [`/dashboard/strategies/${strategyId}`, strategyName],
   [`/dashboard/strategies/public/${strategyId}`, strategyName],
   ['/dashboard/services', 'Services'],
   [`/dashboard/services/${serviceId}`, serviceTitle],
@@ -184,7 +184,7 @@ test('dashboard membership failure can be retried without losing the workspace',
   await expect(page.getByText('Welcome to PoE Party')).toHaveCount(0)
   failMembershipRequest = false
   await alert.getByRole('button', { name: 'Try again' }).click()
-  await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Today', level: 1 })).toBeVisible()
   await expectContained(page)
 })
 
@@ -246,6 +246,7 @@ test('selecting a completed analysis remains active when a newer run refreshes',
   const countHistoryRequests = await mockAnalysisRuns(page, true)
 
   await page.goto('/dashboard/analysis')
+  await page.bringToFront()
   await page.getByRole('button', { name: 'Run history', exact: true }).click()
   const completed = page.getByRole('button', { name: /completed.*quick/i })
   const running = page.getByRole('button', { name: /running.*quick/i })
@@ -254,7 +255,7 @@ test('selecting a completed analysis remains active when a newer run refreshes',
   await expect(completed).toHaveAttribute('aria-pressed', 'true')
   await expect(running).toHaveAttribute('aria-pressed', 'false')
   const initialRequests = countHistoryRequests()
-  await expect.poll(countHistoryRequests).toBeGreaterThan(initialRequests)
+  await expect.poll(countHistoryRequests, { timeout: 15_000 }).toBeGreaterThan(initialRequests)
   await expect(completed).toHaveAttribute('aria-pressed', 'true')
   await expectContained(page)
 })

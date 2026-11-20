@@ -116,7 +116,6 @@ export function ServicesPage() {
     <DashboardPage>
       <DashboardPageHeader
         title="Services"
-        tone="currency"
         description={`Manage your listings or browse services in ${league ?? 'your league'}.`}
         actions={
           <>

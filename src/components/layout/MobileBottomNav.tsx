@@ -20,7 +20,7 @@ export function MobileBottomNav() {
   return (
     <nav
       aria-label="Primary dashboard"
-      className="border-divider/70 bg-content1/95 grid shrink-0 grid-cols-5 border-t px-1 pb-[max(env(safe-area-inset-bottom),0.25rem)] backdrop-blur lg:hidden"
+      className="border-divider bg-content1 grid shrink-0 grid-cols-5 border-t px-1 pb-[max(env(safe-area-inset-bottom),0.25rem)] lg:hidden"
     >
       {dashboardNavigation.map((section) => {
         const destination = section.items[0]

@@ -8,10 +8,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock3,
-  FileText,
   Search,
   Sparkles,
-  UserRound,
 } from 'lucide-react'
 import {
   guestPlanForRecommendationRow,
@@ -610,21 +608,12 @@ export function GuestAnalysisPage() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="flex min-w-0 flex-col gap-4">
-          <Card id="public-character" className="scroll-mt-6">
-            <Card.Header className="px-5 pt-5 pb-0">
-              <div className="flex items-start gap-3">
-                <div className="bg-accent/10 text-accent flex h-10 w-10 shrink-0 items-center justify-center rounded-large">
-                  <UserRound size={18} aria-hidden="true" />
-                </div>
-                <div>
-                  <h2 className="text-foreground text-sm font-semibold">Public character</h2>
-                  <p className="text-default-500 mt-1 text-sm">
-                    Enter your account name, including the number after #.
-                  </p>
-                </div>
-              </div>
+          <Card id="public-character" className="scroll-mt-6 p-0">
+            <Card.Header className="flex-col items-start gap-1 px-4 pt-4 pb-0 sm:px-5 sm:pt-5">
+              <h2 className="text-foreground text-base font-semibold">Find a character</h2>
+              <p className="text-default-500 text-sm">Enter your account name, including the number after #.</p>
             </Card.Header>
-            <Card.Content className="gap-4 p-5">
+            <Card.Content className="gap-4 p-4 sm:p-5">
               <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
                 <FieldInput
                   label="PoE account"
@@ -636,6 +625,7 @@ export function GuestAnalysisPage() {
                 />
                 <Button
                   className="md:mb-[1px]"
+                  variant={selectedCharacter ? 'tertiary' : 'primary'}
                   isPending={characterLookup.isPending}
                   isDisabled={!accountName.trim() || targetAction === 'queue'}
                   onPress={() => void handleLookupCharacters()}
@@ -678,21 +668,12 @@ export function GuestAnalysisPage() {
             </Card.Content>
           </Card>
 
-          <Card id="target-pob" className="scroll-mt-6">
-            <Card.Header className="px-5 pt-5 pb-0">
-              <div className="flex items-start gap-3">
-                <div className="bg-warning/10 text-warning flex h-10 w-10 shrink-0 items-center justify-center rounded-large">
-                  <FileText size={18} aria-hidden="true" />
-                </div>
-                <div>
-                  <h2 className="text-foreground text-sm font-semibold">Target PoB</h2>
-                  <p className="text-default-500 mt-1 text-sm">
-                    Paste a share code or XML export. Read the layouts to choose which ones to use.
-                  </p>
-                </div>
-              </div>
+          <Card id="target-pob" className="scroll-mt-6 p-0">
+            <Card.Header className="flex-col items-start gap-1 px-4 pt-4 pb-0 sm:px-5 sm:pt-5">
+              <h2 className="text-foreground text-base font-semibold">Choose a PoB target</h2>
+              <p className="text-default-500 text-sm">Paste a share code or XML export. Read the layouts to choose which ones to use.</p>
             </Card.Header>
-            <Card.Content className="gap-4 p-5">
+            <Card.Content className="gap-4 p-4 sm:p-5">
               <FieldInput
                 label="Target name"
                 value={targetName}
@@ -702,7 +683,7 @@ export function GuestAnalysisPage() {
               />
               <FieldTextArea
                 label="PoB import"
-                minRows={8}
+                minRows={5}
                 value={rawImport}
                 isDisabled={targetAction !== null}
                 onValueChange={(value) => {
@@ -775,9 +756,20 @@ export function GuestAnalysisPage() {
               ) : null}
 
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-divider/70 pt-4">
-                <p className="text-default-500 text-sm">
-                  One Quick run per PoE account per UTC day. Failed validation does not count.
-                </p>
+                <div className="min-w-0">
+                  <p className="text-foreground text-sm font-medium">
+                    {!selectedCharacter
+                      ? 'Find and select a public character.'
+                      : !rawImport.trim()
+                        ? 'Paste a PoB share code or XML export.'
+                        : parseError
+                          ? 'Check the PoB import before running analysis.'
+                          : 'Ready for Quick analysis.'}
+                  </p>
+                  <p className="text-default-500 mt-1 text-xs">
+                    One Quick run per PoE account per UTC day. Failed validation does not count.
+                  </p>
+                </div>
                 <Button
                   isPending={targetAction === 'queue'}
                   isDisabled={!resolvedAccountName || !selectedCharacter || !rawImport.trim() || targetAction === 'parse'}
@@ -792,12 +784,10 @@ export function GuestAnalysisPage() {
         </div>
 
         <div className="flex min-w-0 flex-col gap-4">
-          <Card id="current-public-run" className="scroll-mt-6">
-            <Card.Content className="gap-4 p-5">
+          <Card id="current-public-run" className="scroll-mt-6 p-0">
+            <Card.Content className="gap-4 p-4 sm:p-5">
               <div className="flex items-start gap-3">
-                <div className="bg-default-100 text-default-500 flex h-10 w-10 shrink-0 items-center justify-center rounded-large">
-                  {RunIcon ? <RunIcon size={18} aria-hidden="true" /> : <Sparkles size={18} aria-hidden="true" />}
-                </div>
+                {RunIcon ? <RunIcon size={18} className="text-default-500 mt-0.5 shrink-0" aria-hidden="true" /> : null}
                 <div className="min-w-0">
                   <h2 className="text-foreground text-sm font-semibold">Current public run</h2>
                   {activeRun ? (
@@ -814,7 +804,7 @@ export function GuestAnalysisPage() {
               </div>
 
               {statusLoading && runToken ? (
-                <div className="text-default-500 flex items-center gap-2 text-sm">
+                <div role="status" className="text-default-500 flex items-center gap-2 text-sm">
                   <Spinner size="sm" />
                   Loading your latest analysis…
                 </div>

@@ -7,6 +7,7 @@ import { useGuestPublicServices } from '../../hooks/useGuestServices'
 import { usePoeGameAccess } from '../../hooks/usePoeGameAccess'
 import { usePreviewLeague } from '../../hooks/usePreviewLeague'
 import { PreviewPageIntro } from './PreviewShared'
+import { DiscoveryScope, FilterDisclosure } from './DiscoveryFilters'
 import {
   SERVICE_TYPE_FILTER_OPTIONS,
   REGION_OPTIONS,
@@ -67,7 +68,7 @@ export function GuestServicesPage() {
   }, [services, debouncedSearch, region])
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 sm:gap-5">
       <PreviewPageIntro
         mode="public"
         title="Services"
@@ -76,63 +77,45 @@ export function GuestServicesPage() {
 
       <Card className="@container p-3 sm:p-4">
         <Card.Content className="gap-3">
+          <FieldInput
+            label="Search services"
+            placeholder="Title, character, or boss"
+            startContent={<Search size={18} className="text-default-400" aria-hidden="true" />}
+            value={search}
+            onValueChange={setSearch}
+            isClearable
+            onClear={() => setSearch('')}
+          />
           <ResponsiveFilter
             label="Service type"
             options={SERVICE_TYPE_FILTER_OPTIONS}
             value={typeFilter}
             onChange={setTypeFilter}
           />
-
-          <div className="grid gap-3 @min-[24rem]:grid-cols-2 @min-[40rem]:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
-            <FieldInput
-              label="Search services"
-              placeholder="Title, character, or boss"
-              startContent={<Search size={18} className="text-default-400" />}
-              value={search}
-              onValueChange={setSearch}
-              isClearable
-              onClear={() => setSearch('')}
+          <div className="grid grid-cols-2 items-start gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,0.45fr)] sm:gap-3">
+            <DiscoveryScope
+              game={selectedGame}
+              league={selectedLeague}
+              games={availableGames}
+              leagues={leagues}
+              onGameChange={setSelectedGame}
+              onLeagueChange={setSelectedLeague}
             />
-            <SelectField
-              label="Game"
-              selectedKey={selectedGame}
-              onSelectionChange={(value) => {
-                if (value === 'poe1' || value === 'poe2') setSelectedGame(value)
-              }}
-            >
-              {availableGames.map((g) => (
-                <ListBox.Item key={g.id} id={g.id} textValue={g.label}>
-                  {g.label}
-                </ListBox.Item>
-              ))}
-            </SelectField>
-            <SelectField
-              label="League"
-              selectedKey={selectedLeague}
-              onSelectionChange={(value) =>
-                setSelectedLeague(typeof value === 'string' ? value : null)
-              }
-              isDisabled={leagues.length === 0}
-            >
-              {leagues.map((league) => (
-                <ListBox.Item key={league.id} id={league.id} textValue={league.label}>
-                  {league.label}
-                </ListBox.Item>
-              ))}
-            </SelectField>
-            <SelectField
-              label="Region"
-              selectedKey={region}
-              onSelectionChange={(value) =>
-                setRegion(regionFromSelection(new Set([value ?? 'Any'])))
-              }
-            >
-              {REGION_OPTIONS.map((r) => (
-                <ListBox.Item key={r} id={r} textValue={r}>
-                  {r}
-                </ListBox.Item>
-              ))}
-            </SelectField>
+            <FilterDisclosure label="Filters" value={region === 'Any' ? 'All regions' : region}>
+              <SelectField
+                label="Region"
+                selectedKey={region}
+                onSelectionChange={(value) =>
+                  setRegion(regionFromSelection(new Set([value ?? 'Any'])))
+                }
+              >
+                {REGION_OPTIONS.map((r) => (
+                  <ListBox.Item key={r} id={r} textValue={r}>
+                    {r}
+                  </ListBox.Item>
+                ))}
+              </SelectField>
+            </FilterDisclosure>
           </div>
         </Card.Content>
       </Card>

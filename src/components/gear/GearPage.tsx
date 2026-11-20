@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Button } from '@heroui/react/button'
-import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
-import { Sword, ArrowRight } from 'lucide-react'
+import { Sword } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useGroupStore } from '../../store/group-store'
 import { useGearSuggestions, type GearSuggestion } from '../../hooks/useGear'
@@ -44,11 +43,11 @@ function getActionLabel(actionType: GearSuggestion['action_type']): string {
   }
 }
 
-function SuggestionCard({ s, showTarget = false }: { s: GearSuggestion; showTarget?: boolean }) {
+function SuggestionRow({ s, showTarget = false }: { s: GearSuggestion; showTarget?: boolean }) {
   const importanceChip = IMPORTANCE_CHIP[s.importance] ?? IMPORTANCE_CHIP.medium
 
   return (
-    <div className="rounded-medium hover:bg-default-50 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-2 px-3 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-4">
+    <li className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-2 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
       {s.item_data?.icon_url ? (
         <img
           src={s.item_data.icon_url}
@@ -66,9 +65,16 @@ function SuggestionCard({ s, showTarget = false }: { s: GearSuggestion; showTarg
       )}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-foreground min-w-0 text-sm font-medium wrap-anywhere">
-            {s.item_name ?? 'Unnamed item'}
-          </p>
+          <Link
+            to="/dashboard/gear/$suggestionId"
+            params={{ suggestionId: s.id }}
+            className="text-foreground decoration-divider rounded-xs min-w-0 text-sm font-semibold wrap-anywhere underline underline-offset-4 hover:decoration-current focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
+            {s.item_name ?? 'Unnamed suggestion'}
+          </Link>
+          <Chip size="sm" color={STATUS_COLOR[s.status]} variant="soft" className="capitalize">
+            {s.status}
+          </Chip>
           <Chip size="sm" variant="soft" color={toNativeChipColor(importanceChip.color)}>
             {importanceChip.label}
           </Chip>
@@ -81,28 +87,20 @@ function SuggestionCard({ s, showTarget = false }: { s: GearSuggestion; showTarg
         <p className="text-default-500 mt-1 text-xs wrap-anywhere">
           {showTarget && <>For {s.target_user.display_name ?? s.target_user.poe_account_name} · </>}
           From {s.suggester.display_name ?? s.suggester.poe_account_name}
-          {s.notes && <span> · {s.notes}</span>}
         </p>
       </div>
-      <div className="col-start-2 flex flex-wrap items-center gap-2 sm:col-start-3">
-        {s.item_trade_link && (
-          <a href={s.item_trade_link} target="_blank" rel="noopener noreferrer" className="button button--sm button--tertiary">
-            Trade link
-          </a>
-        )}
-        <Chip size="sm" color={STATUS_COLOR[s.status]} variant="soft" className="capitalize">
-          {s.status}
-        </Chip>
-        <Link
-          to="/dashboard/gear/$suggestionId"
-          params={{ suggestionId: s.id }}
-          className="button button--sm button--tertiary button--icon-only"
-          aria-label={s.item_name ? `Open suggestion for ${s.item_name}` : 'Open gear suggestion'}
+      {s.item_trade_link ? (
+        <a
+          href={s.item_trade_link}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={s.item_name ? `Trade link for ${s.item_name}` : undefined}
+          className="button button--sm button--tertiary col-start-2 justify-self-start sm:col-start-3"
         >
-          <ArrowRight size={14} aria-hidden="true" />
-        </Link>
-      </div>
-    </div>
+          Trade link
+        </a>
+      ) : null}
+    </li>
   )
 }
 
@@ -130,8 +128,6 @@ export function GearPage() {
     <DashboardPage>
       <DashboardPageHeader
         title="Gear Planning"
-        eyebrow="Upgrade queue"
-        tone="arcane"
         description="Track suggested upgrades and builds from Analysis."
         actions={
           <>
@@ -157,37 +153,31 @@ export function GearPage() {
         </DashboardEmptyState>
       ) : (
         <>
-          <Card>
-            <Card.Header className="px-4 pt-4 pb-0">
-              <h2 className="text-foreground text-sm font-semibold">
-                Suggestions for you
-                {forMe.length > 0 && (
-                  <span className="text-default-400 ml-2 font-normal">({forMe.length})</span>
-                )}
-              </h2>
-            </Card.Header>
-            <Card.Content className="gap-1 px-2 pt-2 pb-2">
-              {forMe.length === 0 ? (
-                <p className="text-default-400 px-4 py-3 text-sm">No suggestions for you yet.</p>
-              ) : (
-                forMe.map((s) => <SuggestionCard key={s.id} s={s} />)
+          <section aria-labelledby="suggestions-for-you">
+            <h2 id="suggestions-for-you" className="text-foreground mb-2 text-base font-semibold">
+              Suggestions for you
+              {forMe.length > 0 && (
+                <span className="text-default-400 ml-2 font-normal">({forMe.length})</span>
               )}
-            </Card.Content>
-          </Card>
+            </h2>
+            {forMe.length === 0 ? (
+              <p className="text-default-500 text-sm">No suggestions for you yet.</p>
+            ) : (
+              <ul className="divide-divider border-divider divide-y border-y">
+                {forMe.map((s) => <SuggestionRow key={s.id} s={s} />)}
+              </ul>
+            )}
+          </section>
           {forOthers.length > 0 ? (
-            <Card>
-              <Card.Header className="px-4 pt-4 pb-0">
-                <h2 className="text-foreground text-sm font-semibold">
-                  Suggestions for others
-                  <span className="text-default-400 ml-2 font-normal">({forOthers.length})</span>
-                </h2>
-              </Card.Header>
-              <Card.Content className="gap-1 px-2 pt-2 pb-2">
-                {forOthers.map((s) => (
-                  <SuggestionCard key={s.id} s={s} showTarget />
-                ))}
-              </Card.Content>
-            </Card>
+            <section aria-labelledby="suggestions-for-others">
+              <h2 id="suggestions-for-others" className="text-foreground mb-2 text-base font-semibold">
+                Suggestions for others
+                <span className="text-default-400 ml-2 font-normal">({forOthers.length})</span>
+              </h2>
+              <ul className="divide-divider border-divider divide-y border-y">
+                {forOthers.map((s) => <SuggestionRow key={s.id} s={s} showTarget />)}
+              </ul>
+            </section>
           ) : null}
         </>
       )}

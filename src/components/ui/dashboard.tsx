@@ -71,38 +71,22 @@ export function DashboardPageHeader({
   actions,
   className,
   description,
-  eyebrow,
-  tone = 'accent',
   title,
 }: {
   actions?: ReactNode
   className?: string
   description?: ReactNode
-  eyebrow?: ReactNode
-  tone?: DashboardTone
   title: ReactNode
 }) {
   return (
     <header
-      style={dashboardToneStyle(tone)}
       className={cn(
         'border-divider/70 flex flex-col gap-x-6 gap-y-3 border-b pb-4 md:flex-row md:flex-wrap md:items-end md:justify-between',
         className,
       )}
     >
       <div className="min-w-0 md:flex-[1_1_22rem]">
-        {eyebrow ? (
-          <div className="mb-1.5 flex items-center gap-2">
-            <span
-              className="h-4 w-1 shrink-0 rounded-full bg-[color:var(--dashboard-tone)]"
-              aria-hidden="true"
-            />
-            <span className="wrap-anywhere text-xs font-semibold tracking-wide text-[color:var(--dashboard-tone)] uppercase">
-              {eyebrow}
-            </span>
-          </div>
-        ) : null}
-        <h1 className="text-foreground text-2xl leading-8 font-semibold tracking-normal wrap-anywhere">
+        <h1 className="text-foreground text-2xl leading-8 font-semibold tracking-tight wrap-anywhere">
           {title}
         </h1>
         {description ? (

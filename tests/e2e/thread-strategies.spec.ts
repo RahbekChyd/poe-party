@@ -51,6 +51,7 @@ test('editor saves Threads while keeping legacy setup fields and enforcing spent
   await page.goto(`/dashboard/strategies/${strategyId}`)
   await expect(page.getByRole('heading', { name: 'Legacy Scarab reference' })).toBeVisible()
   await expect(page.getByText('2 × Ambush Scarab', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Edit setup', exact: true }).click()
   await page.getByRole('button', { name: 'Add thread', exact: true }).click()
   await expect(page.getByPlaceholder('Thread name', { exact: true })).toHaveCount(1)
   await page.getByPlaceholder('Thread name', { exact: true }).fill('Breach Thread')

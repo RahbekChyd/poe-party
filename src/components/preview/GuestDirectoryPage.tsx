@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Card } from '@heroui/react/card'
-import { ListBox } from '@heroui/react/list-box'
 import { ToggleButton } from '@heroui/react/toggle-button'
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
 import { Link } from '@tanstack/react-router'
@@ -13,9 +12,10 @@ import {
 import { usePoeGameAccess } from '../../hooks/usePoeGameAccess'
 import { usePreviewLeague } from '../../hooks/usePreviewLeague'
 import { PreviewPageIntro } from './PreviewShared'
+import { DiscoveryScope } from './DiscoveryFilters'
 import { getPoeGameShortLabel } from '../../lib/poe-game'
 import { trackPublicEvent } from '../../lib/analytics'
-import { FieldInput, SelectField } from '../ui/heroui-native'
+import { FieldInput } from '../ui/heroui-native'
 import {
   DirectoryCharacterCardContent,
   DirectoryGroupCardContent,
@@ -64,7 +64,7 @@ export function GuestDirectoryPage() {
   }, [activeQuery.isFetching, activeQuery.isSuccess, debouncedQuery, hasSearch, mode, resultCount, selectedGame, selectedLeague])
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 sm:gap-5">
       <PreviewPageIntro
         mode="public"
         title="Directory"
@@ -93,46 +93,24 @@ export function GuestDirectoryPage() {
             </ToggleButtonGroup>
           </div>
 
-          <div className="grid gap-3 @min-[24rem]:grid-cols-2 @min-[40rem]:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.5fr)]">
+          <div className="grid items-end gap-3 @min-[32rem]:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)]">
             <FieldInput
               label={mode === 'characters' ? 'Character name' : 'Group name'}
               placeholder="At least 2 characters"
-              className="@min-[24rem]:col-span-2 @min-[40rem]:col-span-1"
               startContent={<Search size={18} className="text-default-400" />}
               value={query}
               onValueChange={setQuery}
               isClearable
               onClear={() => setQuery('')}
             />
-            <SelectField
-              label="Game"
-              selectedKey={selectedGame}
-              onSelectionChange={(value) => {
-                if (typeof value === 'string' && (value === 'poe1' || value === 'poe2')) {
-                  setSelectedGame(value)
-                }
-              }}
-            >
-              {availableGames.map((game) => (
-                <ListBox.Item key={game.id} id={game.id} textValue={game.label}>
-                  {game.label}
-                </ListBox.Item>
-              ))}
-            </SelectField>
-            <SelectField
-              label="League"
-              selectedKey={selectedLeague}
-              onSelectionChange={(value) => {
-                setSelectedLeague(typeof value === 'string' ? value : null)
-              }}
-              isDisabled={leagues.length === 0}
-            >
-              {leagues.map((league) => (
-                <ListBox.Item key={league.id} id={league.id} textValue={league.label}>
-                  {league.label}
-                </ListBox.Item>
-              ))}
-            </SelectField>
+            <DiscoveryScope
+              game={selectedGame}
+              league={selectedLeague}
+              games={availableGames}
+              leagues={leagues}
+              onGameChange={setSelectedGame}
+              onLeagueChange={setSelectedLeague}
+            />
           </div>
         </Card.Content>
       </Card>

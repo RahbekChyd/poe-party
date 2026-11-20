@@ -43,6 +43,7 @@ import { WealthHistoryRangeSelector } from './WealthHistoryRangeSelector'
 import { useActiveGroupContext } from '../../hooks/useGroups'
 import { Poe2EconomyPage } from './Poe2EconomyPage'
 import { hasActiveProAccess } from '../../lib/billing'
+import { getLoginHref } from '../../lib/auth-redirect'
 import { ListBox, SelectField, UserAvatar } from '../ui/heroui-native'
 import { DashboardEmptyState, DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
@@ -72,7 +73,7 @@ function Poe1EconomyPage() {
   const { data: groupHistory } = useGroupWealthHistory(activeGroupId)
   const { data: characters } = useActiveCharacters(activeGroupId)
   const { data: myGroups } = useMyGroups()
-  const { data: myProfile } = useMyProfile()
+  const { data: myProfile, isPending: profilePending, isError: profileError, refetch: retryProfile } = useMyProfile()
   const { triggerSnapshot, isBusy, modal } = useStashSnapshotFlow()
   const display = useCurrencyStore((s) => s.display)
   const snapshotMode = useSnapshotPreferencesStore((s) => s.mode)
@@ -179,8 +180,7 @@ function Poe1EconomyPage() {
       <DashboardPage>
         <DashboardPageHeader
           title="Economy"
-          tone="currency"
-          description="Track stash value and manage snapshots."
+          description="Review stash value, capture history, and member coverage."
           actions={
             <>
               <Popover>
@@ -261,6 +261,16 @@ function Poe1EconomyPage() {
                   )}
                 </Button>
               )}
+              {sorted.length > 0 && activeLeague && !profilePending && !profileError && !canSnapshot && (
+                <a href={getLoginHref('/dashboard/economy')} className="button button--sm button--tertiary">
+                  Reconnect PoE account
+                </a>
+              )}
+              {sorted.length > 0 && activeLeague && !profilePending && !profileError && !canSnapshot && (
+                <a href={getLoginHref('/dashboard/economy')} className="button button--sm button--tertiary">
+                  Reconnect PoE account
+                </a>
+              )}
             </>
           }
         />
@@ -274,25 +284,24 @@ function Poe1EconomyPage() {
             icon={TrendingUp}
             tone="currency"
             action={
-              canSnapshot ? (
-                <Button
-                  size="sm"
-                  variant="tertiary"
-                  isPending={isBusy}
-                  isDisabled={!activeLeague}
-                  onPress={handleSnapshot}
-                >
-                  {({ isPending }) => (
-                    <>
-                      {isPending ? <Spinner color="current" size="sm" /> : null}
-                      {isPending ? 'Taking snapshot…' : 'Snapshot stash'}
-                    </>
-                  )}
-                </Button>
+              profileError ? (
+                <Button size="sm" variant="tertiary" onPress={() => void retryProfile()}>Try again</Button>
+              ) : activeLeague && !profilePending && !canSnapshot ? (
+                <a href={getLoginHref('/dashboard/economy')} className="button button--sm button--primary">
+                  Reconnect PoE account
+                </a>
               ) : null
             }
           >
-            Snapshot your stash to see economy data.
+            {profileError
+              ? 'Could not check your stash access. Try again to continue.'
+              : profilePending
+                ? 'Checking account access?'
+                : !activeLeague
+                  ? 'Choose a workspace with a league to take stash snapshots.'
+                  : canSnapshot
+                    ? 'No snapshots yet. Choose Snapshot stash to capture your first value.'
+                    : 'Reconnect your PoE account to give PoE Party access to your stash.'}
           </DashboardEmptyState>
         ) : (
           <>
@@ -306,11 +315,8 @@ function Poe1EconomyPage() {
                 className="block w-full text-left focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-primary"
               >
                 <Card.Content className="flex flex-row flex-wrap items-center gap-3 p-4">
-                  <div className="bg-success/15 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
-                    <TrendingUp size={20} className="text-success" />
-                  </div>
                   <div className="min-w-0">
-                    <p className="text-default-400 text-xs tracking-wider uppercase">
+                    <p className="text-default-500 text-sm">
                       {valuationPartial ? 'Priced subtotal' : 'Total Group Wealth'}
                     </p>
                     <p className="text-foreground text-2xl font-bold wrap-anywhere tabular-nums">{valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}</p>
@@ -349,7 +355,7 @@ function Poe1EconomyPage() {
                     </div>
                     <div className="flex items-center justify-center gap-3">
                       <p className={`text-base font-semibold ${groupRateColor}`}>
-                        {groupChaosPerHour == null ? 'No data' : fmtRate(groupChaosPerHour)}
+                        {groupChaosPerHour == null ? 'Rate unavailable' : fmtRate(groupChaosPerHour)}
                       </p>
                       <div
                         className={`border-divider/60 flex items-center gap-1.5 border-l pl-3 text-xs ${groupTrendColor}`}

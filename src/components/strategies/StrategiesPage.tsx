@@ -6,7 +6,7 @@ import { Separator } from '@heroui/react/separator'
 import { Spinner } from '@heroui/react/spinner'
 import { ToggleButton } from '@heroui/react/toggle-button'
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
-import { ChevronDown, Globe, Star, Target } from 'lucide-react'
+import { ChevronDown, Globe, Target } from 'lucide-react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Route } from '../../routes/dashboard/strategies'
 import { useNinjaPrices } from '../../hooks/useNinjaPrices'
@@ -79,7 +79,6 @@ function OwnedStrategyCard({
   fmt: (chaos: number) => string
   showsPoe1PlanningFields: boolean
 }) {
-  const navigate = useNavigate()
   const diffChip = DIFFICULTY_CHIP[strategy.difficulty] ?? DIFFICULTY_CHIP.normal
   const rateColor = !strategyRate
     ? 'default'
@@ -106,27 +105,21 @@ function OwnedStrategyCard({
   const hasAlternativeThreads = strategy.threads.some((thread) => thread.alternatives.length > 0)
 
   return (
-    <Card
-      className={cn('cursor-pointer', strategy.id === currentStrategyId && 'ring-primary ring-2')}
-    >
-      <Card.Content
-        className="gap-0 p-0"
-        onClick={(event) => {
-          const target = event.target as HTMLElement
-          if (target.closest('button, a, summary, [role="button"]')) return
-          navigate({
-            to: '/dashboard/strategies/$strategyId',
-            params: { strategyId: strategy.id },
-          })
-        }}
-      >
+    <Card>
+      <Card.Content className="gap-0 p-0">
         <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5 pb-4">
           <div className="min-w-0 basis-full wrap-anywhere sm:flex-1">
+            <h3 className="text-foreground mb-2 font-semibold wrap-anywhere">
+              <Link
+                to="/dashboard/strategies/$strategyId"
+                params={{ strategyId: strategy.id }}
+                className="hover:text-brand-readable"
+              >
+                {strategy.name}
+              </Link>
+            </h3>
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-foreground font-semibold">{strategy.name}</h2>
-              <Chip size="sm" variant="soft" color={isSubscribed ? 'warning' : 'accent'}>
-                {isSubscribed ? 'Subscribed copy' : 'Owned'}
-              </Chip>
+              {isSubscribed && <span className="text-default-500 text-sm">Subscribed copy</span>}
               <Chip size="sm" variant="soft" color={toNativeChipColor(diffChip.color)}>
                 {diffChip.label}
               </Chip>
@@ -172,26 +165,14 @@ function OwnedStrategyCard({
             ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {myRole !== 'viewer' && activeGroupId ? (
+            {(myRole === 'admin' || myRole === 'editor') && activeGroupId ? (
               <Button
-                isIconOnly
                 size="sm"
                 variant="tertiary"
                 isPending={settingCurrent}
-                className={strategy.id === currentStrategyId ? 'text-primary' : 'text-default-300'}
-                aria-label={strategy.id === currentStrategyId ? 'Active strategy' : 'Set as active'}
                 onPress={() => onSetCurrent(strategy.id)}
               >
-                {({ isPending }) =>
-                  isPending ? (
-                    <Spinner color="current" size="sm" />
-                  ) : (
-                    <Star
-                      size={16}
-                      className={strategy.id === currentStrategyId ? 'fill-primary' : ''}
-                    />
-                  )
-                }
+                {strategy.id === currentStrategyId ? 'Clear active strategy' : 'Set active'}
               </Button>
             ) : null}
             <Link
@@ -416,7 +397,7 @@ export function StrategiesPage() {
   const { mutate: subscribeToStrategy, isPending: subscribePending, isError: subscribeFailed } = useSubscribeToStrategy()
   const { mutate: deleteStrategy, isPending: unsubscribePending, isError: unsubscribeFailed } = useDeleteStrategy()
   const currentStrategyId = useCurrentStrategyId(activeGroupId)
-  const { mutate: setCurrentStrategy, isPending: settingCurrent } = useSetCurrentStrategy()
+  const { mutate: setCurrentStrategy, isPending: settingCurrent, isError: setCurrentFailed } = useSetCurrentStrategy()
   const { data: strategyEconomy } = useStrategyHourlyEstimates(activeGroupId)
   const [createOpen, setCreateOpen] = useState(false)
   const [stageFilter, setStageFilter] = useState<StageFilter>('all')
@@ -457,6 +438,8 @@ export function StrategiesPage() {
       }),
     [strategies],
   )
+  const activeStrategy = ownStrategies.find((strategy) => strategy.id === currentStrategyId)
+  const libraryStrategies = ownStrategies.filter((strategy) => strategy.id !== currentStrategyId)
   const filteredPublicStrategies = useMemo(
     () =>
       stageFilter === 'all'
@@ -483,11 +466,40 @@ export function StrategiesPage() {
     deleteStrategy({ id: strategyId, group_id: activeGroupId })
   }
 
+  const renderOwnedStrategy = (strategy: Strategy) => {
+    const threadCost = showsPoe1PlanningFields
+      ? strategy.threads.reduce((sum, thread) => sum + (threadPriceMap.get(thread.name) ?? 0) * thread.quantity, 0)
+      : 0
+    return (
+      <OwnedStrategyCard
+        key={strategy.id}
+        strategy={strategy}
+        currentStrategyId={currentStrategyId}
+        myRole={myRole}
+        activeGroupId={activeGroupId}
+        settingCurrent={settingCurrent}
+        onSetCurrent={(strategyId) => {
+          if (!activeGroupId) return
+          setCurrentStrategy({
+            groupId: activeGroupId,
+            strategyId: strategyId === currentStrategyId ? null : strategyId,
+          })
+        }}
+        strategyRate={strategyEconomy[strategy.id]}
+        totalCost={showsPoe1PlanningFields ? threadCost + (strategy.map_cost ?? 0) : 0}
+        hasPartialPrices={showsPoe1PlanningFields && strategy.threads.some((thread) => threadPriceMap.get(thread.name) == null)}
+        threadPriceMap={threadPriceMap}
+        threadIconMap={threadIconMap}
+        fmt={fmt}
+        showsPoe1PlanningFields={showsPoe1PlanningFields}
+      />
+    )
+  }
+
   return (
     <DashboardPage>
       <DashboardPageHeader
         title="Strategies"
-        tone="accent"
         description="Plan runs with your group or browse strategies from your league."
         actions={
           <>
@@ -550,6 +562,9 @@ export function StrategiesPage() {
         refreshFailed={activeQuery.isError && hasResults}
         onRetry={activeQuery.refetch}
       />
+      {mode === 'own' && setCurrentFailed && (
+        <p role="alert" className="text-danger text-sm">Could not change the active strategy. Try again.</p>
+      )}
 
       {activeQuery.isLoading ? (
         <StrategyCardsSkeleton />
@@ -561,43 +576,20 @@ export function StrategiesPage() {
             No strategies yet. Create one or subscribe to a public strategy to get started.
           </DashboardEmptyState>
         ) : (
-          <div className="flex flex-col gap-4">
-            {ownStrategies.map((strategy) => {
-              const threadCost = strategy.threads.reduce((sum, thread) => {
-                const price = threadPriceMap.get(thread.name)
-                return price != null ? sum + price * thread.quantity : sum
-              }, 0)
-              const totalCost = showsPoe1PlanningFields ? threadCost + (strategy.map_cost ?? 0) : 0
-              const hasPartialPrices =
-                showsPoe1PlanningFields &&
-                strategy.threads.length > 0 &&
-                strategy.threads.some((thread) => threadPriceMap.get(thread.name) == null)
-
-              return (
-                <OwnedStrategyCard
-                  key={strategy.id}
-                  strategy={strategy}
-                  currentStrategyId={currentStrategyId}
-                  myRole={myRole}
-                  activeGroupId={activeGroupId}
-                  settingCurrent={settingCurrent}
-                  onSetCurrent={(strategyId) =>
-                    setCurrentStrategy({
-                      groupId: activeGroupId!,
-                      strategyId: strategyId === currentStrategyId ? null : strategyId,
-                    })
-                  }
-                  strategyRate={strategyEconomy[strategy.id]}
-                  totalCost={totalCost}
-                  hasPartialPrices={hasPartialPrices}
-                  threadPriceMap={threadPriceMap}
-                  threadIconMap={threadIconMap}
-                  fmt={fmt}
-                  showsPoe1PlanningFields={showsPoe1PlanningFields}
-                />
-              )
-            })}
-          </div>
+          <>
+            <section aria-labelledby="active-strategy-heading" className="space-y-2">
+              <h2 id="active-strategy-heading" className="text-foreground text-lg font-semibold">Active strategy</h2>
+              {activeStrategy ? renderOwnedStrategy(activeStrategy) : (
+                <p className="text-default-500 text-sm">Choose a strategy from your library to use for your next run.</p>
+              )}
+            </section>
+            {libraryStrategies.length > 0 && (
+              <section aria-labelledby="strategy-library-heading" className="space-y-3">
+                <h2 id="strategy-library-heading" className="text-foreground text-lg font-semibold">Strategy library</h2>
+                <div className="flex flex-col gap-3">{libraryStrategies.map(renderOwnedStrategy)}</div>
+              </section>
+            )}
+          </>
         )
       ) : !publicStrategies?.length ? (
         <DashboardEmptyState icon={Globe} tone="accent">

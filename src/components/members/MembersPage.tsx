@@ -7,7 +7,7 @@ import { Dropdown } from '@heroui/react/dropdown'
 import { Label } from '@heroui/react/label'
 import { Popover } from '@heroui/react/popover'
 import { Spinner } from '@heroui/react/spinner'
-import { Check, Copy } from 'lucide-react'
+import { Check, ChevronDown, Copy } from 'lucide-react'
 import {
   useActiveGroupContext,
   useGroupMembers,
@@ -293,8 +293,6 @@ export function MembersPage() {
     <DashboardPage>
       <DashboardPageHeader
         title={isSolo ? 'Characters' : 'Members'}
-        eyebrow={isSolo ? 'Solo roster' : 'Party roster'}
-        tone="accent"
         description={
           isSolo ? 'Synced characters, build history, and profile visibility.' : 'Party members, active characters, and build history.'
         }
@@ -308,8 +306,7 @@ export function MembersPage() {
         <QueryStatePanel kind="empty" title="No members yet" description="Members will appear here once they join." />
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="-mx-1 overflow-x-auto pb-2">
-            <div className="flex min-w-max gap-3 px-1">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {members?.map((member) => {
                 const snap = snapshotByUser[member.user.id]
                 const char = charByUser[member.user.id]
@@ -327,11 +324,11 @@ export function MembersPage() {
                 return (
                   <Card
                     key={member.user.id}
-                    className={`w-[min(18.5rem,calc(100vw-2rem))] shrink-0 border p-0 transition-colors ${
-                      isSelected ? 'border-primary/60 bg-primary/5' : 'border-transparent'
+                    className={`min-w-0 border p-0 transition-colors ${
+                      isSelected ? 'border-primary/60 bg-primary/5' : 'border-divider'
                     }`}
                   >
-                    <Card.Content className="gap-4 p-4">
+                    <Card.Content className="gap-2 p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-3">
                           {isMe || myRole === 'admin' ? (
@@ -341,23 +338,22 @@ export function MembersPage() {
                                 setColorPickerUserId(open ? member.user.id : null)
                               }
                             >
-                              <Popover.Trigger aria-label="Pick avatar color">
-                                <button
-                                  type="button"
-                                  className="hover:ring-default-300 rounded-full ring-2 ring-transparent transition-all"
-                                >
-                                  <UserAvatar
-                                    src={member.user.avatar_url ?? undefined}
-                                    name={member.user.display_name ?? member.user.poe_account_name}
-                                    size="sm"
-                                    style={{
-                                      backgroundColor: getAvatarColor(
-                                        member.user.id,
-                                        member.user.avatar_color,
-                                      ),
-                                    }}
-                                  />
-                                </button>
+                              <Popover.Trigger<'button'>
+                                aria-label="Pick avatar color"
+                                render={(props) => <button {...props} type="button" />}
+                                className="hover:ring-default-300 focus-visible:outline-primary rounded-full ring-2 ring-transparent focus-visible:outline-2 focus-visible:outline-offset-2"
+                              >
+                                <UserAvatar
+                                  src={member.user.avatar_url ?? undefined}
+                                  name={member.user.display_name ?? member.user.poe_account_name}
+                                  size="sm"
+                                  style={{
+                                    backgroundColor: getAvatarColor(
+                                      member.user.id,
+                                      member.user.avatar_color,
+                                    ),
+                                  }}
+                                />
                               </Popover.Trigger>
                               <Popover.Content placement="bottom start" className="p-3">
                                 <Popover.Dialog>
@@ -405,21 +401,27 @@ export function MembersPage() {
                             />
                           )}
 
-                          <div className="min-w-0">
-                            <p className="text-foreground wrap-anywhere text-sm font-medium">
+                          <button
+                            type="button"
+                            className="focus-visible:outline-primary hover:bg-default-50 min-h-10 min-w-0 cursor-pointer rounded-md py-1 text-left focus-visible:outline-2 focus-visible:outline-offset-2"
+                            aria-label={`View ${member.user.display_name ?? member.user.poe_account_name ?? 'member'}`}
+                            aria-pressed={isSelected}
+                            onClick={() => setSelectedUserId(member.user.id)}
+                          >
+                            <span className="text-foreground block text-sm font-medium wrap-anywhere">
                               {member.user.display_name ?? member.user.poe_account_name}
                               {isMe && (
                                 <span className="text-default-400 ml-1.5 text-xs font-normal">
                                   (you)
                                 </span>
                               )}
-                            </p>
-                            <p className="text-default-400 wrap-anywhere text-xs">
+                            </span>
+                            <span className="text-default-500 block text-xs wrap-anywhere">
                               {char
                                 ? `${char.name} · Level ${char.level}`
-                                : member.user.poe_account_name}
-                            </p>
-                          </div>
+                                : 'No active character'}
+                            </span>
+                          </button>
                         </div>
 
                         {isSelected && (
@@ -429,18 +431,15 @@ export function MembersPage() {
                         )}
                       </div>
 
-                      <button
-                        type="button"
-                        className="focus-visible:outline-primary flex w-full flex-col gap-3 rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2"
-                        aria-label={`View ${member.user.display_name ?? member.user.poe_account_name ?? 'member'}`}
-                        aria-pressed={isSelected}
-                        onClick={() => setSelectedUserId(member.user.id)}
-                      >
-                        <AscendancyArt
-                          ascendancy={ascendancy}
-                          poeClass={char?.class ?? null}
-                          imagePath={portraitImagePath}
-                        />
+                      <div className="flex flex-col gap-2">
+                        {portraitImagePath && (
+                          <AscendancyArt
+                            ascendancy={ascendancy}
+                            poeClass={char?.class ?? null}
+                            imagePath={portraitImagePath}
+                            heightClass="h-16"
+                          />
+                        )}
 
                         <div className="flex flex-wrap gap-2">
                           <Chip size="sm" color={age.color} variant="soft">
@@ -456,19 +455,11 @@ export function MembersPage() {
                           )}
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <p className="text-default-500 text-xs">
-                            {char
-                              ? `${char.class} · Level ${char.level}`
-                              : 'No active character'}
-                          </p>
-                        </div>
-                      </button>
+                      </div>
                     </Card.Content>
                   </Card>
                 )
               })}
-            </div>
           </div>
 
           {selectedMember && (
@@ -517,6 +508,11 @@ export function MembersPage() {
                           variant="soft"
                         >
                           {selectedRoleChip.label}
+                        </Chip>
+                      )}
+                      {selectedProfile && (
+                        <Chip className="shrink-0" size="sm" variant="soft">
+                          {selectedProfile.visibility === 'public' ? 'Public profile' : 'Group-only profile'}
                         </Chip>
                       )}
                       {selectedChar && (
@@ -641,33 +637,32 @@ export function MembersPage() {
                 {(isSelectedMe ||
                   Boolean(selectedMember.user.pob_code) ||
                   Boolean(selectedMember.user.pob_support_code)) && (
-                  <div className="w-full">
-                    {isSelectedMe ? (
-                      <MyPobSection
-                        key={activeGroupId}
-                        pob_code={selectedMember.user.pob_code}
-                        pob_support_code={selectedMember.user.pob_support_code}
-                        isSolo={isSolo}
-                      />
-                    ) : (
-                      <OtherPobSection
-                        key={selectedMember.user.id}
-                        pob_code={selectedMember.user.pob_code}
-                        pob_support_code={selectedMember.user.pob_support_code}
-                      />
-                    )}
-                  </div>
+                  <details className="border-divider group w-full border-t pt-3">
+                    <summary className="text-foreground focus-visible:outline-primary flex min-h-10 w-fit cursor-pointer list-none items-center gap-2 rounded-md text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden">
+                      <ChevronDown size={14} className="-rotate-90 group-open:rotate-0" aria-hidden="true" />
+                      Path of Building codes
+                    </summary>
+                    <div className="pb-2">
+                      {isSelectedMe ? (
+                        <MyPobSection
+                          key={activeGroupId}
+                          pob_code={selectedMember.user.pob_code}
+                          pob_support_code={selectedMember.user.pob_support_code}
+                          isSolo={isSolo}
+                        />
+                      ) : (
+                        <OtherPobSection
+                          key={selectedMember.user.id}
+                          pob_code={selectedMember.user.pob_code}
+                          pob_support_code={selectedMember.user.pob_support_code}
+                        />
+                      )}
+                    </div>
+                  </details>
                 )}
               </Card.Header>
 
               <Card.Content className="gap-4 p-0">
-                <div className="flex flex-wrap items-center gap-3 px-5 pt-4">
-                  <p className="text-default-500 text-xs">
-                    Inspect equipped gear, passive tree, atlas tree, and synced build details for
-                    the selected member.
-                  </p>
-                </div>
-
                 {selectedProfile && (
                   <div className="px-5">
                     <div className="rounded-large border-divider bg-default-50/60 border p-4">
