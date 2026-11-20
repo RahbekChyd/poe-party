@@ -20,26 +20,20 @@ export function MobileBottomNav() {
   return (
     <nav
       aria-label="Primary dashboard"
-      className="border-divider bg-content1 grid shrink-0 grid-cols-5 border-t px-1 pb-[max(env(safe-area-inset-bottom),0.25rem)] lg:hidden"
+      className="border-divider bg-navigation grid shrink-0 grid-cols-5 border-t px-1 pb-[max(env(safe-area-inset-bottom),0.25rem)] lg:hidden"
     >
       {dashboardNavigation.map((section) => {
         const destination = section.items[0]
         const isActive = isDashboardSectionActive(location.pathname, section)
         const Icon = section.icon
         const tabClassName = cn(
-          'relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary',
-          isActive ? 'text-brand-readable' : 'text-default-500 hover:text-default-800',
+          'mobile-nav-tab relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-lg border border-transparent px-1 text-[11px] font-medium transition-colors',
+          isActive ? 'border-control bg-selected text-highlight font-semibold forced-colors:border-[Highlight]' : 'text-default-500 hover:text-default-800',
         )
         const label = (
           <>
             <Icon size={18} aria-hidden="true" />
             <span>{section.label}</span>
-            {isActive ? (
-              <span
-                aria-hidden="true"
-                className="bg-warning absolute inset-x-4 top-0 h-0.5 rounded-b-full"
-              />
-            ) : null}
           </>
         )
 
@@ -58,6 +52,7 @@ export function MobileBottomNav() {
                         id={item.to}
                         to={item.to}
                         activeOptions={{ exact: true }}
+                        className={isCurrent ? 'bg-selected text-highlight font-semibold' : undefined}
                         textValue={item.label}
                         render={(props) =>
                           'href' in props ? (

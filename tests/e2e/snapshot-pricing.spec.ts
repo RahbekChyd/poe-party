@@ -124,6 +124,51 @@ test('stash tables retain readable item and total cells when columns reflow', as
   }
 })
 
+test('wealth history values and retained summaries support keyboard and pointer input', async ({ page }, testInfo) => {
+  await mockCapture(page, 'complete', exclusionItems)
+  await page.route('**/rest/v1/snapshot_value_history?*', (route) => route.fulfill({
+    json: [
+      {
+        id: 'older-history',
+        snapshot_id: null,
+        completed_at: '2026-11-17T12:00:00Z',
+        included_chaos_total: 4_200,
+        excluded_chaos_total: 0,
+        pricing_summary: summary,
+      },
+      {
+        id: 'latest-history',
+        snapshot_id: 'snapshot',
+        completed_at: '2026-11-18T00:00:00Z',
+        included_chaos_total: 6,
+        excluded_chaos_total: 0,
+        pricing_summary: summary,
+      },
+    ],
+  }))
+  await page.goto(`/dashboard/economy/${userId}`)
+
+  const chart = page.getByRole('application', { name: 'Stash wealth in chaos orbs' })
+  await chart.focus()
+  const tooltip = page.locator('.recharts-tooltip-wrapper').getByRole('status')
+  await expect(tooltip).toContainText('4,200c')
+  await chart.press('ArrowRight')
+  await expect(tooltip).toContainText('6c')
+
+  await page.getByRole('button', { name: 'Select snapshot: Latest snapshot', exact: true }).press('Enter')
+  const historical = page.getByRole('menuitemradio').filter({ hasText: 'summary only' })
+  await historical.press('Enter')
+  await expect(page).toHaveURL(/historyId=older-history/)
+  await expect(page.getByText(/Summary value and strategy link are still preserved/)).toBeVisible()
+
+  await page.getByRole('button', { name: 'Back to latest' }).press('Enter')
+  await expect(page).not.toHaveURL(/historyId=/)
+  const point = chart.locator('.recharts-area-dots g[aria-hidden="true"]').first()
+  if (testInfo.project.name === 'chromium-mobile') await point.tap()
+  else await point.click()
+  await expect(page).toHaveURL(/historyId=older-history/)
+})
+
 test('Economy keeps the value intact and restores snapshot schedule focus', async ({ page }) => {
   await mockCapture(page, 'complete', [{ ...items[0], price_chaos: 123_456_789 }])
   await page.goto('/dashboard/economy')

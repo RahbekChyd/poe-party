@@ -92,9 +92,9 @@ function PreviewSidebarSection({ title, items }: { title: string; items: readonl
               activeOptions={{ exact: true }}
               aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                'flex min-h-10 items-center gap-3 rounded-xl border border-transparent px-3 py-2 text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-warning/15 text-brand-readable'
+                  ? 'border-control bg-selected text-highlight font-semibold forced-colors:border-[Highlight]'
                   : 'text-default-500 hover:bg-default-100 hover:text-default-800',
               )}
             >
@@ -145,7 +145,7 @@ export function PreviewShell({ children }: { children: ReactNode }) {
         <a href="#main-content" className="button button--primary sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50">
           Skip to main content
         </a>
-        <aside className="border-divider bg-content1 hidden h-full w-72 shrink-0 border-r lg:flex lg:flex-col">
+        <aside className="border-divider bg-navigation hidden h-full w-72 shrink-0 border-r lg:flex lg:flex-col">
           <div className="border-divider border-b px-5 py-5">
             <Link
               to="/"
@@ -192,7 +192,7 @@ export function PreviewShell({ children }: { children: ReactNode }) {
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <header
-            className="border-divider bg-content1/95 relative z-30 shrink-0 border-b backdrop-blur"
+            className="border-divider bg-navigation relative z-30 shrink-0 border-b"
             onKeyDown={(event) => {
               if (event.key === 'Escape' && mobileMenuOpen) {
                 setMobileMenuOpen(false)
@@ -271,7 +271,7 @@ export function PreviewShell({ children }: { children: ReactNode }) {
               <nav
                 id="preview-mobile-menu"
                 aria-label="Explore PoE Party on mobile"
-                className="border-divider bg-content1 absolute inset-x-0 top-full grid max-h-[calc(100dvh-4rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] gap-5 overflow-y-auto border-y p-4 shadow-lg lg:hidden"
+                className="border-divider bg-content4 absolute inset-x-0 top-full grid max-h-[calc(100dvh-4rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] gap-5 overflow-y-auto border-y p-4 shadow-lg lg:hidden"
               >
                 {[
                   { label: 'Use now', items: publicItems },
@@ -293,9 +293,9 @@ export function PreviewShell({ children }: { children: ReactNode }) {
                             aria-current={isActive ? 'page' : undefined}
                             onClick={() => setMobileMenuOpen(false)}
                             className={cn(
-                              'flex min-h-12 items-center gap-2 rounded-xl border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                              'flex min-h-12 items-center gap-2 rounded-xl border px-3 text-sm font-medium',
                               isActive
-                                ? 'border-warning/30 bg-warning/12 text-brand-readable'
+                                ? 'border-control bg-selected text-highlight font-semibold forced-colors:border-[Highlight]'
                                 : 'border-divider bg-default-50 text-default-600',
                             )}
                           >

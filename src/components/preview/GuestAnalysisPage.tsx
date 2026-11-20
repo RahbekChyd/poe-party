@@ -50,7 +50,7 @@ function writeStoredGuestRunToken(token: string | null) {
 }
 
 function statusTone(status: GuestUpgradeAnalysisRun['status']): {
-  color: 'default' | 'warning' | 'success' | 'danger' | 'accent'
+  color: 'default' | 'warning' | 'success' | 'danger'
   label: string
   icon: typeof Clock3
 } {
@@ -58,11 +58,11 @@ function statusTone(status: GuestUpgradeAnalysisRun['status']): {
     case 'queued':
       return { color: 'default', label: 'Queued', icon: Clock3 }
     case 'running':
-      return { color: 'warning', label: 'Running', icon: Sparkles }
+      return { color: 'default', label: 'Running', icon: Sparkles }
     case 'completed':
       return { color: 'success', label: 'Completed', icon: CheckCircle2 }
     case 'partial':
-      return { color: 'accent', label: 'Partial', icon: AlertTriangle }
+      return { color: 'warning', label: 'Partial', icon: AlertTriangle }
     case 'failed':
       return { color: 'danger', label: 'Failed', icon: AlertTriangle }
     default:
@@ -226,7 +226,7 @@ function GuestRecommendations({
     return (
       <Card>
         <Card.Content className="items-center gap-3 p-8 text-center">
-          <Spinner />
+          <Spinner color="current" className="text-info" />
           <div>
             <p className="text-foreground text-sm font-semibold">Analysis in progress</p>
             <p className="text-default-500 mt-1 text-sm">{getRunStatusDescription(run)}</p>
@@ -254,9 +254,9 @@ function GuestRecommendations({
 
   if (run.status === 'failed') {
     return (
-      <Card className="border-danger/40 bg-danger/10 border">
+      <Card className="border-danger/40 bg-danger-soft border">
         <Card.Content className="gap-2 p-5">
-          <p className="text-foreground text-sm font-semibold">Public analysis failed</p>
+          <p role="alert" className="text-danger text-sm font-semibold">Public analysis failed</p>
           <p className="text-default-600 text-sm">{getRunStatusDescription(run)}</p>
         </Card.Content>
       </Card>
@@ -345,8 +345,8 @@ function CharacterPicker({
             disabled={isDisabled}
             className={`rounded-large border p-3 text-left transition ${
               selected
-                ? 'border-accent bg-accent/10'
-                : 'border-divider/70 bg-default-50/60 hover:border-accent/50'
+                ? 'border-highlight bg-selected'
+                : 'border-control bg-content1 hover:bg-content2'
             }`}
             onClick={() => onSelect(character)}
           >
@@ -359,7 +359,7 @@ function CharacterPicker({
                 </p>
               </div>
               {selected ? (
-                <Chip size="sm" color="accent" variant="soft">
+                <Chip size="sm" variant="soft" className="text-highlight">
                   Selected
                 </Chip>
               ) : null}
@@ -813,7 +813,12 @@ export function GuestAnalysisPage() {
               {activeRun && runTone ? (
                 <div className="flex flex-col gap-3">
                   <div className="flex flex-wrap gap-2">
-                    <Chip size="sm" color={runTone.color} variant="soft">
+                    <Chip
+                      size="sm"
+                      color={runTone.color}
+                      variant="soft"
+                      className={activeRun.status === 'running' ? 'bg-info-soft text-info' : undefined}
+                    >
                       {runTone.label}
                     </Chip>
                     <Chip size="sm" variant="soft">

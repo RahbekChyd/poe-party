@@ -240,9 +240,9 @@ export function GroupSnapshotPage() {
   const sortIcon = (col: SortKey) => {
     if (sortKey !== col) return <ChevronsUpDown size={12} className="text-default-300" />
     return sortDir === 'asc' ? (
-      <ChevronUp size={12} className="text-primary" />
+      <ChevronUp size={12} className="text-highlight" aria-hidden="true" />
     ) : (
-      <ChevronDown size={12} className="text-primary" />
+      <ChevronDown size={12} className="text-highlight" aria-hidden="true" />
     )
   }
 
@@ -306,8 +306,8 @@ export function GroupSnapshotPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Card className="p-0">
               <Card.Content className="flex flex-row items-center gap-3 p-4">
-                <div className="bg-success/15 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                  <TrendingUp size={18} className="text-success" />
+                <div className="bg-wealth-series/15 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+                  <TrendingUp size={18} className="text-wealth-series" aria-hidden="true" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-default-400 text-xs">{valuationPartial && !valuationUnavailable ? 'Priced subtotal' : 'Total Group Wealth'}</p>
@@ -322,15 +322,15 @@ export function GroupSnapshotPage() {
               </Card.Content>
             </Card>
 
-            <Card className={topTabActive ? 'p-0 ring-primary ring-2' : 'p-0'}>
-              <button type="button" className="w-full text-left" onClick={handleTopTabClick}>
+            <Card className={topTabActive ? 'border-highlight bg-selected p-0' : 'p-0'}>
+              <button type="button" aria-pressed={topTabActive} disabled={!topTab} className="w-full rounded-large text-left" onClick={handleTopTabClick}>
                 <Card.Content className="flex flex-row items-center gap-3 p-4">
-                  <div className="bg-primary/15 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                    <Archive size={18} className="text-primary" />
+                  <div className="bg-content2 text-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+                    <Archive size={18} aria-hidden="true" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-default-400 text-xs">
-                      Top Tab {topTabActive && <span className="text-primary">· filtered</span>}
+                      Top Tab {topTabActive && <span className="text-highlight font-semibold">· filtered</span>}
                     </p>
                     {topTab ? (
                       <>
@@ -347,15 +347,15 @@ export function GroupSnapshotPage() {
               </button>
             </Card>
 
-            <Card className={topItemActive ? 'p-0 ring-warning ring-2' : 'p-0'}>
-              <button type="button" className="w-full text-left" onClick={handleTopItemClick}>
+            <Card className={topItemActive ? 'border-highlight bg-selected p-0' : 'p-0'}>
+              <button type="button" aria-pressed={topItemActive} disabled={!topItem} className="w-full rounded-large text-left" onClick={handleTopItemClick}>
                 <Card.Content className="flex flex-row items-center gap-3 p-4">
-                  <div className="bg-warning/15 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                    <Trophy size={18} className="text-warning" />
+                  <div className="bg-content2 text-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+                    <Trophy size={18} aria-hidden="true" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-default-400 text-xs">
-                      Top Item {topItemActive && <span className="text-warning">· filtered</span>}
+                      Top Item {topItemActive && <span className="text-highlight font-semibold">· filtered</span>}
                     </p>
                     {topItem ? (
                       <>
@@ -462,7 +462,7 @@ export function GroupSnapshotPage() {
                           key={tab}
                           id={tab}
                           textValue={tab}
-                          className={isSelected ? 'bg-accent-soft/70' : undefined}
+                          className={isSelected ? 'bg-selected' : undefined}
                         >
                           <span className="flex w-full min-w-0 items-center gap-3">
                             {col ? (
@@ -482,7 +482,7 @@ export function GroupSnapshotPage() {
                               aria-hidden="true"
                               className={`ml-auto inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-all duration-150 ${
                                 isSelected
-                                  ? 'bg-accent text-accent-foreground ring-accent/20 shadow-sm ring-1'
+                                  ? 'text-highlight border border-current'
                                   : 'scale-90 opacity-0'
                               }`}
                             >
@@ -694,7 +694,7 @@ export function GroupSnapshotPage() {
                           </td>
                           <td role="cell" data-cell="member" className="px-4 py-2">
                             <button
-                              className="focus-visible:outline-primary flex min-w-0 items-center gap-1.5 rounded-sm text-left hover:underline focus-visible:outline-2"
+                              className="flex min-w-0 items-center gap-1.5 rounded-sm text-left hover:underline aria-pressed:underline"
                               type="button"
                               aria-pressed={memberFilter === item.user_id}
                               onClick={() => {
@@ -726,7 +726,7 @@ export function GroupSnapshotPage() {
                             <button
                               type="button"
                               aria-pressed={tabFilters.includes(item.tab_name)}
-                              className="bg-default-100 text-default-700 focus-visible:outline-primary max-w-full cursor-pointer rounded px-2 py-0.5 text-left text-xs font-medium wrap-anywhere hover:underline focus-visible:outline-2"
+                              className="bg-default-100 text-default-700 max-w-full cursor-pointer rounded px-2 py-0.5 text-left text-xs font-medium wrap-anywhere hover:underline aria-pressed:underline"
                               style={tabStyle}
                               onClick={() => {
                                 setTabFilters((prev) =>

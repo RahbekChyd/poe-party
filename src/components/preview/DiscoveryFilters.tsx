@@ -15,7 +15,7 @@ export function FilterDisclosure({
 }) {
   return (
     <details className="group min-w-0">
-      <summary className="border-divider hover:bg-default-50 focus-visible:outline-primary flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-lg border px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden">
+      <summary className="border-control bg-content1 hover:bg-content2 flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-lg border px-3 py-2 text-sm [&::-webkit-details-marker]:hidden">
         <span className="min-w-0 flex-1 wrap-anywhere">
           <span className="text-default-500">{label}</span>{' '}
           <span className="text-foreground font-medium">{value}</span>

@@ -1,5 +1,13 @@
-
 export type WealthHistoryRange = '3h' | '6h' | '12h' | '1d' | '3d' | '7d' | 'all'
+
+const wealthAxisFormatter = new Intl.NumberFormat(undefined, {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+})
+
+export function formatWealthAxisTick(value: number) {
+  return wealthAxisFormatter.format(value)
+}
 
 export const WEALTH_HISTORY_RANGE_OPTIONS: {
   value: WealthHistoryRange

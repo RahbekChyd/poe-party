@@ -7,7 +7,7 @@ import { Chip } from '@heroui/react/chip'
 import { Spinner } from '@heroui/react/spinner'
 import { Popover } from '@heroui/react/popover'
 import { useNinjaPrices } from '../../hooks/useNinjaPrices'
-import { ArrowDownRight, ArrowUpRight, CalendarClock, Minus, TrendingUp } from 'lucide-react'
+import { AlertTriangle, ArrowDownRight, ArrowUpRight, CalendarClock, Minus, TrendingUp } from 'lucide-react'
 import {
   AreaChart,
   Area,
@@ -29,7 +29,7 @@ import {
   getAvatarColor,
   snapshotAge,
 } from '../../lib/utils'
-import { filterHistoryByRange, type WealthHistoryRange } from '../../lib/wealth-history'
+import { filterHistoryByRange, formatWealthAxisTick, type WealthHistoryRange } from '../../lib/wealth-history'
 import { useCurrencyStore } from '../../store/currency-store'
 import { TableSkeleton } from '../layout/Skeletons'
 import { useGroupStore } from '../../store/group-store'
@@ -195,7 +195,8 @@ function Poe1EconomyPage() {
                     <div role="group" aria-label="Snapshot mode" className="flex flex-wrap gap-2">
                       <Button
                         size="sm"
-                        variant={snapshotMode === 'manual' ? 'secondary' : 'tertiary'}
+                        variant="tertiary"
+                        className="aria-pressed:bg-selected aria-pressed:text-highlight aria-pressed:underline"
                         aria-pressed={snapshotMode === 'manual'}
                         onPress={() => setSnapshotMode('manual')}
                       >
@@ -203,7 +204,8 @@ function Poe1EconomyPage() {
                       </Button>
                       <Button
                         size="sm"
-                        variant={snapshotMode === 'mix' ? 'secondary' : 'tertiary'}
+                        variant="tertiary"
+                        className="aria-pressed:bg-selected aria-pressed:text-highlight aria-pressed:underline"
                         aria-pressed={snapshotMode === 'mix'}
                         isDisabled={!isPro}
                         onPress={() => setSnapshotMode('mix')}
@@ -306,13 +308,16 @@ function Poe1EconomyPage() {
         ) : (
           <>
             {valuationPartial && (
-              <p role="status" className="text-warning text-sm">Partial pricing: this subtotal excludes items without available price estimates.</p>
+              <p role="status" className="bg-warning-soft text-warning flex items-start gap-2 rounded-lg px-4 py-3 text-sm">
+                <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+                Partial pricing: this subtotal excludes items without available price estimates.
+              </p>
             )}
             {/* Group total */}
             <Card className="p-0">
               <Link
                 to="/dashboard/economy/group"
-                className="block w-full text-left focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-primary"
+                className="block w-full rounded-large text-left"
               >
                 <Card.Content className="flex flex-row flex-wrap items-center gap-3 p-4">
                   <div className="min-w-0">
@@ -370,30 +375,31 @@ function Poe1EconomyPage() {
                   <ResponsiveContainer width="100%" height={200}>
                     <AreaChart
                       data={visibleGroupHistory}
+                      title="Group wealth in chaos orbs"
+                      desc="Use the left and right arrow keys to read snapshot values."
                       margin={{ top: 4, right: 12, left: 0, bottom: 0 }}
                     >
                       <defs>
                         <linearGradient id="groupWealthGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#17c964" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#17c964" stopOpacity={0} />
+                          <stop offset="5%" stopColor="var(--wealth-series)" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="var(--wealth-series)" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
                       <XAxis
                         dataKey="created_at"
                         tickFormatter={(v: string) => {
                           const d = new Date(v)
                           return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
                         }}
-                        tick={{ fontSize: 10, fill: '#888' }}
+                        tick={{ fontSize: 10, fill: 'var(--muted-text)' }}
                         axisLine={false}
                         tickLine={false}
                       />
                       <YAxis
-                        tickFormatter={(v: number) =>
-                          v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))
-                        }
-                        tick={{ fontSize: 10, fill: '#888' }}
+                        tickFormatter={formatWealthAxisTick}
+                        unit="c"
+                        tick={{ fontSize: 10, fill: 'var(--muted-text)' }}
                         axisLine={false}
                         tickLine={false}
                         width={44}
@@ -409,10 +415,14 @@ function Poe1EconomyPage() {
                             minute: '2-digit',
                           })
                           return (
-                            <div className="bg-content1 border-divider rounded-lg border px-3 py-2 text-xs shadow-lg">
+                            <div role="status" className="bg-overlay border-divider rounded-lg border px-3 py-2 text-xs shadow-lg">
                               <p className="text-default-400 mb-1">{label}</p>
                               <p className="text-foreground font-semibold">
-                                {fmt(point.total_wealth_chaos)}
+                                {point.pricing_summary?.status === 'unavailable'
+                                  ? 'Pricing unavailable'
+                                  : point.pricing_summary?.status === 'partial'
+                                    ? `Priced subtotal: ${fmt(point.total_wealth_chaos)}`
+                                    : fmt(point.total_wealth_chaos)}
                               </p>
                               <p className="text-default-400 mt-0.5">
                                 {point.member_count} member{point.member_count !== 1 ? 's' : ''}
@@ -429,11 +439,11 @@ function Poe1EconomyPage() {
                       <Area
                         type="monotone"
                         dataKey="total_wealth_chaos"
-                        stroke="#17c964"
+                        stroke="var(--wealth-series)"
                         fill="url(#groupWealthGrad)"
                         strokeWidth={2}
-                        dot={{ r: 3, fill: '#17c964' }}
-                        activeDot={{ r: 6, fill: '#17c964', stroke: 'white', strokeWidth: 2 }}
+                        dot={{ r: 3, fill: 'var(--wealth-series)' }}
+                        activeDot={{ r: 6, fill: 'var(--wealth-series)', stroke: 'var(--surface)', strokeWidth: 2 }}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -488,7 +498,7 @@ function Poe1EconomyPage() {
                             <Link
                               to="/dashboard/economy/$userId"
                               params={{ userId: row.user_id }}
-                              className="flex min-w-0 items-center gap-2 rounded-sm hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+                              className="flex min-w-0 items-center gap-2 rounded-sm hover:underline"
                             >
                               <UserAvatar
                                 className="shrink-0"

@@ -16,7 +16,7 @@ import { Modal } from '@heroui/react/modal'
 import { Spinner } from '@heroui/react/spinner'
 import { ToggleButton } from '@heroui/react/toggle-button'
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
-import { ArrowRight, ChevronDown, Info, Trash2 } from 'lucide-react'
+import { ArrowRight, Check, ChevronDown, Circle, Info, Trash2 } from 'lucide-react'
 import { useGroupStore } from '../../store/group-store'
 import { useCurrentUser } from '../../hooks/useCurrentUser'
 import { useGroupMembers, useMyGroupRole, useMyGroups } from '../../hooks/useGroups'
@@ -182,12 +182,12 @@ function AccordionPanelItem({
 
 const RUN_STATUS_COLORS: Record<
   'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'stale',
-  'default' | 'warning' | 'success' | 'danger' | 'accent'
+  'default' | 'warning' | 'success' | 'danger'
 > = {
   queued: 'default',
-  running: 'warning',
+  running: 'default',
   completed: 'success',
-  partial: 'accent',
+  partial: 'warning',
   failed: 'danger',
   stale: 'warning',
 }
@@ -1736,7 +1736,6 @@ function RunActivityStrip({
   estimatedLabel,
   onCancel,
   cancelLoading,
-  phase = 'running',
   timeline,
   elapsedLabel,
 }: {
@@ -1746,17 +1745,15 @@ function RunActivityStrip({
   estimatedLabel?: string | null
   onCancel?: () => void
   cancelLoading?: boolean
-  phase?: 'submitting' | 'queued' | 'running'
   timeline?: Array<{ id: string; label: string; status: 'done' | 'active' | 'pending' }>
   elapsedLabel?: string | null
 }) {
-  const isWarm = phase !== 'submitting'
   return (
-    <div className="rounded-medium border-divider bg-content1 border p-3">
+    <div className={`rounded-medium border p-3 ${waitLabel ? 'border-warning/40 bg-warning-soft' : 'border-divider bg-content1'}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <div className="mt-0.5 shrink-0" aria-hidden="true">
-            <Spinner size="sm" color={isWarm ? 'warning' : 'current'} />
+            <Spinner size="sm" color={waitLabel ? 'warning' : 'current'} className={waitLabel ? 'text-warning' : 'text-info'} />
           </div>
           <div className="min-w-0 wrap-anywhere">
             <p role="status" className="text-foreground text-sm font-semibold">{title}</p>
@@ -1765,17 +1762,17 @@ function RunActivityStrip({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {elapsedLabel ? (
-            <Chip size="sm" variant="soft" color={isWarm ? 'warning' : 'default'}>
+            <Chip size="sm" variant="soft">
               Elapsed {elapsedLabel}
             </Chip>
           ) : null}
           {estimatedLabel ? (
-            <Chip size="sm" variant="soft" color={isWarm ? 'warning' : 'default'}>
+            <Chip size="sm" variant="soft">
               {estimatedLabel}
             </Chip>
           ) : null}
           {waitLabel ? (
-            <Chip size="sm" variant="soft" color={isWarm ? 'warning' : 'default'}>
+            <Chip size="sm" variant="soft" color="warning">
               {waitLabel}
             </Chip>
           ) : null}
@@ -1793,24 +1790,16 @@ function RunActivityStrip({
           <summary className="cursor-pointer text-sm font-medium">Run progress</summary>
           <ol className="mt-2 flex flex-col gap-1.5">
             {timeline.map((step) => {
-              const dotClass =
-                step.status === 'done'
-                  ? 'bg-success'
-                  : step.status === 'active'
-                    ? isWarm
-                      ? 'bg-warning animate-pulse'
-                      : 'bg-default-500 animate-pulse'
-                    : 'bg-default-300'
-              const textClass =
-                step.status === 'active'
-                  ? 'text-foreground font-semibold'
-                  : step.status === 'done'
-                    ? 'text-default-600'
-                    : 'text-default-400'
+              const active = step.status === 'active'
+              const StepIcon = step.status === 'done' ? Check : active ? ArrowRight : Circle
+              const iconClass = step.status === 'done' ? 'text-success' : active ? 'text-info' : 'text-default-400'
               return (
-                <li key={step.id} className="flex items-center gap-2 text-xs">
-                  <span className={`inline-flex h-2 w-2 shrink-0 rounded-full ${dotClass}`} />
-                  <span className={textClass}>{step.label}</span>
+                <li key={step.id} aria-current={active ? 'step' : undefined} className="flex items-center gap-2 text-xs">
+                  <StepIcon size={12} className={`shrink-0 ${iconClass}`} aria-hidden="true" />
+                  <span className={active ? 'text-foreground font-semibold' : 'text-default-500'}>
+                    <span className="sr-only">{active ? 'In progress' : step.status === 'done' ? 'Completed' : 'Pending'}: </span>
+                    {step.label}
+                  </span>
                 </li>
               )
             })}
@@ -2910,7 +2899,7 @@ export function GearRecommendationsPanel() {
           <Dropdown>
             <Dropdown.Trigger
               aria-label="Select budget currency"
-              className="text-default-400 hover:text-foreground focus-visible:ring-primary/40 rounded-small inline-flex cursor-pointer items-center gap-1 px-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+              className="text-default-400 hover:text-foreground rounded-small inline-flex cursor-pointer items-center gap-1 px-1 text-xs font-medium transition-colors"
             >
               {budgetCurrency}
               <ChevronDown size={12} />
@@ -3576,10 +3565,10 @@ export function GearRecommendationsPanel() {
                     key={run.id}
                     type="button"
                     aria-pressed={run.id === selectedRun?.id}
-                    className={`rounded-large border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-primary ${
+                    className={`rounded-large border p-3 text-left transition-colors ${
                       run.id === selectedRun?.id
-                        ? 'border-warning/60 bg-warning/10'
-                        : 'border-divider'
+                        ? 'border-highlight bg-selected'
+                        : 'border-control bg-content1 hover:bg-content2'
                     }`}
                     onClick={() => setSelectedRunId(run.id)}
                   >
@@ -3589,6 +3578,7 @@ export function GearRecommendationsPanel() {
                           size="sm"
                           color={RUN_STATUS_COLORS[run.status]}
                           variant="soft"
+                          className={run.status === 'running' ? 'bg-info-soft text-info' : undefined}
                         >
                           {run.status}
                         </Chip>
@@ -3600,13 +3590,13 @@ export function GearRecommendationsPanel() {
                         <Chip
                           size="sm"
                           variant="soft"
-                          color={run.analysis_mode === 'thorough' ? 'accent' : 'default'}
                         >
                           {run.analysis_mode === 'thorough' ? 'Live' : 'Quick'}
                         </Chip>
                       </div>
-                      <span className="text-default-400 text-xs">
+                      <span className="text-default-400 flex items-center gap-2 text-xs">
                         {formatRelativeTimestamp(run.created_at)}
+                        {run.id === selectedRun?.id && <Check size={14} className="text-highlight" aria-hidden="true" />}
                       </span>
                     </div>
                     <p className="text-foreground mt-2 text-sm font-medium">
@@ -3632,7 +3622,6 @@ export function GearRecommendationsPanel() {
       ) : null}
       {latestLiveRun ? (
         <RunActivityStrip
-          phase={latestLiveRun.summary?.queue_submission_pending === true ? 'submitting' : latestLiveRun.status === 'running' ? 'running' : 'queued'}
           title={
             latestLiveRun.summary?.queue_submission_pending === true
               ? 'Preparing your analysis'
@@ -3765,7 +3754,7 @@ export function GearRecommendationsPanel() {
                   <div
                     key={target.id}
                     className={`rounded-large border p-3 ${
-                      target.is_selected ? 'border-warning/60 bg-warning/10' : 'border-divider'
+                      target.is_selected ? 'border-highlight bg-selected' : 'border-divider bg-content1'
                     }`}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -3773,7 +3762,7 @@ export function GearRecommendationsPanel() {
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-foreground wrap-anywhere text-sm font-semibold">{target.name}</p>
                           {target.is_selected ? (
-                            <Chip size="sm" color="warning" variant="soft">
+                            <Chip size="sm" variant="soft" className="text-highlight">
                               Selected
                             </Chip>
                           ) : null}
@@ -4022,18 +4011,14 @@ export function GearRecommendationsPanel() {
                           <ToggleButton
                             key={option.key}
                             id={option.key}
-                            className="rounded-large border-divider bg-content1 data-[selected=true]:border-warning/60 data-[selected=true]:bg-warning/10 h-auto min-w-0 w-full justify-start border p-3 text-left whitespace-normal"
+                            className="rounded-large border-control data-[selected=true]:border-highlight h-auto min-w-0 w-full justify-start border p-3 text-left whitespace-normal [--toggle-button-bg:var(--surface)] [--toggle-button-bg-hover:var(--surface-secondary)]"
                           >
                             <span className="flex w-full min-w-0 flex-col gap-2">
                               <span className="flex flex-wrap items-center justify-between gap-2">
                                 <span className="text-foreground text-sm font-semibold">
                                   {option.label}
                                 </span>
-                                <Chip
-                                  size="sm"
-                                  variant="soft"
-                                  color={option.key === 'thorough' ? 'accent' : 'default'}
-                                >
+                                <Chip size="sm" variant="soft">
                                   {option.key === 'thorough' ? 'Minutes' : 'Fast'}
                                 </Chip>
                               </span>
@@ -4396,8 +4381,8 @@ export function GearRecommendationsPanel() {
                 ) : recommendationsLoading && selectedRun.status !== 'failed' ? (
                   <LiveRecommendationsSkeleton />
                 ) : selectedRun.status === 'failed' ? (
-                  <div className="rounded-large border-danger/40 bg-danger/10 border p-4">
-                    <p className="text-foreground text-sm font-semibold">
+                  <div className="rounded-large border-danger/40 bg-danger-soft border p-4">
+                    <p role="alert" className="text-danger text-sm font-semibold">
                       {selectedRunFailureCopy.title}
                     </p>
                     <p className="text-default-600 mt-1 text-sm">
@@ -4523,13 +4508,9 @@ export function GearRecommendationsPanel() {
                         </p>
                       </details>
                     ) : null}
-                    <div
-                      className={`${
-                        selectedRun.status === 'stale' ? 'opacity-80' : ''
-                      } flex flex-col gap-5 sm:gap-6`}
-                    >
+                    <div className="flex flex-col gap-5 sm:gap-6">
                       {setupNotePlans.length > 0 ? (
-                        <div className="rounded-large border-accent/40 bg-accent/10 border p-4">
+                        <div className="rounded-large border-info/40 bg-info-soft border p-4">
                           <p className="text-foreground text-sm font-semibold">Setup notes</p>
                           <p className="text-default-600 mt-1 text-sm">
                             These are broader setup prerequisites, bundles, or support fixes, not
@@ -4542,7 +4523,7 @@ export function GearRecommendationsPanel() {
                                 className="rounded-large border-divider/70 bg-content1/70 border p-3"
                               >
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <Chip size="sm" variant="soft" color="accent">
+                                  <Chip size="sm" variant="soft">
                                     {plan.kind === 'bundle' ? 'Bundle' : 'Setup'}
                                   </Chip>
                                   {plan.breaks_requirements ? (

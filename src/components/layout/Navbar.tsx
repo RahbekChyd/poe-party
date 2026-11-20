@@ -68,11 +68,11 @@ export function Navbar() {
     ? liveRun.status === 'queued'
       ? 'Analysis queued'
       : 'Analysis running'
-    : recentlyCompletedRun
-      ? 'Analysis ready'
-      : null
-
-  const analysisChipColor: 'warning' | 'success' = liveRun ? 'warning' : 'success'
+    : recentlyCompletedRun?.status === 'partial'
+      ? 'Partial analysis ready'
+      : recentlyCompletedRun
+        ? 'Analysis ready'
+        : null
 
   const mySnapshot = snapshots?.find((s) => s.user_id === currentUserId)
 
@@ -112,19 +112,20 @@ export function Navbar() {
           ? `${snapshotAgeMinutes}m ago`
           : `${Math.floor(snapshotAgeMinutes / 60)}h ago`
 
+  const isScheduled = mode === 'mix' && isEligible
   const chipLabel = isBusy
     ? progress.message || 'Syncing…'
-    : mode === 'mix' && isEligible && countdownLabel
+    : isScheduled && countdownLabel
       ? `Next snapshot: ${countdownLabel}`
       : `Last snapshot: ${ageLabel}`
-  const chipColor = isBusy ? 'warning' : mode === 'mix' && isEligible ? 'accent' : freshnessColor
+  const snapshotIsInformational = isBusy || isScheduled
 
   const userDisplayName = profile?.display_name ?? profile?.poe_account_name ?? '?'
   const canOpenSupport = hasActiveProAccess(profile) || isBillingAvailableForProfile(profile)
 
   return (
     <>
-      <header className="border-divider bg-content1 flex min-h-14 shrink-0 items-center gap-2 border-b px-3 py-1.5 sm:gap-3 sm:px-4">
+      <header className="border-divider bg-navigation flex min-h-14 shrink-0 items-center gap-2 border-b px-3 py-1.5 sm:gap-3 sm:px-4">
         <div className="mr-auto flex min-w-0 flex-1 items-center gap-2">
           <div className="inline-flex min-w-0 items-center">
             <GroupSwitcher />
@@ -170,23 +171,19 @@ export function Navbar() {
             <div className="hidden min-w-0 items-center lg:inline-flex">
               <Link
                 to="/dashboard/analysis"
-                className="focus-visible:outline-primary block max-w-44 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+                className="block max-w-44 rounded-lg hover:underline"
                 aria-label={analysisChipLabel}
               >
                 <Chip
-                  className="h-8 max-w-44 cursor-pointer justify-start px-3 transition-opacity hover:opacity-80"
+                  className={`h-8 max-w-44 cursor-pointer justify-start px-3 ${liveRun ? 'bg-info-soft text-info' : ''}`}
                   size="sm"
                   variant="soft"
-                  color={analysisChipColor}
+                  color={liveRun ? 'default' : recentlyCompletedRun?.status === 'partial' ? 'warning' : 'success'}
                 >
                   {liveRun ? (
-                    <span className="mr-1.5 flex h-2 w-2 items-center justify-center">
-                      <span
-                        className={`block h-2 w-2 animate-pulse rounded-full ${analysisChipColor === 'warning' ? 'bg-warning' : 'bg-success'}`}
-                      />
-                    </span>
+                    <span className="mr-1.5 size-2 shrink-0 animate-pulse rounded-full bg-info" aria-hidden="true" />
                   ) : (
-                    <FlaskConical size={12} className="mr-1.5 shrink-0" />
+                    <FlaskConical size={12} className="mr-1.5 shrink-0" aria-hidden="true" />
                   )}
                   <span className="truncate">{analysisChipLabel}</span>
                 </Chip>
@@ -196,10 +193,10 @@ export function Navbar() {
 
           <div className="hidden min-w-0 items-center xl:inline-flex">
             <Chip
-              className="h-8 max-w-52 justify-start px-3"
+              className={`h-8 max-w-52 justify-start px-3 ${snapshotIsInformational ? 'bg-info-soft text-info' : ''}`}
               size="sm"
               variant="soft"
-              color={chipColor}
+              color={snapshotIsInformational ? 'default' : freshnessColor}
             >
               <span className="truncate">{chipLabel}</span>
             </Chip>

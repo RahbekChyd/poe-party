@@ -33,6 +33,7 @@ export function ResponsiveFilter<Value extends string>({
           {options.map(({ value, label }) => (
             <ListBox.Item key={value} id={value} textValue={label}>
               {label}
+              <ListBox.ItemIndicator />
             </ListBox.Item>
           ))}
         </SelectField>

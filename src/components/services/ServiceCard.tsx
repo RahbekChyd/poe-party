@@ -53,7 +53,7 @@ function MapCarryBody({ service }: { service: PublicServiceRow }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap gap-1.5">
-        <Chip size="sm" variant="soft" color="warning" className={CARD_CHIP_CLASS_NAME}>
+        <Chip size="sm" variant="soft" className={CARD_CHIP_CLASS_NAME}>
           {d.variant === 'valdo' ? 'Valdo' : 'General'}
         </Chip>
         {nonVoid ? (
@@ -73,7 +73,7 @@ function MapCarryBody({ service }: { service: PublicServiceRow }) {
           </Chip>
         ) : null}
         {d.refund_policy ? (
-          <Chip size="sm" variant="soft" color="success" className={CARD_CHIP_CLASS_NAME}>
+          <Chip size="sm" variant="soft" className={CARD_CHIP_CLASS_NAME}>
             {d.refund_policy}
           </Chip>
         ) : null}
@@ -103,7 +103,7 @@ function FiveWayBody({ service }: { service: PublicServiceRow }) {
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-1.5">
         {service.price_divine != null ? (
-          <Chip size="sm" variant="soft" color="accent" className={CARD_CHIP_CLASS_NAME}>
+          <Chip size="sm" variant="soft" className={CARD_CHIP_CLASS_NAME}>
             <span className="inline-flex items-center gap-1">
               {service.price_divine}
               <DivineOrbIcon size={16} />
@@ -142,7 +142,7 @@ function GoldRotaBody({ service }: { service: PublicServiceRow }) {
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-1.5">
         {service.price_divine != null ? (
-          <Chip size="sm" variant="soft" color="success" className={CARD_CHIP_CLASS_NAME}>
+          <Chip size="sm" variant="soft" className={CARD_CHIP_CLASS_NAME}>
             <DivinePrice amount={service.price_divine} iconSize={12} />
           </Chip>
         ) : null}
@@ -201,7 +201,7 @@ export function ServiceCard({
   const game = service.group_game
 
   return (
-    <Card className="hover:bg-default-50 p-0 transition-colors">
+    <Card className="p-0">
       <Card.Content className="gap-0 p-0">
         <div className="flex flex-col gap-4 p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -213,7 +213,6 @@ export function ServiceCard({
                   <Chip
                     size="sm"
                     variant="soft"
-                    color="accent"
                     className={CARD_CHIP_CLASS_NAME}
                   >
                     Yours

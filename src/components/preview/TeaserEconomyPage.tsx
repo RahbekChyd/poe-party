@@ -5,6 +5,7 @@ import { TrendingUp } from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts'
 import { previewHistory, previewMembers, previewWorkspace } from '../../lib/preview-fixtures'
 import { formatCurrencyAmount } from '../../lib/utils'
+import { formatWealthAxisTick } from '../../lib/wealth-history'
 import { PreviewPageIntro, UnlockCard } from './PreviewShared'
 import { useGuestGateStore } from '../../store/guest-gate-store'
 import '../economy/economy-data.css'
@@ -24,8 +25,8 @@ export function TeaserEconomyPage() {
       <Card className="p-0">
         <Card.Content className="flex flex-row flex-wrap items-center gap-3 p-4">
           <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-3">
-            <div className="bg-success/15 flex size-10 shrink-0 items-center justify-center rounded-lg">
-              <TrendingUp size={20} className="text-success" aria-hidden="true" />
+            <div className="bg-wealth-series/15 flex size-10 shrink-0 items-center justify-center rounded-lg">
+              <TrendingUp size={20} className="text-wealth-series" aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <h2 className="text-default-500 text-xs font-medium tracking-wider uppercase">Sample stash value</h2>
@@ -56,26 +57,32 @@ export function TeaserEconomyPage() {
         </Card.Header>
         <Card.Content className="px-2 pb-3 pt-2">
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={previewHistory} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
+            <AreaChart
+              data={previewHistory}
+              title="Sample stash wealth in chaos orbs"
+              desc="Use the left and right arrow keys to read snapshot values."
+              margin={{ top: 4, right: 12, left: 0, bottom: 0 }}
+            >
               <defs>
                 <linearGradient id="previewEconomyHistory" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#17c964" stopOpacity={0.24} />
-                  <stop offset="95%" stopColor="#17c964" stopOpacity={0} />
+                  <stop offset="5%" stopColor="var(--wealth-series)" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="var(--wealth-series)" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
               <XAxis
                 dataKey="created_at"
                 tickFormatter={(value: string) =>
                   new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
                 }
-                tick={{ fontSize: 10, fill: '#888' }}
+                tick={{ fontSize: 10, fill: 'var(--muted-text)' }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tickFormatter={(value: number) => `${Math.round(value / 1000)}k`}
-                tick={{ fontSize: 10, fill: '#888' }}
+                tickFormatter={formatWealthAxisTick}
+                unit="c"
+                tick={{ fontSize: 10, fill: 'var(--muted-text)' }}
                 axisLine={false}
                 tickLine={false}
                 width={44}
@@ -85,7 +92,7 @@ export function TeaserEconomyPage() {
                   if (!active || !payload?.length) return null
                   const point = payload[0].payload as (typeof previewHistory)[number]
                   return (
-                    <div className="rounded-large border border-divider bg-content1 px-3 py-2 text-xs shadow-lg">
+                    <div role="status" className="bg-overlay border-divider rounded-large border px-3 py-2 text-xs shadow-lg">
                       <p className="text-default-400">
                         {new Date(point.created_at).toLocaleString(undefined, {
                           month: 'short',
@@ -104,10 +111,11 @@ export function TeaserEconomyPage() {
               <Area
                 type="monotone"
                 dataKey="total_wealth_chaos"
-                stroke="#17c964"
+                stroke="var(--wealth-series)"
                 fill="url(#previewEconomyHistory)"
                 strokeWidth={2}
-                dot={{ r: 3, fill: '#17c964' }}
+                dot={{ r: 3, fill: 'var(--wealth-series)' }}
+                activeDot={{ r: 6, fill: 'var(--wealth-series)', stroke: 'var(--surface)', strokeWidth: 2 }}
               />
             </AreaChart>
           </ResponsiveContainer>

@@ -28,7 +28,7 @@ function BossCarrySection({ service }: { service: PublicServiceRow }) {
                   <p className="text-xs text-default-500">{boss.note}</p>
                 </div>
                 {boss.price_divine != null ? (
-                  <Chip size="sm" variant="soft" color="warning">
+                  <Chip size="sm" variant="soft">
                     <DivinePrice amount={boss.price_divine} iconSize={16} />
                   </Chip>
                 ) : null}
@@ -81,7 +81,7 @@ function FiveWaySection({ service }: { service: PublicServiceRow }) {
       <Card.Content className="gap-3">
         <p className="text-sm font-medium text-foreground">Pricing & party fill</p>
         {service.price_divine != null ? (
-          <Chip size="sm" variant="soft" color="accent" className="self-start">
+          <Chip size="sm" variant="soft" className="self-start">
             <span className="inline-flex items-center gap-1">
               <DivinePrice amount={service.price_divine} iconSize={16} />
               <span className="text-default-400">/ {d.runs_per_bundle} runs</span>
@@ -104,7 +104,7 @@ function FiveWaySection({ service }: { service: PublicServiceRow }) {
               <ul className="mt-2 space-y-1">
                 {d.extra_guarantees.map((guarantee, idx) => (
                   <li key={idx} className="flex items-start gap-2 text-sm text-default-600">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                    <span className="bg-control mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" aria-hidden="true" />
                     <span className="min-w-0 wrap-anywhere">{guarantee}</span>
                   </li>
                 ))}
@@ -126,7 +126,7 @@ function GoldRotaSection({ service }: { service: PublicServiceRow }) {
       <Card.Content className="gap-3">
         <p className="text-sm font-medium text-foreground">Pricing & party fill</p>
         {service.price_divine != null ? (
-          <Chip size="sm" variant="soft" color="success" className="self-start">
+          <Chip size="sm" variant="soft" className="self-start">
             <DivinePrice amount={service.price_divine} iconSize={16} />
           </Chip>
         ) : null}
@@ -143,7 +143,7 @@ function GoldRotaSection({ service }: { service: PublicServiceRow }) {
         ) : null}
 
         {d.trade_only_with ? (
-          <div className="rounded-medium bg-warning/10 px-3 py-2 text-sm text-warning-700 dark:text-warning">
+          <div className="rounded-medium bg-warning-soft text-warning px-3 py-2 text-sm">
             Trade only with: <span className="font-medium">{d.trade_only_with}</span>
           </div>
         ) : null}

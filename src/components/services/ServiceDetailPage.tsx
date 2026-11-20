@@ -442,7 +442,7 @@ export function ServiceDetailPage() {
         />
       ) : null}
 
-      <Card className="border-warning/30 bg-warning/5 border">
+      <Card className="border-info/30 bg-info-soft border">
         <Card.Content className="flex min-w-0 flex-wrap gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-foreground text-sm font-medium">Whisper preview</p>

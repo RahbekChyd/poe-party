@@ -21,6 +21,7 @@ import {
 } from '../../lib/preview-fixtures'
 import { DIFFICULTY_CHIP, IMPORTANCE_CHIP, STATUS_COLOR } from '../../lib/constants'
 import { formatCurrencyAmount } from '../../lib/utils'
+import { formatWealthAxisTick } from '../../lib/wealth-history'
 import { getPreviewItemImage } from '../../lib/preview-item-images'
 import { PreviewPageIntro, UnlockCard } from './PreviewShared'
 const divinePrice = 205
@@ -47,8 +48,8 @@ export function TeaserOverviewPage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Card>
           <Card.Content className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
-            <div className="rounded-large bg-success/15 flex size-9 shrink-0 items-center justify-center">
-              <TrendingUp size={18} className="text-success" />
+            <div className="rounded-large bg-wealth-series/15 flex size-9 shrink-0 items-center justify-center">
+              <TrendingUp size={18} className="text-wealth-series" aria-hidden="true" />
             </div>
             <div>
               <p className="text-default-400 text-xs">Sample wealth</p>
@@ -93,32 +94,37 @@ export function TeaserOverviewPage() {
           <div>
             <p className="text-foreground text-sm font-semibold">Sample wealth trend</p>
             <p className="text-default-500 mt-1 text-sm">
-              Stash value from recent snapshots.
+              Stash value in Chaos Orbs from recent snapshots.
             </p>
           </div>
         </Card.Header>
         <Card.Content>
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={previewHistory} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
+            <AreaChart
+              title="Sample stash value in Chaos Orbs"
+              desc="Use the left and right arrow keys to read snapshot values."
+              data={previewHistory}
+              margin={{ top: 4, right: 12, left: 0, bottom: 0 }}
+            >
               <defs>
                 <linearGradient id="previewOverviewHistory" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#17c964" stopOpacity={0.24} />
-                  <stop offset="95%" stopColor="#17c964" stopOpacity={0} />
+                  <stop offset="5%" stopColor="var(--wealth-series)" stopOpacity={0.24} />
+                  <stop offset="95%" stopColor="var(--wealth-series)" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
               <XAxis
                 dataKey="created_at"
                 tickFormatter={(value: string) =>
                   new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
                 }
-                tick={{ fontSize: 10, fill: '#888' }}
+                tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tickFormatter={(value: number) => `${Math.round(value / 1000)}k`}
-                tick={{ fontSize: 10, fill: '#888' }}
+                tickFormatter={formatWealthAxisTick}
+                tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
                 axisLine={false}
                 tickLine={false}
                 width={42}
@@ -128,7 +134,7 @@ export function TeaserOverviewPage() {
                   if (!active || !payload?.length) return null
                   const point = payload[0].payload as (typeof previewHistory)[number]
                   return (
-                    <div className="rounded-large border-divider bg-content1 border px-3 py-2 text-xs shadow-lg">
+                    <div role="status" className="rounded-large border-divider bg-overlay border px-3 py-2 text-xs shadow-lg">
                       <p className="text-default-400">
                         {new Date(point.created_at).toLocaleString(undefined, {
                           month: 'short',
@@ -147,10 +153,11 @@ export function TeaserOverviewPage() {
               <Area
                 type="monotone"
                 dataKey="total_wealth_chaos"
-                stroke="#17c964"
+                name="Stash value"
+                stroke="var(--wealth-series)"
                 fill="url(#previewOverviewHistory)"
                 strokeWidth={2}
-                dot={{ r: 3, fill: '#17c964' }}
+                dot={{ r: 3, fill: 'var(--wealth-series)' }}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -173,7 +180,7 @@ export function TeaserOverviewPage() {
               <Card.Content className="gap-1.5">
                 <div className="flex flex-wrap items-center gap-2">
                   {sampleStrategy.is_active ? (
-                    <Star size={14} className="fill-primary text-primary shrink-0" />
+                    <Star size={14} className="fill-highlight text-highlight shrink-0" aria-hidden="true" />
                   ) : null}
                   <p className="text-foreground min-w-0 flex-1 wrap-anywhere text-sm font-medium">
                     {sampleStrategy.name}
@@ -197,7 +204,7 @@ export function TeaserOverviewPage() {
                     )}
                     /hr
                   </Chip>
-                  <Chip size="sm" variant="soft" color="accent">
+                  <Chip size="sm" variant="soft" className="bg-selected text-highlight">
                     Active
                   </Chip>
                 </div>

@@ -88,6 +88,7 @@ function OwnedStrategyCard({
         ? 'danger'
         : 'default'
   const isSubscribed = !!strategy.source_strategy_id
+  const isActive = strategy.id === currentStrategyId
   const visibilityLabel = isSubscribed
     ? strategy.subscription_state === 'frozen'
       ? 'Frozen'
@@ -105,7 +106,7 @@ function OwnedStrategyCard({
   const hasAlternativeThreads = strategy.threads.some((thread) => thread.alternatives.length > 0)
 
   return (
-    <Card>
+    <Card className={isActive ? 'border-highlight' : undefined}>
       <Card.Content className="gap-0 p-0">
         <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5 pb-4">
           <div className="min-w-0 basis-full wrap-anywhere sm:flex-1">
@@ -138,7 +139,7 @@ function OwnedStrategyCard({
                     <span className="text-default-400 ml-1 text-xs">(primary)</span>
                   ) : null}
                   {hasPartialPrices ? (
-                    <span className="text-default-400 ml-1 text-xs">(partial)</span>
+                    <span className="text-warning ml-1 text-xs">(partial)</span>
                   ) : null}
                 </Chip>
               ) : null}
@@ -172,7 +173,7 @@ function OwnedStrategyCard({
                 isPending={settingCurrent}
                 onPress={() => onSetCurrent(strategy.id)}
               >
-                {strategy.id === currentStrategyId ? 'Clear active strategy' : 'Set active'}
+                {isActive ? 'Clear active strategy' : 'Set active'}
               </Button>
             ) : null}
             <Link
@@ -247,7 +248,7 @@ function PublicStrategyCard({
   }
 
   return (
-    <Card className="hover:bg-default-50 p-0 transition-colors">
+    <Card className="p-0">
       <Card.Content className="gap-0 p-0">
         <div className="flex flex-wrap items-start justify-between gap-3 p-4">
           <div className="min-w-0 basis-full wrap-anywhere sm:flex-1">
@@ -257,7 +258,7 @@ function PublicStrategyCard({
                 {diffChip.label}
               </Chip>
               {isOwned ? (
-                <Chip size="sm" variant="soft" color="accent">
+                <Chip size="sm" variant="soft">
                   Yours
                 </Chip>
               ) : null}

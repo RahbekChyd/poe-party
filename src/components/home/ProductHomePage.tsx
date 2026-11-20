@@ -19,6 +19,7 @@ import { getLoginHref } from '../../lib/auth-redirect'
 import { trackPublicEvent } from '../../lib/analytics'
 import { GITHUB_URL } from '../../lib/seo'
 import { Footer } from '../layout/Footer'
+import { BrassOrbit } from '../shared/BrassOrbit'
 
 const loop = [
   {
@@ -125,7 +126,7 @@ export function ProductHomePage() {
               </summary>
               <nav
                 aria-label="Explore PoE Party on mobile"
-                className="border-divider bg-content1 absolute top-12 right-0 flex w-52 flex-col rounded-xl border p-2 shadow-lg"
+                className="border-divider bg-content4 absolute top-12 right-0 flex w-52 flex-col rounded-xl border p-2 shadow-lg"
               >
                 {productLinks.map((item) => (
                   <Link
@@ -145,7 +146,7 @@ export function ProductHomePage() {
       </header>
 
       <main id="main-content">
-        <section className="px-4 py-12 sm:px-6 sm:py-20">
+        <section className="overflow-clip px-4 py-12 sm:px-6 sm:py-20">
           <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[1.08fr_0.92fr]">
             <div className="max-w-3xl">
               <h1 className="text-foreground text-4xl leading-[1.08] font-semibold tracking-tight sm:text-6xl">
@@ -192,34 +193,37 @@ export function ProductHomePage() {
               </div>
             </div>
 
-            <section aria-labelledby="sample-today" className="border-divider bg-content1 overflow-hidden rounded-xl border">
-              <header className="border-divider flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4">
-                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <h2 id="sample-today" className="text-foreground text-lg font-semibold">Today</h2>
-                  <span className="text-default-500 text-xs">Sample workspace</span>
+            <div className="relative isolate min-w-0">
+              <BrassOrbit placement="sample" />
+              <section aria-labelledby="sample-today" className="border-divider bg-content1 overflow-hidden rounded-xl border">
+                <header className="border-divider flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4">
+                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <h2 id="sample-today" className="text-foreground text-lg font-semibold">Today</h2>
+                    <span className="text-default-500 text-xs">Sample workspace</span>
+                  </div>
+                  <span className="text-default-500 text-xs">PoE1 · Covens</span>
+                </header>
+                <dl className="divide-divider divide-y px-5">
+                  <div className="grid gap-1 py-4 sm:grid-cols-[9rem_minmax(0,1fr)]">
+                    <dt className="text-default-500 text-sm">Active strategy</dt>
+                    <dd className="text-foreground text-sm font-semibold">Essence farming</dd>
+                  </div>
+                  <div className="grid gap-1 py-4 sm:grid-cols-[9rem_minmax(0,1fr)]">
+                    <dt className="text-default-500 text-sm">Latest linked result</dt>
+                    <dd>
+                      <p className="text-foreground text-lg leading-6 font-semibold tabular-nums">1,240 chaos</p>
+                      <p className="text-default-500 mt-0.5 text-xs">Stash value · Captured at 20:14 UTC</p>
+                    </dd>
+                  </div>
+                </dl>
+                <div className="border-divider flex flex-wrap items-center justify-between gap-3 border-t p-5">
+                  <p className="text-default-500 text-sm">Review how the run went.</p>
+                  <Link to="/preview" className="button button--sm button--tertiary shrink-0">
+                    Explore sample <ArrowRight size={15} aria-hidden="true" />
+                  </Link>
                 </div>
-                <span className="text-default-500 text-xs">PoE1 · Covens</span>
-              </header>
-              <dl className="divide-divider divide-y px-5">
-                <div className="grid gap-1 py-4 sm:grid-cols-[9rem_minmax(0,1fr)]">
-                  <dt className="text-default-500 text-sm">Active strategy</dt>
-                  <dd className="text-foreground text-sm font-semibold">Essence farming</dd>
-                </div>
-                <div className="grid gap-1 py-4 sm:grid-cols-[9rem_minmax(0,1fr)]">
-                  <dt className="text-default-500 text-sm">Latest linked result</dt>
-                  <dd>
-                    <p className="text-foreground text-lg leading-6 font-semibold tabular-nums">1,240 chaos</p>
-                    <p className="text-default-500 mt-0.5 text-xs">Stash value · Captured at 20:14 UTC</p>
-                  </dd>
-                </div>
-              </dl>
-              <div className="border-divider flex items-center justify-between gap-3 border-t p-5">
-                <p className="text-default-500 text-sm">Review how the run went.</p>
-                <Link to="/preview" className="button button--sm button--tertiary shrink-0">
-                  Explore sample <ArrowRight size={15} aria-hidden="true" />
-                </Link>
-              </div>
-            </section>
+              </section>
+            </div>
           </div>
         </section>
 

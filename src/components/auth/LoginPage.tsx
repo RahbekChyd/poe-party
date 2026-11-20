@@ -15,6 +15,7 @@ import { storePostLoginTarget } from '../../lib/auth-redirect'
 import { usePoeOAuthUrl } from '../../hooks/usePoeOAuthUrl'
 import { GITHUB_URL } from '../../lib/seo'
 import { trackPublicEvent } from '../../lib/analytics'
+import { BrassOrbit } from '../shared/BrassOrbit'
 
 export function LoginPage() {
   const { getOAuthUrl } = usePoeOAuthUrl()
@@ -36,7 +37,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="bg-background min-h-dvh px-4 py-6 md:py-12">
+    <div className="bg-background relative isolate min-h-dvh px-4 pt-6 md:pt-12">
       <main className="mx-auto flex w-full max-w-xl flex-col gap-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -58,7 +59,7 @@ export function LoginPage() {
           <Link
             to="/"
             activeOptions={{ exact: true }}
-            className="button button--sm button--tertiary"
+            className="button button--sm button--tertiary min-h-11"
           >
             <ArrowLeft size={16} aria-hidden="true" /> Back to home
           </Link>
@@ -114,11 +115,11 @@ export function LoginPage() {
           </Card.Content>
         </Card>
 
-        <nav aria-label="Login help and trust" className="text-default-400 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs">
-          <Link to="/legal/privacy" activeOptions={{ exact: true }} className="hover:text-foreground">Privacy</Link>
-          <Link to="/legal/security" activeOptions={{ exact: true }} className="hover:text-foreground">Security &amp; Trust</Link>
-          <Link to="/legal/terms" activeOptions={{ exact: true }} className="hover:text-foreground">Terms</Link>
-          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="hover:text-foreground inline-flex items-center gap-1">
+        <nav aria-label="Login help and trust" className="text-default-400 -my-2 flex flex-wrap justify-center gap-x-3 text-xs">
+          <Link to="/legal/privacy" activeOptions={{ exact: true }} className="hover:text-brand-readable inline-flex min-h-11 min-w-11 items-center justify-center rounded-sm">Privacy</Link>
+          <Link to="/legal/security" activeOptions={{ exact: true }} className="hover:text-brand-readable inline-flex min-h-11 items-center rounded-sm">Security &amp; Trust</Link>
+          <Link to="/legal/terms" activeOptions={{ exact: true }} className="hover:text-brand-readable inline-flex min-h-11 min-w-11 items-center justify-center rounded-sm">Terms</Link>
+          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="hover:text-brand-readable inline-flex min-h-11 items-center gap-1 rounded-sm">
             <Github size={12} aria-hidden="true" /> GitHub
           </a>
         </nav>
@@ -127,6 +128,7 @@ export function LoginPage() {
           PoE Party is independent and is not affiliated with or endorsed by Grinding Gear Games.
         </p>
       </main>
+      <BrassOrbit placement="sign-in" />
     </div>
   )
 }

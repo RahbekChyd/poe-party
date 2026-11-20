@@ -11,7 +11,7 @@ export function Sidebar() {
   const isSolo = useIsSoloGroup(activeGroupId)
 
   return (
-    <aside className="border-divider bg-content1 hidden h-full w-60 shrink-0 flex-col border-r lg:flex">
+    <aside className="border-divider bg-navigation hidden h-full w-60 shrink-0 flex-col border-r lg:flex">
       <div className="border-divider/50 flex shrink-0 items-center justify-center gap-2 border-b px-3 py-5 lg:justify-start lg:px-4">
         <img src={logo} alt="" className="h-8 w-8 rounded-lg" />
         <span className="text-foreground hidden text-base font-semibold tracking-tight lg:inline">
@@ -40,9 +40,9 @@ export function Sidebar() {
                   activeOptions={{ exact: true }}
                   aria-current={isActive ? 'page' : undefined}
                   className={cn(
-                    'focus-visible:outline-primary relative flex min-h-10 items-center gap-3 overflow-hidden rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
+                    'relative flex min-h-10 items-center gap-3 rounded-lg border border-transparent px-3 py-2 text-sm font-medium transition-colors',
                     isActive
-                      ? 'bg-primary-50 text-brand-readable'
+                      ? 'border-control bg-selected text-highlight font-semibold forced-colors:border-[Highlight]'
                       : 'text-default-500 hover:bg-default-100 hover:text-default-800',
                   )}
                 >

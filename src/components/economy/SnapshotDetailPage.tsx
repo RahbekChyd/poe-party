@@ -53,7 +53,7 @@ import {
   snapshotAge,
   contrastColor,
 } from '../../lib/utils'
-import { filterHistoryByRange, type WealthHistoryRange } from '../../lib/wealth-history'
+import { filterHistoryByRange, formatWealthAxisTick, type WealthHistoryRange } from '../../lib/wealth-history'
 import { useCurrencyStore } from '../../store/currency-store'
 import { useGroupStore } from '../../store/group-store'
 import { KpiCardsSkeleton, ItemTableSkeleton } from '../layout/Skeletons'
@@ -111,7 +111,6 @@ export function SnapshotDetailPage() {
     if (!history || history.length <= 1) return []
     return [...history]
       .slice(0, -1)
-      .filter((entry) => !!entry.snapshot_id)
       .reverse()
   }, [history])
   const setSelectedHistoryId = (nextHistoryId: string | null) => {
@@ -308,6 +307,12 @@ export function SnapshotDetailPage() {
     setPage(1)
   }
 
+  const selectSnapshot = (nextHistoryId: string | null) => {
+    setSelectedHistoryId(nextHistoryId)
+    setTabFilters([])
+    setPage(1)
+  }
+
   // Active filter indicators for KPI cards
   const topItemActive = !!topItem && search === topItem.display_name
   const topTabActive = !!topTab && tabFilters.length === 1 && tabFilters[0] === topTab.tab_name
@@ -371,9 +376,9 @@ export function SnapshotDetailPage() {
   const sortIcon = (col: SortKey) => {
     if (sortKey !== col) return <ChevronsUpDown size={12} className="text-default-300" />
     return sortDir === 'asc' ? (
-      <ChevronUp size={12} className="text-primary" />
+      <ChevronUp size={12} className="text-highlight" aria-hidden="true" />
     ) : (
-      <ChevronDown size={12} className="text-primary" />
+      <ChevronDown size={12} className="text-highlight" aria-hidden="true" />
     )
   }
 
@@ -462,7 +467,7 @@ export function SnapshotDetailPage() {
               <Target size={16} className="text-default-400 shrink-0" />
               <span className="text-default-400 shrink-0 text-sm">Strategy:</span>
               {linkedStrategy ? (
-                <span className="bg-accent-soft text-accent-soft-foreground min-w-0 rounded px-2 py-0.5 text-sm wrap-anywhere">
+                <span className="bg-selected text-highlight min-w-0 rounded px-2 py-0.5 text-sm wrap-anywhere">
                   {linkedStrategy.name}
                 </span>
               ) : (
@@ -551,8 +556,8 @@ export function SnapshotDetailPage() {
               {/* Total Value */}
               <Card className="p-0">
                 <Card.Content className="flex flex-row items-center gap-3 p-4">
-                  <div className="bg-success/15 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                    <TrendingUp size={18} className="text-success" />
+                  <div className="bg-wealth-series/15 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+                    <TrendingUp size={18} className="text-wealth-series" aria-hidden="true" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-default-400 text-xs">{capturePricing?.status === 'partial' ? 'Priced subtotal' : 'Total Value'}</p>
@@ -564,15 +569,15 @@ export function SnapshotDetailPage() {
               </Card>
 
               {/* Highest Value Tab — clickable */}
-              <Card className={topTabActive ? 'p-0 ring-primary ring-2' : 'p-0'}>
-                <button type="button" className="w-full text-left" onClick={handleTopTabClick}>
+              <Card className={topTabActive ? 'border-highlight bg-selected p-0' : 'p-0'}>
+                <button type="button" aria-pressed={topTabActive} disabled={!topTab} className="w-full rounded-large text-left" onClick={handleTopTabClick}>
                   <Card.Content className="flex flex-row items-center gap-3 p-4">
-                    <div className="bg-primary/15 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                      <Archive size={18} className="text-primary" />
+                    <div className="bg-content2 text-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+                      <Archive size={18} aria-hidden="true" />
                     </div>
                     <div className="min-w-0">
                       <p className="text-default-400 text-xs">
-                        Top Tab {topTabActive && <span className="text-primary">· filtered</span>}
+                        Top Tab {topTabActive && <span className="text-highlight font-semibold">· filtered</span>}
                       </p>
                       {topTab ? (
                         <>
@@ -590,15 +595,15 @@ export function SnapshotDetailPage() {
               </Card>
 
               {/* Top Item — clickable */}
-              <Card className={topItemActive ? 'p-0 ring-warning ring-2' : 'p-0'}>
-                <button type="button" className="w-full text-left" onClick={handleTopItemClick}>
+              <Card className={topItemActive ? 'border-highlight bg-selected p-0' : 'p-0'}>
+                <button type="button" aria-pressed={topItemActive} disabled={!topItem} className="w-full rounded-large text-left" onClick={handleTopItemClick}>
                   <Card.Content className="flex flex-row items-center gap-3 p-4">
-                    <div className="bg-warning/15 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                      <Trophy size={18} className="text-warning" />
+                    <div className="bg-content2 text-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+                      <Trophy size={18} aria-hidden="true" />
                     </div>
                     <div className="min-w-0">
                       <p className="text-default-400 text-xs">
-                        Top Item {topItemActive && <span className="text-warning">· filtered</span>}
+                        Top Item {topItemActive && <span className="text-highlight font-semibold">· filtered</span>}
                       </p>
                       {topItem ? (
                         <>
@@ -620,7 +625,7 @@ export function SnapshotDetailPage() {
             {history && history.length > 0 && (
               <Card>
                 <Card.Header className="flex flex-row flex-wrap items-center justify-between gap-3 px-4 pt-4 pb-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-foreground text-sm font-semibold">Wealth History</h2>
                     <WealthHistoryRangeSelector value={historyRange} onChange={setHistoryRange} />
                     {selectedHistoryId && (
@@ -628,11 +633,7 @@ export function SnapshotDetailPage() {
                         size="sm"
                         variant="tertiary"
                         className="h-5 min-w-0 px-2 text-xs"
-                        onPress={() => {
-                          setSelectedHistoryId(null)
-                          setTabFilters([])
-                          setPage(1)
-                        }}
+                        onPress={() => selectSnapshot(null)}
                       >
                         Back to latest
                       </Button>
@@ -673,7 +674,7 @@ export function SnapshotDetailPage() {
                               hour: '2-digit',
                               minute: '2-digit',
                             })
-                          : 'Latest · click a point to browse'}
+                          : 'Viewing latest capture'}
                       </span>
                     )}
                   </div>
@@ -682,45 +683,31 @@ export function SnapshotDetailPage() {
                   <ResponsiveContainer width="100%" height={160}>
                     <AreaChart
                       data={visibleHistory}
+                      title="Stash wealth in chaos orbs"
+                      desc="Use the left and right arrow keys to read snapshot values. Use Select snapshot to browse a capture."
                       margin={{ top: 4, right: 12, left: 0, bottom: 0 }}
-                      onClick={(chartData) => {
-                        if (visibleHistory.length <= 1) return
-                        const point = (
-                          chartData as
-                            | { activePayload?: { payload?: { id: string } }[] }
-                            | undefined
-                        )?.activePayload?.[0]?.payload
-                        if (!point?.id) return
-                        const latestId = visibleHistory[visibleHistory.length - 1].id
-                        const next = point.id === (selectedHistoryId ?? latestId) ? null : point.id
-                        setSelectedHistoryId(next)
-                        setTabFilters([])
-                        setPage(1)
-                      }}
-                      style={{ cursor: visibleHistory.length > 1 ? 'pointer' : 'default' }}
                     >
                       <defs>
                         <linearGradient id="wealthGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#17c964" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#17c964" stopOpacity={0} />
+                          <stop offset="5%" stopColor="var(--wealth-series)" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="var(--wealth-series)" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
                       <XAxis
                         dataKey="completed_at"
                         tickFormatter={(v: string) => {
                           const d = new Date(v)
                           return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
                         }}
-                        tick={{ fontSize: 10, fill: '#888' }}
+                        tick={{ fontSize: 10, fill: 'var(--muted-text)' }}
                         axisLine={false}
                         tickLine={false}
                       />
                       <YAxis
-                        tickFormatter={(v: number) =>
-                          v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))
-                        }
-                        tick={{ fontSize: 10, fill: '#888' }}
+                        tickFormatter={formatWealthAxisTick}
+                        unit="c"
+                        tick={{ fontSize: 10, fill: 'var(--muted-text)' }}
                         axisLine={false}
                         tickLine={false}
                         width={44}
@@ -736,10 +723,14 @@ export function SnapshotDetailPage() {
                             minute: '2-digit',
                           })
                           return (
-                            <div className="bg-content1 border-divider rounded-lg border px-3 py-2 text-xs shadow-lg">
+                            <div role="status" className="bg-overlay border-divider rounded-lg border px-3 py-2 text-xs shadow-lg">
                               <p className="text-default-400 mb-1">{label}</p>
                               <p className="text-foreground font-semibold">
-                                {fmt(point.total_chaos)}
+                                {point.pricing_summary?.status === 'unavailable'
+                                  ? 'Pricing unavailable'
+                                  : point.pricing_summary?.status === 'partial'
+                                    ? `Priced subtotal: ${fmt(point.total_chaos)}`
+                                    : fmt(point.total_chaos)}
                               </p>
                               {point.excluded_chaos_total > 0 && (
                                 <p className="text-default-400 mt-0.5">
@@ -748,7 +739,7 @@ export function SnapshotDetailPage() {
                               )}
                               {visibleHistory.length > 1 && (
                                 <p className="text-default-400 mt-0.5">
-                                  {point.snapshot_id ? 'Click to view items' : 'Summary only'}
+                                  {point.snapshot_id ? 'View snapshot items' : 'Summary only'}
                                 </p>
                               )}
                             </div>
@@ -758,27 +749,35 @@ export function SnapshotDetailPage() {
                       <Area
                         type="monotone"
                         dataKey="total_chaos"
-                        stroke="#17c964"
+                        stroke="var(--wealth-series)"
                         fill="url(#wealthGrad)"
                         strokeWidth={2}
                         dot={(props: { cx?: number; cy?: number; payload: { id: string } }) => {
                           if (props.cx == null || props.cy == null) return null
-                          const effectiveId =
-                            selectedHistoryId ?? visibleHistory[visibleHistory.length - 1]?.id
+                          const latestId = visibleHistory[visibleHistory.length - 1]?.id
+                          const effectiveId = selectedHistoryId ?? latestId
                           const active = props.payload.id === effectiveId
+                          const nextId = active || props.payload.id === latestId ? null : props.payload.id
                           return (
-                            <circle
+                            <g
                               key={props.payload.id}
-                              cx={props.cx}
-                              cy={props.cy}
-                              r={active ? 5 : 3}
-                              fill="#17c964"
-                              stroke={active ? 'white' : 'none'}
-                              strokeWidth={active ? 2 : 0}
-                            />
+                              className={visibleHistory.length > 1 ? 'cursor-pointer' : undefined}
+                              onClick={visibleHistory.length > 1 ? () => selectSnapshot(nextId) : undefined}
+                              aria-hidden="true"
+                            >
+                              <circle cx={props.cx} cy={props.cy} r={12} fill="currentColor" opacity={0} />
+                              <circle
+                                cx={props.cx}
+                                cy={props.cy}
+                                r={active ? 5 : 3}
+                                fill="var(--wealth-series)"
+                                stroke={active ? 'var(--surface)' : 'none'}
+                                strokeWidth={active ? 2 : 0}
+                              />
+                            </g>
                           )
                         }}
-                        activeDot={{ r: 6, fill: '#17c964', stroke: 'white', strokeWidth: 2 }}
+                        activeDot={{ r: 6, fill: 'var(--wealth-series)', stroke: 'var(--surface)', strokeWidth: 2, pointerEvents: 'none' }}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -875,7 +874,7 @@ export function SnapshotDetailPage() {
                             key={tab}
                             id={tab}
                             textValue={tab}
-                            className={isSelected ? 'bg-accent-soft/70' : undefined}
+                            className={isSelected ? 'bg-selected' : undefined}
                           >
                             <span className="flex w-full min-w-0 items-center gap-3">
                               {col ? (
@@ -895,7 +894,7 @@ export function SnapshotDetailPage() {
                                 aria-hidden="true"
                                 className={`ml-auto inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-all duration-150 ${
                                   isSelected
-                                    ? 'bg-accent text-accent-foreground ring-accent/20 shadow-sm ring-1'
+                                    ? 'text-highlight border border-current'
                                     : 'scale-90 opacity-0'
                                 }`}
                               >
@@ -914,6 +913,7 @@ export function SnapshotDetailPage() {
                   <Dropdown>
                     <Dropdown.Trigger className="select__trigger h-10 min-h-10 min-w-0 max-w-full items-center sm:min-w-44">
                       <span className="select__value min-w-0 truncate">
+                        <span className="sr-only">Select snapshot: </span>
                         {selectedHistoryId
                           ? new Date(
                               history.find((h) => h.id === selectedHistoryId)?.completed_at ?? '',
@@ -927,16 +927,12 @@ export function SnapshotDetailPage() {
                       </span>
                       <DropdownCaret className="select__indicator" />
                     </Dropdown.Trigger>
-                    <Dropdown.Popover>
+                    <Dropdown.Popover className="max-h-64 max-w-[calc(100dvw-2rem)] overflow-y-auto">
                       <Dropdown.Menu
                         aria-label="Select snapshot"
                         selectionMode="single"
                         selectedKeys={new Set([selectedHistoryId ?? '__latest'])}
-                        onAction={(key) => {
-                          setSelectedHistoryId(key === '__latest' ? null : (key as string))
-                          setTabFilters([])
-                          setPage(1)
-                        }}
+                        onAction={(key) => selectSnapshot(key === '__latest' ? null : String(key))}
                       >
                         <Dropdown.Item id="__latest" textValue="Latest snapshot">
                           <Dropdown.ItemIndicator />
@@ -952,7 +948,7 @@ export function SnapshotDetailPage() {
                           return (
                             <Dropdown.Item key={snap.id} id={snap.id} textValue={label}>
                               <Dropdown.ItemIndicator />
-                              <span className="flex items-center gap-2">
+                              <span className="flex min-w-0 flex-wrap items-center gap-2">
                                 <span>{label}</span>
                                 <span className="text-default-400 text-xs">
                                   {Math.round(snap.total_chaos).toLocaleString()}c
@@ -1184,7 +1180,7 @@ export function SnapshotDetailPage() {
                                 <button
                                   type="button"
                                   aria-pressed={tabFilters.includes(item.tab_name)}
-                                  className="bg-default-100 text-default-700 focus-visible:outline-primary max-w-full cursor-pointer rounded px-2 py-0.5 text-left text-xs font-medium wrap-anywhere hover:underline focus-visible:outline-2"
+                                  className="bg-default-100 text-default-700 max-w-full cursor-pointer rounded px-2 py-0.5 text-left text-xs font-medium wrap-anywhere hover:underline aria-pressed:underline"
                                   style={tabStyle}
                                   onClick={() => {
                                     setTabFilters((prev) =>

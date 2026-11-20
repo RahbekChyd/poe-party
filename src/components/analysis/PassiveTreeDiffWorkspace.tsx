@@ -149,26 +149,6 @@ function getKindLabel(kind: PassiveTreeDiffEntryKind): string {
   }
 }
 
-function getEntryBackgroundClasses(entry: PassiveTreeDiffEntry): string {
-  switch (entry.kind) {
-    case 'add':
-      return 'bg-success/10'
-    case 'remove':
-      return 'bg-danger/10'
-    case 'mastery_change':
-      return 'bg-secondary/10'
-    case 'cluster_review':
-      return 'bg-warning/10'
-    case 'class_mismatch':
-    case 'ascendancy_mismatch':
-      return 'bg-danger/10'
-    case 'version_unavailable':
-      return 'bg-default-50/60'
-    default:
-      return 'bg-default-50/60'
-  }
-}
-
 function getEntryToneClasses(entry: PassiveTreeDiffEntry): string {
   switch (entry.kind) {
     case 'add':
@@ -187,10 +167,6 @@ function getEntryToneClasses(entry: PassiveTreeDiffEntry): string {
     default:
       return 'border-divider/70 bg-default-50/60'
   }
-}
-
-function getSelectedEntryToneClasses(entry: PassiveTreeDiffEntry): string {
-  return `${getEntryBackgroundClasses(entry)} border-primary/60 ring-primary/20 shadow-sm ring-1 ring-inset`
 }
 
 function buildBoundsFromNodeIds(nodeIds: number[], renderData: PassiveTreeRenderData): ViewBox {
@@ -1787,7 +1763,7 @@ export function PassiveTreeDiffWorkspace({
                         setSelectedEntryKey(entryKey)
                         setViewMode('selected')
                       }}
-                      className="pointer-events-auto absolute rounded-[10px] border bg-slate-950/92 px-2.5 py-1.5 text-left shadow-[0_12px_32px_rgba(0,0,0,0.4)] backdrop-blur-sm transition focus-visible:outline-2 focus-visible:outline-primary"
+                      className="pointer-events-auto absolute rounded-[10px] border bg-slate-950/92 px-2.5 py-1.5 text-left shadow-[0_12px_32px_rgba(0,0,0,0.4)] backdrop-blur-sm transition"
                       style={{
                         left,
                         top,
@@ -1896,9 +1872,9 @@ export function PassiveTreeDiffWorkspace({
                               }
                             }
                           }}
-                          className={`rounded-large focus-visible:ring-foreground/15 border p-3 text-left transition focus-visible:ring-2 focus-visible:outline-none ${
+                          className={`rounded-large border p-3 text-left transition ${
                             selected
-                              ? getSelectedEntryToneClasses(entry)
+                              ? 'border-highlight bg-selected'
                               : getEntryToneClasses(entry)
                           }`}
                         >

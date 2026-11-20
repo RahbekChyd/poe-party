@@ -89,7 +89,7 @@ test('linked snapshots contain a maximum-length strategy name and keep actions r
   await page.route('**/rest/v1/group_wealth_history?*', (route) => route.fulfill({
     json: Array.from({ length: 12 }, (_, index) => ({
       id: `history-${index}`, created_at: '2026-11-19T16:00:00Z', total_wealth_chaos: 5_000_000,
-      triggered_by_user_id: userId, triggered_by_snapshot_id: `raw-${index}`,
+      triggered_by_user_id: userId, triggered_by_snapshot_id: index === 0 ? null : `raw-${index}`,
     })),
   }))
   await page.goto(`/dashboard/strategies/${strategyId}`)
@@ -108,6 +108,16 @@ test('linked snapshots contain a maximum-length strategy name and keep actions r
     await expectTextInside(name, dialog)
     await expect(close).toBeInViewport({ ratio: 0.99 })
   }
+
+  await page.emulateMedia({ forcedColors: 'active' })
+  const checkbox = dialog.getByRole('checkbox').first()
+  await expect(checkbox).toBeChecked()
+  const checkmark = dialog.locator('[data-slot="checkbox-default-indicator--checkmark"]').first()
+  const canvasText = await dialog.evaluate((element) => getComputedStyle(element).color)
+  await expect(checkmark).toHaveCSS('stroke', canvasText)
+  await checkbox.press('Space')
+  await expect(checkbox).not.toBeChecked()
+
   await close.click()
   await expect(dialog).toHaveCount(0)
 })

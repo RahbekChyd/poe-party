@@ -525,24 +525,24 @@ function getSocketTextColorClass(socketColor: string | null): string {
     case 'S':
     case 'R':
     case 'STRENGTH':
-      return 'text-[#d20000]'
+      return 'text-red-800 dark:text-red-300'
     case 'GREEN':
     case 'D':
     case 'G':
     case 'DEXTERITY':
-      return 'text-[#46a239]'
+      return 'text-green-800 dark:text-green-300'
     case 'BLUE':
     case 'I':
     case 'B':
     case 'INTELLIGENCE':
-      return 'text-[#8888ff]'
+      return 'text-blue-800 dark:text-blue-300'
     case 'W':
-      return 'text-[#f5f5f5]'
+      return 'text-foreground'
     case 'A':
     case 'ABYSS':
-      return 'text-[#fcd34d]'
+      return 'text-amber-900 dark:text-amber-200'
     default:
-      return 'text-[#8888ff]'
+      return 'text-foreground'
   }
 }
 
@@ -564,7 +564,7 @@ function GemChip({
       ? 'border-warning/40 bg-warning/10'
       : color === 'secondary'
         ? 'border-secondary/40 bg-secondary/10'
-        : 'border-white/10 bg-white/5'
+        : 'border-divider bg-content2'
 
   return (
     <span

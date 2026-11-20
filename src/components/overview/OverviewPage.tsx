@@ -45,12 +45,13 @@ import {
   formatCurrencyAmount,
   snapshotAge,
 } from '../../lib/utils'
-import { filterHistoryByRange, type WealthHistoryRange } from '../../lib/wealth-history'
+import { filterHistoryByRange, formatWealthAxisTick, type WealthHistoryRange } from '../../lib/wealth-history'
 import { useCurrencyStore } from '../../store/currency-store'
 import { STATUS_COLOR, DIFFICULTY_CHIP, IMPORTANCE_CHIP } from '../../lib/constants'
 import { WealthHistoryRangeSelector } from '../economy/WealthHistoryRangeSelector'
 import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
+
 export function OverviewPage() {
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
   const isSolo = useIsSoloGroup(activeGroupId)
@@ -220,7 +221,7 @@ export function OverviewPage() {
     <DashboardPage>
       <DashboardPageHeader title="Today" />
       {snapshotModal}
-      <section aria-labelledby="today-strategy" className="border-divider border-b pb-5">
+      <section aria-labelledby="today-strategy" className="border-divider bg-content1 rounded-xl border p-4 sm:p-5">
         <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
           <div className="min-w-0 space-y-2">
             <h2 id="today-strategy" className="text-foreground text-lg font-semibold">Active strategy</h2>
@@ -377,22 +378,25 @@ export function OverviewPage() {
                 <div
                   className={`border-divider/60 flex items-center gap-1.5 border-l pl-3 text-xs ${groupTrendColor}`}
                 >
-                  <GroupTrendIcon size={13} />
+                  <GroupTrendIcon size={13} aria-hidden="true" />
                   <span>{groupTrendLabel}</span>
                 </div>
               </div>
             </div>
           </Card.Header>
           <Card.Content className="px-2 pt-2 pb-3">
+            <p className="text-default-500 px-2 text-xs">Stash value (chaos)</p>
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart
+                title="Stash value in Chaos Orbs"
+                desc="Use the left and right arrow keys to read snapshot values."
                 data={visibleGroupHistory}
                 margin={{ top: 4, right: 12, left: 0, bottom: 0 }}
               >
                 <defs>
                   <linearGradient id="overviewWealthGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--currency)" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="var(--currency)" stopOpacity={0} />
+                    <stop offset="5%" stopColor="var(--wealth-series)" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="var(--wealth-series)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
@@ -407,9 +411,7 @@ export function OverviewPage() {
                   tickLine={false}
                 />
                 <YAxis
-                  tickFormatter={(v: number) =>
-                    v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))
-                  }
+                  tickFormatter={formatWealthAxisTick}
                   tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
                   axisLine={false}
                   tickLine={false}
@@ -426,7 +428,7 @@ export function OverviewPage() {
                       minute: '2-digit',
                     })
                     return (
-                      <div className="bg-content1 border-divider rounded-lg border px-3 py-2 text-xs shadow-lg">
+                      <div role="status" className="bg-overlay border-divider rounded-lg border px-3 py-2 text-xs shadow-lg">
                         <p className="text-default-400 mb-1">{label}</p>
                         <p className="text-foreground font-semibold">
                           {point.pricing_summary?.status === 'unavailable'
@@ -454,11 +456,12 @@ export function OverviewPage() {
                 <Area
                   type="monotone"
                   dataKey="total_wealth_chaos"
-                  stroke="var(--currency)"
+                  name="Stash value"
+                  stroke="var(--wealth-series)"
                   fill="url(#overviewWealthGrad)"
                   strokeWidth={2}
-                  dot={{ r: 3, fill: 'var(--currency)' }}
-                  activeDot={{ r: 6, fill: 'var(--currency)', stroke: 'var(--foreground)', strokeWidth: 2 }}
+                  dot={{ r: 3, fill: 'var(--wealth-series)' }}
+                  activeDot={{ r: 6, fill: 'var(--wealth-series)', stroke: 'var(--foreground)', strokeWidth: 2 }}
                 />
               </AreaChart>
             </ResponsiveContainer>

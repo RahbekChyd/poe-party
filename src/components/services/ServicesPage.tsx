@@ -352,7 +352,7 @@ function OwnedServiceRow({ service }: { service: OwnedService }) {
   }
 
   return (
-    <Card className="@container hover:bg-default-50 p-0 transition-colors">
+    <Card className="@container p-0">
       <Card.Content className="gap-0 p-0">
         <div className="flex flex-col items-start gap-3 p-4 @min-[40rem]:flex-row">
           <div className="min-w-0 flex-1 wrap-anywhere">

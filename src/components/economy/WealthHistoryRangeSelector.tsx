@@ -26,6 +26,7 @@ export function WealthHistoryRangeSelector({
       {WEALTH_HISTORY_RANGE_OPTIONS.map((option) => (
         <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
           {option.label}
+          <ListBox.ItemIndicator />
         </ListBox.Item>
       ))}
     </SelectField>

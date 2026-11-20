@@ -16,6 +16,7 @@ import {
   Info,
   Lock,
   Plus,
+  Target,
   Trash2,
   Unlock,
 } from 'lucide-react'
@@ -850,7 +851,12 @@ export function StrategyDetailPage() {
                 {displayVisibility === 'public' ? 'Public strategy' : 'Private strategy'}
               </Chip>
             )}
-            {isCurrentStrategy && <span className="text-brand-readable text-sm font-medium">Active strategy</span>}
+            {isCurrentStrategy && (
+              <span className="bg-selected text-highlight inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-medium">
+                <Target size={14} aria-hidden="true" />
+                Active strategy
+              </span>
+            )}
             {displayAdminLocked ? (
               <Chip size="sm" variant="soft" color="warning">
                 Admin locked
@@ -863,7 +869,7 @@ export function StrategyDetailPage() {
               <Card.Content className="gap-4 p-5 md:flex-row md:items-start md:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <Info size={16} className="text-warning shrink-0" />
+                    <Info size={16} className="text-info shrink-0" aria-hidden="true" />
                     <p className="text-foreground text-sm font-medium">
                       Publisher-managed strategy copy
                     </p>
@@ -920,22 +926,22 @@ export function StrategyDetailPage() {
               (s) => s.name && threadPriceMap.get(s.name) == null,
             )
             return (
-              <div className="rounded-large border-primary/30 bg-primary/5 flex items-center justify-between border px-5 py-4">
-                <div className="flex items-center gap-2">
-                  <Coins size={16} className="text-primary shrink-0" />
+              <div className="rounded-large border-divider bg-content1 flex flex-wrap items-center justify-between gap-2 border px-5 py-4">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <Coins size={16} className="text-wealth-series shrink-0" aria-hidden="true" />
                   <span className="text-foreground text-sm font-medium">
                     {hasThreadAlternatives
                       ? 'Primary setup cost per map'
                       : 'Total estimated cost per map'}
                   </span>
-                  {hasPartialThreads && <span className="text-default-400 text-xs">(partial)</span>}
+                  {hasPartialThreads && <span className="text-warning text-xs">(partial)</span>}
                   {hasThreadAlternatives && (
                     <span className="text-default-400 text-xs">(alternatives excluded)</span>
                   )}
                 </div>
                 <span className="text-foreground text-2xl font-bold tabular-nums">
                   ~ {formatChaosValue(total)}
-                  <span className="text-primary ml-1 text-sm font-bold">c</span>
+                  <span className="text-default-500 ml-1 text-sm font-bold">c</span>
                 </span>
               </div>
             )
@@ -948,7 +954,7 @@ export function StrategyDetailPage() {
                   ? 'border-success/30 bg-success/5'
                   : rateColor === 'danger'
                     ? 'border-danger/30 bg-danger/5'
-                    : 'border-divider bg-default-50'
+                    : 'border-divider bg-content1'
               }`}
             >
               <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -979,7 +985,7 @@ export function StrategyDetailPage() {
                         })}
                       </time>
                       {latestPricing?.status === 'partial' && (
-                        <span>{latestPricing.unpriced_item_count.toLocaleString()} unpriced items</span>
+                        <span className="text-warning">{latestPricing.unpriced_item_count.toLocaleString()} unpriced items</span>
                       )}
                     </div>
                   )}

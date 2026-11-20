@@ -129,7 +129,7 @@ export function PublicStrategyDetailPage() {
         <Chip size="sm" variant="soft" color={toNativeChipColor(diffChip.color)}>
           {diffChip.label}
         </Chip>
-        <Chip size="sm" variant="soft" color="accent">
+        <Chip size="sm" variant="soft">
           Public
         </Chip>
         <Chip size="sm" variant="soft">
