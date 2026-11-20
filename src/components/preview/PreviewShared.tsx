@@ -9,7 +9,7 @@ import { getLoginHref } from '../../lib/auth-redirect'
 export type PreviewMode = 'teaser' | 'public'
 
 const MODE_STYLES: Record<PreviewMode, { label: string; color: 'warning' | 'accent' }> = {
-  teaser: { label: 'Sample Workspace', color: 'warning' },
+  teaser: { label: 'Sample workspace', color: 'warning' },
   public: { label: 'Public', color: 'accent' },
 }
 
@@ -39,11 +39,11 @@ export function PreviewPageIntro({
   const railColor = mode === 'teaser' ? 'var(--warning)' : 'var(--arcane)'
 
   return (
-    <div className="border-divider/70 flex flex-col gap-4 border-b pb-5 md:flex-row md:items-end md:justify-between">
-      <div className="min-w-0 max-w-3xl wrap-anywhere">
+    <div className="border-divider/70 flex flex-col gap-3 border-b pb-4 md:flex-row md:flex-wrap md:items-end md:justify-between">
+      <div className="min-w-0 max-w-3xl wrap-anywhere md:flex-[1_1_24rem]">
         <div className="mb-2 flex items-center gap-2">
           <span
-            className="h-5 w-1 rounded-full"
+            className="h-4 w-1 shrink-0 rounded-full"
             style={{ backgroundColor: railColor }}
             aria-hidden="true"
           />
@@ -67,7 +67,7 @@ export function PreviewNotice({
   description: string
 }) {
   return (
-    <Card className="border-divider/70 bg-content1/90 border">
+    <Card className="border-divider/70 bg-content1/90 border p-0">
       <Card.Content className="gap-2 p-3.5">
         <div className="flex flex-wrap items-center gap-2">
           <PreviewModeChip mode={mode} />
@@ -86,7 +86,7 @@ export function UnlockCard({
   presentation = 'card',
   buttonLabel = 'Private workspace options',
   badgeLabel = 'Private workspace',
-  actionLabel = 'Connect Account',
+  actionLabel = 'Connect account',
   signInPrompt = {
     title: 'Connect your private workspace',
     description:
@@ -114,15 +114,9 @@ export function UnlockCard({
   }
 
   const pointsList = (
-    <ul className="space-y-2">
+    <ul className="text-default-600 list-disc space-y-1.5 pl-5 text-sm">
       {points.map((point) => (
-        <li
-          key={point}
-          className="rounded-large border-divider/70 bg-default-50/50 text-default-600 flex items-start gap-3 border px-4 py-3 text-sm"
-        >
-          <span className="bg-warning mt-1.5 size-1.5 shrink-0 rounded-full" aria-hidden="true" />
-          <span>{point}</span>
-        </li>
+        <li key={point} className="wrap-anywhere">{point}</li>
       ))}
     </ul>
   )
@@ -141,20 +135,20 @@ export function UnlockCard({
 
         <Modal.Backdrop isOpen={detailsOpen} onOpenChange={setDetailsOpen}>
           <Modal.Container>
-            <Modal.Dialog>
+            <Modal.Dialog className="max-h-[calc(100dvh-2rem)]">
               <Modal.Header>
                 <div className="flex flex-col gap-2">
                   <Chip size="sm" color="warning" variant="soft" className="self-start">
                     {badgeLabel}
                   </Chip>
-                  <Modal.Heading>{title}</Modal.Heading>
+                  <Modal.Heading className="wrap-anywhere">{title}</Modal.Heading>
                 </div>
               </Modal.Header>
-              <Modal.Body className="gap-4">
+              <Modal.Body className="min-h-0 gap-4 overflow-y-auto">
                 <p className="text-default-500 text-sm leading-relaxed">{description}</p>
                 {pointsList}
               </Modal.Body>
-              <Modal.Footer>
+              <Modal.Footer className="flex-wrap">
                 <Button variant="tertiary" onPress={() => setDetailsOpen(false)}>
                   Close
                 </Button>
@@ -168,7 +162,7 @@ export function UnlockCard({
   }
 
   return (
-    <Card className="border-divider/70 bg-content1 border">
+    <Card className="border-divider/70 bg-content1 border p-0">
       <Card.Content className="gap-4 p-5">
         <div className="flex flex-wrap items-center gap-2">
           <Chip size="sm" color="warning" variant="soft">
@@ -200,7 +194,7 @@ export function LockedPanel({
   const openGuestGate = useGuestGateStore((state) => state.open)
 
   return (
-    <Card className="border-divider/70 overflow-hidden border">
+    <Card className="border-divider/70 overflow-hidden border p-0">
       <Card.Content className="relative gap-4 p-5">
         <div className="pointer-events-none blur-[3px] select-none">
           <div className="flex flex-wrap gap-2">
@@ -232,7 +226,7 @@ export function LockedPanel({
                 })
               }
             >
-              Connect Account
+              Connect account
             </Button>
           </div>
         </div>
@@ -259,21 +253,21 @@ export function GuestGateModal() {
         }}
       >
         <Modal.Container>
-          <Modal.Dialog>
+          <Modal.Dialog className="max-h-[calc(100dvh-2rem)]">
             <Modal.Header>
-              <Modal.Heading>{title}</Modal.Heading>
+              <Modal.Heading className="wrap-anywhere">{title}</Modal.Heading>
             </Modal.Header>
-            <Modal.Body className="gap-3">
-              <p className="text-default-500 text-sm leading-relaxed">{description}</p>
+            <Modal.Body className="min-h-0 gap-3 overflow-y-auto">
+              <p className="text-default-500 wrap-anywhere text-sm leading-relaxed">{description}</p>
               <p className="text-default-500 text-xs">
                 You&apos;ll return here after signing in.
               </p>
             </Modal.Body>
-            <Modal.Footer>
+            <Modal.Footer className="flex-wrap">
               <Button variant="tertiary" onPress={close}>
                 Keep browsing
               </Button>
-              <a href={getLoginHref(nextTarget)} className="button">
+              <a href={getLoginHref(nextTarget)} className="button button--primary">
                 Sign in
               </a>
             </Modal.Footer>

@@ -56,14 +56,14 @@ export function Poe2EconomyPage({ league }: Poe2EconomyPageProps) {
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {sections.map((section) => (
-            <Card key={section.type}>
-              <Card.Header className="px-5 pt-5 pb-0">
+            <Card key={section.type} className="p-0">
+              <Card.Header className="px-4 pt-4">
                 <div className="flex items-center gap-2">
                   <Coins size={16} className="text-warning" />
                   <h2 className="text-foreground text-sm font-semibold">{section.type}</h2>
                 </div>
               </Card.Header>
-              <Card.Content className="p-5">
+              <Card.Content className="px-4 pb-4">
                 <div className="flex flex-col gap-2">
                   {section.entries.slice(0, 10).map((entry) => (
                     <div
@@ -80,9 +80,9 @@ export function Poe2EconomyPage({ league }: Poe2EconomyPageProps) {
                         <div className="bg-default-200 h-8 w-8 shrink-0 rounded-lg" />
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="text-foreground truncate text-sm font-medium">{entry.name}</p>
+                        <p className="text-foreground text-sm font-medium wrap-anywhere">{entry.name}</p>
                       </div>
-                      <p className="text-foreground shrink-0 text-sm font-semibold">
+                      <p className="text-foreground shrink-0 text-sm font-semibold tabular-nums">
                         {fmt(entry.primaryValue)}
                       </p>
                     </div>

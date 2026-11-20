@@ -139,7 +139,7 @@ export function ProductHomePage() {
                 ))}
               </nav>
             </details>
-            <SignInLink placement="header" label="Sign in" className="button button--sm" />
+            <SignInLink placement="header" label="Sign in" className="button button--sm button--tertiary" />
           </div>
         </div>
       </header>
@@ -166,7 +166,7 @@ export function ProductHomePage() {
                 <Link
                   to="/preview/analysis"
                   activeOptions={{ exact: true }}
-                  className="button button--lg justify-center"
+                  className="button button--lg button--primary justify-center"
                   data-testid="home-hero-analysis-cta"
                   onClick={() =>
                     trackPublicEvent('public_home_cta_click', {
@@ -334,7 +334,7 @@ export function ProductHomePage() {
               ready to keep the loop together.
             </p>
             <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
-              <Link to="/preview/analysis" activeOptions={{ exact: true }} className="button justify-center">
+              <Link to="/preview/analysis" activeOptions={{ exact: true }} className="button button--primary justify-center">
                 <Search size={17} aria-hidden="true" /> Open public analysis
               </Link>
               <SignInLink

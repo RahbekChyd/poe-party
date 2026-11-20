@@ -36,8 +36,9 @@ import { DashboardEmptyState, DashboardPage, DashboardPageHeader } from '../ui/d
 import { StrategyInfoSection } from './StrategyInfoSection'
 import { StrategyMetadataBadges } from './StrategyMetadataBadges'
 import { QueryFreshnessNotice, QueryStatePanel } from '../ui/QueryStatePanel'
+import { ResponsiveFilter } from '../ui/ResponsiveFilter'
 import {
-  STRATEGY_CONTENT_STAGE_OPTIONS,
+  STRATEGY_STAGE_FILTER_OPTIONS,
   type StrategyContentStage,
 } from '../../lib/public-strategy-content'
 type Mode = 'own' | 'public'
@@ -265,9 +266,9 @@ function PublicStrategyCard({
   }
 
   return (
-    <Card className="hover:bg-default-50 transition-colors">
+    <Card className="hover:bg-default-50 p-0 transition-colors">
       <Card.Content className="gap-0 p-0">
-        <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5 pb-4">
+        <div className="flex flex-wrap items-start justify-between gap-3 p-4">
           <div className="min-w-0 basis-full wrap-anywhere sm:flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-foreground font-semibold">{strategy.name}</h2>
@@ -286,7 +287,7 @@ function PublicStrategyCard({
               </Chip>
               {showsPoe1PlanningFields && strategy.map_cost != null ? (
                 <Chip size="sm" variant="soft">
-                  ~= {fmt(strategy.map_cost)}/map
+                  ~{fmt(strategy.map_cost)}/map
                 </Chip>
               ) : null}
               <StrategyMetadataBadges
@@ -300,8 +301,10 @@ function PublicStrategyCard({
               ) : null}
             </div>
             <p className="text-default-500 mt-2 text-xs">
-              {strategy.group_name} · {strategy.group_league} · {strategy.benchmark_sample_count.toLocaleString()}{' '}
-              benchmark {strategy.benchmark_sample_count === 1 ? 'sample' : 'samples'}
+              {strategy.group_name} · {strategy.group_league}
+              {strategy.benchmark_sample_count > 0
+                ? ` · ${strategy.benchmark_sample_count.toLocaleString()} benchmark ${strategy.benchmark_sample_count === 1 ? 'sample' : 'samples'}`
+                : ''}
             </p>
           </div>
           <div className="flex max-w-full flex-wrap items-center gap-2">
@@ -320,7 +323,7 @@ function PublicStrategyCard({
                 params={{ strategyId: strategy.id }}
                 className="button button--sm button--tertiary"
               >
-                Open Strategy
+                Open strategy
               </Link>
             ) : isSubscribed ? (
               <Button
@@ -514,55 +517,24 @@ export function StrategiesPage() {
         }
       />
 
-      {mode === 'public' || showsPoe1PlanningFields ? (
-        <Card>
-          <Card.Content className="gap-4 p-5 md:flex-row md:items-start md:justify-between">
-            <div className="min-w-0 flex-1 space-y-2 md:pr-4">
-              <p className="text-foreground text-sm font-medium">
-                {mode === 'own' ? 'Own strategies' : 'Public strategy library'}
-              </p>
-              {mode === 'own' ? (
-                <p className="text-default-500 text-sm leading-relaxed">
-                  Use the star to link new snapshots to the active strategy.
-                </p>
-              ) : (
-                <>
-                  <p className="text-default-500 text-sm leading-relaxed">
-                    Subscribe to add a read-only copy that updates while the original is public.
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <ToggleButtonGroup
-                      size="sm"
-                      aria-label="Strategy stage"
-                      className="flex max-w-full flex-wrap"
-                      selectionMode="single"
-                      disallowEmptySelection
-                      selectedKeys={new Set([stageFilter])}
-                      onSelectionChange={(keys) => {
-                        const [nextStage] = Array.from(keys)
-                        if (
-                          nextStage === 'all' ||
-                          STRATEGY_CONTENT_STAGE_OPTIONS.some(
-                            (option) => option.value === nextStage,
-                          )
-                        ) {
-                          setStageFilter(nextStage as StageFilter)
-                        }
-                      }}
-                    >
-                      <ToggleButton id="all">All</ToggleButton>
-                      {STRATEGY_CONTENT_STAGE_OPTIONS.map((option) => (
-                        <ToggleButton key={option.value} id={option.value}>
-                          {option.label}
-                        </ToggleButton>
-                      ))}
-                    </ToggleButtonGroup>
-                  </div>
-                </>
-              )}
-            </div>
+      {mode === 'public' ? (
+        <Card className="p-3 sm:p-4">
+          <Card.Content className="gap-2">
+            <ResponsiveFilter
+              label="Strategy stage"
+              options={STRATEGY_STAGE_FILTER_OPTIONS}
+              value={stageFilter}
+              onChange={setStageFilter}
+            />
+            <p className="text-default-500 text-sm">
+              Subscriptions follow the original while it’s public.
+            </p>
           </Card.Content>
         </Card>
+      ) : showsPoe1PlanningFields ? (
+        <p className="text-default-500 text-sm">
+          Star a strategy to link new snapshots to it.
+        </p>
       ) : null}
 
       {mode === 'public' && (subscribeFailed || unsubscribeFailed) ? (

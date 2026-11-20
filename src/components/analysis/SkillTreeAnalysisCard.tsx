@@ -575,12 +575,7 @@ export function SkillTreeSummaryPanel({
 
   if (!stageTreeSpec) {
     return (
-      <div className="rounded-large border-divider/70 bg-default-50/60 border p-4">
-        <p className="text-foreground text-sm font-semibold">Setup has no tree spec yet</p>
-        <p className="text-default-600 mt-1 text-sm">
-          Add a target tree to this setup before checking alignment.
-        </p>
-      </div>
+      <p className="text-default-600 text-sm">Choose a target tree to compare allocated nodes.</p>
     )
   }
 

@@ -583,12 +583,10 @@ function GemChip({
 function Section({
   id,
   title,
-  description,
   children,
 }: {
   id?: string
   title: string
-  description: string
   children: ReactNode
 }) {
   return (
@@ -596,11 +594,8 @@ function Section({
       id={id}
       className="rounded-large border-divider/70 bg-content1/70 scroll-mt-24 border p-4"
     >
-      <div>
-        <p className="text-foreground text-sm font-semibold">{title}</p>
-        <p className="text-default-500 mt-1 text-sm">{description}</p>
-      </div>
-      <div className="mt-4">{children}</div>
+      <h3 className="text-foreground text-sm font-semibold">{title}</h3>
+      <div className="mt-2.5">{children}</div>
     </section>
   )
 }
@@ -734,8 +729,8 @@ export function RecommendationsInsightsRail({
   }, [passiveTreeRefreshToken])
 
   return (
-    <div className="flex flex-col gap-4 xl:sticky xl:top-6">
-      <Section title="Passive tree" description="">
+    <div className="flex min-w-0 flex-col gap-3">
+      <Section title="Passive tree">
         {runTransitionLoading ? (
           <div className="rounded-large border-divider/70 bg-default-50/60 flex flex-col gap-3 border p-4">
             <Skeleton className="h-4 w-40 rounded-md" />
@@ -803,7 +798,7 @@ export function RecommendationsInsightsRail({
         </Modal.Backdrop>
       </>
 
-      <Section title="Skill gems" description="">
+      <Section title="Skill gems">
         {runTransitionLoading ? (
           <div className="rounded-large border-divider/70 bg-default-50/60 flex flex-col gap-3 border p-4">
             <Skeleton className="h-4 w-36 rounded-md" />
@@ -815,18 +810,9 @@ export function RecommendationsInsightsRail({
             </div>
           </div>
         ) : !stageSkillSet ? (
-          <div className="rounded-large border-divider/70 bg-default-50/60 border p-4">
-            <p className="text-default-600 text-sm">
-              Choose a skill set in the setup above to compare current gems and links.
-            </p>
-          </div>
+          <p className="text-default-600 text-sm">Choose a skill set to compare gems and links.</p>
         ) : !selectedProfile ? (
-          <div className="rounded-large border-divider/70 bg-default-50/60 border p-4">
-            <p className="text-default-600 text-sm">
-              Sync a current character profile to compare gems and links against the selected skill
-              package.
-            </p>
-          </div>
+          <p className="text-default-600 text-sm">Sync the character to compare gems and links.</p>
         ) : missingSkillSetGems.length === 0 &&
           linkGaps.length === 0 &&
           gemLevelMismatches.length === 0 &&
@@ -1265,7 +1251,7 @@ export function RecommendationsInsightsRail({
         </Modal.Backdrop>
       </>
 
-      <Section id={reservationAuditAnchorId} title="Reservation audit" description="">
+      <Section id={reservationAuditAnchorId} title="Reservation audit">
         {runTransitionLoading ? (
           <div className="rounded-large border-divider/70 bg-default-50/60 flex flex-col gap-3 border p-4">
             <Skeleton className="h-4 w-40 rounded-md" />
@@ -1304,15 +1290,7 @@ export function RecommendationsInsightsRail({
             ) : null}
           </div>
         ) : !reservationAudit ? (
-          <div className="rounded-large border-divider/70 bg-default-50/60 border p-4">
-            <p className="text-foreground text-sm font-semibold">
-              This run has no reservation audit
-            </p>
-            <p className="text-default-600 mt-1 text-sm">
-              This stored run predates reservation audit support. Run analysis again if you want
-              mana fit and gem-tuning output for the selected skill package.
-            </p>
-          </div>
+          <p className="text-default-600 text-sm">Run analysis again to check mana reservation.</p>
         ) : (
           <div className="flex flex-col gap-3">
             <div className={`rounded-large border p-4 ${getToneClasses(reservationTone.color)}`}>

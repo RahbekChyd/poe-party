@@ -1,8 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Card } from '@heroui/react/card'
 import { ListBox } from '@heroui/react/list-box'
-import { ToggleButton } from '@heroui/react/toggle-button'
-import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
 import { Handshake, Search } from 'lucide-react'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useGuestPublicServices } from '../../hooks/useGuestServices'
@@ -10,7 +8,7 @@ import { usePoeGameAccess } from '../../hooks/usePoeGameAccess'
 import { usePreviewLeague } from '../../hooks/usePreviewLeague'
 import { PreviewPageIntro } from './PreviewShared'
 import {
-  SERVICE_TYPE_OPTIONS,
+  SERVICE_TYPE_FILTER_OPTIONS,
   REGION_OPTIONS,
   regionFromSelection,
   type ServiceType,
@@ -19,6 +17,7 @@ import { ServiceCard } from '../services/ServiceCard'
 import { getPoeGameShortLabel } from '../../lib/poe-game'
 import { FieldInput, SelectField } from '../ui/heroui-native'
 import { QueryFreshnessNotice, QueryStatePanel } from '../ui/QueryStatePanel'
+import { ResponsiveFilter } from '../ui/ResponsiveFilter'
 type TypeFilter = ServiceType | 'all'
 
 export function GuestServicesPage() {
@@ -75,35 +74,19 @@ export function GuestServicesPage() {
         description="Find carries, 5-way runs, and gold rotas. Copy a whisper to contact the provider in-game."
       />
 
-      <Card>
-        <Card.Content className="gap-4 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <ToggleButtonGroup
-              size="sm"
-              aria-label="Service type"
-              className="max-w-full flex-wrap"
-              selectionMode="single"
-              disallowEmptySelection
-              selectedKeys={new Set([typeFilter])}
-              onSelectionChange={(keys) => {
-                const [value] = Array.from(keys)
-                if (typeof value === 'string') setTypeFilter(value as TypeFilter)
-              }}
-            >
-              <ToggleButton id="all">All</ToggleButton>
-              {SERVICE_TYPE_OPTIONS.map((opt) => (
-                <ToggleButton key={opt.id} id={opt.id}>
-                  <ToggleButtonGroup.Separator />
-                  {opt.shortLabel}
-                </ToggleButton>
-              ))}
-            </ToggleButtonGroup>
-          </div>
+      <Card className="@container p-3 sm:p-4">
+        <Card.Content className="gap-3">
+          <ResponsiveFilter
+            label="Service type"
+            options={SERVICE_TYPE_FILTER_OPTIONS}
+            value={typeFilter}
+            onChange={setTypeFilter}
+          />
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
+          <div className="grid gap-3 @min-[24rem]:grid-cols-2 @min-[40rem]:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
             <FieldInput
               label="Search services"
-              placeholder="Search title, IGN, or boss..."
+              placeholder="Title, character, or boss"
               startContent={<Search size={18} className="text-default-400" />}
               value={search}
               onValueChange={setSearch}

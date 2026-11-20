@@ -24,7 +24,7 @@ import {
 import { useServiceAvailabilityControl } from '../../hooks/useServiceAvailabilityControl'
 import {
   REGION_OPTIONS,
-  SERVICE_TYPE_OPTIONS,
+  SERVICE_TYPE_FILTER_OPTIONS,
   hasServiceDetailContent,
   regionFromSelection,
   type PartySlot,
@@ -42,6 +42,7 @@ import { ServiceTypeChip } from './ServiceTypeChip'
 import { FieldInput, SelectField } from '../ui/heroui-native'
 import { DashboardEmptyState, DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import { QueryFreshnessNotice, QueryStatePanel } from '../ui/QueryStatePanel'
+import { ResponsiveFilter } from '../ui/ResponsiveFilter'
 type Mode = 'own' | 'public'
 type TypeFilter = ServiceType | 'all'
 const SERVICE_HEADER_CHIP_CLASS_NAME = 'px-3'
@@ -145,37 +146,21 @@ export function ServicesPage() {
         }
       />
 
-      <Card>
-        <Card.Content className="gap-4 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <ToggleButtonGroup
-              size="sm"
-              aria-label="Service type"
-              className="max-w-full flex-wrap"
-              selectionMode="single"
-              disallowEmptySelection
-              selectedKeys={new Set([typeFilter])}
-              onSelectionChange={(keys) => {
-                const [value] = Array.from(keys)
-                if (typeof value === 'string') setTypeFilter(value as TypeFilter)
-              }}
-            >
-              <ToggleButton id="all">All</ToggleButton>
-              {SERVICE_TYPE_OPTIONS.map((opt) => (
-                <ToggleButton key={opt.id} id={opt.id}>
-                  <ToggleButtonGroup.Separator />
-                  {opt.shortLabel}
-                </ToggleButton>
-              ))}
-            </ToggleButtonGroup>
-          </div>
+      <Card className="p-3 sm:p-4">
+        <Card.Content className="gap-3">
+          <ResponsiveFilter
+            label="Service type"
+            options={SERVICE_TYPE_FILTER_OPTIONS}
+            value={typeFilter}
+            onChange={setTypeFilter}
+          />
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(8rem,10rem)]">
             <FieldInput
               label="Search services"
               placeholder={
                 mode === 'own'
-                  ? 'Search title, IGN, description...'
-                  : 'Search title, IGN, or boss...'
+                  ? 'Title, character, or description'
+                  : 'Title, character, or boss'
               }
               startContent={<Search size={18} className="text-default-400" />}
               value={search}
@@ -368,9 +353,9 @@ function OwnedServiceRow({ service }: { service: OwnedService }) {
   }
 
   return (
-    <Card className="hover:bg-default-50 transition-colors">
+    <Card className="@container hover:bg-default-50 p-0 transition-colors">
       <Card.Content className="gap-0 p-0">
-        <div className="flex flex-col items-start gap-3 p-4 sm:p-5 xl:flex-row">
+        <div className="flex flex-col items-start gap-3 p-4 @min-[40rem]:flex-row">
           <div className="min-w-0 flex-1 wrap-anywhere">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-foreground font-semibold">{service.title}</h2>

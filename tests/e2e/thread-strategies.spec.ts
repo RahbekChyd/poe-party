@@ -13,7 +13,7 @@ test('public 3.30 setup shows Threads and preserves the legacy reference', async
   }))
   await page.goto(`/preview/strategies/${strategyId}`)
   await expect(page.getByRole('heading', { name: 'Thread farming setup', exact: true })).toBeVisible()
-  await expect(page.getByText('Breach Thread x3', { exact: true })).toBeVisible()
+  await expect(page.getByText(/Breach Thread\s*×3/)).toBeVisible()
   await expect(page.getByText('Atlas Drops 80%', { exact: true })).toBeVisible()
   await page.getByText('Legacy Scarab reference (removed in 3.30)', { exact: true }).click()
   await expect(page.getByText(/2 × Ambush Scarab/)).toBeVisible()

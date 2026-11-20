@@ -148,7 +148,7 @@ function FeatureGrid({ points }: { points: string[] }) {
         const Icon = icons[index] ?? ShieldCheck
         return (
           <Card key={point}>
-            <Card.Content className="gap-3 p-5">
+            <Card.Content className="gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-large bg-warning/15">
                 <Icon size={20} className="text-warning" />
               </div>
@@ -169,7 +169,7 @@ function ToolLandingPage({ route }: { route: PublicSeoRoute }) {
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
       <section className="rounded-large border border-divider bg-content1 p-6 md:p-8">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-          <div className="max-w-3xl">
+          <div className="min-w-0 max-w-3xl wrap-anywhere">
             <Chip color="warning" variant="soft">
               {content.eyebrow}
             </Chip>
@@ -180,7 +180,7 @@ function ToolLandingPage({ route }: { route: PublicSeoRoute }) {
           </div>
           <Link
             to={content.primaryTo}
-            className="button button--lg h-auto max-w-full shrink-0 self-start py-2 text-center whitespace-normal md:self-end"
+            className="button button--lg button--primary h-auto max-w-full shrink-0 self-start py-2 text-center whitespace-normal md:self-end"
             onClick={() =>
               trackPublicEvent('seo_cta_click', {
                 source: route.path,
@@ -209,7 +209,7 @@ function StrategyLandingPage({ route }: { route: PublicSeoRoute }) {
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
       <section className="rounded-large border border-divider bg-content1 p-6 md:p-8">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-          <div className="max-w-3xl">
+          <div className="min-w-0 max-w-3xl wrap-anywhere">
             <Chip color="accent" variant="soft">
               Farming strategy tracker
             </Chip>
@@ -223,7 +223,7 @@ function StrategyLandingPage({ route }: { route: PublicSeoRoute }) {
           </div>
           <Link
             to="/preview/strategies"
-            className="button button--lg h-auto max-w-full shrink-0 self-start py-2 text-center whitespace-normal md:self-end"
+            className="button button--lg button--primary h-auto max-w-full shrink-0 self-start py-2 text-center whitespace-normal md:self-end"
             onClick={() =>
               trackPublicEvent('seo_cta_click', {
                 source: route.path,

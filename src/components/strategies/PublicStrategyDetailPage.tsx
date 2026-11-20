@@ -65,6 +65,12 @@ export function PublicStrategyDetailPage() {
   }
 
   const diffChip = DIFFICULTY_CHIP[strategy.difficulty] ?? DIFFICULTY_CHIP.normal
+  const hasAtlas = capabilities?.supportsAtlasTree && !!strategy.atlas_tree_url
+  const hasMapSetup = capabilities?.supportsAtlasTree &&
+    (!!strategy.map_trade_link || strategy.map_cost != null || reqChips.length > 0)
+  const showsThreadSetup = capabilities?.supportsMapInvestmentPlanning &&
+    (strategy.threads.length > 0 || strategy.scarabs.length > 0)
+  const hasSetup = hasAtlas || hasMapSetup || showsThreadSetup || !!strategy.content_metadata?.source_refs.length
 
   return (
     <div className="flex min-w-0 flex-col gap-6 wrap-anywhere">
@@ -83,7 +89,7 @@ export function PublicStrategyDetailPage() {
             <Link
               to="/dashboard/strategies/$strategyId"
               params={{ strategyId: strategy.live_subscription_id }}
-              className="button button--sm"
+              className="button button--sm button--primary"
             >
               View subscription
             </Link>
@@ -131,41 +137,35 @@ export function PublicStrategyDetailPage() {
             ? 'No benchmark yet'
             : `${fmt(strategy.benchmark_chaos_per_hour)}/hr`}
         </Chip>
-        <Chip size="sm" variant="soft">
-          {strategy.benchmark_sample_count} benchmark sample
-          {strategy.benchmark_sample_count === 1 ? '' : 's'}
-        </Chip>
+        {strategy.benchmark_sample_count > 0 ? (
+          <Chip size="sm" variant="soft">
+            {strategy.benchmark_sample_count} benchmark sample
+            {strategy.benchmark_sample_count === 1 ? '' : 's'}
+          </Chip>
+        ) : null}
         <StrategyMetadataBadges metadata={strategy.content_metadata} />
       </div>
 
-      <Card>
-        <Card.Content className="gap-3 p-5 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0">
-            <p className="text-foreground text-sm font-medium">Subscriptions</p>
-            <p className="text-default-500 mt-1 text-sm leading-relaxed">
-              Add a read-only copy to your workspace. It follows the publisher’s updates while public.
-            </p>
-          </div>
-        </Card.Content>
-      </Card>
+      <p className="text-default-500 text-sm">
+        Subscriptions add a read-only copy that follows the publisher’s updates while public.
+      </p>
 
       {strategy.description ? (
         <Card>
-          <Card.Content className="p-5">
+          <Card.Content>
             <p className="text-default-600 text-sm leading-relaxed whitespace-pre-wrap">{strategy.description}</p>
           </Card.Content>
         </Card>
       ) : null}
 
-      <Card>
-        <Card.Content className="gap-4 p-5">
+      {hasSetup ? (
+        <section aria-label="Strategy setup" className="flex min-w-0 flex-col gap-3">
           <StrategySourceLinks metadata={strategy.content_metadata} />
 
-          {capabilities?.supportsAtlasTree && strategy.atlas_tree_url ? (
+          {hasAtlas && strategy.atlas_tree_url ? (
             <div className="rounded-large border-divider bg-default-50/60 flex flex-wrap items-center justify-between gap-3 border p-4">
               <div>
                 <p className="text-foreground text-sm font-medium">Atlas tree</p>
-                <p className="text-default-500 text-sm">Open the publisher's atlas setup.</p>
               </div>
               <a
                 href={strategy.atlas_tree_url}
@@ -180,7 +180,7 @@ export function PublicStrategyDetailPage() {
           ) : null}
 
           {capabilities?.supportsMapInvestmentPlanning && strategy.scarabs.length > 0 && (
-            <details className="text-default-400 text-sm">
+            <details className="text-default-400 wrap-anywhere text-sm">
               <summary className="cursor-pointer">Legacy Scarab reference (removed in 3.30)</summary>
               <ul className="mt-2">{strategy.scarabs.map((scarab, index) => (
                 <li key={index}>{scarab.quantity} × {scarab.name}</li>
@@ -196,9 +196,9 @@ export function PublicStrategyDetailPage() {
                     key={`${thread.name}-${index}`}
                     className="flex flex-wrap items-center gap-2"
                   >
-                    <Chip size="sm" variant="soft">
+                    <Chip size="sm" variant="soft" className="h-auto max-w-full px-2 py-1 whitespace-normal wrap-anywhere">
                       {thread.name}
-                      {thread.quantity > 1 ? ` x${thread.quantity}` : ''}
+                      {thread.quantity > 1 ? ` ×${thread.quantity}` : ''}
                       {!thread.required ? ' · optional' : ''}
                     </Chip>
                     {thread.alternatives.map((alternative, alternativeIndex) => (
@@ -206,10 +206,10 @@ export function PublicStrategyDetailPage() {
                         key={`${thread.name}-${index}-alt-${alternative.name}-${alternativeIndex}`}
                         size="sm"
                         variant="secondary"
-                        className="border-dashed"
+                        className="h-auto max-w-full border-dashed px-2 py-1 whitespace-normal wrap-anywhere"
                       >
-                        Alt: {alternative.name}
-                        {thread.quantity > 1 ? ` x${thread.quantity}` : ''}
+                        Alternative · {alternative.name}
+                        {thread.quantity > 1 ? ` ×${thread.quantity}` : ''}
                       </Chip>
                     ))}
                   </div>
@@ -223,14 +223,13 @@ export function PublicStrategyDetailPage() {
             </div>
           ) : null}
 
-          {capabilities?.supportsAtlasTree &&
-          (strategy.map_trade_link || strategy.map_cost != null || reqChips.length > 0) ? (
+          {hasMapSetup ? (
             <div className="rounded-large border-divider bg-default-50/60 border p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-foreground text-sm font-medium">Map setup</p>
                 {strategy.map_cost != null ? (
                   <Chip size="sm" variant="soft">
-                    ~= {fmt(strategy.map_cost)}/map
+                    ~{fmt(strategy.map_cost)}/map
                   </Chip>
                 ) : null}
               </div>
@@ -257,17 +256,8 @@ export function PublicStrategyDetailPage() {
               ) : null}
             </div>
           ) : null}
-          {!capabilities?.supportsAtlasTree ? (
-            <div className="rounded-large border-divider bg-default-50/60 border p-4">
-              <p className="text-foreground text-sm font-medium">PoE2 public strategy view</p>
-              <p className="text-default-500 mt-1 text-sm">
-                This preview stays focused on shared planning data. Atlas, thread, and map setup
-                fields remain hidden for PoE2 workspaces.
-              </p>
-            </div>
-          ) : null}
-        </Card.Content>
-      </Card>
+        </section>
+      ) : null}
     </div>
   )
 }

@@ -327,7 +327,7 @@ export function MembersPage() {
                 return (
                   <Card
                     key={member.user.id}
-                    className={`w-[min(18.5rem,calc(100vw-2rem))] shrink-0 border transition-all ${
+                    className={`w-[min(18.5rem,calc(100vw-2rem))] shrink-0 border p-0 transition-colors ${
                       isSelected ? 'border-primary/60 bg-primary/5' : 'border-transparent'
                     }`}
                   >
@@ -406,7 +406,7 @@ export function MembersPage() {
                           )}
 
                           <div className="min-w-0">
-                            <p className="text-foreground truncate text-sm font-medium">
+                            <p className="text-foreground wrap-anywhere text-sm font-medium">
                               {member.user.display_name ?? member.user.poe_account_name}
                               {isMe && (
                                 <span className="text-default-400 ml-1.5 text-xs font-normal">
@@ -414,7 +414,7 @@ export function MembersPage() {
                                 </span>
                               )}
                             </p>
-                            <p className="text-default-400 truncate text-xs">
+                            <p className="text-default-400 wrap-anywhere text-xs">
                               {char
                                 ? `${char.name} · Level ${char.level}`
                                 : member.user.poe_account_name}
@@ -431,7 +431,9 @@ export function MembersPage() {
 
                       <button
                         type="button"
-                        className="flex w-full flex-col gap-3 text-left"
+                        className="focus-visible:outline-primary flex w-full flex-col gap-3 rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2"
+                        aria-label={`View ${member.user.display_name ?? member.user.poe_account_name ?? 'member'}`}
+                        aria-pressed={isSelected}
                         onClick={() => setSelectedUserId(member.user.id)}
                       >
                         <AscendancyArt
@@ -454,20 +456,12 @@ export function MembersPage() {
                           )}
                         </div>
 
-                        <div className="flex items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
                           <p className="text-default-500 text-xs">
                             {char
                               ? `${char.class} · Level ${char.level}`
-                              : 'No active character selected'}
+                              : 'No active character'}
                           </p>
-                          <div className="text-default-400 flex items-center gap-1.5">
-                            <Chip size="sm" variant="soft">
-                              Gear
-                            </Chip>
-                            <Chip size="sm" variant="soft">
-                              Tree
-                            </Chip>
-                          </div>
                         </div>
                       </button>
                     </Card.Content>
@@ -478,7 +472,7 @@ export function MembersPage() {
           </div>
 
           {selectedMember && (
-            <Card>
+            <Card className="gap-0 p-0">
               <Card.Header className="flex flex-col gap-4 px-5 pt-5 pb-0">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                   <div className="flex min-w-0 items-start gap-3">
@@ -496,13 +490,13 @@ export function MembersPage() {
                       }}
                     />
                     <div className="min-w-0 flex-1">
-                      <h2 className="text-foreground truncate text-lg font-semibold">
+                      <h2 className="text-foreground wrap-anywhere text-lg font-semibold">
                         {selectedMember.user.display_name ?? selectedMember.user.poe_account_name}
                         {isSelectedMe && (
                           <span className="text-default-400 ml-2 text-sm font-normal">(you)</span>
                         )}
                       </h2>
-                      <p className="text-default-500 mt-1 truncate text-sm">
+                      <p className="text-default-500 wrap-anywhere mt-1 text-sm">
                         {selectedChar
                           ? `${selectedChar.name} · ${selectedChar.class} · Level ${selectedChar.level}`
                           : selectedMember.user.poe_account_name}

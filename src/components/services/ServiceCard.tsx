@@ -201,7 +201,7 @@ export function ServiceCard({
   const game = service.group_game
 
   return (
-    <Card className="transition-colors hover:bg-default-50">
+    <Card className="hover:bg-default-50 p-0 transition-colors">
       <Card.Content className="gap-0 p-0">
         <div className="flex flex-col gap-4 p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">

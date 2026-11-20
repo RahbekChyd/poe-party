@@ -52,6 +52,11 @@ export const SERVICE_TYPE_OPTIONS: ServiceTypeOption[] = [
   },
 ]
 
+export const SERVICE_TYPE_FILTER_OPTIONS = [
+  { value: 'all' as const, label: 'All types', shortLabel: 'All' },
+  ...SERVICE_TYPE_OPTIONS.map(({ id, label, shortLabel }) => ({ value: id, label, shortLabel })),
+]
+
 export function getServiceTypeOption(type: ServiceType): ServiceTypeOption {
   return SERVICE_TYPE_OPTIONS.find((option) => option.id === type) ?? SERVICE_TYPE_OPTIONS[0]
 }

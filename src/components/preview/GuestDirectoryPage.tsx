@@ -71,8 +71,8 @@ export function GuestDirectoryPage() {
         description="Find public characters and groups by game and league."
       />
 
-      <Card>
-        <Card.Content className="gap-4 p-5">
+      <Card className="@container p-3 sm:p-4">
+        <Card.Content className="gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <ToggleButtonGroup
               size="sm"
@@ -93,11 +93,11 @@ export function GuestDirectoryPage() {
             </ToggleButtonGroup>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.5fr)]">
+          <div className="grid gap-3 @min-[24rem]:grid-cols-2 @min-[40rem]:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.5fr)]">
             <FieldInput
               label={mode === 'characters' ? 'Character name' : 'Group name'}
               placeholder="At least 2 characters"
-              className="sm:col-span-2 xl:col-span-1"
+              className="@min-[24rem]:col-span-2 @min-[40rem]:col-span-1"
               startContent={<Search size={18} className="text-default-400" />}
               value={query}
               onValueChange={setQuery}

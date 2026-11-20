@@ -86,22 +86,22 @@ export function DashboardPageHeader({
     <header
       style={dashboardToneStyle(tone)}
       className={cn(
-        'border-divider/70 flex flex-col gap-x-6 gap-y-4 border-b pb-5 md:flex-row md:flex-wrap md:items-end md:justify-between',
+        'border-divider/70 flex flex-col gap-x-6 gap-y-3 border-b pb-4 md:flex-row md:flex-wrap md:items-end md:justify-between',
         className,
       )}
     >
       <div className="min-w-0 md:flex-[1_1_22rem]">
-        <div className="mb-2 flex items-center gap-2">
-          <span
-            className="h-5 w-1 rounded-full bg-[color:var(--dashboard-tone)]"
-            aria-hidden="true"
-          />
-          {eyebrow ? (
-            <span className="text-xs font-semibold tracking-wide text-[color:var(--dashboard-tone)] uppercase">
+        {eyebrow ? (
+          <div className="mb-1.5 flex items-center gap-2">
+            <span
+              className="h-4 w-1 shrink-0 rounded-full bg-[color:var(--dashboard-tone)]"
+              aria-hidden="true"
+            />
+            <span className="wrap-anywhere text-xs font-semibold tracking-wide text-[color:var(--dashboard-tone)] uppercase">
               {eyebrow}
             </span>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
         <h1 className="text-foreground text-2xl leading-8 font-semibold tracking-normal wrap-anywhere">
           {title}
         </h1>
@@ -151,10 +151,10 @@ export function DashboardEmptyState({
   tone?: DashboardTone
 }) {
   return (
-    <Card>
+    <Card className="p-0">
       <Card.Content
         style={dashboardToneStyle(tone)}
-        className="flex flex-col items-center gap-3 p-6 text-center sm:p-10"
+        className="flex flex-col items-center gap-3 p-6 text-center sm:p-8"
       >
         {Icon ? (
           <Icon size={32} className="text-[color:var(--dashboard-tone)]" aria-hidden="true" />
@@ -180,9 +180,9 @@ export function DashboardPanel({
   return (
     <Card
       style={dashboardToneStyle(tone)}
-      className={cn(tone !== 'default' && 'border-[color:var(--dashboard-tone-border)]', className)}
+      className={cn('p-0', tone !== 'default' && 'border-[color:var(--dashboard-tone-border)]', className)}
     >
-      <Card.Content className={cn('gap-4 p-5', contentClassName)}>{children}</Card.Content>
+      <Card.Content className={cn('gap-4 p-4 sm:p-5', contentClassName)}>{children}</Card.Content>
     </Card>
   )
 }

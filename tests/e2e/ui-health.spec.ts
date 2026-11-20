@@ -1,10 +1,11 @@
 import { readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
-import { expect, groupId, test, userId } from './fixture'
+import { expect, groupId, test } from './fixture'
 import {
   characterName,
   gearId,
   groupName,
+  mockAnalysisRuns,
   mockApp,
   profileId,
   serviceId,
@@ -242,33 +243,7 @@ test('a changed account must be looked up again before public analysis can queue
 })
 
 test('selecting a completed analysis remains active when a newer run refreshes', async ({ page }) => {
-  await mockApp(page, 'poe1')
-  const characterId = '70000000-0000-0000-0000-000000000001'
-  const targetId = '80000000-0000-0000-0000-000000000001'
-  const now = Date.now()
-  const target = {
-    id: targetId, group_id: groupId, user_id: userId, character_id: characterId,
-    created_by: userId, name: 'Fixture build', source_kind: 'pob_xml',
-    compatibility_status: 'compatible', is_selected: true, created_at: new Date(now).toISOString(),
-  }
-  await page.route('**/rest/v1/characters?*', (route) => route.fulfill({ json: [{
-    id: characterId, user_id: userId, name: 'Fixture Witch', class: 'Witch', level: 91, is_active: true,
-  }] }))
-  await page.route('**/rest/v1/build_targets?*', (route) => {
-    const isDetail = new URL(route.request().url()).searchParams.has('id')
-    return route.fulfill({ json: isDetail ? target : [target] })
-  })
-  let historyRequests = 0
-  await page.route('**/rest/v1/upgrade_analysis_runs?*', (route) => {
-    if (new URL(route.request().url()).searchParams.has('build_target_id')) historyRequests += 1
-    const shared = { group_id: groupId, build_target_id: targetId, target_user_id: userId, character_id: characterId, queued_by: userId }
-    const started = new Date(now - 10_000).toISOString()
-    const finished = new Date(now - 60_000).toISOString()
-    return route.fulfill({ json: [
-      { ...shared, id: 'fixture-running', status: 'running', started_at: started, created_at: started, summary: { fixture_refresh: historyRequests } },
-      { ...shared, id: 'fixture-completed', status: 'completed', started_at: finished, completed_at: finished, created_at: finished },
-    ] })
-  })
+  const countHistoryRequests = await mockAnalysisRuns(page, true)
 
   await page.goto('/dashboard/analysis')
   await page.getByRole('button', { name: 'Run history', exact: true }).click()
@@ -278,8 +253,8 @@ test('selecting a completed analysis remains active when a newer run refreshes',
   await completed.click()
   await expect(completed).toHaveAttribute('aria-pressed', 'true')
   await expect(running).toHaveAttribute('aria-pressed', 'false')
-  const initialRequests = historyRequests
-  await expect.poll(() => historyRequests).toBeGreaterThan(initialRequests)
+  const initialRequests = countHistoryRequests()
+  await expect.poll(countHistoryRequests).toBeGreaterThan(initialRequests)
   await expect(completed).toHaveAttribute('aria-pressed', 'true')
   await expectContained(page)
 })

@@ -30,7 +30,7 @@ export function QueryStatePanel({
     )
 
   return (
-    <Card>
+    <Card className="p-0">
       <Card.Content
         role={kind === 'error' ? 'alert' : kind === 'loading' ? 'status' : undefined}
         aria-live={kind === 'loading' ? 'polite' : undefined}

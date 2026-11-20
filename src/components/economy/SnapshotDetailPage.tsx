@@ -1,6 +1,7 @@
 import { SnapshotPricingNotice } from './SnapshotPricingNotice'
+import './economy-data.css'
 import { storedSnapshotPrice, comparablePricing } from '../../lib/snapshot-pricing'
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
@@ -457,9 +458,9 @@ export function SnapshotDetailPage() {
               <Target size={16} className="text-default-400 shrink-0" />
               <span className="text-default-400 shrink-0 text-sm">Strategy:</span>
               {linkedStrategy ? (
-                <Chip size="sm" variant="soft" color="accent" className="max-w-full min-w-0">
-                  <span className="truncate" title={linkedStrategy.name}>{linkedStrategy.name}</span>
-                </Chip>
+                <span className="bg-accent-soft text-accent-soft-foreground min-w-0 rounded px-2 py-0.5 text-sm wrap-anywhere">
+                  {linkedStrategy.name}
+                </span>
               ) : (
                 <span className="text-default-500 text-sm">None</span>
               )}
@@ -473,7 +474,7 @@ export function SnapshotDetailPage() {
                     {snapshotStrategyId ? 'Change strategy' : 'Link strategy'}
                     <DropdownCaret className="ml-1" />
                   </Dropdown.Trigger>
-                  <Dropdown.Popover>
+                  <Dropdown.Popover className="max-w-[calc(100dvw-2rem)]">
                     <Dropdown.Menu
                       aria-label="Link strategy"
                       selectionMode="single"
@@ -492,7 +493,7 @@ export function SnapshotDetailPage() {
                       {(strategyList ?? []).map((s) => (
                         <Dropdown.Item key={s.id} id={s.id} textValue={s.name}>
                           <Dropdown.ItemIndicator />
-                          {s.name}
+                          <span className="min-w-0 wrap-anywhere">{s.name}</span>
                         </Dropdown.Item>
                       ))}
                     </Dropdown.Menu>
@@ -519,7 +520,7 @@ export function SnapshotDetailPage() {
         ) : isError && !rawItems ? (
           <QueryStatePanel kind="error" title="Couldn’t load the snapshot" description="Try again to view stash items." onRetry={refetch} />
         ) : !items.length && !currentHistoryPoint ? (
-          <Card>
+          <Card className="p-0">
             <Card.Content className="flex flex-col items-center gap-3 p-12 text-center">
               <Package size={32} className="text-default-300" />
               <p className="text-default-400 text-sm">
@@ -530,7 +531,7 @@ export function SnapshotDetailPage() {
         ) : (
           <>
             {!items.length && selectedHistoryId && !currentHistoryPoint?.snapshot_id && (
-              <Card>
+              <Card className="p-0">
                 <Card.Content className="flex flex-col items-center gap-3 p-8 text-center">
                   <Package size={28} className="text-default-300" />
                   <p className="text-default-400 text-sm">
@@ -544,21 +545,21 @@ export function SnapshotDetailPage() {
             {/* KPI cards */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {/* Total Value */}
-              <Card>
+              <Card className="p-0">
                 <Card.Content className="flex flex-row items-center gap-3 p-4">
                   <div className="bg-success/15 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
                     <TrendingUp size={18} className="text-success" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-default-400 text-xs">Total Value</p>
-                    <p className="text-foreground truncate text-lg font-bold">{valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}</p>
+                    <p className="text-foreground text-lg font-bold wrap-anywhere tabular-nums">{valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}</p>
                     <p className="text-default-400 text-xs">{divinePrice == null ? 'Divine conversion unavailable' : `1 div = ${divinePrice.toFixed(0)}c`}</p>
                   </div>
                 </Card.Content>
               </Card>
 
               {/* Highest Value Tab — clickable */}
-              <Card className={topTabActive ? 'ring-primary ring-2' : ''}>
+              <Card className={topTabActive ? 'p-0 ring-primary ring-2' : 'p-0'}>
                 <button type="button" className="w-full text-left" onClick={handleTopTabClick}>
                   <Card.Content className="flex flex-row items-center gap-3 p-4">
                     <div className="bg-primary/15 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
@@ -570,7 +571,7 @@ export function SnapshotDetailPage() {
                       </p>
                       {topTab ? (
                         <>
-                          <p className="text-foreground truncate text-sm font-bold">
+                          <p className="text-foreground text-sm font-bold wrap-anywhere">
                             {topTab.tab_name}
                           </p>
                           <p className="text-default-400 text-xs">{fmt(topTab.value)}</p>
@@ -584,7 +585,7 @@ export function SnapshotDetailPage() {
               </Card>
 
               {/* Top Item — clickable */}
-              <Card className={topItemActive ? 'ring-warning ring-2' : ''}>
+              <Card className={topItemActive ? 'p-0 ring-warning ring-2' : 'p-0'}>
                 <button type="button" className="w-full text-left" onClick={handleTopItemClick}>
                   <Card.Content className="flex flex-row items-center gap-3 p-4">
                     <div className="bg-warning/15 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
@@ -596,7 +597,7 @@ export function SnapshotDetailPage() {
                       </p>
                       {topItem ? (
                         <>
-                          <p className="text-foreground truncate text-sm font-bold">
+                          <p className="text-foreground text-sm font-bold wrap-anywhere">
                             {topItem.display_name}
                           </p>
                           <p className="text-default-400 text-xs">{fmt(topItem.price_chaos)}</p>
@@ -613,7 +614,7 @@ export function SnapshotDetailPage() {
             {/* Wealth History */}
             {history && history.length > 0 && (
               <Card>
-                <Card.Header className="grid grid-cols-[1fr_auto_1fr] items-start gap-4 px-4 pt-4 pb-0">
+                <Card.Header className="flex flex-row flex-wrap items-center justify-between gap-3 px-4 pt-4 pb-0">
                   <div className="flex items-center gap-2">
                     <h2 className="text-foreground text-sm font-semibold">Wealth History</h2>
                     <WealthHistoryRangeSelector value={historyRange} onChange={setHistoryRange} />
@@ -781,7 +782,7 @@ export function SnapshotDetailPage() {
             )}
 
             {/* Filters */}
-            <Card>
+            <Card className="p-0">
               <Card.Content className="flex flex-row flex-wrap items-center gap-3 p-3">
                 <FieldInput
                   size="sm"
@@ -816,7 +817,7 @@ export function SnapshotDetailPage() {
                   min={0}
                 />
                 <Dropdown>
-                  <Dropdown.Trigger className="select__trigger min-h-10 min-w-40 items-center">
+                  <Dropdown.Trigger className="select__trigger min-h-10 min-w-0 max-w-full items-center sm:min-w-40">
                     <span className="select__value min-w-0">
                       {tabFilters.length === 0 ? (
                         <span className="truncate">All tabs</span>
@@ -827,7 +828,7 @@ export function SnapshotDetailPage() {
                             return col ? (
                               <span
                                 key={tab}
-                                className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium"
+                                className="inline-flex min-w-0 max-w-full items-center rounded px-1.5 py-0.5 text-xs font-medium wrap-anywhere"
                                 style={{
                                   backgroundColor: `rgb(${col.r},${col.g},${col.b})`,
                                   color: contrastColor(col.r, col.g, col.b),
@@ -838,7 +839,7 @@ export function SnapshotDetailPage() {
                             ) : (
                               <span
                                 key={tab}
-                                className="bg-default-200 inline-flex items-center rounded px-1.5 py-0.5 text-xs"
+                                className="bg-default-200 min-w-0 rounded px-1.5 py-0.5 text-xs wrap-anywhere"
                               >
                                 {tab}
                               </span>
@@ -851,7 +852,7 @@ export function SnapshotDetailPage() {
                     </span>
                     <DropdownCaret className="select__indicator" />
                   </Dropdown.Trigger>
-                  <Dropdown.Popover className="max-h-64 overflow-y-auto">
+                  <Dropdown.Popover className="max-h-64 max-w-[calc(100dvw-2rem)] overflow-y-auto">
                     <Dropdown.Menu
                       aria-label="Filter by tab"
                       selectionMode="multiple"
@@ -874,7 +875,7 @@ export function SnapshotDetailPage() {
                             <span className="flex w-full min-w-0 items-center gap-3">
                               {col ? (
                                 <span
-                                  className="inline-flex min-w-0 items-center truncate rounded px-1.5 py-0.5 text-xs font-medium"
+                                  className="min-w-0 rounded px-1.5 py-0.5 text-xs font-medium wrap-anywhere"
                                   style={{
                                     backgroundColor: `rgb(${col.r},${col.g},${col.b})`,
                                     color: contrastColor(col.r, col.g, col.b),
@@ -883,7 +884,7 @@ export function SnapshotDetailPage() {
                                   {tab}
                                 </span>
                               ) : (
-                                <span className="min-w-0 truncate">{tab}</span>
+                                <span className="min-w-0 wrap-anywhere">{tab}</span>
                               )}
                               <span
                                 aria-hidden="true"
@@ -906,7 +907,7 @@ export function SnapshotDetailPage() {
                 {/* Snapshot selector */}
                 {history && historicalSnapshotOptions.length > 0 && (
                   <Dropdown>
-                    <Dropdown.Trigger className="select__trigger h-10 min-h-10 min-w-44 items-center">
+                    <Dropdown.Trigger className="select__trigger h-10 min-h-10 min-w-0 max-w-full items-center sm:min-w-44">
                       <span className="select__value min-w-0 truncate">
                         {selectedHistoryId
                           ? new Date(
@@ -973,17 +974,32 @@ export function SnapshotDetailPage() {
             </Card>
 
             {/* Table — columns: Icon | Item | Tab | Stack | Unit | Total */}
-            <Card>
+            <Card className="p-0">
               <Card.Content className="p-0">
-                <div className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-primary" role="region" aria-label="Snapshot stash items" tabIndex={0}>
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-divider border-b">
-                        <th className="text-default-400 w-20 px-2 py-3 text-center text-xs font-medium tracking-wider uppercase">
+                <div className="economy-data" role="region" aria-label="Snapshot stash items">
+                  <table className="economy-stash" role="table">
+                    <thead role="rowgroup">
+                      <tr role="row" className="border-divider border-b">
+                        <th
+                          scope="col"
+                          role="columnheader"
+                          className="w-20 text-default-400 px-2 py-3 text-center text-xs font-medium tracking-wider uppercase"
+                        >
                           Included
                         </th>
-                        <th className="w-10 px-4 py-3" />
-                        <th className="text-default-400 px-4 py-3 text-left text-xs font-medium tracking-wider uppercase">
+                        <th scope="col" role="columnheader" className="w-12 px-4 py-3" />
+                        <th
+                          scope="col"
+                          role="columnheader"
+                          aria-sort={
+                            sortKey === 'display_name'
+                              ? sortDir === 'asc'
+                                ? 'ascending'
+                                : 'descending'
+                              : undefined
+                          }
+                          className="text-default-400 px-4 py-3 text-left text-xs font-medium tracking-wider uppercase"
+                        >
                           <button
                             className="hover:text-foreground flex items-center gap-1"
                             onClick={() => handleSort('display_name')}
@@ -991,7 +1007,18 @@ export function SnapshotDetailPage() {
                             Item {sortIcon('display_name')}
                           </button>
                         </th>
-                        <th className="text-default-400 hidden px-4 py-3 text-left text-xs font-medium tracking-wider uppercase md:table-cell">
+                        <th
+                          scope="col"
+                          role="columnheader"
+                          aria-sort={
+                            sortKey === 'tab_name'
+                              ? sortDir === 'asc'
+                                ? 'ascending'
+                                : 'descending'
+                              : undefined
+                          }
+                          className="w-[20%] text-default-400 px-4 py-3 text-left text-xs font-medium tracking-wider uppercase"
+                        >
                           <button
                             className="hover:text-foreground flex items-center gap-1"
                             onClick={() => handleSort('tab_name')}
@@ -999,7 +1026,18 @@ export function SnapshotDetailPage() {
                             Tab {sortIcon('tab_name')}
                           </button>
                         </th>
-                        <th className="text-default-400 px-4 py-3 text-right text-xs font-medium tracking-wider uppercase">
+                        <th
+                          scope="col"
+                          role="columnheader"
+                          aria-sort={
+                            sortKey === 'stack_size'
+                              ? sortDir === 'asc'
+                                ? 'ascending'
+                                : 'descending'
+                              : undefined
+                          }
+                          className="w-18 text-default-400 px-4 py-3 text-right text-xs font-medium tracking-wider uppercase"
+                        >
                           <button
                             className="hover:text-foreground ml-auto flex items-center gap-1"
                             onClick={() => handleSort('stack_size')}
@@ -1007,7 +1045,18 @@ export function SnapshotDetailPage() {
                             Stack {sortIcon('stack_size')}
                           </button>
                         </th>
-                        <th className="text-default-400 hidden px-4 py-3 text-right text-xs font-medium tracking-wider uppercase md:table-cell">
+                        <th
+                          scope="col"
+                          role="columnheader"
+                          aria-sort={
+                            sortKey === 'unit_price'
+                              ? sortDir === 'asc'
+                                ? 'ascending'
+                                : 'descending'
+                              : undefined
+                          }
+                          className="w-30 text-default-400 px-2 py-3 text-right text-xs font-medium tracking-wider uppercase"
+                        >
                           <button
                             className="hover:text-foreground ml-auto flex items-center gap-1"
                             onClick={() => handleSort('unit_price')}
@@ -1015,7 +1064,18 @@ export function SnapshotDetailPage() {
                             Unit {sortIcon('unit_price')}
                           </button>
                         </th>
-                        <th className="text-default-400 px-4 py-3 text-right text-xs font-medium tracking-wider uppercase">
+                        <th
+                          scope="col"
+                          role="columnheader"
+                          aria-sort={
+                            sortKey === 'price_chaos'
+                              ? sortDir === 'asc'
+                                ? 'ascending'
+                                : 'descending'
+                              : undefined
+                          }
+                          className="w-32 text-default-400 px-3 py-3 text-right text-xs font-medium tracking-wider uppercase"
+                        >
                           <button
                             className="hover:text-foreground ml-auto flex items-center gap-1"
                             onClick={() => handleSort('price_chaos')}
@@ -1025,228 +1085,228 @@ export function SnapshotDetailPage() {
                         </th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody role="rowgroup">
                       {paginated.map((item, i) => {
                         const showUnit = item.unit_price > 0
+                        const tabStyle =
+                          item.colour_r != null
+                            ? {
+                                backgroundColor: `rgb(${item.colour_r},${item.colour_g},${item.colour_b})`,
+                                color: contrastColor(item.colour_r, item.colour_g!, item.colour_b!),
+                              }
+                            : undefined
                         const promptActive = excludeAllPrompt?.itemId === item.id
                         const promptProgress = excludeAllPrompt
                           ? Math.max(0, Math.min(1, promptMsRemaining / 5000))
                           : 0
                         return (
-                          <tr
-                            key={item.id}
-                            className={`${i < paginated.length - 1 ? 'border-divider border-b' : ''} ${
-                              item.is_excluded && !promptActive ? 'opacity-70' : ''
-                            }`}
-                          >
-                            <td className="relative z-10 px-2 py-2 text-center">
-                              {canEditExclusions ? (
-                                <div className="relative inline-flex items-center justify-center">
-                                  <div
-                                    inert={!promptActive}
-                                    className={`absolute top-1/2 left-full z-30 ml-2 w-52 -translate-y-1/2 transition-all duration-300 ${
-                                      promptActive
-                                        ? 'pointer-events-auto translate-x-0 opacity-100'
-                                        : 'pointer-events-none -translate-x-2 opacity-0'
-                                    }`}
-                                  >
-                                    <div className="bg-content1 border-divider rounded-large overflow-hidden border shadow-lg">
-                                      <div className="px-3 py-2 text-left">
-                                        <p className="text-foreground text-xs font-medium">
-                                          Exclude across stored snapshots?
-                                        </p>
-                                        <p className="text-default-400 mt-0.5 text-[11px] leading-relaxed">
-                                          Apply this exclusion to matching copies of this item in
-                                          your saved history.
-                                        </p>
-                                        <div className="mt-2 flex items-center gap-2">
-                                          <Button
-                                            size="sm"
-                                            variant="tertiary"
-                                            className="h-7 min-w-0 px-2 text-xs"
-                                            isPending={updatingExclusionAllHistory}
-                                            onPress={() =>
-                                              setItemExcludedAllHistory(
-                                                {
-                                                  itemId: item.id,
-                                                  isExcluded: true,
-                                                  reason: 'manual',
-                                                },
-                                                {
-                                                  onSuccess: () => setExcludeAllPrompt(null),
-                                                },
-                                              )
-                                            }
-                                          >
-                                            {({ isPending }) => (
-                                              <>
-                                                {isPending ? (
-                                                  <Spinner color="current" size="sm" />
-                                                ) : null}
-                                                All snapshots
-                                              </>
-                                            )}
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            variant="tertiary"
-                                            className="h-7 min-w-0 px-2 text-xs"
-                                            onPress={() => setExcludeAllPrompt(null)}
-                                          >
-                                            Dismiss
-                                          </Button>
-                                          <span className="text-default-400 ml-auto text-[11px] tabular-nums">
-                                            {(promptMsRemaining / 1000).toFixed(1)}s
-                                          </span>
-                                        </div>
-                                      </div>
-                                      <div className="bg-warning/20 h-1 w-full">
-                                        <div
-                                          className="bg-warning linear h-full origin-left transition-[width] duration-100"
-                                          style={{ width: `${promptProgress * 100}%` }}
-                                        />
+                          <Fragment key={item.id}>
+                            <tr
+                              role="row"
+                              className={`${i < paginated.length - 1 ? 'border-divider border-b' : ''} ${
+                                item.is_excluded && !promptActive ? 'opacity-70' : ''
+                              }`}
+                            >
+                              <td role="cell" data-cell="include" className="px-2 py-2 text-center">
+                                <span className="economy-data-label" aria-hidden="true">
+                                  Included
+                                </span>
+                                {canEditExclusions ? (
+                                  <div className="relative inline-flex items-center justify-center">
+                                    <button
+                                      type="button"
+                                      aria-label={item.is_excluded ? 'Include item' : 'Exclude item'}
+                                      title={item.is_excluded ? 'Include item' : 'Exclude item'}
+                                      disabled={updatingExclusion || updatingExclusionAllHistory}
+                                      onClick={() =>
+                                        setItemExcluded(
+                                          {
+                                            itemId: item.id,
+                                            isExcluded: !item.is_excluded,
+                                            reason: item.is_excluded ? null : 'manual',
+                                          },
+                                          {
+                                            onSuccess: () => {
+                                              if (item.is_excluded) {
+                                                setExcludeAllPrompt(null)
+                                                return
+                                              }
+                                              setPromptNow(Date.now())
+                                              setExcludeAllPrompt({
+                                                itemId: item.id,
+                                                expiresAt: Date.now() + 5000,
+                                              })
+                                            },
+                                          },
+                                        )
+                                      }
+                                      className={`inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs font-semibold transition-colors ${
+                                        item.is_excluded
+                                          ? 'border-warning/50 bg-warning/15 text-warning'
+                                          : 'border-success/40 bg-success/10 text-success hover:bg-success/15'
+                                      } ${updatingExclusion || updatingExclusionAllHistory ? 'cursor-wait opacity-60' : ''}`}
+                                    >
+                                      {item.is_excluded ? <X size={12} /> : <Check size={12} />}
+                                    </button>
+                                  </div>
+                                ) : item.is_excluded ? (
+                                  <Chip size="sm" color="warning" variant="soft">
+                                    Off
+                                  </Chip>
+                                ) : (
+                                  <span className="text-default-300 text-xs">-</span>
+                                )}
+                              </td>
+                              <td role="cell" data-cell="icon" className="p-2">
+                                {item.icon_url ? (
+                                  <img
+                                    src={item.icon_url}
+                                    alt=""
+                                    className="h-8 w-8 object-contain"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div className="bg-default-100 h-8 w-8 rounded" />
+                                )}
+                              </td>
+                              <td role="cell" data-cell="item" className="px-4 py-2">
+                                <p className="text-foreground text-sm">{item.display_name}</p>
+                                {item.base_type && item.base_type !== item.display_name && (
+                                  <p className="text-default-400 text-xs">{item.base_type}</p>
+                                )}
+                              </td>
+                              <td role="cell" data-cell="tab" className="px-4 py-2">
+                                <button
+                                  type="button"
+                                  aria-pressed={tabFilters.includes(item.tab_name)}
+                                  className="bg-default-100 text-default-700 focus-visible:outline-primary max-w-full cursor-pointer rounded px-2 py-0.5 text-left text-xs font-medium wrap-anywhere hover:underline focus-visible:outline-2"
+                                  style={tabStyle}
+                                  onClick={() => {
+                                    setTabFilters((prev) =>
+                                      prev.includes(item.tab_name)
+                                        ? prev.filter((t) => t !== item.tab_name)
+                                        : [...prev, item.tab_name],
+                                    )
+                                    setPage(1)
+                                  }}
+                                >
+                                  {item.tab_name}
+                                </button>
+                              </td>
+                              <td role="cell" data-cell="quantity" className="px-4 py-2 text-right">
+                                <span className="economy-data-label" aria-hidden="true">
+                                  Stack
+                                </span>
+                                <span className="text-foreground text-sm">
+                                  {item.stack_size.toLocaleString()}
+                                </span>
+                              </td>
+                              <td role="cell" data-cell="unit" className="px-2 py-2 text-right tabular-nums">
+                                <span className="economy-data-label" aria-hidden="true">
+                                  Unit
+                                </span>
+                                <span
+                                  className={`text-sm ${
+                                    item.is_excluded
+                                      ? 'text-default-300 line-through'
+                                      : 'text-default-400'
+                                  }`}
+                                >
+                                  {showUnit ? fmtUnit(item.unit_price) : '—'}
+                                </span>
+                              </td>
+                              <td role="cell" data-cell="value" className="px-3 py-2 text-right tabular-nums">
+                                <span className="economy-data-label" aria-hidden="true">
+                                  Total
+                                </span>
+                                <span
+                                  className={`text-sm font-semibold ${
+                                    item.price_chaos > 0
+                                      ? item.is_excluded
+                                        ? 'text-default-300 line-through'
+                                        : 'text-foreground'
+                                      : 'text-default-300'
+                                  }`}
+                                >
+                                  {item.has_price ? fmt(item.price_chaos) : 'Unknown'}
+                                </span>
+                              </td>
+                            </tr>
+                            {promptActive && (
+                              <tr role="row" className="border-divider border-b">
+                                <td role="cell" colSpan={7} className="px-4 py-2">
+                                  <div className="bg-default-50 border-divider rounded-lg overflow-hidden border">
+                                    <div className="px-3 py-2 text-left">
+                                      <p
+                                        className="text-foreground text-xs font-medium"
+                                        role="status"
+                                      >
+                                        Exclude from all snapshots?
+                                      </p>
+                                      <p className="text-default-400 mt-0.5 text-[11px] leading-relaxed">
+                                        Apply this to matching items in your saved history.
+                                      </p>
+                                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                                        <Button
+                                          size="sm"
+                                          variant="tertiary"
+                                          className="h-7 min-w-0 px-2 text-xs"
+                                          isPending={updatingExclusionAllHistory}
+                                          onPress={() =>
+                                            setItemExcludedAllHistory(
+                                              {
+                                                itemId: item.id,
+                                                isExcluded: true,
+                                                reason: 'manual',
+                                              },
+                                              {
+                                                onSuccess: () => setExcludeAllPrompt(null),
+                                              },
+                                            )
+                                          }
+                                        >
+                                          {({ isPending }) => (
+                                            <>
+                                              {isPending ? (
+                                                <Spinner color="current" size="sm" />
+                                              ) : null}
+                                              All snapshots
+                                            </>
+                                          )}
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="tertiary"
+                                          className="h-7 min-w-0 px-2 text-xs"
+                                          onPress={() => setExcludeAllPrompt(null)}
+                                        >
+                                          Dismiss
+                                        </Button>
+                                        <span className="text-default-400 ml-auto text-[11px] tabular-nums">
+                                          {(promptMsRemaining / 1000).toFixed(1)}s
+                                        </span>
                                       </div>
                                     </div>
+                                    <div className="bg-warning/20 h-1 w-full">
+                                      <div
+                                        className="bg-warning linear h-full origin-left transition-[width] duration-100"
+                                        style={{ width: `${promptProgress * 100}%` }}
+                                      />
+                                    </div>
                                   </div>
-                                  <button
-                                    type="button"
-                                    aria-label={item.is_excluded ? 'Include item' : 'Exclude item'}
-                                    title={item.is_excluded ? 'Include item' : 'Exclude item'}
-                                    disabled={updatingExclusion || updatingExclusionAllHistory}
-                                    onClick={() =>
-                                      setItemExcluded(
-                                        {
-                                          itemId: item.id,
-                                          isExcluded: !item.is_excluded,
-                                          reason: item.is_excluded ? null : 'manual',
-                                        },
-                                        {
-                                          onSuccess: () => {
-                                            if (item.is_excluded) {
-                                              setExcludeAllPrompt(null)
-                                              return
-                                            }
-                                            setPromptNow(Date.now())
-                                            setExcludeAllPrompt({
-                                              itemId: item.id,
-                                              expiresAt: Date.now() + 5000,
-                                            })
-                                          },
-                                        },
-                                      )
-                                    }
-                                    className={`inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs font-semibold transition-colors ${
-                                      item.is_excluded
-                                        ? 'border-warning/50 bg-warning/15 text-warning'
-                                        : 'border-success/40 bg-success/10 text-success hover:bg-success/15'
-                                    } ${updatingExclusion || updatingExclusionAllHistory ? 'cursor-wait opacity-60' : ''}`}
-                                  >
-                                    {item.is_excluded ? <X size={12} /> : <Check size={12} />}
-                                  </button>
-                                </div>
-                              ) : item.is_excluded ? (
-                                <Chip size="sm" color="warning" variant="soft">
-                                  Off
-                                </Chip>
-                              ) : (
-                                <span className="text-default-300 text-xs">-</span>
-                              )}
-                            </td>
-                            <td className="p-2">
-                              {item.icon_url ? (
-                                <img
-                                  src={item.icon_url}
-                                  alt={item.display_name}
-                                  className="h-8 w-8 object-contain"
-                                  loading="lazy"
-                                />
-                              ) : (
-                                <div className="bg-default-100 h-8 w-8 rounded" />
-                              )}
-                            </td>
-                            <td className="px-4 py-2">
-                              <p className="text-foreground text-sm">{item.display_name}</p>
-                              {item.base_type && item.base_type !== item.display_name && (
-                                <p className="text-default-400 text-xs">{item.base_type}</p>
-                              )}
-                            </td>
-                            <td className="hidden px-4 py-2 md:table-cell">
-                              {item.colour_r != null ? (
-                                <span
-                                  className="inline-flex cursor-pointer items-center rounded px-2 py-0.5 text-xs font-medium"
-                                  style={{
-                                    backgroundColor: `rgb(${item.colour_r},${item.colour_g},${item.colour_b})`,
-                                    color: contrastColor(
-                                      item.colour_r,
-                                      item.colour_g!,
-                                      item.colour_b!,
-                                    ),
-                                  }}
-                                  onClick={() => {
-                                    setTabFilters((prev) =>
-                                      prev.includes(item.tab_name)
-                                        ? prev.filter((t) => t !== item.tab_name)
-                                        : [...prev, item.tab_name],
-                                    )
-                                    setPage(1)
-                                  }}
-                                >
-                                  {item.tab_name}
-                                </span>
-                              ) : (
-                                <Chip
-                                  size="sm"
-                                  variant="soft"
-                                  color="default"
-                                  className="cursor-pointer"
-                                  onClick={() => {
-                                    setTabFilters((prev) =>
-                                      prev.includes(item.tab_name)
-                                        ? prev.filter((t) => t !== item.tab_name)
-                                        : [...prev, item.tab_name],
-                                    )
-                                    setPage(1)
-                                  }}
-                                >
-                                  {item.tab_name}
-                                </Chip>
-                              )}
-                            </td>
-                            <td className="px-4 py-2 text-right">
-                              <span className="text-foreground text-sm">
-                                {item.stack_size.toLocaleString()}
-                              </span>
-                            </td>
-                            <td className="hidden px-4 py-2 text-right md:table-cell">
-                              <span
-                                className={`text-sm ${
-                                  item.is_excluded
-                                    ? 'text-default-300 line-through'
-                                    : 'text-default-400'
-                                }`}
-                              >
-                                {showUnit ? fmtUnit(item.unit_price) : '—'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-2 text-right">
-                              <span
-                                className={`text-sm font-semibold ${
-                                  item.price_chaos > 0
-                                    ? item.is_excluded
-                                      ? 'text-default-300 line-through'
-                                      : 'text-foreground'
-                                    : 'text-default-300'
-                                }`}
-                              >
-                                {item.has_price ? fmt(item.price_chaos) : 'Unknown'}
-                              </span>
-                            </td>
-                          </tr>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
                         )
                       })}
                       {paginated.length === 0 && (
-                        <tr>
-                          <td colSpan={7} className="text-default-400 py-12 text-center text-sm">
+                        <tr role="row">
+                          <td
+                            role="cell"
+                            colSpan={7}
+                            className="text-default-400 py-12 text-center text-sm"
+                          >
                             No items match the current filters.
                           </td>
                         </tr>

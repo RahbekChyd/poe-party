@@ -1,6 +1,4 @@
 import {
-  type KeyboardEvent,
-  type MouseEvent,
   type ReactNode,
   useEffect,
   useMemo,
@@ -1723,8 +1721,7 @@ export function RecommendationItemRow({
     setIsOpen(true)
   }
 
-  function handleReservationBadgeClick(event: MouseEvent<HTMLButtonElement>) {
-    event.stopPropagation()
+  function handleReservationBadgeClick() {
     if (!reservationAuditAnchorId) {
       openDetails()
       return
@@ -1756,24 +1753,19 @@ export function RecommendationItemRow({
     })
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      openDetails()
-    }
-  }
-
   const card = (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={openDetails}
-      onKeyDown={handleKeyDown}
-      className={`rounded-large border-divider/70 bg-content1 hover:border-warning/40 hover:bg-warning/5 focus-visible:border-warning/50 relative flex h-full w-full cursor-pointer flex-col border p-3 transition-colors focus-visible:outline-none sm:w-[14.375rem] ${topRankBadge ? 'pt-9' : ''}`}
+      className={`rounded-large border-divider/70 bg-content1 hover:border-warning/40 hover:bg-warning/5 relative flex h-full w-full min-w-0 flex-col border p-3 transition-colors ${topRankBadge ? 'pt-9' : ''}`}
     >
+      <button
+        type="button"
+        aria-label={`View ${preview.title}`}
+        className="rounded-large focus-visible:outline-primary absolute inset-0 z-10 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+        onClick={openDetails}
+      />
       {topRankBadge ? (
         <div
-          className={`absolute top-2 left-2 z-10 inline-flex max-w-[8.5rem] items-center gap-1 rounded-full border px-2 py-1 text-[11px] leading-4 font-semibold shadow-sm backdrop-blur ${topRankBadge.className}`}
+          className={`pointer-events-none absolute top-2 left-2 inline-flex max-w-[8.5rem] items-center gap-1 rounded-full border px-2 py-1 text-[11px] leading-4 font-semibold shadow-sm backdrop-blur ${topRankBadge.className}`}
         >
           {topRankBadge.icon === 'trophy' ? <Trophy size={13} /> : <Award size={13} />}
           <span className="truncate">{topRankBadge.label}</span>
@@ -1795,11 +1787,11 @@ export function RecommendationItemRow({
           )}
         </div>
         <div className="min-w-0 text-center">
-          <p className={`truncate text-sm font-semibold ${getRarityColor(preview.rarity)}`}>
+          <p className={`wrap-anywhere text-sm font-semibold ${getRarityColor(preview.rarity)}`}>
             {preview.title}
           </p>
           {preview.subtitle ? (
-            <p className="text-default-500 mt-1 truncate text-[11px] tracking-[0.14em] uppercase">
+            <p className="text-default-500 wrap-anywhere mt-1 text-[11px] tracking-[0.14em] uppercase">
               {preview.subtitle}
             </p>
           ) : null}
@@ -1863,10 +1855,9 @@ export function RecommendationItemRow({
             {reservationScoreEntry ? (
               <button
                 type="button"
-                className="focus-visible:ring-accent/60 inline-flex cursor-pointer rounded-full focus-visible:ring-2 focus-visible:outline-none"
+                className="focus-visible:ring-accent/60 relative z-20 inline-flex cursor-pointer rounded-full focus-visible:ring-2 focus-visible:outline-none"
                 aria-label="Open reservation audit"
                 onClick={handleReservationBadgeClick}
-                onKeyDown={(event) => event.stopPropagation()}
               >
                 <Chip size="sm" variant="soft" color={reservationChipColor}>
                   Reservation {reservationScoreLabel}
@@ -1885,7 +1876,7 @@ export function RecommendationItemRow({
       <div className="border-divider/70 mt-3 flex items-center justify-between gap-2 border-t pt-3">
         <div className="min-w-0">
           {priceLabel ? (
-            <p className="text-foreground truncate text-sm font-semibold">{priceLabel}</p>
+            <p className="text-foreground wrap-anywhere text-sm font-semibold">{priceLabel}</p>
           ) : null}
           {priceContextLabel ? (
             <p className="text-default-400 mt-1 text-[11px]">{priceContextLabel}</p>
@@ -1912,19 +1903,18 @@ export function RecommendationItemRow({
         </div>
         {item.trade_link ? (
           tradeLinksDisabledForStaleRun ? (
-            <Button isIconOnly size="sm" variant="tertiary" isDisabled aria-label={tradeActionLabel}>
-              <ExternalLink size={14} />
+            <Button isIconOnly size="sm" variant="tertiary" isDisabled aria-label={tradeActionLabel} className="relative z-20 shrink-0">
+              <ExternalLink size={14} aria-hidden="true" />
             </Button>
           ) : (
             <a
               href={item.trade_link}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={(event) => event.stopPropagation()}
+              className="button button--sm button--tertiary button--icon-only relative z-20 shrink-0"
+              aria-label={tradeActionLabel}
             >
-              <Button isIconOnly size="sm" variant="tertiary" aria-label={tradeActionLabel}>
-                <ExternalLink size={14} />
-              </Button>
+              <ExternalLink size={14} aria-hidden="true" />
             </a>
           )
         ) : null}
@@ -1939,9 +1929,9 @@ export function RecommendationItemRow({
         placement="right"
         delay={150}
         closeDelay={50}
-        classNames={{ base: 'before:hidden', content: 'bg-transparent p-0 shadow-none' }}
+        classNames={{ base: 'block min-w-0 before:hidden', content: 'bg-transparent p-0 shadow-none' }}
       >
-        <div className="h-full w-full sm:w-fit">{card}</div>
+        {card}
       </Tooltip>
 
       <>
@@ -1952,12 +1942,12 @@ export function RecommendationItemRow({
           }}
         >
           <Modal.Container>
-            <Modal.Dialog className="w-[calc(100vw-2rem)] max-w-2xl max-h-[calc(100vh-2rem)] overflow-hidden sm:w-[calc(100vw-4rem)]">
+            <Modal.Dialog className="w-[calc(100vw-2rem)] max-w-2xl max-h-[calc(100dvh-2rem)] overflow-hidden sm:w-[calc(100vw-4rem)]">
               <Modal.Header className="flex flex-col gap-3">
                 <div className="flex items-start gap-4">
-                  <div className="rounded-large border-divider/70 bg-default-100 flex h-20 w-20 shrink-0 items-center justify-center border">
+                  <div className="rounded-large border-divider/70 bg-default-100 flex h-12 w-12 shrink-0 items-center justify-center border sm:h-20 sm:w-20">
                     {iconUrl ? (
-                      <img src={iconUrl} alt={preview.title} className="h-16 w-16 object-contain" />
+                      <img src={iconUrl} alt="" className="h-10 w-10 object-contain sm:h-16 sm:w-16" />
                     ) : (
                       <span className="text-default-400 text-xs font-semibold tracking-[0.14em] uppercase">
                         {item.slot?.slice(0, 2) ?? 'It'}
@@ -1966,12 +1956,12 @@ export function RecommendationItemRow({
                   </div>
                   <div className="min-w-0">
                     <Modal.Heading
-                      className={`text-base font-semibold ${getRarityColor(preview.rarity)}`}
+                      className={`wrap-anywhere text-base font-semibold ${getRarityColor(preview.rarity)}`}
                     >
                       {preview.title}
                     </Modal.Heading>
                     {preview.subtitle ? (
-                      <p className="text-default-500 mt-1 text-sm">{preview.subtitle}</p>
+                      <p className="text-default-500 wrap-anywhere mt-1 text-sm">{preview.subtitle}</p>
                     ) : null}
                     <div className="mt-3 flex flex-wrap gap-2">
                       {item.source === 'owned' ? (
@@ -2416,10 +2406,8 @@ export function RecommendationItemRow({
                         {tradeActionLabel}
                       </Button>
                     ) : (
-                      <a href={item.trade_link} target="_blank" rel="noopener noreferrer">
-                        <Button size="sm" variant="tertiary">
-                          {tradeActionLabel}
-                        </Button>
+                      <a href={item.trade_link} target="_blank" rel="noopener noreferrer" className="button button--sm button--tertiary">
+                        {tradeActionLabel}
                       </a>
                     )
                   ) : null}

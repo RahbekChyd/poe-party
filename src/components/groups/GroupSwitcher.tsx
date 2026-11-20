@@ -57,7 +57,7 @@ export function GroupSwitcher() {
         <Dropdown>
           <Dropdown.Trigger
             aria-label={activeGroup ? `Switch group, current group: ${activeGroup.name}` : 'Switch group'}
-            className="select__trigger h-9 min-h-9 max-w-full min-w-0 items-center sm:max-w-56"
+            className="select__trigger h-9 min-h-9 max-w-full min-w-0 items-center sm:max-w-64 lg:max-w-88"
             isDisabled={isMutating}
           >
             <span className="select__value min-w-0">
@@ -75,7 +75,6 @@ export function GroupSwitcher() {
               selectedKeys={activeGroupId ? new Set([activeGroupId]) : new Set()}
               disabledKeys={[
                 '__empty__',
-                ...(activeGroupId ? [activeGroupId] : []),
                 ...(isMutating ? ['__leave__', '__delete__'] : []),
               ]}
               onAction={(key) => {
@@ -92,7 +91,7 @@ export function GroupSwitcher() {
                 } else if (key === '__delete__') {
                   deleteGroup.reset()
                   if (activeGroup) setPendingAction({ intent: 'delete', id: activeGroup.id, name: activeGroup.name })
-                } else if (key !== '__empty__') {
+                } else if (key !== '__empty__' && key !== activeGroupId) {
                   setActiveGroupId(key as string)
                 }
               }}
@@ -105,7 +104,7 @@ export function GroupSwitcher() {
                       <Dropdown.ItemIndicator />
                       <div className="flex min-w-0 flex-col">
                         <Label className="wrap-anywhere">{group.name}</Label>
-                        <Description>
+                        <Description className="wrap-anywhere">
                           {getPoeGameShortLabel(group.game)} - {group.league} - {role}
                         </Description>
                       </div>

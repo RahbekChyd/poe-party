@@ -7,7 +7,7 @@ import { useNinjaPrices } from '../../hooks/useNinjaPrices'
 import {
   TrendingUp,
   Users,
-  Target,
+  ArrowRight,
   ArrowUpRight,
   ArrowDownRight,
   Star,
@@ -41,7 +41,6 @@ import { useGroupWealthHistory } from '../../hooks/useGroupWealthHistory'
 import type { GroupWealthDataPoint } from '../../hooks/useGroupWealthHistory'
 import { useStrategyHourlyEstimates } from '../../hooks/useStrategyEconomy'
 import { useCurrentUser } from '../../hooks/useCurrentUser'
-import { CarouselSkeleton } from '../layout/Skeletons'
 import {
   calculateChaosPerHour,
   calculateTrendStats,
@@ -51,9 +50,8 @@ import {
 import { filterHistoryByRange, type WealthHistoryRange } from '../../lib/wealth-history'
 import { useCurrencyStore } from '../../store/currency-store'
 import { STATUS_COLOR, DIFFICULTY_CHIP, IMPORTANCE_CHIP } from '../../lib/constants'
-import { getAvatarColor } from '../../lib/utils'
 import { WealthHistoryRangeSelector } from '../economy/WealthHistoryRangeSelector'
-import { IconTooltip, UserAvatar } from '../ui/heroui-native'
+import { IconTooltip } from '../ui/heroui-native'
 import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
 export function OverviewPage() {
@@ -203,123 +201,151 @@ export function OverviewPage() {
       />
 
       {!isMarketOnly && valuationPartial && (
-        <p role="status" className="text-warning text-sm">Partial pricing: this subtotal excludes items without available price estimates.</p>
+        <p role="status" className="text-warning text-sm">Partial pricing: some items have no price estimate.</p>
       )}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Link to="/dashboard/economy" className="block min-h-30">
-          <Card className="hover:bg-default-50 h-full cursor-pointer transition-colors">
-            <Card.Content className="flex h-full flex-row items-center gap-3 p-4 md:gap-4 md:p-5">
-              <div className="bg-success/15 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg">
-                <TrendingUp size={26} className="text-success" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-default-400 text-xs tracking-wider uppercase">
-                  {isMarketOnly ? 'Market Overview' : valuationPartial ? 'Priced subtotal' : isSolo ? 'Your Wealth' : 'Group Value'}
-                </p>
-                {snapsLoading ? (
-                  <Skeleton className="mt-1 h-7 w-24 rounded-md" />
-                ) : (
-                  <p className="text-foreground text-2xl font-bold wrap-anywhere">
-                    {isMarketOnly ? 'Live' : valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}
+      <div className="@container">
+        <div className="grid grid-cols-2 gap-3 @min-[52rem]:grid-cols-4">
+          <Link
+            to="/dashboard/economy"
+            className="focus-visible:outline-primary block min-w-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            <Card className="hover:bg-default-50 h-full p-0 transition-colors">
+              <Card.Content className="flex h-full flex-col items-start gap-2 p-3 @min-[35rem]:flex-row @min-[35rem]:items-center @min-[35rem]:gap-3 @min-[35rem]:p-4">
+                <div className="bg-success/15 flex size-8 shrink-0 items-center justify-center rounded-lg">
+                  <TrendingUp size={18} className="text-success" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-default-400 text-xs tracking-wider uppercase">
+                    {isMarketOnly
+                      ? 'Market Overview'
+                      : valuationPartial
+                        ? 'Priced subtotal'
+                        : isSolo
+                          ? 'Your Wealth'
+                          : 'Group Value'}
                   </p>
-                )}
-              </div>
-            </Card.Content>
-          </Card>
-        </Link>
-
-        {!isSolo && (
-          <Card className="h-30">
-            <Card.Content className="flex h-full flex-row items-center gap-3 p-4 md:gap-4 md:p-5">
-              <div className="bg-primary/15 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg">
-                <Users size={26} className="text-primary" />
-              </div>
-              <div>
-                <p className="text-default-400 text-xs tracking-wider uppercase">{isMarketOnly ? 'Party members' : 'Synced members'}</p>
-                {!isMarketOnly && snapsLoading ? (
-                  <Skeleton className="mt-1 h-7 w-16 rounded-md" />
-                ) : (
-                  <p className="text-foreground text-2xl font-bold">
-                    {isMarketOnly ? members?.length ?? '…' : syncedCount}
-                    {!isMarketOnly && <span className="text-default-400 text-base font-normal">/{members?.length ?? '…'}</span>}
-                  </p>
-                )}
-              </div>
-            </Card.Content>
-          </Card>
-        )}
-
-        <Link to="/dashboard/gear" className="block h-30">
-          <Card className="hover:bg-default-50 h-full cursor-pointer transition-colors">
-            <Card.Content className="flex h-full flex-row items-center gap-3 p-4 md:gap-4 md:p-5">
-              <div className="bg-warning/15 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg">
-                <Sword size={26} className="text-warning" />
-              </div>
-              <div>
-                <p className="text-default-400 text-xs tracking-wider uppercase">Gear For Me</p>
-                <p className="text-foreground text-2xl font-bold">{myGearCount}</p>
-              </div>
-            </Card.Content>
-          </Card>
-        </Link>
-
-        {!isSolo && !isMarketOnly && (
-          <Card className="h-30">
-            <Card.Content className="flex h-full flex-row items-center gap-3 p-4 md:gap-4 md:p-5">
-              <div
-                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${
-                  stalestMember?.age.color === 'success'
-                    ? 'bg-success/15'
-                    : stalestMember?.age.color === 'warning'
-                      ? 'bg-warning/15'
-                      : stalestMember?.age.color === 'danger'
-                        ? 'bg-danger/15'
-                        : 'bg-default/15'
-                }`}
-              >
-                <Clock
-                  size={26}
-                  className={
-                    stalestMember?.age.color === 'success'
-                      ? 'text-success'
-                      : stalestMember?.age.color === 'warning'
-                        ? 'text-warning'
-                        : stalestMember?.age.color === 'danger'
-                          ? 'text-danger'
-                          : 'text-default-400'
-                  }
-                />
-              </div>
-              <div className="min-w-0">
-                <p className="text-default-400 flex items-center gap-1 text-xs tracking-wider uppercase">
-                  Oldest snapshot
-                  <IconTooltip content="The group member who has gone the longest without taking a snapshot">
-                    <Info size={12} className="text-default-300 shrink-0 cursor-help" />
-                  </IconTooltip>
-                </p>
-                {snapsLoading ? (
-                  <Skeleton className="mt-1 h-7 w-20 rounded-md" />
-                ) : stalestMember ? (
-                  <>
-                    <p className="text-foreground truncate text-sm font-bold" title={stalestMember.name}>
-                      {stalestMember.name}
+                  {snapsLoading ? (
+                    <Skeleton className="mt-1 h-7 w-24 rounded-md" />
+                  ) : (
+                    <p className="text-foreground text-2xl font-bold wrap-anywhere">
+                      {isMarketOnly
+                        ? 'Live'
+                        : valuationUnavailable
+                          ? 'Pricing unavailable'
+                          : fmt(totalChaos)}
                     </p>
-                    <p className="text-default-400 text-xs">{stalestMember.age.label}</p>
-                  </>
-                ) : (
-                  <p className="text-default-400 text-sm">—</p>
-                )}
-              </div>
-            </Card.Content>
-          </Card>
-        )}
+                  )}
+                </div>
+              </Card.Content>
+            </Card>
+          </Link>
+
+          {!isSolo && (
+            <Card className="h-full min-w-0 p-0">
+              <Card.Content className="flex h-full flex-col items-start gap-2 p-3 @min-[35rem]:flex-row @min-[35rem]:items-center @min-[35rem]:gap-3 @min-[35rem]:p-4">
+                <div className="bg-primary/15 flex size-8 shrink-0 items-center justify-center rounded-lg">
+                  <Users size={18} className="text-primary" aria-hidden="true" />
+                </div>
+                <div>
+                  <p className="text-default-400 text-xs tracking-wider uppercase">
+                    {isMarketOnly ? 'Party members' : 'Synced members'}
+                  </p>
+                  {!isMarketOnly && snapsLoading ? (
+                    <Skeleton className="mt-1 h-7 w-16 rounded-md" />
+                  ) : (
+                    <p className="text-foreground text-2xl font-bold">
+                      {isMarketOnly ? (members?.length ?? '…') : syncedCount}
+                      {!isMarketOnly && (
+                        <span className="text-default-400 text-base font-normal">
+                          /{members?.length ?? '…'}
+                        </span>
+                      )}
+                    </p>
+                  )}
+                </div>
+              </Card.Content>
+            </Card>
+          )}
+
+          <Link
+            to="/dashboard/gear"
+            className="focus-visible:outline-primary block min-w-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            <Card className="hover:bg-default-50 h-full p-0 transition-colors">
+              <Card.Content className="flex h-full flex-col items-start gap-2 p-3 @min-[35rem]:flex-row @min-[35rem]:items-center @min-[35rem]:gap-3 @min-[35rem]:p-4">
+                <div className="bg-warning/15 flex size-8 shrink-0 items-center justify-center rounded-lg">
+                  <Sword size={18} className="text-warning" aria-hidden="true" />
+                </div>
+                <div>
+                  <p className="text-default-400 text-xs tracking-wider uppercase">Gear For Me</p>
+                  <p className="text-foreground text-2xl font-bold">{myGearCount}</p>
+                </div>
+              </Card.Content>
+            </Card>
+          </Link>
+
+          {!isSolo && !isMarketOnly && (
+            <Card className="h-full min-w-0 p-0">
+              <Card.Content className="flex h-full flex-col items-start gap-2 p-3 @min-[35rem]:flex-row @min-[35rem]:items-center @min-[35rem]:gap-3 @min-[35rem]:p-4">
+                <div
+                  className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
+                    stalestMember?.age.color === 'success'
+                      ? 'bg-success/15'
+                      : stalestMember?.age.color === 'warning'
+                        ? 'bg-warning/15'
+                        : stalestMember?.age.color === 'danger'
+                          ? 'bg-danger/15'
+                          : 'bg-default/15'
+                  }`}
+                >
+                  <Clock
+                    size={18}
+                    aria-hidden="true"
+                    className={
+                      stalestMember?.age.color === 'success'
+                        ? 'text-success'
+                        : stalestMember?.age.color === 'warning'
+                          ? 'text-warning'
+                          : stalestMember?.age.color === 'danger'
+                            ? 'text-danger'
+                            : 'text-default-400'
+                    }
+                  />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-default-400 flex items-center gap-1 text-xs tracking-wider uppercase">
+                    Oldest snapshot
+                    <IconTooltip content="The group member who has gone the longest without taking a snapshot">
+                      <Info size={12} className="text-default-300 shrink-0 cursor-help" />
+                    </IconTooltip>
+                  </p>
+                  {snapsLoading ? (
+                    <Skeleton className="mt-1 h-7 w-20 rounded-md" />
+                  ) : stalestMember ? (
+                    <>
+                      <p className="text-foreground text-lg font-bold">{stalestMember.age.label}</p>
+                      <p
+                        className="text-default-400 line-clamp-2 text-xs wrap-anywhere"
+                        title={stalestMember.name}
+                      >
+                        {stalestMember.name}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-default-400 text-sm">—</p>
+                  )}
+                </div>
+              </Card.Content>
+            </Card>
+          )}
+        </div>
       </div>
 
       {/* Group Wealth History */}
       {groupHistory && groupHistory.length > 0 && (
-        <Card>
+        <Card className="p-0">
           <Card.Header className="px-4 pt-4 pb-0">
-            <div className="grid w-full grid-cols-[1fr_auto_1fr] items-start gap-4">
+            <div className="flex w-full flex-wrap items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 <h2 className="text-foreground text-sm font-semibold">
                   {isSolo ? 'Wealth History' : 'Group Wealth History'}
@@ -422,214 +448,135 @@ export function OverviewPage() {
         </Card>
       )}
 
-      {/* Strategies Carousel */}
-      {strategiesLoading ? (
-        <div>
-          <h2 className="text-foreground mb-3 text-sm font-semibold">Strategies</h2>
-          <CarouselSkeleton cards={3} width="w-60" />
-        </div>
-      ) : strategiesError && !strategyList ? (
-        <QueryStatePanel kind="error" title="Couldn’t load strategies" description="Try again to view your strategies." onRetry={retryStrategies} />
-      ) : sortedStrategies.length > 0 ? (
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-foreground text-sm font-semibold">Strategies</h2>
-            <Link to="/dashboard/strategies" className="button button--sm button--tertiary">
-              View strategies
-            </Link>
-          </div>
-          <div
-            className="-mx-0.5 flex items-stretch gap-3 overflow-x-auto px-0.5 pt-0.5 pb-2"
-            style={{ scrollSnapType: 'x mandatory' }}
-          >
-            {sortedStrategies.map((strategy) => {
-              const isCurrent = strategy.id === currentStrategyId
-              const diff = DIFFICULTY_CHIP[strategy.difficulty] ?? DIFFICULTY_CHIP.normal
-              const strategyScope = strategy.source_strategy_id
-                ? 'Subscribed'
-                : strategy.visibility === 'public'
-                  ? 'Public'
-                  : 'Private'
-              const rateEstimate = strategyEconomy[strategy.id]
-              const rateColor = !rateEstimate
-                ? 'default'
-                : rateEstimate.chaosPerHour > 0
-                  ? 'success'
-                  : rateEstimate.chaosPerHour < 0
-                    ? 'danger'
-                    : 'default'
-
-              return (
-                <Link
-                  key={strategy.id}
-                  to="/dashboard/strategies/$strategyId"
-                  params={{ strategyId: strategy.id }}
-                  className="block h-full shrink-0"
-                  style={{ scrollSnapAlign: 'start' }}
-                >
-                  <Card
-                    className={`hover:bg-default-50 h-full w-60 cursor-pointer transition-colors ${
-                      isCurrent ? 'ring-primary ring-2' : ''
-                    }`}
-                  >
-                    <Card.Content className="gap-1.5 p-4">
-                      <div className="flex items-center gap-2">
-                        {isCurrent && (
-                          <Star size={14} className="fill-primary text-primary shrink-0" />
-                        )}
-                        <p className="text-foreground flex-1 truncate text-sm font-medium">
-                          {strategy.name}
-                        </p>
-                        <Chip size="sm" variant="soft" color={diff.color}>
-                          {diff.label}
-                        </Chip>
-                      </div>
-                      <div className="mt-1 flex items-center justify-between">
-                        {strategy.map_cost != null && strategy.map_cost > 0 ? (
-                          <span className="text-default-400 flex items-center gap-1 text-xs">
-                            <Coins size={10} /> ~{fmt(strategy.map_cost)}/map
-                          </span>
-                        ) : (
-                          <span />
-                        )}
-                        <span className="text-default-400 text-xs">{strategyScope}</span>
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <Chip size="sm" variant="soft" color={rateColor}>
-                          {rateEstimate ? `${fmt(rateEstimate.chaosPerHour)}/hr` : 'No data'}
-                        </Chip>
-                        <Chip
-                          size="sm"
-                          variant="soft"
-                          color="accent"
-                          className={isCurrent ? '' : 'invisible'}
-                        >
-                          Active
-                        </Chip>
-                      </div>
-                    </Card.Content>
-                  </Card>
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-      ) : (
-        <div>
-          <h2 className="text-foreground mb-3 text-sm font-semibold">Strategies</h2>
-          <Card>
-            <Card.Content className="flex flex-col items-center gap-3 p-8 text-center">
-              <Target size={24} className="text-default-300" />
-              <p className="text-default-400 text-sm">No strategies yet.</p>
+      <div className="@container">
+        <div className="grid items-start gap-4 @min-[52rem]:grid-cols-2">
+          <Card className="min-w-0 gap-0 p-0">
+            <Card.Header className="border-divider flex-row flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+              <h2 className="text-foreground text-sm font-semibold">Strategies</h2>
               <Link to="/dashboard/strategies" className="button button--sm button--tertiary">
-                Go to Strategies
+                View strategies
               </Link>
-            </Card.Content>
+            </Card.Header>
+            {strategiesLoading ? (
+              <div className="space-y-3 p-4" role="status" aria-label="Loading strategies">
+                <Skeleton className="h-8 w-full rounded-md" />
+                <Skeleton className="h-8 w-full rounded-md" />
+              </div>
+            ) : strategiesError && !strategyList ? (
+              <QueryStatePanel kind="error" title="Couldn’t load strategies" description="Try again to view your strategies." onRetry={retryStrategies} />
+            ) : sortedStrategies.length > 0 ? (
+              <ul className="divide-divider divide-y">
+                {sortedStrategies.map((strategy) => {
+                  const isCurrent = strategy.id === currentStrategyId
+                  const diff = DIFFICULTY_CHIP[strategy.difficulty] ?? DIFFICULTY_CHIP.normal
+                  const strategyScope = strategy.source_strategy_id
+                    ? 'Subscribed'
+                    : strategy.visibility === 'public'
+                      ? 'Public'
+                      : 'Private'
+                  const rateEstimate = strategyEconomy[strategy.id]
+                  const rateColor = !rateEstimate
+                    ? 'text-default-500'
+                    : rateEstimate.chaosPerHour > 0
+                      ? 'text-success'
+                      : rateEstimate.chaosPerHour < 0
+                        ? 'text-danger'
+                        : 'text-default-500'
+
+                  return (
+                    <li key={strategy.id}>
+                      <Link
+                        to="/dashboard/strategies/$strategyId"
+                        params={{ strategyId: strategy.id }}
+                        className="hover:bg-default-100/50 focus-visible:outline-primary flex min-w-0 items-center gap-3 px-4 py-3 transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start gap-2">
+                            {isCurrent && <Star size={14} className="fill-primary text-primary mt-0.5 shrink-0" aria-hidden="true" />}
+                            <p className="text-foreground text-sm font-medium wrap-anywhere">{strategy.name}</p>
+                          </div>
+                          <div className="text-default-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                            <span>{strategyScope}</span>
+                            {isCurrent && <span className="text-warning font-medium">Active</span>}
+                            <Chip size="sm" variant="soft" color={diff.color}>{diff.label}</Chip>
+                            {strategy.map_cost != null && strategy.map_cost > 0 && (
+                              <span className="inline-flex items-center gap-1 tabular-nums">
+                                <Coins size={11} aria-hidden="true" /> ~{fmt(strategy.map_cost)}/map
+                              </span>
+                            )}
+                            <span className={rateColor}>{rateEstimate ? fmtRate(rateEstimate.chaosPerHour) : 'No estimate'}</span>
+                          </div>
+                        </div>
+                        <ArrowRight size={16} className="text-default-400 shrink-0" aria-hidden="true" />
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <p className="text-default-500 px-4 py-3 text-sm">No strategies yet.</p>
+            )}
+          </Card>
+
+          <Card className="min-w-0 gap-0 p-0">
+            <Card.Header className="border-divider flex-row flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+              <h2 className="text-foreground text-sm font-semibold">Gear suggestions</h2>
+              <Link to="/dashboard/gear" className="button button--sm button--tertiary">
+                View suggestions
+              </Link>
+            </Card.Header>
+            {gearLoading ? (
+              <div className="space-y-3 p-4" role="status" aria-label="Loading gear suggestions">
+                <Skeleton className="h-8 w-full rounded-md" />
+                <Skeleton className="h-8 w-full rounded-md" />
+              </div>
+            ) : sortedGear.length > 0 ? (
+              <ul className="divide-divider divide-y">
+                {sortedGear.slice(0, 10).map((suggestion) => {
+                  const importance = IMPORTANCE_CHIP[suggestion.importance] ?? IMPORTANCE_CHIP.medium
+
+                  return (
+                    <li key={suggestion.id} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3">
+                      {suggestion.item_data?.icon_url ? (
+                        <img src={suggestion.item_data.icon_url} alt="" className="size-8 shrink-0 object-contain" />
+                      ) : (
+                        <Sword size={16} className="text-default-400 shrink-0" aria-hidden="true" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          to="/dashboard/gear/$suggestionId"
+                          params={{ suggestionId: suggestion.id }}
+                          className="text-foreground focus-visible:outline-primary hover:text-brand-readable rounded-sm text-sm font-medium wrap-anywhere hover:underline focus-visible:outline-2"
+                        >
+                          {suggestion.item_name ?? 'Unnamed item'}
+                        </Link>
+                        <p className="text-default-500 mt-0.5 text-xs wrap-anywhere">
+                          For {suggestion.target_user.display_name ?? suggestion.target_user.poe_account_name}
+                          {' · By '}
+                          {suggestion.suggester.display_name ?? suggestion.suggester.poe_account_name}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Chip size="sm" variant="soft" color={importance.color}>{importance.label}</Chip>
+                        <Chip size="sm" variant="soft" color={STATUS_COLOR[suggestion.status]} className="capitalize">
+                          {suggestion.status}
+                        </Chip>
+                        {suggestion.item_trade_link && (
+                          <a href={suggestion.item_trade_link} target="_blank" rel="noopener noreferrer" className="button button--sm button--tertiary">
+                            Trade link
+                          </a>
+                        )}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <p className="text-default-500 px-4 py-3 text-sm">No gear suggestions yet.</p>
+            )}
           </Card>
         </div>
-      )}
-
-      {/* Gear Suggestions Carousel */}
-      {gearLoading ? (
-        <div>
-          <h2 className="text-foreground mb-3 text-sm font-semibold">Gear Suggestions</h2>
-          <CarouselSkeleton cards={4} width="w-56" />
-        </div>
-      ) : sortedGear.length > 0 ? (
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-foreground text-sm font-semibold">Gear Suggestions</h2>
-            <Link to="/dashboard/gear" className="button button--sm button--tertiary">
-              View suggestions
-            </Link>
-          </div>
-          <div
-            className="-mx-1 flex items-stretch gap-3 overflow-x-auto px-1 pt-0.5 pb-2"
-            style={{ scrollSnapType: 'x mandatory' }}
-          >
-            {sortedGear.slice(0, 10).map((s) => {
-              const importance = IMPORTANCE_CHIP[s.importance] ?? IMPORTANCE_CHIP.medium
-              return (
-                <Card
-                  key={s.id}
-                  className="hover:bg-default-50 h-full w-72 max-w-[calc(100vw-2rem)] shrink-0 transition-colors"
-                  style={{ scrollSnapAlign: 'start' }}
-                >
-                  <Card.Content className="gap-1.5 p-4">
-                    <div className="flex items-center gap-2">
-                      {s.item_data?.icon_url ? (
-                        <img
-                          src={s.item_data.icon_url}
-                          alt=""
-                          className="h-8 w-8 bg-transparent object-contain"
-                        />
-                      ) : (
-                        <Sword size={14} className="text-default-400 shrink-0" />
-                      )}
-                      <p className="text-foreground flex-1 truncate text-sm font-medium">
-                        {s.item_name ?? 'Unnamed item'}
-                      </p>
-                      <Chip size="sm" variant="soft" color={importance.color}>
-                        {importance.label}
-                      </Chip>
-                    </div>
-                    <div className="text-default-400 flex items-center gap-1.5 truncate text-xs">
-                      <UserAvatar
-                        src={s.target_user.avatar_url ?? undefined}
-                        name={(s.target_user.display_name ?? s.target_user.poe_account_name)
-                          .slice(0, 1)
-                          .toUpperCase()}
-                        size="sm"
-                        className="h-5 w-5 shrink-0"
-                        style={{
-                          backgroundColor: getAvatarColor(
-                            s.target_user.id,
-                            s.target_user.avatar_color,
-                          ),
-                        }}
-                        fallbackClassName="text-[10px] font-semibold text-white"
-                      />
-                      <span className="truncate">
-                        For {s.target_user.display_name ?? s.target_user.poe_account_name}
-                      </span>
-                    </div>
-                    <div className="mt-auto flex items-center justify-between pt-2">
-                      <p className="text-default-400 truncate text-xs">
-                        by {s.suggester.display_name ?? s.suggester.poe_account_name}
-                      </p>
-                      <Chip
-                        size="sm"
-                        color={STATUS_COLOR[s.status]}
-                        variant="soft"
-                        className="capitalize"
-                      >
-                        {s.status}
-                      </Chip>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 pt-2">
-                      {s.item_trade_link ? (
-                        <a href={s.item_trade_link} target="_blank" rel="noopener noreferrer" className="button button--sm button--tertiary">
-                          Trade link
-                        </a>
-                      ) : (
-                        <span />
-                      )}
-                      <Link
-                        to="/dashboard/gear/$suggestionId"
-                        params={{ suggestionId: s.id }}
-                        className="button button--sm button--tertiary"
-                        aria-label={s.item_name ? `Open suggestion for ${s.item_name}` : 'Open gear suggestion'}
-                      >
-                        Open
-                      </Link>
-                    </div>
-                  </Card.Content>
-                </Card>
-              )
-            })}
-          </div>
-        </div>
-      ) : null}
+      </div>
     </DashboardPage>
   )
 }

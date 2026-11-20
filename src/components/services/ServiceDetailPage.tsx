@@ -333,7 +333,7 @@ export function ServiceDetailPage() {
       ) : null}
 
       <Card>
-        <Card.Content className="gap-4 p-5">
+        <Card.Content className="gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-foreground text-sm font-medium">Listing details</p>
             <Button size="sm" onPress={handleSave} isPending={updateService.isPending}>
@@ -443,7 +443,7 @@ export function ServiceDetailPage() {
       ) : null}
 
       <Card className="border-warning/30 bg-warning/5 border">
-        <Card.Content className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <Card.Content className="flex min-w-0 flex-wrap gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-foreground text-sm font-medium">Whisper preview</p>
           </div>
@@ -494,7 +494,7 @@ function ServiceSpecificEditor({
 }) {
   return (
     <Card>
-      <Card.Content className="gap-4 p-5">
+      <Card.Content className="gap-4">
         <p className="text-foreground text-sm font-medium">Service specifics</p>
         {details.service_type === 'boss_carry' ? (
           <BossCarryEditor details={details} setDetails={setDetails} />
@@ -909,6 +909,7 @@ function FiveWayEditor({
       <StringListEditor
         title="Guarantees"
         values={details.extra_guarantees}
+        maxLength={160}
         placeholder="e.g. Free run if I die before 1 min"
         onChange={(values) => setDetails({ ...details, extra_guarantees: values })}
       />
@@ -1048,11 +1049,13 @@ function StringListEditor({
   values,
   placeholder,
   onChange,
+  maxLength,
 }: {
   title: string
   values: string[]
   placeholder: string
   onChange: (values: string[]) => void
+  maxLength?: number
 }) {
   const [draft, setDraft] = useState('')
 
@@ -1066,9 +1069,12 @@ function StringListEditor({
   return (
     <div>
       <p className="text-foreground mb-2 text-sm font-medium">{title}</p>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <FieldInput
+          aria-label={title}
+          className="min-w-0 flex-[1_1_12rem]"
           value={draft}
+          maxLength={maxLength}
           onValueChange={setDraft}
           placeholder={placeholder}
           onKeyDown={(event) => {
@@ -1078,7 +1084,7 @@ function StringListEditor({
             }
           }}
         />
-        <Button variant="tertiary" onPress={addValue}>
+        <Button variant="tertiary" onPress={addValue} className="shrink-0">
           Add
         </Button>
       </div>
@@ -1087,15 +1093,16 @@ function StringListEditor({
           {values.map((value, index) => (
             <div
               key={`${value}-${index}`}
-              className="rounded-medium bg-default-50/50 text-default-600 flex items-center justify-between px-3 py-2 text-sm"
+              className="rounded-medium bg-default-50/50 text-default-600 flex min-w-0 flex-wrap items-start justify-between gap-2 px-3 py-2 text-sm"
             >
-              <span>{value}</span>
+              <span className="min-w-0 flex-[1_1_10rem] wrap-anywhere py-2">{value}</span>
               <Button
                 isIconOnly
                 size="sm"
                 variant="danger-soft"
                 onPress={() => onChange(values.filter((_, valueIndex) => valueIndex !== index))}
                 aria-label="Remove item"
+                className="shrink-0"
               >
                 <Trash2 size={14} />
               </Button>

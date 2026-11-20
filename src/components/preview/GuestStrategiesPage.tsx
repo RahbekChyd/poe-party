@@ -2,8 +2,6 @@ import { useMemo, useState } from 'react'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
 import { ListBox } from '@heroui/react/list-box'
-import { ToggleButton } from '@heroui/react/toggle-button'
-import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
 import { Globe } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useThreadData } from '../../hooks/useThreadData'
@@ -19,10 +17,11 @@ import { SelectField } from '../ui/heroui-native'
 import { StrategyInfoSection } from '../strategies/StrategyInfoSection'
 import { StrategyMetadataBadges } from '../strategies/StrategyMetadataBadges'
 import {
-  STRATEGY_CONTENT_STAGE_OPTIONS,
+  STRATEGY_STAGE_FILTER_OPTIONS,
   type StrategyContentStage,
 } from '../../lib/public-strategy-content'
 import { QueryFreshnessNotice, QueryStatePanel } from '../ui/QueryStatePanel'
+import { ResponsiveFilter } from '../ui/ResponsiveFilter'
 const divinePrice = 205
 type StageFilter = StrategyContentStage | 'all'
 
@@ -72,12 +71,12 @@ export function GuestStrategiesPage() {
       <PreviewPageIntro
         mode="public"
         title="Strategies"
-        description="Browse community strategies, compare benchmarks, and see how PoE1 players set up their runs."
+        description="Find community strategies and compare benchmarks."
       />
 
-      <Card>
-        <Card.Content className="gap-4 p-5">
-          <div className="grid w-full max-w-xl gap-3 sm:grid-cols-2">
+      <Card className="@container p-3 sm:p-4">
+        <Card.Content className="gap-3">
+          <div className="grid w-full max-w-xl gap-3 @min-[24rem]:grid-cols-2">
             <SelectField
               label="Game"
               selectedKey={selectedGame}
@@ -108,35 +107,14 @@ export function GuestStrategiesPage() {
               ))}
             </SelectField>
           </div>
+          <ResponsiveFilter
+            label="Strategy stage"
+            options={STRATEGY_STAGE_FILTER_OPTIONS}
+            value={stageFilter}
+            onChange={setStageFilter}
+          />
         </Card.Content>
       </Card>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <ToggleButtonGroup
-          size="sm"
-          aria-label="Strategy stage"
-          className="flex max-w-full flex-wrap"
-          selectionMode="single"
-          disallowEmptySelection
-          selectedKeys={new Set([stageFilter])}
-          onSelectionChange={(keys) => {
-            const [nextStage] = Array.from(keys)
-            if (
-              nextStage === 'all' ||
-              STRATEGY_CONTENT_STAGE_OPTIONS.some((option) => option.value === nextStage)
-            ) {
-              setStageFilter(nextStage as StageFilter)
-            }
-          }}
-        >
-          <ToggleButton id="all">All</ToggleButton>
-          {STRATEGY_CONTENT_STAGE_OPTIONS.map((option) => (
-            <ToggleButton key={option.value} id={option.value}>
-              {option.label}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
-      </div>
 
       {!selectedLeague && leagueError ? (
         <QueryStatePanel
@@ -210,9 +188,9 @@ export function GuestStrategiesPage() {
                     : 'default'
 
             return (
-              <Card key={strategy.id}>
+              <Card key={strategy.id} className="p-0">
                 <Card.Content className="gap-0 p-0">
-                  <div className="flex flex-wrap items-start justify-between gap-4 px-5 pt-5 pb-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3 p-4">
                     <div className="min-w-0 basis-full wrap-anywhere sm:flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-foreground font-semibold">{strategy.name}</h2>
@@ -224,9 +202,9 @@ export function GuestStrategiesPage() {
                             ? 'No benchmark'
                             : `${formatCurrencyAmount(strategy.benchmark_chaos_per_hour, 'chaos', divinePrice)}/hr`}
                         </Chip>
-                        {strategy.map_cost != null ? (
+                        {showsPoe1PlanningFields && strategy.map_cost != null ? (
                           <Chip size="sm" variant="soft">
-                            ~= {formatCurrencyAmount(strategy.map_cost, 'chaos', divinePrice)}/map
+                            ~{formatCurrencyAmount(strategy.map_cost, 'chaos', divinePrice)}/map
                           </Chip>
                         ) : null}
                         <StrategyMetadataBadges
@@ -243,7 +221,9 @@ export function GuestStrategiesPage() {
 
                       <p className="text-default-400 mt-2 text-xs">
                         {strategy.group_name} · {getPoeGameShortLabel(strategyGame)} {strategy.group_league}
-                        {' · '}{strategy.benchmark_sample_count.toLocaleString()} benchmark {strategy.benchmark_sample_count === 1 ? 'sample' : 'samples'}
+                        {strategy.benchmark_sample_count > 0
+                          ? ` · ${strategy.benchmark_sample_count.toLocaleString()} benchmark ${strategy.benchmark_sample_count === 1 ? 'sample' : 'samples'}`
+                          : ''}
                       </p>
                     </div>
 
@@ -251,7 +231,7 @@ export function GuestStrategiesPage() {
                       <Link
                         to="/preview/strategies/$strategyId"
                         params={{ strategyId: strategy.id }}
-                        className="button button--sm"
+                        className="button button--sm button--primary"
                         onClick={() =>
                           trackPublicEvent('strategy_preview_open', {
                             strategy_id: strategy.id,

@@ -74,7 +74,7 @@ export function DirectoryCharacterCardContent({
   })
 
   return (
-    <Card.Content className="flex h-full flex-col gap-3 p-3 text-left">
+    <Card.Content className="flex h-full flex-col gap-3 text-left">
       <div className="min-w-0 wrap-anywhere">
         <h2 className="text-foreground text-sm font-semibold">{character.character_name}</h2>
         <p className="text-default-500 mt-1 text-xs">
@@ -128,7 +128,7 @@ export function DirectoryGroupCardContent({
   const hiddenCharacterCount = Math.max(0, group.public_character_count - visibleCharacters.length)
 
   return (
-    <Card.Content className="flex h-full flex-col gap-3 p-3 text-left">
+    <Card.Content className="flex h-full flex-col gap-3 text-left">
       <div className="min-w-0 wrap-anywhere">
         <h2 className="text-foreground text-sm font-semibold">{group.group_name}</h2>
         <p className="text-default-500 mt-1 text-xs">

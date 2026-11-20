@@ -77,6 +77,60 @@ test('group KPIs and rows consistently exclude an expensive item from totals', a
   await page.screenshot({ path: testInfo.outputPath('excluded-snapshot.png'), fullPage: true })
 })
 
+test('stash tables retain readable item and total cells when columns reflow', async ({ page }) => {
+  await mockCapture(page, 'complete', exclusionItems)
+  for (const [url, regionName] of [
+    ['/dashboard/economy/group', 'Group stash items'],
+    [`/dashboard/economy/${userId}`, 'Snapshot stash items'],
+  ]) {
+    await page.setViewportSize({ width: 1366, height: 768 })
+    await page.goto(url)
+    const region = page.getByRole('region', { name: regionName, exact: true })
+    const table = region.getByRole('table')
+    const row = table.getByRole('row', { name: /Included currency/ })
+    const total = row.getByRole('cell', { name: /^(Total )?6c$/ })
+    await expect(total).toBeVisible()
+    const sortTotal = table.getByRole('columnheader', { name: 'Total', exact: true })
+    await expect(sortTotal).toHaveAttribute('aria-sort', 'descending')
+    await sortTotal.getByRole('button', { name: 'Total', exact: true }).click()
+    await expect(sortTotal).toHaveAttribute('aria-sort', 'ascending')
+
+    for (const width of [760, 390, 320]) {
+      await page.setViewportSize({ width, height: 700 })
+      await expect(row.getByText('Included currency', { exact: true })).toBeVisible()
+      await expect(total).toBeVisible()
+      await expect.poll(() => region.evaluate((node) => node.scrollWidth - node.clientWidth))
+        .toBeLessThanOrEqual(1)
+    }
+  }
+})
+
+test('Economy keeps the value intact and restores snapshot schedule focus', async ({ page }) => {
+  await mockCapture(page, 'complete', [{ ...items[0], price_chaos: 123_456_789 }])
+  await page.goto('/dashboard/economy')
+  const amount = page.getByRole('region', { name: 'Member breakdown', exact: true })
+    .getByRole('row', { name: /Fixture/ }).getByText('123,456,789c', { exact: true }).first()
+  for (const width of [1440, 1024, 320]) {
+    await page.setViewportSize({ width, height: 720 })
+    await expect(amount).toBeVisible()
+    await expect.poll(() => amount.evaluate((node) => {
+      const range = document.createRange()
+      range.selectNodeContents(node)
+      const rects = range.getClientRects()
+      const cell = node.closest('td')?.getBoundingClientRect()
+      return rects.length === 1 && !!cell && rects[0].right <= cell.right + 1
+    })).toBe(true)
+  }
+  const trigger = page.getByRole('button', { name: 'Snapshot schedule', exact: true })
+  await trigger.press('Enter')
+  const dialog = page.getByRole('dialog', { name: 'Snapshot schedule', exact: true })
+  await expect(dialog.getByRole('button', { name: 'Manual only', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(dialog.getByRole('button', { name: 'Mix', exact: true })).toBeDisabled()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+})
+
 for (const route of ['/dashboard/economy', '/dashboard']) {
   for (const status of ['partial', 'unavailable'] as const) {
     test(`${route} distinguishes ${status} valuation from full wealth`, async ({ page }, testInfo) => {
