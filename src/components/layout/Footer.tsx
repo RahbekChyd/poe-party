@@ -45,7 +45,29 @@ function DiscordIcon({ size = 12, className }: { size?: number; className?: stri
   )
 }
 
-export function Footer() {
+export function Footer({ variant = 'public' }: { variant?: 'public' | 'workspace' }) {
+  if (variant === 'workspace') {
+    return (
+      <footer className="border-divider text-default-500 flex flex-wrap items-center justify-between gap-x-5 gap-y-1 border-t px-4 py-2 text-xs md:px-6">
+        <span>PoE Party · Apache-2.0</span>
+        <nav aria-label="Help, trust, and project links" className="flex flex-wrap items-center gap-x-3">
+          {legalLinks.map((link) => (
+            <a
+              key={link.to}
+              href={link.to}
+              className="hover:text-foreground inline-flex min-h-8 items-center"
+            >
+              {link.to === '/legal/faq' ? 'Help' : link.label}
+            </a>
+          ))}
+          <a href={CONTACT_MAILTO} className="hover:text-foreground inline-flex min-h-8 items-center">Contact</a>
+          <a href={GITHUB_URL} className="hover:text-foreground inline-flex min-h-8 items-center" target="_blank" rel="noreferrer">GitHub</a>
+          <a href={DISCORD_URL} className="hover:text-foreground inline-flex min-h-8 items-center" target="_blank" rel="noreferrer">Discord</a>
+        </nav>
+      </footer>
+    )
+  }
+
   return (
     <footer className="border-divider border-t px-6 py-4">
       <div className="text-default-400 flex flex-col gap-3 text-xs">

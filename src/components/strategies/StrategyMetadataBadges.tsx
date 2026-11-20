@@ -32,37 +32,37 @@ export function StrategyMetadataBadges({
   const stageLabel = getStrategyStageLabel(metadata.stage)
   const kindLabel = getStrategyKindLabel(metadata.kind)
   const verified = includeVerified ? formatVerifiedDate(metadata.verified_at) : null
-  const visibleTags = metadata.tags.slice(0, maxTags)
+  const labels: Array<{ label: string | null; color?: 'accent' | 'success' }> = [
+    { label: metadata.patch, color: 'accent' },
+    { label: stageLabel },
+    { label: kindLabel },
+    { label: metadata.source_refs.length > 0 ? 'Source-backed' : null, color: 'success' },
+    { label: verified ? `Verified ${verified}` : null },
+  ]
+  const seen = new Set<string>()
+  const badges = labels.flatMap(({ label, color }) => {
+    if (!label) return []
+    const key = label.trim().toLowerCase()
+    if (seen.has(key)) return []
+    seen.add(key)
+    return [{ label, color }]
+  })
+  const visibleTags = metadata.tags.filter((tag) => {
+    const key = tag.trim().toLowerCase()
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  }).slice(0, maxTags)
 
   return (
     <>
-      {metadata.patch ? (
-        <Chip size="sm" variant="soft" color="accent">
-          {metadata.patch}
+      {badges.map(({ label, color }) => (
+        <Chip key={label} size="sm" variant="soft" color={color} className="h-auto min-h-5 max-w-full whitespace-normal wrap-anywhere">
+          {label}
         </Chip>
-      ) : null}
-      {stageLabel ? (
-        <Chip size="sm" variant="soft">
-          {stageLabel}
-        </Chip>
-      ) : null}
-      {kindLabel ? (
-        <Chip size="sm" variant="soft">
-          {kindLabel}
-        </Chip>
-      ) : null}
-      {metadata.source_refs.length > 0 ? (
-        <Chip size="sm" variant="soft" color="success">
-          Source-backed
-        </Chip>
-      ) : null}
-      {verified ? (
-        <Chip size="sm" variant="soft">
-          Verified {verified}
-        </Chip>
-      ) : null}
+      ))}
       {visibleTags.map((tag) => (
-        <Chip key={tag} size="sm" variant="soft">
+        <Chip key={tag} size="sm" variant="soft" className="h-auto min-h-5 max-w-full whitespace-normal wrap-anywhere">
           {tag}
         </Chip>
       ))}
@@ -89,7 +89,7 @@ export function StrategySourceLinks({
             href={source.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="button button--sm button--tertiary"
+            className="button button--sm button--tertiary h-auto max-w-full py-2 text-left whitespace-normal wrap-anywhere"
           >
             {source.label}
             <ExternalLink size={14} aria-hidden />

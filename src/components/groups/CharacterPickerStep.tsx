@@ -17,25 +17,23 @@ export function CharacterPickerStep({ groupId, onDone }: Props) {
   const [syncing, setSyncing] = useState(false)
   const syncAttempted = useRef(false)
 
-  const { data: groupMeta } = useQuery({
+  const { data: groupMeta, isError: groupError, isLoading: groupLoading, refetch: retryGroup } = useQuery({
     queryKey: ['group-meta', groupId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('groups')
         .select('league, game')
         .eq('id', groupId)
         .single()
-      return {
-        league: data?.league ?? null,
-        game: data?.game ?? 'poe1',
-      }
+      if (error) throw error
+      return data
     },
   })
 
   const groupLeague = groupMeta?.league ?? null
   const groupGame = groupMeta?.game ?? 'poe1'
-  const { data: characters, isLoading, refetch } = useMyCharacters(groupId, groupLeague)
-  const { mutate: setActive, isPending } = useSetActiveCharacter()
+  const { data: characters, isLoading, isError, refetch } = useMyCharacters(groupMeta ? groupId : null, groupLeague)
+  const { mutate: setActive, isPending, isError: selectionError } = useSetActiveCharacter()
   const [selected, setSelected] = useState<string | null>(null)
 
   useEffect(() => {
@@ -52,14 +50,14 @@ export function CharacterPickerStep({ groupId, onDone }: Props) {
 
   // Auto-sync characters when the step mounts if PoE account access is available.
   useEffect(() => {
-    if (!canSync || !groupId || syncAttempted.current) return
+    if (!canSync || !groupMeta || syncAttempted.current) return
     syncAttempted.current = true
     setSyncing(true)
     triggerSync(groupId)
       .then(() => refetch())
       .catch((e) => console.error('Auto character sync failed:', e))
       .finally(() => setSyncing(false))
-  }, [canSync, groupId, refetch, triggerSync])
+  }, [canSync, groupId, groupMeta, refetch, triggerSync])
 
   const selectedCharacterId = selected ?? characters?.find((char) => char.is_active)?.id ?? null
 
@@ -72,8 +70,9 @@ export function CharacterPickerStep({ groupId, onDone }: Props) {
     <>
       <Modal.Header>
         <Modal.Heading>Choose Your Character</Modal.Heading>
+        <p className="text-default-500 text-xs">Step 2 of 2 · Character</p>
       </Modal.Header>
-      <Modal.Body className="max-h-[min(80vh,40rem)] overflow-y-auto gap-3">
+      <Modal.Body className="min-h-0 gap-3 overflow-y-auto">
         <p className="text-default-500 text-sm">
           Select the character you'll be playing in this group.
           {groupLeague && (
@@ -82,7 +81,14 @@ export function CharacterPickerStep({ groupId, onDone }: Props) {
             </span>
           )}
         </p>
-        {isLoading || syncing || groupLeague === undefined ? (
+        {groupError || isError ? (
+          <div className="flex flex-wrap items-center gap-2" role="alert">
+            <p className="text-danger text-sm">Couldn’t load characters.</p>
+            <Button size="sm" variant="tertiary" onPress={() => void (groupError ? retryGroup() : refetch())}>
+              Try again
+            </Button>
+          </div>
+        ) : isLoading || syncing || groupLoading ? (
           <div className="flex flex-col items-center gap-2 py-6">
             <Spinner size="sm" />
             {syncing && (
@@ -92,8 +98,8 @@ export function CharacterPickerStep({ groupId, onDone }: Props) {
         ) : !characters?.length ? (
           <p className="text-default-400 py-4 text-center text-sm">
             {groupLeague
-              ? `No ${groupLeague} characters found — sync your account to see characters for this league.`
-              : 'No characters found — sync your account to get started.'}
+              ? `No characters found in ${groupLeague}. You can sync again from the workspace.`
+              : 'No characters found. You can sync again from the workspace.'}
           </p>
         ) : (
           <div className="flex max-h-64 flex-col gap-2 overflow-y-auto">
@@ -104,6 +110,7 @@ export function CharacterPickerStep({ groupId, onDone }: Props) {
                   key={char.id}
                   type="button"
                   onClick={() => setSelected(char.id)}
+                  aria-pressed={isSelected}
                   className={[
                     'flex items-center gap-3 rounded-large border-2 px-4 py-3 text-left transition-colors',
                     isSelected
@@ -111,8 +118,8 @@ export function CharacterPickerStep({ groupId, onDone }: Props) {
                       : 'border-default-200 hover:border-default-400',
                   ].join(' ')}
                 >
-                  <div className="flex-1">
-                    <p className="text-foreground text-sm font-medium">{char.name}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-foreground text-sm font-medium wrap-anywhere">{char.name}</p>
                     <p className="text-default-400 text-xs">
                       {char.class} · Level {char.level}
                     </p>
@@ -123,11 +130,15 @@ export function CharacterPickerStep({ groupId, onDone }: Props) {
             })}
           </div>
         )}
+        {selectionError && <p role="alert" className="text-danger text-sm">Couldn’t select the character. Try again.</p>}
       </Modal.Body>
       <Modal.Footer>
+        <Button variant="tertiary" isDisabled={isPending} onPress={onDone}>
+          Choose later
+        </Button>
         <Button
           isPending={isPending}
-          isDisabled={!selectedCharacterId}
+          isDisabled={!selectedCharacterId || groupLoading || groupError || syncing}
           onPress={handleConfirm}
         >
           {({ isPending }) => (

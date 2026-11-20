@@ -1,9 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
-import { ListBox } from '@heroui/react/list-box'
-import { ToggleButton } from '@heroui/react/toggle-button'
-import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
 import { Globe } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useThreadData } from '../../hooks/useThreadData'
@@ -12,17 +9,18 @@ import { usePoeGameAccess } from '../../hooks/usePoeGameAccess'
 import { usePreviewLeague } from '../../hooks/usePreviewLeague'
 import { DIFFICULTY_CHIP } from '../../lib/constants'
 import { formatCurrencyAmount } from '../../lib/utils'
-import { PreviewNotice, PreviewPageIntro } from './PreviewShared'
+import { PreviewPageIntro } from './PreviewShared'
+import { DiscoveryScope } from './DiscoveryFilters'
 import { getPoeGameCapabilities, getPoeGameShortLabel } from '../../lib/poe-game'
 import { trackPublicEvent } from '../../lib/analytics'
-import { SelectField } from '../ui/heroui-native'
 import { StrategyInfoSection } from '../strategies/StrategyInfoSection'
 import { StrategyMetadataBadges } from '../strategies/StrategyMetadataBadges'
 import {
-  STRATEGY_CONTENT_STAGE_OPTIONS,
+  STRATEGY_STAGE_FILTER_OPTIONS,
   type StrategyContentStage,
 } from '../../lib/public-strategy-content'
 import { QueryFreshnessNotice, QueryStatePanel } from '../ui/QueryStatePanel'
+import { ResponsiveFilter } from '../ui/ResponsiveFilter'
 const divinePrice = 205
 type StageFilter = StrategyContentStage | 'all'
 
@@ -68,94 +66,39 @@ export function GuestStrategiesPage() {
   )
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 sm:gap-5">
       <PreviewPageIntro
         mode="public"
         title="Strategies"
-        description="Browse real public community strategies for the selected game and league. Public summaries, benchmarks, and PoE1 setup details are readable here."
-        aside={
-          <PreviewNotice
-            mode="public"
-            title="Real public listings"
-            description="Titles, publishers, benchmark data, atlas setup, threads, and map cost come from live public listings. Workspace actions stay private."
-          />
-        }
+        description="Find community strategies and compare benchmarks."
       />
 
-      <Card>
-        <Card.Content className="gap-4 p-5 md:flex-row md:items-center md:justify-between">
-          <div className="min-w-0 flex-1">
-            <p className="text-foreground text-sm font-medium">League-scoped live public data</p>
-            <p className="text-default-500 mt-1 text-sm leading-relaxed">
-              Browse real public strategies here. Creating, subscribing, and active-strategy
-              tracking stay inside private workspaces.
-            </p>
+      <Card className="@container p-3 sm:p-4">
+        <Card.Content className="gap-3">
+          <div className="w-full max-w-xl">
+            <DiscoveryScope
+              game={selectedGame}
+              league={selectedLeague}
+              games={availableGames}
+              leagues={leagues}
+              onGameChange={setSelectedGame}
+              onLeagueChange={setSelectedLeague}
+            />
           </div>
-          <div className="grid w-full gap-3 md:max-w-xl md:grid-cols-2">
-            <SelectField
-              label="Game"
-              selectedKey={selectedGame}
-              onSelectionChange={(value) => {
-                if (typeof value === 'string' && (value === 'poe1' || value === 'poe2')) {
-                  setSelectedGame(value)
-                }
-              }}
-            >
-              {availableGames.map((game) => (
-                <ListBox.Item key={game.id} id={game.id} textValue={game.label}>
-                  {game.label}
-                </ListBox.Item>
-              ))}
-            </SelectField>
-            <SelectField
-              label="League"
-              selectedKey={selectedLeague}
-              onSelectionChange={(value) => {
-                setSelectedLeague(typeof value === 'string' ? value : null)
-              }}
-              isDisabled={leagueLoading}
-            >
-              {leagues.map((league) => (
-                <ListBox.Item key={league.id} id={league.id} textValue={league.label}>
-                  {league.label}
-                </ListBox.Item>
-              ))}
-            </SelectField>
-          </div>
+          <ResponsiveFilter
+            label="Strategy stage"
+            options={STRATEGY_STAGE_FILTER_OPTIONS}
+            value={stageFilter}
+            onChange={setStageFilter}
+          />
         </Card.Content>
       </Card>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <ToggleButtonGroup
-          size="sm"
-          className="flex max-w-full flex-wrap"
-          selectionMode="single"
-          disallowEmptySelection
-          selectedKeys={new Set([stageFilter])}
-          onSelectionChange={(keys) => {
-            const [nextStage] = Array.from(keys)
-            if (
-              nextStage === 'all' ||
-              STRATEGY_CONTENT_STAGE_OPTIONS.some((option) => option.value === nextStage)
-            ) {
-              setStageFilter(nextStage as StageFilter)
-            }
-          }}
-        >
-          <ToggleButton id="all">All</ToggleButton>
-          {STRATEGY_CONTENT_STAGE_OPTIONS.map((option) => (
-            <ToggleButton key={option.value} id={option.value}>
-              {option.label}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
-      </div>
-
-      {leagueError && leagues.length === 0 ? (
+      {!selectedLeague && leagueError ? (
         <QueryStatePanel
           kind="error"
           title="Leagues are unavailable"
-          description="We could not load the current league list. Retry before browsing strategies."
+          description="Try again to load the league list."
           onRetry={refetchLeagues}
         />
       ) : null}
@@ -169,11 +112,17 @@ export function GuestStrategiesPage() {
         }}
       />
 
-      {isError && strategies.length === 0 ? (
+      {!selectedLeague ? (
+        leagueLoading ? (
+          <QueryStatePanel kind="loading" title="Loading leagues" description="Getting leagues for the selected game." />
+        ) : !leagueError ? (
+          <QueryStatePanel kind="empty" title="No leagues available" description="Choose another game to browse its strategies." />
+        ) : null
+      ) : isError && strategies.length === 0 ? (
         <QueryStatePanel
           kind="error"
           title="Strategies could not be loaded"
-          description="The public strategy directory did not respond. This is not an empty league result."
+          description="Try again to reload the selected league’s strategies."
           onRetry={refetch}
         />
       ) : isLoading ? (
@@ -194,21 +143,13 @@ export function GuestStrategiesPage() {
           kind="empty"
           icon={<Globe size={32} className="text-default-300" />}
           title="No strategies match this stage"
-          description={`Try another stage or league. The current league is ${selectedLeague ?? 'not selected'}.`}
+          description="Choose another stage or league."
         />
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-default-500 text-sm">
-              Showing {filteredStrategies.length} live public strateg
-              {filteredStrategies.length === 1 ? 'y' : 'ies'}
-              {selectedLeague ? ` for ${getPoeGameShortLabel(selectedGame)} ${selectedLeague}` : ''}
-              .
-            </p>
-            <Link to="/preview/search" className="button button--sm button--tertiary">
-              Open Directory
-            </Link>
-          </div>
+          <p className="text-default-500 text-sm wrap-anywhere" role="status">
+            {filteredStrategies.length} {filteredStrategies.length === 1 ? 'strategy' : 'strategies'}
+          </p>
 
           {filteredStrategies.map((strategy) => {
             const diffChip = DIFFICULTY_CHIP[strategy.difficulty] ?? DIFFICULTY_CHIP.normal
@@ -225,29 +166,23 @@ export function GuestStrategiesPage() {
                     : 'default'
 
             return (
-              <Card key={strategy.id}>
+              <Card key={strategy.id} className="p-0">
                 <Card.Content className="gap-0 p-0">
-                  <div className="flex flex-wrap items-start justify-between gap-4 px-5 pt-5 pb-4">
-                    <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-start justify-between gap-3 p-4">
+                    <div className="min-w-0 basis-full wrap-anywhere sm:flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-foreground font-semibold">{strategy.name}</p>
+                        <h2 className="text-foreground font-semibold">{strategy.name}</h2>
                         <Chip size="sm" color={diffChip.color} variant="soft">
                           {diffChip.label}
-                        </Chip>
-                        <Chip size="sm" color="accent" variant="soft">
-                          Public
-                        </Chip>
-                        <Chip size="sm" variant="soft">
-                          {strategy.group_name}
                         </Chip>
                         <Chip size="sm" variant="soft" color={benchmarkColor}>
                           {strategy.benchmark_chaos_per_hour == null
                             ? 'No benchmark'
                             : `${formatCurrencyAmount(strategy.benchmark_chaos_per_hour, 'chaos', divinePrice)}/hr`}
                         </Chip>
-                        {strategy.map_cost != null ? (
+                        {showsPoe1PlanningFields && strategy.map_cost != null ? (
                           <Chip size="sm" variant="soft">
-                            ~= {formatCurrencyAmount(strategy.map_cost, 'chaos', divinePrice)}/map
+                            ~{formatCurrencyAmount(strategy.map_cost, 'chaos', divinePrice)}/map
                           </Chip>
                         ) : null}
                         <StrategyMetadataBadges
@@ -263,8 +198,10 @@ export function GuestStrategiesPage() {
                       ) : null}
 
                       <p className="text-default-400 mt-2 text-xs">
-                        {getPoeGameShortLabel(strategyGame)} {strategy.group_league} | Benchmark
-                        samples: {strategy.benchmark_sample_count.toLocaleString()}
+                        {strategy.group_name} · {getPoeGameShortLabel(strategyGame)} {strategy.group_league}
+                        {strategy.benchmark_sample_count > 0
+                          ? ` · ${strategy.benchmark_sample_count.toLocaleString()} benchmark ${strategy.benchmark_sample_count === 1 ? 'sample' : 'samples'}`
+                          : ''}
                       </p>
                     </div>
 
@@ -272,7 +209,7 @@ export function GuestStrategiesPage() {
                       <Link
                         to="/preview/strategies/$strategyId"
                         params={{ strategyId: strategy.id }}
-                        className="button button--sm"
+                        className="button button--sm button--primary"
                         onClick={() =>
                           trackPublicEvent('strategy_preview_open', {
                             strategy_id: strategy.id,
@@ -281,7 +218,7 @@ export function GuestStrategiesPage() {
                           })
                         }
                       >
-                        Open
+                        View strategy
                       </Link>
                     </div>
                   </div>

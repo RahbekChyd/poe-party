@@ -149,26 +149,6 @@ function getKindLabel(kind: PassiveTreeDiffEntryKind): string {
   }
 }
 
-function getEntryBackgroundClasses(entry: PassiveTreeDiffEntry): string {
-  switch (entry.kind) {
-    case 'add':
-      return 'bg-success/10'
-    case 'remove':
-      return 'bg-danger/10'
-    case 'mastery_change':
-      return 'bg-secondary/10'
-    case 'cluster_review':
-      return 'bg-warning/10'
-    case 'class_mismatch':
-    case 'ascendancy_mismatch':
-      return 'bg-danger/10'
-    case 'version_unavailable':
-      return 'bg-default-50/60'
-    default:
-      return 'bg-default-50/60'
-  }
-}
-
 function getEntryToneClasses(entry: PassiveTreeDiffEntry): string {
   switch (entry.kind) {
     case 'add':
@@ -187,10 +167,6 @@ function getEntryToneClasses(entry: PassiveTreeDiffEntry): string {
     default:
       return 'border-divider/70 bg-default-50/60'
   }
-}
-
-function getSelectedEntryToneClasses(entry: PassiveTreeDiffEntry): string {
-  return `${getEntryBackgroundClasses(entry)} border-primary/60 ring-primary/20 shadow-sm ring-1 ring-inset`
 }
 
 function buildBoundsFromNodeIds(nodeIds: number[], renderData: PassiveTreeRenderData): ViewBox {
@@ -929,52 +905,21 @@ export function PassiveTreeDiffWorkspace({
     [applyInteractiveViewBox],
   )
 
-  const handleViewportWheel = useCallback(
-    (event: WheelEvent) => {
-      event.preventDefault()
-      event.stopPropagation()
-      event.stopImmediatePropagation?.()
-
+  const changeZoom = useCallback(
+    (factor: number, ratioX = 0.5, ratioY = 0.5) => {
       const baseViewBox = activeViewBoxRef.current
-      const viewportElement = mapViewportRef.current
-      if (!baseViewBox || !viewportElement) return
+      if (!baseViewBox) return
+      const currentZoom = zoomLevelRef.current
+      const nextZoom = clamp(currentZoom * factor, MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL)
+      if (nextZoom === currentZoom) return
 
-      const currentInteractiveViewBox = buildInteractiveViewBox(
-        baseViewBox,
-        zoomLevelRef.current,
-        panOffsetRef.current,
-      )
-
-      const rect = viewportElement.getBoundingClientRect()
-      if (rect.width <= 0 || rect.height <= 0) return
-
-      const ratioX = clamp((event.clientX - rect.left) / rect.width, 0, 1)
-      const ratioY = clamp((event.clientY - rect.top) / rect.height, 0, 1)
-      const worldX = currentInteractiveViewBox.x + ratioX * currentInteractiveViewBox.width
-      const worldY = currentInteractiveViewBox.y + ratioY * currentInteractiveViewBox.height
-      const nextZoom = clamp(
-        event.deltaY < 0 ? zoomLevelRef.current * 1.12 : zoomLevelRef.current / 1.12,
-        MIN_ZOOM_LEVEL,
-        MAX_ZOOM_LEVEL,
-      )
-      if (nextZoom === zoomLevelRef.current) return
-
-      const nextWidth = baseViewBox.width / nextZoom
-      const nextHeight = baseViewBox.height / nextZoom
-      const baseCenterX = baseViewBox.x + baseViewBox.width / 2
-      const baseCenterY = baseViewBox.y + baseViewBox.height / 2
-      const desiredCenterX = worldX - (ratioX - 0.5) * nextWidth
-      const desiredCenterY = worldY - (ratioY - 0.5) * nextHeight
-      const minCenterX = baseViewBox.x + nextWidth / 2
-      const maxCenterX = baseViewBox.x + baseViewBox.width - nextWidth / 2
-      const minCenterY = baseViewBox.y + nextHeight / 2
-      const maxCenterY = baseViewBox.y + baseViewBox.height - nextHeight / 2
-
+      const currentViewBox = buildInteractiveViewBox(baseViewBox, currentZoom, panOffsetRef.current)
+      const centerX = currentViewBox.x + ratioX * currentViewBox.width -
+        (ratioX - 0.5) * (baseViewBox.width / nextZoom)
+      const centerY = currentViewBox.y + ratioY * currentViewBox.height -
+        (ratioY - 0.5) * (baseViewBox.height / nextZoom)
       zoomLevelRef.current = nextZoom
-      panOffsetRef.current = {
-        x: clamp(desiredCenterX, minCenterX, maxCenterX) - baseCenterX,
-        y: clamp(desiredCenterY, minCenterY, maxCenterY) - baseCenterY,
-      }
+      panOffsetRef.current = buildPanOffsetForCenter(baseViewBox, nextZoom, centerX, centerY)
       if (nextZoom <= MIN_ZOOM_LEVEL) {
         setSelectedEntryKey(null)
         setViewMode('default')
@@ -982,6 +927,23 @@ export function PassiveTreeDiffWorkspace({
       scheduleInteractiveViewBox(true)
     },
     [scheduleInteractiveViewBox],
+  )
+
+  const handleViewportWheel = useCallback(
+    (event: WheelEvent) => {
+      if (!event.altKey || event.ctrlKey || event.metaKey || event.deltaY === 0) return
+      const viewportElement = mapViewportRef.current
+      if (!viewportElement) return
+
+      const rect = viewportElement.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) return
+
+      event.preventDefault()
+      const ratioX = clamp((event.clientX - rect.left) / rect.width, 0, 1)
+      const ratioY = clamp((event.clientY - rect.top) / rect.height, 0, 1)
+      changeZoom(event.deltaY < 0 ? 1.12 : 1 / 1.12, ratioX, ratioY)
+    },
+    [changeZoom],
   )
 
   useEffect(() => {
@@ -1626,7 +1588,13 @@ export function PassiveTreeDiffWorkspace({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap justify-end gap-2">
+      <div role="group" aria-label="Tree zoom" className="flex flex-wrap items-center justify-end gap-2">
+        <Button size="sm" variant="tertiary" isDisabled={!activeViewBox || zoomLevel <= MIN_ZOOM_LEVEL} onPress={() => changeZoom(1 / 1.5)}>
+          Zoom out
+        </Button>
+        <Button size="sm" variant="tertiary" isDisabled={!activeViewBox || zoomLevel >= MAX_ZOOM_LEVEL} onPress={() => changeZoom(1.5)}>
+          Zoom in
+        </Button>
         <Button
           size="sm"
           variant="tertiary"
@@ -1651,7 +1619,7 @@ export function PassiveTreeDiffWorkspace({
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
         <div
-          className={`rounded-large border-divider/70 bg-content1 border p-4 xl:min-w-0 ${VISUAL_PANEL_HEIGHT_CLASS}`}
+          className={`rounded-large border-divider/70 bg-content1 min-w-0 border p-4 ${VISUAL_PANEL_HEIGHT_CLASS}`}
         >
           {loading ? (
             <div className="rounded-large border-divider/70 bg-default-50/60 border p-4">
@@ -1673,7 +1641,7 @@ export function PassiveTreeDiffWorkspace({
             <div
               ref={mapViewportRef}
               className={`rounded-large relative overflow-hidden border border-white/5 bg-[radial-gradient(circle_at_top,#1f2430,#11151f_50%,#0b0d12)] ${VISUAL_PANEL_HEIGHT_CLASS} ${zoomLevel > 1 ? 'cursor-grab active:cursor-grabbing' : ''}`}
-              style={{ touchAction: 'none', overscrollBehavior: 'contain' }}
+              style={{ touchAction: zoomLevel > MIN_ZOOM_LEVEL ? 'none' : 'auto' }}
               onPointerDown={(event) => {
                 if (!activeViewBoxRef.current || zoomLevelRef.current <= 1 || event.button !== 0)
                   return
@@ -1795,7 +1763,7 @@ export function PassiveTreeDiffWorkspace({
                         setSelectedEntryKey(entryKey)
                         setViewMode('selected')
                       }}
-                      className="pointer-events-auto absolute rounded-[10px] border bg-slate-950/92 px-2.5 py-1.5 text-left shadow-[0_12px_32px_rgba(0,0,0,0.4)] backdrop-blur-sm transition focus-visible:outline-none"
+                      className="pointer-events-auto absolute rounded-[10px] border bg-slate-950/92 px-2.5 py-1.5 text-left shadow-[0_12px_32px_rgba(0,0,0,0.4)] backdrop-blur-sm transition"
                       style={{
                         left,
                         top,
@@ -1904,9 +1872,9 @@ export function PassiveTreeDiffWorkspace({
                               }
                             }
                           }}
-                          className={`rounded-large focus-visible:ring-foreground/15 border p-3 text-left transition focus-visible:ring-2 focus-visible:outline-none ${
+                          className={`rounded-large border p-3 text-left transition ${
                             selected
-                              ? getSelectedEntryToneClasses(entry)
+                              ? 'border-highlight bg-selected'
                               : getEntryToneClasses(entry)
                           }`}
                         >

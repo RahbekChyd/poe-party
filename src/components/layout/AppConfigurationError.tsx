@@ -6,7 +6,7 @@ import { GITHUB_URL } from '../../lib/seo'
 
 export function AppConfigurationError() {
   return (
-    <main className="bg-background flex min-h-screen items-center justify-center p-4">
+    <main className="bg-background flex min-h-dvh items-center justify-center p-4">
       <Card className="w-full max-w-lg border border-danger/20">
         <Card.Content className="items-center gap-5 p-7 text-center sm:p-9">
           <img src={logo} alt="" className="h-14 w-14 rounded-2xl" />

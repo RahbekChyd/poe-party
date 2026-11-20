@@ -7,7 +7,7 @@ import { Dropdown } from '@heroui/react/dropdown'
 import { Label } from '@heroui/react/label'
 import { Popover } from '@heroui/react/popover'
 import { Spinner } from '@heroui/react/spinner'
-import { Check, Copy } from 'lucide-react'
+import { Check, ChevronDown, Copy } from 'lucide-react'
 import {
   useActiveGroupContext,
   useGroupMembers,
@@ -37,6 +37,7 @@ import { MemberCharacterDetails } from './MemberCharacterDetails'
 import { AscendancyArt } from '../shared/AscendancyArt'
 import { DropdownCaret, FieldInput, ListBox, SelectField, UserAvatar } from '../ui/heroui-native'
 import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
+import { QueryStatePanel } from '../ui/QueryStatePanel'
 
 type NativeChipColor = 'default' | 'accent' | 'success' | 'warning' | 'danger'
 
@@ -51,24 +52,35 @@ function OtherPobSection({
   pob_code: string | null
   pob_support_code: string | null
 }) {
+  const [feedback, setFeedback] = useState('')
+
+  async function copyCode(code: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(code)
+      setFeedback(`${label} copied`)
+    } catch {
+      setFeedback(`Couldn’t copy ${label}. Select and copy the code manually.`)
+    }
+  }
+
   if (!pob_code && !pob_support_code) return null
   return (
-    <div className="flex flex-wrap items-center">
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+    <div className="flex min-w-0 flex-col gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {pob_code && (
           <FieldInput
             size="sm"
             label="PoB"
             value={pob_code}
             isReadOnly
-            className="w-[40%] min-w-[13rem]"
+            className="min-w-0"
             endContent={
               <Button
                 isIconOnly
                 aria-label="Copy PoB import code"
                 size="sm"
                 variant="tertiary"
-                onPress={() => navigator.clipboard.writeText(pob_code)}
+                onPress={() => void copyCode(pob_code, 'PoB code')}
               >
                 <Copy size={12} />
               </Button>
@@ -81,14 +93,14 @@ function OtherPobSection({
             label="Party support PoB"
             value={pob_support_code}
             isReadOnly
-            className="w-[40%] min-w-[13rem]"
+            className="min-w-0"
             endContent={
               <Button
                 isIconOnly
                 aria-label="Copy party support PoB import code"
                 size="sm"
                 variant="tertiary"
-                onPress={() => navigator.clipboard.writeText(pob_support_code)}
+                onPress={() => void copyCode(pob_support_code, 'Party support PoB code')}
               >
                 <Copy size={12} />
               </Button>
@@ -96,6 +108,7 @@ function OtherPobSection({
           />
         )}
       </div>
+      <p className="text-default-600 text-xs" role="status">{feedback}</p>
     </div>
   )
 }
@@ -109,51 +122,52 @@ function MyPobSection({
   pob_support_code: string | null
   isSolo: boolean
 }) {
-  const [pobCode, setPobCode] = useState(pob_code ?? '')
-  const [pobSupportCode, setPobSupportCode] = useState(pob_support_code ?? '')
-  const { mutate: savePob, isPending } = useUpdatePobCodes()
+  const [draft, setDraft] = useState<{ code: string; support: string } | null>(null)
+  const { mutate: savePob, isPending, isError, isSuccess } = useUpdatePobCodes()
+  const { code, support } = draft ?? { code: pob_code ?? '', support: pob_support_code ?? '' }
 
-  useEffect(() => {
-    setPobCode(pob_code ?? '')
-    setPobSupportCode(pob_support_code ?? '')
-  }, [pob_code, pob_support_code])
+  const isDirty = code !== (pob_code ?? '') || support !== (pob_support_code ?? '')
 
-  const isDirty = pobCode !== (pob_code ?? '') || pobSupportCode !== (pob_support_code ?? '')
-
-  const handleBlurSave = () => {
+  const handleSave = () => {
     if (!isDirty || isPending) return
-    savePob({ pob_code: pobCode || null, pob_support_code: pobSupportCode || null })
+    savePob({ pob_code: code || null, pob_support_code: support || null }, {
+      onSuccess: () => setDraft(null),
+    })
   }
 
   return (
     <div className="flex flex-col gap-1">
       {!isSolo && (
-        <p className="text-default-500 text-xs">
-          Party support PoB is for your support character used in group play — not your solo
-          character(s). Other members can add it as a party buff source in the Analyzer.
-        </p>
+        <p className="text-default-500 text-xs">Party members can use your support build as a buff source in Analysis.</p>
       )}
-      <div className="flex flex-wrap gap-1">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <FieldInput
           size="sm"
           label="PoB"
           placeholder="Import code"
-          value={pobCode}
-          onValueChange={setPobCode}
-          onBlur={handleBlurSave}
-          className="max-w-90 min-w-40 flex-1"
+          value={code}
+          onValueChange={(value) => setDraft({ code: value, support })}
+          isReadOnly={isPending}
+          className="min-w-0"
         />
         {!isSolo && (
           <FieldInput
             size="sm"
             label="Party support PoB"
             placeholder="Support character"
-            value={pobSupportCode}
-            onValueChange={setPobSupportCode}
-            onBlur={handleBlurSave}
-            className="max-w-90 min-w-40 flex-1"
+            value={support}
+            onValueChange={(value) => setDraft({ code, support: value })}
+            isReadOnly={isPending}
+            className="min-w-0"
           />
         )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" variant="secondary" onPress={handleSave} isDisabled={!isDirty} isPending={isPending}>
+          {isPending ? 'Saving…' : 'Save PoB codes'}
+        </Button>
+        {isError && isDirty && <p role="alert" className="text-danger text-xs">Couldn’t save the codes. Try again.</p>}
+        {isSuccess && !isDirty && <p role="status" className="text-success text-xs">PoB codes saved.</p>}
       </div>
     </div>
   )
@@ -163,22 +177,23 @@ export function MembersPage() {
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
   const isSolo = useIsSoloGroup(activeGroupId)
   const { game, league: activeLeague } = useActiveGroupContext()
-  const { data: members, isLoading } = useGroupMembers(activeGroupId)
+  const { data: members, isLoading, isError, refetch } = useGroupMembers(activeGroupId)
   const { data: snapshots } = useLatestSnapshots(activeGroupId)
   const { data: characters } = useActiveCharacters(activeGroupId)
   const { data: characterProfiles, isLoading: profilesLoading } =
     useCharacterProfiles(activeGroupId)
   const { data: myCharacters } = useMyCharacters(activeGroupId, activeLeague)
-  const { mutate: setActive } = useSetActiveCharacter()
+  const { mutate: setActive, isPending: selectingCharacter, isError: characterError } = useSetActiveCharacter()
   const { triggerSync, isBusy, canSync } = useCharacterSyncFlow(activeGroupId)
-  const { mutate: updateVisibility, isPending: visibilityPending } =
+  const { mutate: updateVisibility, isPending: visibilityPending, isError: visibilityError } =
     useUpdateCharacterProfileVisibility()
   const myRole = useMyGroupRole(activeGroupId)
-  const { mutate: updateRole } = useUpdateMemberRole()
-  const { mutate: updateColor } = useUpdateAvatarColor()
+  const { mutate: updateRole, isPending: rolePending, isError: roleError } = useUpdateMemberRole()
+  const { mutate: updateColor, isError: colorError } = useUpdateAvatarColor()
   const { data: currentUser } = useCurrentUser()
   const currentUserId = currentUser?.id ?? null
   const [charPickerOpen, setCharPickerOpen] = useState(false)
+  const [characterSyncFailed, setCharacterSyncFailed] = useState(false)
   const [colorPickerUserId, setColorPickerUserId] = useState<string | null>(null)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [selectedDailySnapshotId, setSelectedDailySnapshotId] = useState<string | null>(null)
@@ -188,8 +203,15 @@ export function MembersPage() {
       setCharPickerOpen(false)
       return
     }
-    if (canSync && activeGroupId) await triggerSync(activeGroupId)
     setCharPickerOpen(true)
+    setCharacterSyncFailed(false)
+    if (canSync && activeGroupId) {
+      try {
+        await triggerSync(activeGroupId)
+      } catch {
+        setCharacterSyncFailed(true)
+      }
+    }
   }
 
   const snapshotByUser = Object.fromEntries((snapshots ?? []).map((s) => [s.user_id, s]))
@@ -271,21 +293,20 @@ export function MembersPage() {
     <DashboardPage>
       <DashboardPageHeader
         title={isSolo ? 'Characters' : 'Members'}
-        eyebrow={isSolo ? 'Solo roster' : 'Party roster'}
-        tone="accent"
         description={
-          isSolo
-            ? 'Your synced characters, stored build snapshots, and public-profile controls.'
-            : 'Group members, active characters, stored build snapshots, and party build context.'
+          isSolo ? 'Synced characters, build history, and profile visibility.' : 'Party members, active characters, and build history.'
         }
       />
 
       {isLoading ? (
         <MemberCardsSkeleton />
+      ) : isError && !members ? (
+        <QueryStatePanel kind="error" title="Couldn’t load members" description="Try again to view your roster." onRetry={refetch} />
+      ) : !members?.length ? (
+        <QueryStatePanel kind="empty" title="No members yet" description="Members will appear here once they join." />
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="-mx-1 overflow-x-auto pb-2">
-            <div className="flex min-w-max gap-3 px-1">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {members?.map((member) => {
                 const snap = snapshotByUser[member.user.id]
                 const char = charByUser[member.user.id]
@@ -303,11 +324,11 @@ export function MembersPage() {
                 return (
                   <Card
                     key={member.user.id}
-                    className={`w-[18.5rem] shrink-0 border transition-all ${
-                      isSelected ? 'border-primary/60 bg-primary/5' : 'border-transparent'
+                    className={`min-w-0 border p-0 transition-colors ${
+                      isSelected ? 'border-primary/60 bg-primary/5' : 'border-divider'
                     }`}
                   >
-                    <Card.Content className="gap-4 p-4">
+                    <Card.Content className="gap-2 p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-3">
                           {isMe || myRole === 'admin' ? (
@@ -317,23 +338,22 @@ export function MembersPage() {
                                 setColorPickerUserId(open ? member.user.id : null)
                               }
                             >
-                              <Popover.Trigger aria-label="Pick avatar color">
-                                <button
-                                  type="button"
-                                  className="hover:ring-default-300 rounded-full ring-2 ring-transparent transition-all"
-                                >
-                                  <UserAvatar
-                                    src={member.user.avatar_url ?? undefined}
-                                    name={member.user.display_name ?? member.user.poe_account_name}
-                                    size="sm"
-                                    style={{
-                                      backgroundColor: getAvatarColor(
-                                        member.user.id,
-                                        member.user.avatar_color,
-                                      ),
-                                    }}
-                                  />
-                                </button>
+                              <Popover.Trigger<'button'>
+                                aria-label="Pick avatar color"
+                                render={(props) => <button {...props} type="button" />}
+                                className="hover:ring-default-300 focus-visible:outline-primary rounded-full ring-2 ring-transparent focus-visible:outline-2 focus-visible:outline-offset-2"
+                              >
+                                <UserAvatar
+                                  src={member.user.avatar_url ?? undefined}
+                                  name={member.user.display_name ?? member.user.poe_account_name}
+                                  size="sm"
+                                  style={{
+                                    backgroundColor: getAvatarColor(
+                                      member.user.id,
+                                      member.user.avatar_color,
+                                    ),
+                                  }}
+                                />
                               </Popover.Trigger>
                               <Popover.Content placement="bottom start" className="p-3">
                                 <Popover.Dialog>
@@ -381,21 +401,27 @@ export function MembersPage() {
                             />
                           )}
 
-                          <div className="min-w-0">
-                            <p className="text-foreground truncate text-sm font-medium">
+                          <button
+                            type="button"
+                            className="focus-visible:outline-primary hover:bg-default-50 min-h-10 min-w-0 cursor-pointer rounded-md py-1 text-left focus-visible:outline-2 focus-visible:outline-offset-2"
+                            aria-label={`View ${member.user.display_name ?? member.user.poe_account_name ?? 'member'}`}
+                            aria-pressed={isSelected}
+                            onClick={() => setSelectedUserId(member.user.id)}
+                          >
+                            <span className="text-foreground block text-sm font-medium wrap-anywhere">
                               {member.user.display_name ?? member.user.poe_account_name}
                               {isMe && (
                                 <span className="text-default-400 ml-1.5 text-xs font-normal">
                                   (you)
                                 </span>
                               )}
-                            </p>
-                            <p className="text-default-400 truncate text-xs">
+                            </span>
+                            <span className="text-default-500 block text-xs wrap-anywhere">
                               {char
                                 ? `${char.name} · Level ${char.level}`
-                                : member.user.poe_account_name}
-                            </p>
-                          </div>
+                                : 'No active character'}
+                            </span>
+                          </button>
                         </div>
 
                         {isSelected && (
@@ -405,16 +431,15 @@ export function MembersPage() {
                         )}
                       </div>
 
-                      <button
-                        type="button"
-                        className="flex w-full flex-col gap-3 text-left"
-                        onClick={() => setSelectedUserId(member.user.id)}
-                      >
-                        <AscendancyArt
-                          ascendancy={ascendancy}
-                          poeClass={char?.class ?? null}
-                          imagePath={portraitImagePath}
-                        />
+                      <div className="flex flex-col gap-2">
+                        {portraitImagePath && (
+                          <AscendancyArt
+                            ascendancy={ascendancy}
+                            poeClass={char?.class ?? null}
+                            imagePath={portraitImagePath}
+                            heightClass="h-16"
+                          />
+                        )}
 
                         <div className="flex flex-wrap gap-2">
                           <Chip size="sm" color={age.color} variant="soft">
@@ -430,31 +455,15 @@ export function MembersPage() {
                           )}
                         </div>
 
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-default-500 text-xs">
-                            {char
-                              ? `${char.class} · Level ${char.level}`
-                              : 'No active character selected'}
-                          </p>
-                          <div className="text-default-400 flex items-center gap-1.5">
-                            <Chip size="sm" variant="soft">
-                              Gear
-                            </Chip>
-                            <Chip size="sm" variant="soft">
-                              Tree
-                            </Chip>
-                          </div>
-                        </div>
-                      </button>
+                      </div>
                     </Card.Content>
                   </Card>
                 )
               })}
-            </div>
           </div>
 
           {selectedMember && (
-            <Card>
+            <Card className="gap-0 p-0">
               <Card.Header className="flex flex-col gap-4 px-5 pt-5 pb-0">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                   <div className="flex min-w-0 items-start gap-3">
@@ -472,13 +481,13 @@ export function MembersPage() {
                       }}
                     />
                     <div className="min-w-0 flex-1">
-                      <h2 className="text-foreground truncate text-lg font-semibold">
+                      <h2 className="text-foreground wrap-anywhere text-lg font-semibold">
                         {selectedMember.user.display_name ?? selectedMember.user.poe_account_name}
                         {isSelectedMe && (
                           <span className="text-default-400 ml-2 text-sm font-normal">(you)</span>
                         )}
                       </h2>
-                      <p className="text-default-500 mt-1 truncate text-sm">
+                      <p className="text-default-500 wrap-anywhere mt-1 text-sm">
                         {selectedChar
                           ? `${selectedChar.name} · ${selectedChar.class} · Level ${selectedChar.level}`
                           : selectedMember.user.poe_account_name}
@@ -501,6 +510,11 @@ export function MembersPage() {
                           {selectedRoleChip.label}
                         </Chip>
                       )}
+                      {selectedProfile && (
+                        <Chip className="shrink-0" size="sm" variant="soft">
+                          {selectedProfile.visibility === 'public' ? 'Public profile' : 'Group-only profile'}
+                        </Chip>
+                      )}
                       {selectedChar && (
                         <Chip className="shrink-0" size="sm" variant="soft">
                           {selectedChar.class}
@@ -517,8 +531,8 @@ export function MembersPage() {
                       {isSelectedMe && (canSync || (myCharacters && myCharacters.length > 0)) && (
                         <Dropdown isOpen={charPickerOpen} onOpenChange={handleCharPickerOpenChange}>
                           <Dropdown.Trigger
-                            className="select__trigger h-10 min-h-10 min-w-44 items-center"
-                            isDisabled={isBusy}
+                            className="select__trigger h-10 min-h-10 max-w-full min-w-0 items-center"
+                            isDisabled={isBusy || selectingCharacter}
                           >
                             <span className="select__value min-w-0 truncate">
                               <span className="inline-flex min-w-0 items-center gap-2">
@@ -538,12 +552,13 @@ export function MembersPage() {
                           </Dropdown.Trigger>
                           <Dropdown.Popover
                             placement="bottom end"
-                            className="max-h-64 overflow-y-auto"
+                            className="max-h-64 max-w-[calc(100vw-2rem)] overflow-y-auto"
                           >
                             <Dropdown.Menu
                               aria-label="Your characters"
+                              renderEmptyState={() => <p className="text-default-500 px-3 py-2 text-sm">No characters available.</p>}
                               onAction={(key) => {
-                                setActive({ characterId: key as string, groupId: activeGroupId! })
+                                if (activeGroupId) setActive({ characterId: String(key), groupId: activeGroupId })
                                 setCharPickerOpen(false)
                               }}
                             >
@@ -554,7 +569,7 @@ export function MembersPage() {
                                   textValue={myCharacter.name}
                                 >
                                   <div className="flex min-w-0 flex-1 flex-col">
-                                    <Label>{myCharacter.name}</Label>
+                                    <Label className="wrap-anywhere">{myCharacter.name}</Label>
                                     <Description>
                                       {myCharacter.class} - Level {myCharacter.level}
                                     </Description>
@@ -571,7 +586,7 @@ export function MembersPage() {
 
                       {myRole === 'admin' && !isSelectedMe && selectedMember.role !== 'admin' && (
                         <Dropdown>
-                          <Dropdown.Trigger className="select__trigger h-9 min-h-9 min-w-36 items-center">
+                          <Dropdown.Trigger className="select__trigger h-9 min-h-9 min-w-0 items-center" isDisabled={rolePending}>
                             <span className="select__value min-w-0 truncate">
                               Role: {selectedRoleChip?.label ?? 'Permissions'}
                             </span>
@@ -609,34 +624,45 @@ export function MembersPage() {
                   </div>
                 </div>
 
+                {(characterError || roleError || colorError || visibilityError) && (
+                  <p role="alert" className="text-danger text-sm">
+                    {characterError ? 'Couldn’t change the character.' : roleError ? 'Couldn’t change the role.' : colorError ? 'Couldn’t update the avatar color.' : 'Couldn’t change profile visibility.'} Try again.
+                  </p>
+                )}
+                {characterSyncFailed ? (
+                  <p role="status" className="text-default-600 text-sm">
+                    Could not refresh characters. You can select a saved character or reopen the picker to try again.
+                  </p>
+                ) : null}
                 {(isSelectedMe ||
                   Boolean(selectedMember.user.pob_code) ||
                   Boolean(selectedMember.user.pob_support_code)) && (
-                  <div className="w-full">
-                    {isSelectedMe ? (
-                      <MyPobSection
-                        pob_code={selectedMember.user.pob_code}
-                        pob_support_code={selectedMember.user.pob_support_code}
-                        isSolo={isSolo}
-                      />
-                    ) : (
-                      <OtherPobSection
-                        pob_code={selectedMember.user.pob_code}
-                        pob_support_code={selectedMember.user.pob_support_code}
-                      />
-                    )}
-                  </div>
+                  <details className="border-divider group w-full border-t pt-3">
+                    <summary className="text-foreground focus-visible:outline-primary flex min-h-10 w-fit cursor-pointer list-none items-center gap-2 rounded-md text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden">
+                      <ChevronDown size={14} className="-rotate-90 group-open:rotate-0" aria-hidden="true" />
+                      Path of Building codes
+                    </summary>
+                    <div className="pb-2">
+                      {isSelectedMe ? (
+                        <MyPobSection
+                          key={activeGroupId}
+                          pob_code={selectedMember.user.pob_code}
+                          pob_support_code={selectedMember.user.pob_support_code}
+                          isSolo={isSolo}
+                        />
+                      ) : (
+                        <OtherPobSection
+                          key={selectedMember.user.id}
+                          pob_code={selectedMember.user.pob_code}
+                          pob_support_code={selectedMember.user.pob_support_code}
+                        />
+                      )}
+                    </div>
+                  </details>
                 )}
               </Card.Header>
 
               <Card.Content className="gap-4 p-0">
-                <div className="flex flex-wrap items-center gap-3 px-5 pt-4">
-                  <p className="text-default-500 text-xs">
-                    Inspect equipped gear, passive tree, atlas tree, and synced build details for
-                    the selected member.
-                  </p>
-                </div>
-
                 {selectedProfile && (
                   <div className="px-5">
                     <div className="rounded-large border-divider bg-default-50/60 border p-4">
@@ -656,7 +682,7 @@ export function MembersPage() {
                             onSelectionChange={(key) => {
                               setSelectedDailySnapshotId(typeof key === 'string' ? key : null)
                             }}
-                            className="min-w-[15rem]"
+                            className="min-w-0 sm:min-w-48"
                           >
                             {selectedProfileDailySummaries.map((entry) => (
                               <ListBox.Item

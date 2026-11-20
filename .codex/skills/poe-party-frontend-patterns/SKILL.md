@@ -15,7 +15,7 @@ Use existing nearby patterns first. This app is a product workspace, so favor de
 - Use HeroUI components and lucide icons consistently with nearby pages.
 - Preserve dashboard privacy boundaries: authenticated dashboard routes stay client-rendered; public preview/legal routes can be SEO-oriented.
 - Run route generation if route files change and generated route output is stale.
-- Keep PoE Party brand primary at `#f5a524`. In HeroUI v3 this belongs in `src/index.css` as the `--accent` token override, not as one-off button styling; without it, HeroUI's default accent makes primary buttons blue.
+- Use the Brass & Verdigris roles in `src/index.css`. HeroUI `--accent` supplies the mode-specific brass action, `text-brand-readable` is for links, and `bg-selected` with `text-highlight` identifies selection. Use `border-divider` for structure and `border-control` for required control edges. Use `--wealth-series` for the wealth line and reserve `--success` for positive status.
 
 ## HeroUI Trigger Styling
 

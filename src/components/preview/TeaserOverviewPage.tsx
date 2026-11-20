@@ -21,6 +21,7 @@ import {
 } from '../../lib/preview-fixtures'
 import { DIFFICULTY_CHIP, IMPORTANCE_CHIP, STATUS_COLOR } from '../../lib/constants'
 import { formatCurrencyAmount } from '../../lib/utils'
+import { formatWealthAxisTick } from '../../lib/wealth-history'
 import { getPreviewItemImage } from '../../lib/preview-item-images'
 import { PreviewPageIntro, UnlockCard } from './PreviewShared'
 const divinePrice = 205
@@ -37,21 +38,21 @@ export function TeaserOverviewPage() {
   const importance = IMPORTANCE_CHIP[sampleSuggestion.importance]
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="@container flex min-w-0 flex-col gap-6">
       <PreviewPageIntro
         mode="teaser"
         title="Overview"
-        description="A lighter sample of the dashboard. Wealth, roster health, and next actions are shown with illustrative values — sign in to see your own."
+        description="See a sample workspace with stash history, members, strategies, and gear suggestions."
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Card>
-          <Card.Content className="flex flex-row items-center gap-4 p-5">
-            <div className="rounded-large bg-success/15 flex h-12 w-12 items-center justify-center">
-              <TrendingUp size={24} className="text-success" />
+          <Card.Content className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+            <div className="rounded-large bg-wealth-series/15 flex size-9 shrink-0 items-center justify-center">
+              <TrendingUp size={18} className="text-wealth-series" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-default-400 text-xs tracking-wider uppercase">Sample Wealth</p>
+              <p className="text-default-400 text-xs">Sample wealth</p>
               <p className="text-foreground text-2xl font-bold">
                 {formatCurrencyAmount(previewWorkspace.total_wealth_chaos, 'divine', divinePrice)}
               </p>
@@ -60,12 +61,12 @@ export function TeaserOverviewPage() {
         </Card>
 
         <Card>
-          <Card.Content className="flex flex-row items-center gap-4 p-5">
-            <div className="rounded-large bg-primary/15 flex h-12 w-12 items-center justify-center">
-              <Users size={24} className="text-primary" />
+          <Card.Content className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+            <div className="rounded-large bg-primary/15 flex size-9 shrink-0 items-center justify-center">
+              <Users size={18} className="text-primary" />
             </div>
             <div>
-              <p className="text-default-400 text-xs tracking-wider uppercase">Synced Members</p>
+              <p className="text-default-400 text-xs">Synced members</p>
               <p className="text-foreground text-2xl font-bold">
                 {previewWorkspace.synced_members}
               </p>
@@ -74,12 +75,12 @@ export function TeaserOverviewPage() {
         </Card>
 
         <Card>
-          <Card.Content className="flex flex-row items-center gap-4 p-5">
-            <div className="rounded-large bg-warning/15 flex h-12 w-12 items-center justify-center">
-              <Sword size={24} className="text-warning" />
+          <Card.Content className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+            <div className="rounded-large bg-warning/15 flex size-9 shrink-0 items-center justify-center">
+              <Sword size={18} className="text-warning" />
             </div>
             <div>
-              <p className="text-default-400 text-xs tracking-wider uppercase">Open Gear Plans</p>
+              <p className="text-default-400 text-xs">Open gear suggestions</p>
               <p className="text-foreground text-2xl font-bold">
                 {previewWorkspace.open_gear_items}
               </p>
@@ -89,36 +90,41 @@ export function TeaserOverviewPage() {
       </div>
 
       <Card>
-        <Card.Header className="px-4 pt-4 pb-0">
+        <Card.Header>
           <div>
-            <p className="text-foreground text-sm font-semibold">Illustrative wealth trend</p>
+            <p className="text-foreground text-sm font-semibold">Sample wealth trend</p>
             <p className="text-default-500 mt-1 text-sm">
-              A single sample chart to show how snapshots turn into momentum over time.
+              Stash value in Chaos Orbs from recent snapshots.
             </p>
           </div>
         </Card.Header>
-        <Card.Content className="px-2 pt-2 pb-3">
+        <Card.Content>
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={previewHistory} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
+            <AreaChart
+              title="Sample stash value in Chaos Orbs"
+              desc="Use the left and right arrow keys to read snapshot values."
+              data={previewHistory}
+              margin={{ top: 4, right: 12, left: 0, bottom: 0 }}
+            >
               <defs>
                 <linearGradient id="previewOverviewHistory" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#17c964" stopOpacity={0.24} />
-                  <stop offset="95%" stopColor="#17c964" stopOpacity={0} />
+                  <stop offset="5%" stopColor="var(--wealth-series)" stopOpacity={0.24} />
+                  <stop offset="95%" stopColor="var(--wealth-series)" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
               <XAxis
                 dataKey="created_at"
                 tickFormatter={(value: string) =>
                   new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
                 }
-                tick={{ fontSize: 10, fill: '#888' }}
+                tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tickFormatter={(value: number) => `${Math.round(value / 1000)}k`}
-                tick={{ fontSize: 10, fill: '#888' }}
+                tickFormatter={formatWealthAxisTick}
+                tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
                 axisLine={false}
                 tickLine={false}
                 width={42}
@@ -128,7 +134,7 @@ export function TeaserOverviewPage() {
                   if (!active || !payload?.length) return null
                   const point = payload[0].payload as (typeof previewHistory)[number]
                   return (
-                    <div className="rounded-large border-divider bg-content1 border px-3 py-2 text-xs shadow-lg">
+                    <div role="status" className="rounded-large border-divider bg-overlay border px-3 py-2 text-xs shadow-lg">
                       <p className="text-default-400">
                         {new Date(point.created_at).toLocaleString(undefined, {
                           month: 'short',
@@ -147,44 +153,36 @@ export function TeaserOverviewPage() {
               <Area
                 type="monotone"
                 dataKey="total_wealth_chaos"
-                stroke="#17c964"
+                name="Stash value"
+                stroke="var(--wealth-series)"
                 fill="url(#previewOverviewHistory)"
                 strokeWidth={2}
-                dot={{ r: 3, fill: '#17c964' }}
+                dot={{ r: 3, fill: 'var(--wealth-series)' }}
               />
             </AreaChart>
           </ResponsiveContainer>
         </Card.Content>
       </Card>
 
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <h2 className="text-foreground text-sm font-semibold">Strategy Reference</h2>
-            <p className="text-default-400 mt-1 text-xs">
-              Sample card shown at the same size as the signed-in overview.
-            </p>
+      <div className="grid gap-4 @min-[44rem]:grid-cols-2">
+        <div className="min-w-0">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-foreground text-sm font-semibold">Active strategy</h2>
+            <Link to="/preview/strategies" className="button button--sm button--tertiary">
+              Browse strategies
+            </Link>
           </div>
-          <Link to="/preview/strategies" className="button button--sm button--tertiary">
-            Open Live Strategies
-          </Link>
-        </div>
-        <div
-          className="-mx-0.5 flex items-stretch gap-3 overflow-x-auto px-0.5 pt-0.5 pb-2"
-          style={{ scrollSnapType: 'x mandatory' }}
-        >
           <Link
             to="/preview/strategies"
-            className="block h-full shrink-0"
-            style={{ scrollSnapAlign: 'start' }}
+            className="block min-w-0"
           >
-            <Card className="hover:bg-default-50 h-full w-60 cursor-pointer transition-colors">
-              <Card.Content className="gap-1.5 p-4">
-                <div className="flex items-center gap-2">
+            <Card className="hover:bg-default-50 min-w-0 cursor-pointer transition-colors">
+              <Card.Content className="gap-1.5">
+                <div className="flex flex-wrap items-center gap-2">
                   {sampleStrategy.is_active ? (
-                    <Star size={14} className="fill-primary text-primary shrink-0" />
+                    <Star size={14} className="fill-highlight text-highlight shrink-0" aria-hidden="true" />
                   ) : null}
-                  <p className="text-foreground flex-1 truncate text-sm font-medium">
+                  <p className="text-foreground min-w-0 flex-1 wrap-anywhere text-sm font-medium">
                     {sampleStrategy.name}
                   </p>
                   <Chip size="sm" variant="soft" color={diffChip.color}>
@@ -206,7 +204,7 @@ export function TeaserOverviewPage() {
                     )}
                     /hr
                   </Chip>
-                  <Chip size="sm" variant="soft" color="accent">
+                  <Chip size="sm" variant="soft" className="bg-selected text-highlight">
                     Active
                   </Chip>
                 </div>
@@ -214,31 +212,17 @@ export function TeaserOverviewPage() {
             </Card>
           </Link>
         </div>
-      </div>
 
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <h2 className="text-foreground text-sm font-semibold">Gear Suggestion Reference</h2>
-            <p className="text-default-400 mt-1 text-xs">
-              Sample card shown at the same size as the signed-in overview, using a local preview
-              item image.
-            </p>
+        <div className="min-w-0">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-foreground text-sm font-semibold">Gear suggestion</h2>
+            <Link to="/preview/gear" className="button button--sm button--tertiary">
+              View gear sample
+            </Link>
           </div>
-          <Link to="/preview/gear" className="button button--sm button--tertiary">
-            Open Gear Teaser
-          </Link>
-        </div>
-        <div
-          className="-mx-1 flex items-stretch gap-3 overflow-x-auto px-1 pt-0.5 pb-2"
-          style={{ scrollSnapType: 'x mandatory' }}
-        >
-          <Card
-            className="hover:bg-default-50 h-full w-72 shrink-0 transition-colors"
-            style={{ scrollSnapAlign: 'start' }}
-          >
-            <Card.Content className="gap-1.5 p-4">
-              <div className="flex items-center gap-2">
+          <Card className="min-w-0">
+            <Card.Content className="gap-1.5">
+              <div className="flex flex-wrap items-center gap-2">
                 {sampleItemImage ? (
                   <img
                     src={sampleItemImage}
@@ -248,14 +232,14 @@ export function TeaserOverviewPage() {
                 ) : (
                   <Sword size={14} className="text-default-400 shrink-0" />
                 )}
-                <p className="text-foreground flex-1 truncate text-sm font-medium">
+                <p className="text-foreground min-w-0 flex-1 wrap-anywhere text-sm font-medium">
                   {sampleSuggestion.item_name}
                 </p>
                 <Chip size="sm" variant="soft" color={importance.color}>
                   {importance.label}
                 </Chip>
               </div>
-              <div className="text-default-400 flex items-center gap-1.5 truncate text-xs">
+              <div className="text-default-400 flex items-center gap-1.5 wrap-anywhere text-xs">
                 <Avatar
                   size="sm"
                   className="h-5 w-5 shrink-0"
@@ -265,12 +249,12 @@ export function TeaserOverviewPage() {
                     {(sampleTarget?.display_name ?? 'Member').slice(0, 2).toUpperCase()}
                   </Avatar.Fallback>
                 </Avatar>
-                <span className="truncate">
+                <span className="min-w-0">
                   For {sampleTarget?.display_name ?? 'the selected member'}
                 </span>
               </div>
-              <div className="mt-auto flex items-center justify-between pt-2">
-                <p className="text-default-400 truncate text-xs">
+              <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
+                <p className="text-default-400 wrap-anywhere text-xs">
                   by {sampleSuggester?.display_name ?? 'another member'}
                 </p>
                 <Chip
@@ -288,12 +272,12 @@ export function TeaserOverviewPage() {
       </div>
 
       <UnlockCard
-        title="What the overview page unlocks after sign-in"
-        description="The signed-in overview becomes your real command board, tied to your own snapshots, strategies, and upgrade work."
+        title="Set up your workspace"
+        description="Sign in to bring your characters and group into PoE Party."
         points={[
-          'Track your own wealth trend instead of sample values.',
+          'Track your PoE1 stash value over time.',
           'See your sync status and which strategy is active.',
-          'Jump from overview cards into your real strategy and gear workflows.',
+          'Plan runs and share gear suggestions.',
         ]}
       />
     </div>

@@ -39,7 +39,7 @@ export interface DirectoryGroupResult {
 
 function getCharacterClassLine(character: { class: string | null; level: number | null }): string {
   if (!character.class) return 'Public character'
-  return `${character.class}${character.level != null ? ` - Level ${character.level}` : ''}`
+  return `${character.class}${character.level != null ? ` · Level ${character.level}` : ''}`
 }
 
 function getCharacterPresentation({
@@ -62,15 +62,9 @@ function getCharacterPresentation({
 export function DirectoryCharacterCardContent({
   character,
   fallbackGame,
-  actionLabel = 'Open',
-  detailChipLabel,
-  statusLabel,
 }: {
   character: DirectoryCharacterResult
   fallbackGame?: PoeGame | null
-  actionLabel?: string
-  detailChipLabel?: string | null
-  statusLabel?: string
 }) {
   const game = character.group_game ?? fallbackGame ?? 'poe1'
   const { ascendancy, imagePath } = getCharacterPresentation({
@@ -80,22 +74,13 @@ export function DirectoryCharacterCardContent({
   })
 
   return (
-    <Card.Content className="flex h-full flex-col gap-3 p-3 text-left">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-foreground truncate text-sm font-semibold">
-            {character.character_name}
-          </p>
-          <p className="text-default-500 mt-1 truncate text-xs">
-            Public by {character.owner_name}
-            {character.league ? ` - ${character.league}` : ''}
-          </p>
-        </div>
-        {statusLabel ? (
-          <Chip className="shrink-0" size="sm" color="accent" variant="soft">
-            {statusLabel}
-          </Chip>
-        ) : null}
+    <Card.Content className="flex h-full flex-col gap-3 text-left">
+      <div className="min-w-0 wrap-anywhere">
+        <h2 className="text-foreground text-sm font-semibold">{character.character_name}</h2>
+        <p className="text-default-500 mt-1 text-xs">
+          {character.owner_name}
+          {character.league ? ` · ${character.league}` : ''}
+        </p>
       </div>
 
       <AscendancyArt
@@ -108,8 +93,7 @@ export function DirectoryCharacterCardContent({
       <div className="flex flex-wrap gap-1.5">
         {character.class ? (
           <Chip size="sm" variant="soft">
-            {character.class}
-            {character.level != null ? ` ${character.level}` : ''}
+            {getCharacterClassLine(character)}
           </Chip>
         ) : null}
         {ascendancy ? (
@@ -123,23 +107,10 @@ export function DirectoryCharacterCardContent({
       </div>
 
       <div className="border-divider/70 mt-auto flex flex-wrap items-center justify-between gap-2 border-t pt-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-default-600 truncate text-xs font-medium">
-            {getCharacterClassLine(character)}
-          </p>
-          <p className="text-default-400 mt-1 truncate text-xs">From {character.group_name}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {detailChipLabel ? (
-            <Chip size="sm" variant="soft">
-              {detailChipLabel}
-            </Chip>
-          ) : null}
-          <span className="text-primary inline-flex items-center gap-1 text-sm font-medium">
-            {actionLabel}
-            <ArrowRight size={13} />
-          </span>
-        </div>
+        <p className="text-default-500 min-w-0 flex-1 text-xs wrap-anywhere">From {character.group_name}</p>
+        <span className="text-brand-readable inline-flex shrink-0 items-center gap-1 text-sm font-medium" aria-hidden="true">
+          View <ArrowRight size={13} />
+        </span>
       </div>
     </Card.Content>
   )
@@ -148,39 +119,26 @@ export function DirectoryCharacterCardContent({
 export function DirectoryGroupCardContent({
   group,
   fallbackGame,
-  actionLabel = 'Open',
-  detailChipLabel,
-  statusLabel,
 }: {
   group: DirectoryGroupResult
   fallbackGame?: PoeGame | null
-  actionLabel?: string
-  detailChipLabel?: string | null
-  statusLabel?: string
 }) {
   const game = group.game ?? fallbackGame ?? 'poe1'
   const visibleCharacters = group.characters.slice(0, 3)
-  const hiddenCharacterCount = Math.max(0, group.characters.length - visibleCharacters.length)
+  const hiddenCharacterCount = Math.max(0, group.public_character_count - visibleCharacters.length)
 
   return (
-    <Card.Content className="flex h-full flex-col gap-3 p-3 text-left">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-foreground truncate text-sm font-semibold">{group.group_name}</p>
-          <p className="text-default-500 mt-1 truncate text-xs">
-            {group.public_character_count} public character
-            {group.public_character_count === 1 ? '' : 's'} - {group.league}
-          </p>
-        </div>
-        {statusLabel ? (
-          <Chip className="shrink-0" size="sm" color="accent" variant="soft">
-            {statusLabel}
-          </Chip>
-        ) : null}
+    <Card.Content className="flex h-full flex-col gap-3 text-left">
+      <div className="min-w-0 wrap-anywhere">
+        <h2 className="text-foreground text-sm font-semibold">{group.group_name}</h2>
+        <p className="text-default-500 mt-1 text-xs">
+          {getPoeGameShortLabel(game)} {group.league} · {group.public_character_count} public character
+          {group.public_character_count === 1 ? '' : 's'}
+        </p>
       </div>
 
       {visibleCharacters.length > 0 ? (
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        <div className="-mx-1 flex min-w-0 gap-2 overflow-x-auto px-1 pb-1">
           {visibleCharacters.map((character) => {
             const { ascendancy, imagePath } = getCharacterPresentation({
               className: character.class,
@@ -220,32 +178,10 @@ export function DirectoryGroupCardContent({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <Chip size="sm" variant="soft">
-          {getPoeGameShortLabel(game)}
-        </Chip>
-        <Chip size="sm" variant="soft">
-          {group.public_character_count} public
-        </Chip>
-      </div>
-
-      <div className="border-divider/70 mt-auto flex flex-wrap items-center justify-between gap-2 border-t pt-2">
-        <p className="text-default-500 min-w-0 flex-1 truncate text-xs">
-          {visibleCharacters.length > 0
-            ? visibleCharacters.map((character) => character.character_name).join(', ')
-            : 'Public group'}
-        </p>
-        <div className="flex shrink-0 items-center gap-2">
-          {detailChipLabel ? (
-            <Chip size="sm" variant="soft">
-              {detailChipLabel}
-            </Chip>
-          ) : null}
-          <span className="text-primary inline-flex items-center gap-1 text-sm font-medium">
-            {actionLabel}
-            <ArrowRight size={13} />
-          </span>
-        </div>
+      <div className="border-divider/70 mt-auto flex justify-end border-t pt-2">
+        <span className="text-brand-readable inline-flex items-center gap-1 text-sm font-medium" aria-hidden="true">
+          View <ArrowRight size={13} />
+        </span>
       </div>
     </Card.Content>
   )

@@ -86,10 +86,10 @@ export function useGearSuggestion(suggestionId: string | undefined) {
         `,
         )
         .eq('id', suggestionId!)
-        .single()
+        .maybeSingle()
 
       if (error) throw error
-      return data as unknown as GearSuggestion
+      return data as unknown as GearSuggestion | null
     },
   })
 }
@@ -142,7 +142,7 @@ export function useUpdateGearSuggestion() {
       item_trade_link?: string | null
       notes?: string | null
       importance?: GearImportance
-      status: GearStatus
+      status?: GearStatus
       status_note?: string | null
       admin_locked?: boolean
       action_type?: GearActionType
@@ -173,12 +173,15 @@ export function useDeleteGearSuggestion() {
 
   return useMutation({
     mutationFn: async (values: { id: string; group_id: string }) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('gear_suggestions')
         .delete()
         .eq('id', values.id)
+        .select('id')
+        .maybeSingle()
 
       if (error) throw error
+      if (!data) throw new Error('Gear suggestion was not deleted')
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.gear.single(variables.id)] })

@@ -89,7 +89,7 @@ export function StrategyInfoSection({
         ) : null}
 
         {legacyScarabs.length > 0 && (
-          <details className="text-default-400 text-xs">
+          <details className="text-default-400 wrap-anywhere text-xs">
             <summary className="cursor-pointer">Legacy Scarab reference (removed in 3.30)</summary>
             <ul className="mt-1">{legacyScarabs.map((scarab, index) => (
               <li key={index}>{scarab.quantity} × {scarab.name}</li>
@@ -113,21 +113,17 @@ export function StrategyInfoSection({
                   key={`${thread.name}-${index}`}
                   className="flex flex-wrap items-center gap-1.5"
                 >
-                  <Chip size="sm" variant="soft" className="px-2 py-1">
+                  <Chip size="sm" variant="soft" className="h-auto max-w-full flex-wrap gap-1.5 px-2 py-1 whitespace-normal">
                     <span className="inline-flex min-w-0 items-center gap-1.5">
                       <ThreadChipIcon icon={threadIcon} name={thread.name} />
-                      <span>{thread.name}</span>
+                      <span className="wrap-anywhere">{thread.name}</span>
                     </span>
                     {thread.quantity > 1 ? (
-                      <span className="text-default-400 ml-2">x{thread.quantity}</span>
+                      <span className="text-default-400">×{thread.quantity}</span>
                     ) : null}
-                    {rowCost != null ? (
-                      <span className="ml-2">
-                        <ChaosPrice amount={rowCost} />
-                      </span>
-                    ) : null}
+                    {rowCost != null ? <ChaosPrice amount={rowCost} /> : null}
                     {!thread.required ? (
-                      <span className="text-default-400 ml-2 text-xs">opt</span>
+                      <span className="text-default-400 text-xs">Optional</span>
                     ) : null}
                   </Chip>
                   {thread.alternatives.map((alternative, alternativeIndex) => {
@@ -141,21 +137,17 @@ export function StrategyInfoSection({
                         key={`${thread.name}-${index}-alt-${alternative.name}-${alternativeIndex}`}
                         size="sm"
                         variant="secondary"
-                        className="border-dashed px-2 py-1"
+                        className="h-auto max-w-full flex-wrap gap-1.5 border-dashed px-2 py-1 whitespace-normal"
                       >
-                        <span className="text-default-400">Alternative:</span>
-                        <span className="ml-1.5 inline-flex min-w-0 items-center gap-1.5">
+                        <span className="text-default-400">Alternative</span>
+                        <span className="inline-flex min-w-0 items-center gap-1.5">
                           <ThreadChipIcon icon={alternativeIcon} name={alternative.name} />
-                          <span>{alternative.name}</span>
+                          <span className="wrap-anywhere">{alternative.name}</span>
                         </span>
                         {thread.quantity > 1 ? (
-                          <span className="text-default-400 ml-2">x{thread.quantity}</span>
+                          <span className="text-default-400">×{thread.quantity}</span>
                         ) : null}
-                        {alternativeCost != null ? (
-                          <span className="ml-2">
-                            <ChaosPrice amount={alternativeCost} />
-                          </span>
-                        ) : null}
+                        {alternativeCost != null ? <ChaosPrice amount={alternativeCost} /> : null}
                       </Chip>
                     )
                   })}

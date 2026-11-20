@@ -12,6 +12,14 @@ export const STRATEGY_CONTENT_STAGE_OPTIONS = [
 
 export type StrategyContentStage = (typeof STRATEGY_CONTENT_STAGE_OPTIONS)[number]['value']
 
+export const STRATEGY_STAGE_FILTER_OPTIONS = [
+  { value: 'all' as const, label: 'All stages', shortLabel: 'All' },
+  ...STRATEGY_CONTENT_STAGE_OPTIONS.map((option) => ({
+    ...option,
+    shortLabel: option.value === 'league_starter' ? 'Starter' : undefined,
+  })),
+]
+
 export const STRATEGY_CONTENT_KIND_OPTIONS = [
   { value: 'league_starter', label: 'League starter' },
   { value: 'build_source', label: 'Build sources' },

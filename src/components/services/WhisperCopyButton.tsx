@@ -1,47 +1,26 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@heroui/react/button'
 import { resolveWhisperTemplate, type ServiceType } from '../../lib/service-types'
 import { trackPublicEvent } from '../../lib/analytics'
 
-type StableButtonSize = 'sm' | 'md' | 'lg'
-type StableButtonVariant = 'primary' | 'secondary' | 'tertiary' | 'outline' | 'ghost' | 'danger' | 'danger-soft' | 'flat' | 'bordered'
-type StableButtonColor = 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'accent'
-
-function mapButtonVariant(variant: StableButtonVariant, color: StableButtonColor) {
-  if (variant === 'flat') return color === 'danger' ? 'danger-soft' : 'tertiary'
-  if (variant === 'bordered') return 'secondary'
-  if (variant === 'danger' || color === 'danger') return 'danger'
-  if (variant === 'danger-soft') return 'danger-soft'
-  if (variant === 'secondary') return 'secondary'
-  if (variant === 'tertiary') return 'tertiary'
-  if (variant === 'outline') return 'outline'
-  if (variant === 'ghost') return 'ghost'
-  return 'primary'
-}
 export function WhisperCopyButton({
   ign,
   serviceType,
   title,
   whisperTemplate,
   size = 'sm',
-  color = 'warning',
-  variant = 'flat',
   showPreview = false,
-  fullWidth = false,
-  className,
 }: {
   ign: string
   serviceType: ServiceType
   title: string | null
   whisperTemplate: string | null
-  size?: StableButtonSize
-  color?: StableButtonColor
-  variant?: StableButtonVariant
+  size?: 'sm' | 'md' | 'lg'
   showPreview?: boolean
-  fullWidth?: boolean
-  className?: string
 }) {
-  const [copied, setCopied] = useState(false)
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+  const resetTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(resetTimer.current), [])
   const template = resolveWhisperTemplate({
     ign,
     serviceType,
@@ -50,34 +29,37 @@ export function WhisperCopyButton({
   })
 
   async function onPress() {
+    window.clearTimeout(resetTimer.current)
     try {
       await navigator.clipboard.writeText(template)
-      trackPublicEvent('service_whisper_copy', {
-        service_type: serviceType,
-        title: title ?? '',
-      })
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1200)
     } catch {
-      // clipboard may be blocked; swallow silently
+      setCopyStatus('error')
+      return
     }
+    setCopyStatus('copied')
+    window.clearTimeout(resetTimer.current)
+    resetTimer.current = window.setTimeout(() => setCopyStatus('idle'), 1500)
+    trackPublicEvent('service_whisper_copy', {
+      service_type: serviceType,
+      title: title ?? '',
+    })
   }
 
-  const label = copied ? 'Copied!' : 'Copy Whisper'
-
   return (
-    <div className={fullWidth ? 'w-full' : undefined}>
-      <Button
-        size={size}
-        variant={mapButtonVariant(variant, color)}
-        onPress={onPress}
-        fullWidth={fullWidth}
-        className={className}
-      >
-        {label}
+    <div className="min-w-0">
+      <Button size={size} variant="tertiary" onPress={onPress}>
+        {copyStatus === 'copied' ? 'Copied!' : 'Copy whisper'}
       </Button>
-      {showPreview ? (
-        <p className="mt-2 break-all font-mono text-xs text-default-400">{template}</p>
+      <span role="status" className="sr-only">
+        {copyStatus === 'copied' ? 'Whisper copied to clipboard.' : null}
+      </span>
+      {copyStatus === 'error' ? (
+        <p role="alert" className="text-danger mt-2 text-xs">
+          Clipboard unavailable. Select and copy the whisper below.
+        </p>
+      ) : null}
+      {showPreview || copyStatus === 'error' ? (
+        <p className="mt-2 wrap-anywhere select-text font-mono text-xs text-default-600">{template}</p>
       ) : null}
     </div>
   )

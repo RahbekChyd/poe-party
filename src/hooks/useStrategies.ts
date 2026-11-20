@@ -167,10 +167,10 @@ export function useStrategy(strategyId: string | undefined) {
         `,
         )
         .eq('id', strategyId!)
-        .single()
+        .maybeSingle()
 
       if (error) throw error
-      return normalizeStrategy(data as Record<string, unknown>)
+      return data ? normalizeStrategy(data as Record<string, unknown>) : null
     },
   })
 }

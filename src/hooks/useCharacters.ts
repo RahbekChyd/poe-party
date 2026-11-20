@@ -47,23 +47,30 @@ export function useSetActiveCharacter() {
       } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      // Deactivate all user's characters in this group
-      await supabase
+      const { error: deactivateError } = await supabase
         .from('characters')
         .update({ is_active: false })
         .eq('user_id', user.id)
         .eq('group_id', groupId)
+        .neq('id', characterId)
+        .eq('is_active', true)
 
-      // Activate the selected one
-      const { error } = await supabase
+      if (deactivateError) throw deactivateError
+
+      const { data, error } = await supabase
         .from('characters')
         .update({ is_active: true })
         .eq('id', characterId)
+        .eq('user_id', user.id)
+        .eq('group_id', groupId)
+        .select('id')
+        .maybeSingle()
 
       if (error) throw error
+      if (!data) throw new Error('Character is unavailable in this workspace')
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: [...queryKeys.characters.mine(variables.groupId)] })
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.characters.mineGroup(variables.groupId) })
       queryClient.invalidateQueries({ queryKey: [...queryKeys.characters.active(variables.groupId)] })
       queryClient.invalidateQueries({
         queryKey: [...queryKeys.characterProfiles.group(variables.groupId)],

@@ -117,7 +117,7 @@ export const dashboardNavigation: readonly DashboardNavSection[] = [
 
 export function isDashboardNavItemActive(pathname: string, item: DashboardNavItem) {
   if (item.to === '/dashboard') return pathname === '/dashboard' || pathname === '/dashboard/'
-  return item.match.some((prefix) => pathname.startsWith(prefix))
+  return item.match.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 }
 
 export function isDashboardSectionActive(pathname: string, section: DashboardNavSection) {

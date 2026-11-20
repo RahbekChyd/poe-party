@@ -78,12 +78,15 @@ const mapDetailsSchema = z.object({
   refund_policy: z.string().max(120).nullable(),
 })
 
+const MAX_FIVE_WAY_GUARANTEES = 8
+const MAX_GUARANTEE_LENGTH = 160
+
 const fiveWayDetailsSchema = z.object({
   service_type: z.literal('five_way_host'),
   runs_per_bundle: z.number().int().positive().max(50),
   guaranteed_kills: z.number().int().nonnegative().nullable(),
   aurabot_resist_pct: z.number().int().min(0).max(100).nullable(),
-  extra_guarantees: z.array(z.string().min(1).max(160)).max(8),
+  extra_guarantees: z.array(z.string().min(1).max(MAX_GUARANTEE_LENGTH)).max(MAX_FIVE_WAY_GUARANTEES),
   party: z.object({
     clients: z.object({
       current: z.number().int().nonnegative(),
@@ -121,11 +124,11 @@ const detailsSchema = z.discriminatedUnion('service_type', [
 
 const schema = z.object({
   service_type: z.enum(['boss_carry', 'map_carry', 'five_way_host', 'gold_rota']),
-  title: z.string().min(2, 'Title is required').max(80),
+  title: z.string().trim().min(2, 'Enter a title with at least 2 characters').max(80),
   description: z.string().max(1000).optional(),
   region: z.string().max(16).optional(),
   price_divine: nullableDivine,
-  poe_ign: z.string().min(1, 'PoE IGN is required').max(32),
+  poe_ign: z.string().trim().min(1, 'Enter an in-game name').max(32),
   whisper_template: z.string().max(400).optional(),
   availability: availabilitySchema,
   visibility: visibilitySchema,
@@ -363,10 +366,10 @@ export function CreateServiceModal({ isOpen, onClose }: Props) {
           }
         }}
       >
-        <Modal.Container>
-          <Modal.Dialog>
-            <form onSubmit={handleSubmit(onSubmit)}>
-              <Modal.Header className="flex items-center gap-3">
+        <Modal.Container scroll="inside" size="lg">
+          <Modal.Dialog className="min-w-0 max-h-full max-w-2xl p-4 sm:p-6">
+            <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 min-w-0 flex-col gap-3">
+              <Modal.Header className="flex min-w-0 shrink-0 flex-row flex-wrap items-center gap-2">
                 {step !== 'type' ? (
                   <Button
                     isIconOnly
@@ -378,19 +381,19 @@ export function CreateServiceModal({ isOpen, onClose }: Props) {
                     <ChevronLeft size={18} />
                   </Button>
                 ) : null}
-                <Modal.Heading>
+                <Modal.Heading className="min-w-0 flex-1 wrap-anywhere">
                   {step === 'type'
                     ? 'What kind of service?'
                     : step === 'common'
                       ? 'Service details'
                       : 'Service specifics'}
                 </Modal.Heading>
-                <Chip size="sm" variant="soft" className="ml-auto">
+                <Chip size="sm" variant="soft" className="shrink-0">
                   Step {step === 'type' ? 1 : step === 'common' ? 2 : 3} of 3
                 </Chip>
               </Modal.Header>
 
-              <Modal.Body className="gap-4">
+              <Modal.Body key={step} className="@container mt-0 min-h-0 min-w-0 gap-4 overflow-y-auto overscroll-contain">
                 {step === 'type' ? <StepType onPick={pickType} /> : null}
                 {step === 'common' ? (
                   <StepCommon
@@ -404,7 +407,7 @@ export function CreateServiceModal({ isOpen, onClose }: Props) {
                 {step === 'details' ? <StepDetails type={currentType} form={form} /> : null}
               </Modal.Body>
 
-              <Modal.Footer>
+              <Modal.Footer className="mt-0 shrink-0 flex-wrap">
                 <Button variant="tertiary" onPress={handleClose}>
                   Cancel
                 </Button>
@@ -842,7 +845,7 @@ function MapDetailsFields({ form }: { form: ServiceForm }) {
         ) : (
           <div className="flex flex-col gap-2">
             {extraFields.map((field, idx) => (
-              <div key={field.id} className="grid grid-cols-[1fr_140px_auto] items-end gap-2">
+              <div key={field.id} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8.75rem_auto] sm:items-end">
                 <FieldInput
                   size="sm"
                   label="Label"
@@ -1004,10 +1007,11 @@ function FiveWayDetailsFields({ form }: { form: ServiceForm }) {
   const { control } = form
   const guarantees = form.watch('details.extra_guarantees') as string[]
   const [draft, setDraft] = useState('')
+  const guaranteeLimitReached = guarantees.length >= MAX_FIVE_WAY_GUARANTEES
 
   function addGuarantee() {
     const trimmed = draft.trim()
-    if (!trimmed) return
+    if (!trimmed || guaranteeLimitReached) return
     form.setValue('details.extra_guarantees', [...guarantees, trimmed])
     setDraft('')
   }
@@ -1023,7 +1027,7 @@ function FiveWayDetailsFields({ form }: { form: ServiceForm }) {
     <div className="flex flex-col gap-4">
       <div>
         <p className="text-foreground mb-2 text-sm font-medium">Pricing</p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 @min-[23rem]:grid-cols-2">
           <ServicePriceInput form={form} label="Bundle price (div)" />
           <Controller
             control={control}
@@ -1044,7 +1048,7 @@ function FiveWayDetailsFields({ form }: { form: ServiceForm }) {
 
       <Separator />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 @min-[23rem]:grid-cols-2">
         <Controller
           control={control}
           name="details.guaranteed_kills"
@@ -1085,7 +1089,7 @@ function FiveWayDetailsFields({ form }: { form: ServiceForm }) {
       <Separator />
 
       <p className="text-foreground text-sm font-medium">Party composition</p>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
+      <div className="grid grid-cols-1 gap-4 @min-[26rem]:grid-cols-[minmax(0,1fr)_auto_auto] @min-[26rem]:items-end">
         <PartySlotInputs label="Clients" form={form} name="details.party.clients" />
         <FixedPartyRoleCheckbox
           label="Resetter present"
@@ -1099,10 +1103,13 @@ function FiveWayDetailsFields({ form }: { form: ServiceForm }) {
 
       <div>
         <p className="text-foreground mb-2 text-sm font-medium">Guarantees</p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <FieldInput
+            aria-label="Guarantee"
+            className="min-w-0 flex-[1_1_12rem]"
             size="sm"
             value={draft}
+            maxLength={MAX_GUARANTEE_LENGTH}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -1112,24 +1119,36 @@ function FiveWayDetailsFields({ form }: { form: ServiceForm }) {
             }}
             placeholder="e.g. Free run if I die before 1 min"
           />
-          <Button size="sm" variant="tertiary" onPress={addGuarantee}>
-            Add
+          <Button
+            size="sm"
+            variant="tertiary"
+            isDisabled={guaranteeLimitReached}
+            onPress={addGuarantee}
+            className="shrink-0"
+          >
+            Add guarantee
           </Button>
         </div>
+        {guaranteeLimitReached ? (
+          <p role="status" className="text-default-500 mt-2 text-xs">
+            Maximum of {MAX_FIVE_WAY_GUARANTEES} guarantees.
+          </p>
+        ) : null}
         {guarantees.length > 0 ? (
           <ul className="mt-2 space-y-1">
             {guarantees.map((g, idx) => (
               <li
                 key={idx}
-                className="rounded-medium bg-default-50/50 text-default-600 flex items-center justify-between px-3 py-1.5 text-sm"
+                className="rounded-medium bg-default-50/50 text-default-600 flex min-w-0 flex-wrap items-start justify-between gap-2 px-3 py-1.5 text-sm"
               >
-                <span>{g}</span>
+                <span className="min-w-0 flex-[1_1_10rem] wrap-anywhere py-2">{g}</span>
                 <Button
                   isIconOnly
                   size="sm"
                   variant="danger-soft"
                   onPress={() => removeGuarantee(idx)}
                   aria-label="Remove guarantee"
+                  className="shrink-0"
                 >
                   <Trash2 size={14} />
                 </Button>

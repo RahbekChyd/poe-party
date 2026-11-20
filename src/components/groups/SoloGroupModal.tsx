@@ -69,14 +69,16 @@ export function SoloGroupModal({ isOpen, onClose }: SoloGroupModalProps) {
     onClose()
   }
 
-  const onSubmit = async (values: FormValues) => {
-    const group = await createGroup.mutateAsync({
-      name: createSoloGroupName(values.game),
-      game: values.game,
-      league: values.league,
-      is_solo: true,
-    })
-    setCreatedGroupId(group.id)
+  const onSubmit = (values: FormValues) => {
+    createGroup.mutate(
+      {
+        name: createSoloGroupName(values.game),
+        game: values.game,
+        league: values.league,
+        is_solo: true,
+      },
+      { onSuccess: (group) => setCreatedGroupId(group.id) },
+    )
   }
 
   const leagueSections: LeagueSection[] = leagues
@@ -94,19 +96,20 @@ export function SoloGroupModal({ isOpen, onClose }: SoloGroupModalProps) {
         onOpenChange={(open) => {
           if (!open) handleClose()
         }}
-        isDismissable={!createdGroupId}
-        isKeyboardDismissDisabled={!!createdGroupId}
+        isDismissable={!createdGroupId && !createGroup.isPending}
+        isKeyboardDismissDisabled={!!createdGroupId || createGroup.isPending}
       >
         <Modal.Container>
-          <Modal.Dialog>
+          <Modal.Dialog className="max-h-[calc(100dvh-2rem)] overflow-hidden">
             {createdGroupId ? (
               <CharacterPickerStep groupId={createdGroupId} onDone={handleClose} />
             ) : (
-              <form onSubmit={handleSubmit(onSubmit)}>
+              <form className="flex min-h-0 flex-col" onSubmit={handleSubmit(onSubmit)}>
                 <Modal.Header>
                   <Modal.Heading>Play Solo</Modal.Heading>
+                  <p className="text-default-500 text-xs">Step 1 of 2 · Workspace</p>
                 </Modal.Header>
-                <Modal.Body className="gap-4">
+                <Modal.Body className="min-h-0 gap-4 overflow-y-auto">
                   <p className="text-default-500 text-sm">
                     Choose the game and league you want to track. You can always join a group later.
                   </p>
@@ -198,15 +201,13 @@ export function SoloGroupModal({ isOpen, onClose }: SoloGroupModalProps) {
                   )}
 
                   {createGroup.error && (
-                    <p className="text-danger text-sm">
-                      {createGroup.error instanceof Error
-                        ? createGroup.error.message
-                        : 'Something went wrong'}
+                    <p role="alert" className="text-danger text-sm">
+                      Couldn?t set up your solo workspace. Try again.
                     </p>
                   )}
                 </Modal.Body>
                 <Modal.Footer>
-                  <Button variant="tertiary" onPress={handleClose}>
+                  <Button variant="tertiary" onPress={handleClose} isDisabled={createGroup.isPending}>
                     Cancel
                   </Button>
                   <Button type="submit" isPending={createGroup.isPending} variant="secondary">

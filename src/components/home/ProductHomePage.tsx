@@ -19,6 +19,7 @@ import { getLoginHref } from '../../lib/auth-redirect'
 import { trackPublicEvent } from '../../lib/analytics'
 import { GITHUB_URL } from '../../lib/seo'
 import { Footer } from '../layout/Footer'
+import { BrassOrbit } from '../shared/BrassOrbit'
 
 const loop = [
   {
@@ -82,7 +83,7 @@ function SignInLink({
 
 export function ProductHomePage() {
   return (
-    <div className="bg-background min-h-screen">
+    <div className="bg-background min-h-dvh">
       <a
         href="#main-content"
         className="bg-content1 text-foreground fixed top-2 left-2 z-50 -translate-y-20 rounded-lg px-3 py-2 text-sm shadow-lg transition-transform focus:translate-y-0"
@@ -125,7 +126,7 @@ export function ProductHomePage() {
               </summary>
               <nav
                 aria-label="Explore PoE Party on mobile"
-                className="border-divider bg-content1 absolute top-12 right-0 flex w-52 flex-col rounded-xl border p-2 shadow-lg"
+                className="border-divider bg-content4 absolute top-12 right-0 flex w-52 flex-col rounded-xl border p-2 shadow-lg"
               >
                 {productLinks.map((item) => (
                   <Link
@@ -139,28 +140,21 @@ export function ProductHomePage() {
                 ))}
               </nav>
             </details>
-            <SignInLink placement="header" label="Sign in" className="button button--sm" />
+            <SignInLink placement="header" label="Sign in" className="button button--sm button--tertiary" />
           </div>
         </div>
       </header>
 
       <main id="main-content">
-        <section className="relative overflow-hidden px-4 py-12 sm:px-6 sm:py-20">
-          <div
-            aria-hidden="true"
-            className="bg-warning/10 absolute top-0 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full blur-3xl sm:h-[30rem] sm:w-[30rem]"
-          />
-          <div className="relative mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[1.08fr_0.92fr]">
+        <section className="overflow-clip px-4 py-12 sm:px-6 sm:py-20">
+          <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[1.08fr_0.92fr]">
             <div className="max-w-3xl">
-              <p className="text-warning text-sm font-semibold tracking-[0.18em] uppercase">
-                The league workspace for your next decision
-              </p>
-              <h1 className="text-foreground mt-4 text-4xl leading-[1.05] font-bold tracking-tight sm:text-6xl">
+              <h1 className="text-foreground text-4xl leading-[1.08] font-semibold tracking-tight sm:text-6xl">
                 Plan the run. See what changed. Choose the next upgrade.
               </h1>
               <p className="text-default-500 mt-5 max-w-2xl text-base leading-relaxed sm:text-lg">
-                PoE Party keeps strategies, characters, PoE1 stash snapshots, market context, and
-                build analysis together for groups and serious solo players.
+                Plan strategies, track PoE1 stash value, and find gear upgrades in one workspace
+                for solo and group play.
               </p>
               <div
                 className="mt-7 flex flex-col gap-3 sm:flex-row"
@@ -169,7 +163,7 @@ export function ProductHomePage() {
                 <Link
                   to="/preview/analysis"
                   activeOptions={{ exact: true }}
-                  className="button button--lg justify-center"
+                  className="button button--lg button--primary justify-center"
                   data-testid="home-hero-analysis-cta"
                   onClick={() =>
                     trackPublicEvent('public_home_cta_click', {
@@ -199,40 +193,37 @@ export function ProductHomePage() {
               </div>
             </div>
 
-            <Card className="border-warning/20 bg-content1/90 overflow-hidden border">
-              <Card.Header className="border-divider/60 flex items-center justify-between border-b px-5 py-4">
-                <div>
-                  <p className="text-foreground text-sm font-semibold">Today</p>
-                  <p className="text-default-400 mt-0.5 text-xs">One workspace, one next action</p>
-                </div>
-                <Chip size="sm" variant="soft" color="success">
-                  League ready
-                </Chip>
-              </Card.Header>
-              <Card.Content className="gap-3 p-5">
-                <div className="border-divider bg-default-50 flex items-start gap-3 rounded-xl border p-4">
-                  <Target size={18} className="text-warning mt-0.5" aria-hidden="true" />
-                  <div>
-                    <p className="text-foreground text-sm font-medium">Run the active strategy</p>
-                    <p className="text-default-500 mt-1 text-xs">Setup and notes stay visible.</p>
+            <div className="relative isolate min-w-0">
+              <BrassOrbit placement="sample" />
+              <section aria-labelledby="sample-today" className="border-divider bg-content1 overflow-hidden rounded-xl border">
+                <header className="border-divider flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4">
+                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <h2 id="sample-today" className="text-foreground text-lg font-semibold">Today</h2>
+                    <span className="text-default-500 text-xs">Sample workspace</span>
                   </div>
-                </div>
-                <div className="border-divider bg-default-50 flex items-start gap-3 rounded-xl border p-4">
-                  <ChartNoAxesCombined size={18} className="text-success mt-0.5" aria-hidden="true" />
-                  <div>
-                    <p className="text-foreground text-sm font-medium">Capture the outcome</p>
-                    <p className="text-default-500 mt-1 text-xs">Connect a PoE1 snapshot to the run.</p>
+                  <span className="text-default-500 text-xs">PoE1 · Covens</span>
+                </header>
+                <dl className="divide-divider divide-y px-5">
+                  <div className="grid gap-1 py-4 sm:grid-cols-[9rem_minmax(0,1fr)]">
+                    <dt className="text-default-500 text-sm">Active strategy</dt>
+                    <dd className="text-foreground text-sm font-semibold">Essence farming</dd>
                   </div>
-                </div>
-                <div className="border-divider bg-default-50 flex items-start gap-3 rounded-xl border p-4">
-                  <Sparkles size={18} className="text-arcane mt-0.5" aria-hidden="true" />
-                  <div>
-                    <p className="text-foreground text-sm font-medium">Review the next upgrade</p>
-                    <p className="text-default-500 mt-1 text-xs">Turn analysis into a build plan.</p>
+                  <div className="grid gap-1 py-4 sm:grid-cols-[9rem_minmax(0,1fr)]">
+                    <dt className="text-default-500 text-sm">Latest linked result</dt>
+                    <dd>
+                      <p className="text-foreground text-lg leading-6 font-semibold tabular-nums">1,240 chaos</p>
+                      <p className="text-default-500 mt-0.5 text-xs">Stash value · Captured at 20:14 UTC</p>
+                    </dd>
                   </div>
+                </dl>
+                <div className="border-divider flex flex-wrap items-center justify-between gap-3 border-t p-5">
+                  <p className="text-default-500 text-sm">Review how the run went.</p>
+                  <Link to="/preview" className="button button--sm button--tertiary shrink-0">
+                    Explore sample <ArrowRight size={15} aria-hidden="true" />
+                  </Link>
                 </div>
-              </Card.Content>
-            </Card>
+              </section>
+            </div>
           </div>
         </section>
 
@@ -240,29 +231,17 @@ export function ProductHomePage() {
           <div className="mx-auto max-w-7xl">
             <div className="max-w-2xl">
               <h2 id="workflow-title" className="text-foreground text-2xl font-bold sm:text-3xl">
-                A loop built around the way a league actually moves
+                From strategy to upgrades
               </h2>
-              <p className="text-default-500 mt-3 leading-relaxed">
-                Start with a useful decision, keep the run context close, then use the result to
-                choose what happens next.
-              </p>
             </div>
-            <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {loop.map(({ title, description, icon: Icon }, index) => (
-                <Card key={title} className="h-full">
-                  <Card.Content className="gap-4 p-5">
-                    <div className="flex items-center justify-between">
-                      <div className="bg-warning/12 flex h-10 w-10 items-center justify-center rounded-xl">
-                        <Icon size={18} className="text-warning" aria-hidden="true" />
-                      </div>
-                      <span className="text-default-300 text-xs font-semibold">0{index + 1}</span>
-                    </div>
-                    <div>
-                      <h3 className="text-foreground font-semibold">{title}</h3>
-                      <p className="text-default-500 mt-2 text-sm leading-relaxed">{description}</p>
-                    </div>
-                  </Card.Content>
-                </Card>
+            <div className="border-divider mt-6 grid gap-x-6 gap-y-4 border-t sm:grid-cols-2 xl:grid-cols-4">
+              {loop.map(({ title, description, icon: Icon }) => (
+                <div key={title} className="pt-4">
+                  <h3 className="text-foreground flex items-center gap-2 font-semibold">
+                    <Icon size={16} className="text-brand-readable" aria-hidden="true" /> {title}
+                  </h3>
+                  <p className="text-default-500 mt-2 text-sm leading-relaxed">{description}</p>
+                </div>
               ))}
             </div>
           </div>
@@ -344,7 +323,7 @@ export function ProductHomePage() {
               ready to keep the loop together.
             </p>
             <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
-              <Link to="/preview/analysis" activeOptions={{ exact: true }} className="button justify-center">
+              <Link to="/preview/analysis" activeOptions={{ exact: true }} className="button button--primary justify-center">
                 <Search size={17} aria-hidden="true" /> Open public analysis
               </Link>
               <SignInLink

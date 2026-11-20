@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Button } from '@heroui/react/button'
 import {
@@ -23,7 +23,7 @@ import { trackPublicEvent } from '../../lib/analytics'
 import { Footer } from '../layout/Footer'
 import { ErrorBoundary } from '../layout/ErrorBoundary'
 import { useThemeStore } from '../../store/theme-store'
-import { GuestGateModal, PreviewModeChip, type PreviewMode } from './PreviewShared'
+import { GuestGateModal, type PreviewMode } from './PreviewShared'
 
 interface PreviewNavItem {
   label: string
@@ -55,7 +55,8 @@ const privateWorkspaceItems: readonly PreviewNavItem[] = [
 ]
 
 function isItemActive(pathname: string, item: PreviewNavItem) {
-  return item.exact ? pathname === item.to || pathname === `${item.to}/` : pathname.startsWith(item.to)
+  return pathname === item.to || pathname === `${item.to}/` ||
+    (!item.exact && pathname.startsWith(`${item.to}/`))
 }
 
 function currentPageMeta(pathname: string): { section: string; page: string } {
@@ -64,7 +65,7 @@ function currentPageMeta(pathname: string): { section: string; page: string } {
   if (pathname.startsWith('/preview/members')) return { section: 'Workspace sample', page: 'Members' }
   if (pathname.startsWith('/preview/gear')) return { section: 'Workspace sample', page: 'Gear' }
   if (pathname.startsWith('/preview/analysis')) return { section: 'Public tool', page: 'Analysis' }
-  if (pathname.startsWith('/preview/strategies/')) return { section: 'Public tool', page: 'Strategy' }
+  if (/^\/preview\/strategies\/[^/]/.test(pathname)) return { section: 'Public tool', page: 'Strategy' }
   if (pathname.startsWith('/preview/strategies')) return { section: 'Public tool', page: 'Strategies' }
   if (pathname.startsWith('/preview/services')) return { section: 'Public tool', page: 'Services' }
   if (pathname.startsWith('/preview/search')) return { section: 'Public tool', page: 'Directory' }
@@ -91,9 +92,9 @@ function PreviewSidebarSection({ title, items }: { title: string; items: readonl
               activeOptions={{ exact: true }}
               aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                'flex min-h-10 items-center gap-3 rounded-xl border border-transparent px-3 py-2 text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-warning/15 text-brand-readable'
+                  ? 'border-control bg-selected text-highlight font-semibold forced-colors:border-[Highlight]'
                   : 'text-default-500 hover:bg-default-100 hover:text-default-800',
               )}
             >
@@ -123,6 +124,7 @@ export function PreviewShell({ children }: { children: ReactNode }) {
   const { location } = useRouterState()
   const { theme, toggle } = useThemeStore()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const mobileMenuTrigger = useRef<HTMLButtonElement>(null)
   const loginHref =
     typeof window === 'undefined'
       ? '/auth/login'
@@ -133,14 +135,17 @@ export function PreviewShell({ children }: { children: ReactNode }) {
   const isPublicMode = mode === 'public'
   const crossLink =
     mode === 'teaser'
-      ? { to: '/preview/analysis' as const, label: 'Try Public Analysis' }
-      : { to: '/preview' as const, label: 'Workspace Samples' }
+      ? { to: '/preview/analysis' as const, label: 'Try public Analysis' }
+      : { to: '/preview' as const, label: 'Workspace samples' }
 
   return (
     <>
       <GuestGateModal />
-      <div className="bg-background flex h-screen overflow-hidden">
-        <aside className="border-divider bg-content1 hidden h-full w-72 shrink-0 border-r lg:flex lg:flex-col">
+      <div className="bg-background flex h-dvh overflow-hidden pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
+        <a href="#main-content" className="button button--primary sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50">
+          Skip to main content
+        </a>
+        <aside className="border-divider bg-navigation hidden h-full w-72 shrink-0 border-r lg:flex lg:flex-col">
           <div className="border-divider border-b px-5 py-5">
             <Link
               to="/"
@@ -186,7 +191,15 @@ export function PreviewShell({ children }: { children: ReactNode }) {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <header className="border-divider bg-content1/95 relative z-30 shrink-0 border-b backdrop-blur">
+          <header
+            className="border-divider bg-navigation relative z-30 shrink-0 border-b"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && mobileMenuOpen) {
+                setMobileMenuOpen(false)
+                mobileMenuTrigger.current?.focus()
+              }
+            }}
+          >
             <div className="flex min-h-16 items-center gap-2 px-3 sm:px-4 lg:px-6">
               <Link
                 to="/"
@@ -202,8 +215,7 @@ export function PreviewShell({ children }: { children: ReactNode }) {
               </Link>
 
               <div className="mr-auto hidden min-w-0 lg:block">
-                <PreviewModeChip mode={mode} />
-                <p className="text-default-400 mt-1.5 text-xs font-medium tracking-[0.16em] uppercase">
+                <p className="text-default-400 text-xs font-medium tracking-[0.16em] uppercase">
                   {pageMeta.section} / {pageMeta.page}
                 </p>
               </div>
@@ -227,13 +239,14 @@ export function PreviewShell({ children }: { children: ReactNode }) {
               </Link>
 
               <Button
+                ref={mobileMenuTrigger}
                 isIconOnly
                 size="sm"
                 variant="tertiary"
                 onPress={() => setMobileMenuOpen((open) => !open)}
                 aria-label={mobileMenuOpen ? 'Close explore menu' : 'Open explore menu'}
                 aria-expanded={mobileMenuOpen}
-                aria-controls="preview-mobile-menu"
+                aria-controls={mobileMenuOpen ? 'preview-mobile-menu' : undefined}
                 className="lg:hidden"
               >
                 {mobileMenuOpen ? <X size={17} /> : <Menu size={17} />}
@@ -250,7 +263,7 @@ export function PreviewShell({ children }: { children: ReactNode }) {
                 }
               >
                 <span className="hidden sm:inline">{isPublicMode ? 'Sign in' : 'Connect account'}</span>
-                <span className="sm:hidden">Connect</span>
+                <span className="sm:hidden">{isPublicMode ? 'Sign in' : 'Connect'}</span>
               </a>
             </div>
 
@@ -258,7 +271,7 @@ export function PreviewShell({ children }: { children: ReactNode }) {
               <nav
                 id="preview-mobile-menu"
                 aria-label="Explore PoE Party on mobile"
-                className="border-divider bg-content1 absolute inset-x-0 top-full grid max-h-[calc(100vh-4rem)] gap-5 overflow-y-auto border-y p-4 shadow-lg lg:hidden"
+                className="border-divider bg-content4 absolute inset-x-0 top-full grid max-h-[calc(100dvh-4rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] gap-5 overflow-y-auto border-y p-4 shadow-lg lg:hidden"
               >
                 {[
                   { label: 'Use now', items: publicItems },
@@ -280,9 +293,9 @@ export function PreviewShell({ children }: { children: ReactNode }) {
                             aria-current={isActive ? 'page' : undefined}
                             onClick={() => setMobileMenuOpen(false)}
                             className={cn(
-                              'flex min-h-12 items-center gap-2 rounded-xl border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                              'flex min-h-12 items-center gap-2 rounded-xl border px-3 text-sm font-medium',
                               isActive
-                                ? 'border-warning/30 bg-warning/12 text-brand-readable'
+                                ? 'border-control bg-selected text-highlight font-semibold forced-colors:border-[Highlight]'
                                 : 'border-divider bg-default-50 text-default-600',
                             )}
                           >
@@ -297,9 +310,9 @@ export function PreviewShell({ children }: { children: ReactNode }) {
             ) : null}
           </header>
 
-          <main id="main-content" className="flex flex-1 flex-col overflow-y-auto">
-            <div className="flex-1 p-4 sm:p-6">
-              <ErrorBoundary>{children}</ErrorBoundary>
+          <main id="main-content" tabIndex={-1} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+            <div className="min-w-0 flex-1 p-4 sm:p-6">
+              <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
             </div>
             <Footer />
           </main>

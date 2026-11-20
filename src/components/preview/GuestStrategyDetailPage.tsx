@@ -8,13 +8,14 @@ import { DIFFICULTY_CHIP, MAP_REQ_LABELS } from '../../lib/constants'
 import { getPoeGameCapabilities, getPoeGameShortLabel } from '../../lib/poe-game'
 import { formatCurrencyAmount } from '../../lib/utils'
 import { Route } from '../../routes/preview/strategies/$strategyId'
-import { PreviewNotice, PreviewPageIntro } from './PreviewShared'
+import { PreviewPageIntro } from './PreviewShared'
 import { StrategyMetadataBadges, StrategySourceLinks } from '../strategies/StrategyMetadataBadges'
+import { QueryStatePanel } from '../ui/QueryStatePanel'
 const divinePrice = 205
 
 export function GuestStrategyDetailPage() {
   const { strategyId } = Route.useParams()
-  const { data: strategy, isLoading } = useGuestPublicStrategyPreview(strategyId)
+  const { data: strategy, isLoading, isError, refetch } = useGuestPublicStrategyPreview(strategyId)
   const reqChips = useMemo(
     () =>
       Object.entries(strategy?.map_requirements ?? {})
@@ -25,11 +26,7 @@ export function GuestStrategyDetailPage() {
 
   if (isLoading) {
     return (
-      <Card>
-        <Card.Content className="text-default-400 p-10 text-center text-sm">
-          Loading live public strategy summary...
-        </Card.Content>
-      </Card>
+      <QueryStatePanel kind="loading" title="Loading strategy" description="Getting the public setup." />
     )
   }
 
@@ -38,9 +35,14 @@ export function GuestStrategyDetailPage() {
       <div className="flex flex-col gap-4">
         <Link to="/preview/strategies" className="button button--sm button--tertiary self-start">
           <ArrowLeft size={14} />
-          Back to Strategies
+          Back to strategies
         </Link>
-        <p className="text-default-400 text-sm">This public strategy could not be found.</p>
+        <h1 className="text-2xl font-semibold">{isError ? 'Strategy unavailable' : 'Strategy not found'}</h1>
+        {isError ? (
+          <QueryStatePanel kind="error" title="Could not load strategy" description="Try again to open the public setup." onRetry={refetch} />
+        ) : (
+          <p className="text-default-500 text-sm">This strategy may have been removed or made private.</p>
+        )}
       </div>
     )
   }
@@ -48,78 +50,61 @@ export function GuestStrategyDetailPage() {
   const diffChip = DIFFICULTY_CHIP[strategy.difficulty] ?? DIFFICULTY_CHIP.normal
   const game = strategy.group_game ?? 'poe1'
   const capabilities = getPoeGameCapabilities(game)
+  const hasAtlas = capabilities.supportsAtlasTree && !!strategy.atlas_tree_url
+  const hasMapSetup = capabilities.supportsAtlasTree &&
+    (!!strategy.map_trade_link || strategy.map_cost != null || reqChips.length > 0)
+  const showsThreadSetup = capabilities.supportsMapInvestmentPlanning &&
+    (strategy.threads.length > 0 || strategy.scarabs.length > 0)
+  const hasSetup = hasAtlas || hasMapSetup || showsThreadSetup || !!strategy.content_metadata?.source_refs.length
   const fmt = (chaos: number): string => formatCurrencyAmount(chaos, 'chaos', divinePrice)
 
   return (
     <div className="flex flex-col gap-6">
       <Link to="/preview/strategies" className="button button--sm button--tertiary self-start">
         <ArrowLeft size={14} />
-        Back to Strategies
+        Back to strategies
       </Link>
 
       <PreviewPageIntro
         mode="public"
         title={strategy.name}
-        description="This page shows the live public strategy setup so anyone can inspect the plan directly."
-        aside={
-          <PreviewNotice
-            mode="public"
-            title="Live public summary"
-            description="The title, description, publisher, league, benchmark, atlas setup, threads, and map cost below come from the real public listing."
-          />
-        }
+        description={`Published by ${strategy.group_name} · ${getPoeGameShortLabel(game)} ${strategy.group_league}`}
       />
 
       <div className="flex flex-wrap items-center gap-2">
         <Chip size="sm" color={diffChip.color} variant="soft">
           {diffChip.label}
         </Chip>
-        <Chip size="sm" color="accent" variant="soft">
-          Public
-        </Chip>
-        <Chip size="sm" variant="soft">
-          {strategy.group_name}
-        </Chip>
-        <Chip size="sm" variant="soft">
-          {getPoeGameShortLabel(game)}
-        </Chip>
-        <Chip size="sm" variant="soft">
-          {strategy.group_league}
-        </Chip>
-        {strategy.map_cost != null ? (
-          <Chip size="sm" variant="soft">
-            ~ {fmt(strategy.map_cost)}/map
-          </Chip>
-        ) : null}
         <Chip size="sm" variant="soft">
           {strategy.benchmark_chaos_per_hour == null
             ? 'No benchmark yet'
             : `${fmt(strategy.benchmark_chaos_per_hour)}/hr`}
         </Chip>
-        <Chip size="sm" variant="soft">
-          {strategy.benchmark_sample_count} benchmark sample
-          {strategy.benchmark_sample_count === 1 ? '' : 's'}
-        </Chip>
+        {strategy.benchmark_sample_count > 0 ? (
+          <Chip size="sm" variant="soft">
+            {strategy.benchmark_sample_count} benchmark sample
+            {strategy.benchmark_sample_count === 1 ? '' : 's'}
+          </Chip>
+        ) : null}
         <StrategyMetadataBadges metadata={strategy.content_metadata} />
       </div>
 
       {strategy.description ? (
         <Card>
-          <Card.Content className="p-5">
-            <p className="text-default-600 text-sm leading-relaxed">{strategy.description}</p>
+          <Card.Content>
+            <p className="text-default-600 text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap">{strategy.description}</p>
           </Card.Content>
         </Card>
       ) : null}
 
-      <Card>
-        <Card.Content className="gap-4 p-5">
+      {hasSetup ? (
+        <section aria-label="Strategy setup" className="flex min-w-0 flex-col gap-3">
           <StrategySourceLinks metadata={strategy.content_metadata} />
 
-          {capabilities.supportsAtlasTree && strategy.atlas_tree_url ? (
-            <div className="rounded-large border-divider bg-default-50/60 flex items-center justify-between gap-3 border p-4">
+          {hasAtlas && strategy.atlas_tree_url ? (
+            <div className="rounded-large border-divider bg-default-50/60 flex flex-wrap items-center justify-between gap-3 border p-4">
               <div>
                 <p className="text-foreground text-sm font-medium">Atlas tree</p>
-                <p className="text-default-500 text-sm">Open the publisher&apos;s atlas setup.</p>
               </div>
               <a
                 href={strategy.atlas_tree_url}
@@ -127,14 +112,14 @@ export function GuestStrategyDetailPage() {
                 rel="noopener noreferrer"
                 className="button button--sm button--tertiary"
               >
-                Open Atlas Tree
+                Open Atlas tree
                 <ExternalLink size={14} aria-hidden />
               </a>
             </div>
           ) : null}
 
           {capabilities.supportsMapInvestmentPlanning && strategy.scarabs.length > 0 && (
-            <details className="text-default-400 text-sm">
+            <details className="text-default-400 wrap-anywhere text-sm">
               <summary className="cursor-pointer">Legacy Scarab reference (removed in 3.30)</summary>
               <ul className="mt-2">{strategy.scarabs.map((scarab, index) => (
                 <li key={index}>{scarab.quantity} × {scarab.name}</li>
@@ -150,20 +135,20 @@ export function GuestStrategyDetailPage() {
                     key={`${thread.name}-${index}`}
                     className="flex flex-wrap items-center gap-2"
                   >
-                    <Chip size="sm" variant="soft">
+                    <Chip size="sm" variant="soft" className="h-auto max-w-full px-2 py-1 whitespace-normal wrap-anywhere">
                       {thread.name}
-                      {thread.quantity > 1 ? ` x${thread.quantity}` : ''}
-                      {!thread.required ? ' - optional' : ''}
+                      {thread.quantity > 1 ? ` ×${thread.quantity}` : ''}
+                      {!thread.required ? ' · optional' : ''}
                     </Chip>
                     {thread.alternatives.map((alternative, alternativeIndex) => (
                       <Chip
                         key={`${thread.name}-${index}-alt-${alternative.name}-${alternativeIndex}`}
                         size="sm"
                         variant="secondary"
-                        className="border-dashed"
+                        className="h-auto max-w-full border-dashed px-2 py-1 whitespace-normal wrap-anywhere"
                       >
-                        Alternative: {alternative.name}
-                        {thread.quantity > 1 ? ` x${thread.quantity}` : ''}
+                        Alternative · {alternative.name}
+                        {thread.quantity > 1 ? ` ×${thread.quantity}` : ''}
                       </Chip>
                     ))}
                   </div>
@@ -177,8 +162,7 @@ export function GuestStrategyDetailPage() {
             </div>
           ) : null}
 
-          {capabilities.supportsAtlasTree &&
-          (strategy.map_trade_link || strategy.map_cost != null || reqChips.length > 0) ? (
+          {hasMapSetup ? (
             <div className="rounded-large border-divider bg-default-50/60 border p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-foreground text-sm font-medium">Map setup</p>
@@ -205,25 +189,15 @@ export function GuestStrategyDetailPage() {
                     rel="noopener noreferrer"
                     className="button button--sm button--tertiary"
                   >
-                    Open Trade Link
+                    Open trade link
                   </a>
                 </div>
               ) : null}
             </div>
           ) : null}
 
-          {!capabilities.supportsAtlasTree ? (
-            <div className="rounded-large border-divider bg-default-50/60 border p-4">
-              <p className="text-foreground text-sm font-medium">PoE2 public strategy view</p>
-              <p className="text-default-500 mt-1 text-sm">
-                This public view stays focused on shared planning data. Atlas, thread, and map setup
-                fields remain hidden for PoE2 workspaces.
-              </p>
-            </div>
-          ) : null}
-        </Card.Content>
-      </Card>
-
+        </section>
+      ) : null}
     </div>
   )
 }

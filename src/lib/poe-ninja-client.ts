@@ -148,12 +148,15 @@ export async function fetchNinjaMarketOverview(
   league: string,
   game: PoeGame = 'poe1',
 ): Promise<NinjaMarketSection[]> {
-  const sections = await mapLimited(getExchangeTypes(game), async (type) => ({
-    type,
-    entries: await fetchNinjaExchangeEntries(league, type, game).catch(
-      () => [] as NinjaExchangeEntry[],
-    ),
-  }))
+  const results = await mapLimited(getExchangeTypes(game), async (type) => {
+    try {
+      return { type, entries: await fetchNinjaExchangeEntries(league, type, game) }
+    } catch {
+      return null
+    }
+  })
+  const sections = results.filter((section) => section !== null)
+  if (sections.length === 0) throw new Error('Market prices unavailable')
 
   return sections
     .map((section) => ({

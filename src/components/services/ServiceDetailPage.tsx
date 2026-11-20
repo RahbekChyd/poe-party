@@ -39,6 +39,7 @@ import { AvailabilitySelector } from './AvailabilitySelector'
 import { ServiceDetailSection } from './ServiceDetailSection'
 import { ServiceTypeChip } from './ServiceTypeChip'
 import { WhisperCopyButton } from './WhisperCopyButton'
+import { QueryStatePanel } from '../ui/QueryStatePanel'
 const SERVICE_HEADER_CHIP_CLASS_NAME = 'px-3'
 
 interface FieldInputProps extends Omit<
@@ -175,9 +176,9 @@ function numberOrDefault(value: string, fallback: number): number {
 export function ServiceDetailPage() {
   const { serviceId } = Route.useParams()
   const navigate = useNavigate()
-  const { data: service, isLoading } = useOwnedService(serviceId)
-  const { mutate: updateService, isPending: updating } = useUpdateService()
-  const { mutate: deleteService, isPending: deleting } = useDeleteService()
+  const { data: service, isLoading, isError, refetch } = useOwnedService(serviceId)
+  const updateService = useUpdateService()
+  const deleteService = useDeleteService()
   const {
     availability: displayAvailability,
     availabilityPending,
@@ -194,6 +195,9 @@ export function ServiceDetailPage() {
   const [isActive, setIsActive] = useState(true)
   const [modExclusions, setModExclusions] = useState<string[]>([])
   const [details, setDetails] = useState<ServiceDetails | null>(null)
+  const [saveAttempted, setSaveAttempted] = useState(false)
+  const invalidTitle = title.trim().length < 2 || title.trim().length > 80
+  const invalidIgn = !ign.trim() || ign.trim().length > 32
 
   useEffect(() => {
     if (!service) return
@@ -207,6 +211,7 @@ export function ServiceDetailPage() {
     setIsActive(service.is_active)
     setModExclusions(service.mod_exclusions)
     setDetails(service.details)
+    setSaveAttempted(false)
     // Reset only when switching to a different service; background refetches
     // keep user edits intact.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,30 +219,35 @@ export function ServiceDetailPage() {
 
   if (isLoading) {
     return (
-      <Card>
-        <Card.Content className="text-default-400 p-10 text-center text-sm">
-          Loading service…
-        </Card.Content>
-      </Card>
+      <QueryStatePanel kind="loading" title="Loading service" description="Getting your listing." />
     )
   }
+
+  const backLink = (
+    <Link to="/dashboard/services" className="button button--sm button--tertiary self-start">
+      <ArrowLeft size={14} aria-hidden="true" /> Back to services
+    </Link>
+  )
 
   if (!service) {
     return (
       <div className="flex flex-col gap-4">
-        <Link to="/dashboard/services" className="self-start">
-          <Button variant="tertiary" size="sm">
-            <ArrowLeft size={14} />
-            Back to Services
-          </Button>
-        </Link>
-        <p className="text-default-400 text-sm">Service not found. It may have been deleted.</p>
+        {backLink}
+        <h1 className="text-2xl font-semibold">{isError ? 'Service unavailable' : 'Service not found'}</h1>
+        {isError ? (
+          <QueryStatePanel kind="error" title="Could not load service" description="Try again to open your listing." onRetry={refetch} />
+        ) : (
+          <p className="text-default-500 text-sm">This listing may have been deleted.</p>
+        )}
       </div>
     )
   }
 
   function handleSave() {
-    updateService({
+    setSaveAttempted(true)
+    updateService.reset()
+    if (invalidTitle || invalidIgn) return
+    updateService.mutate({
       id: service!.id,
       patch: {
         title: title.trim(),
@@ -259,7 +269,7 @@ export function ServiceDetailPage() {
 
   function handleDelete() {
     if (!confirm(`Delete “${service!.title}”? This cannot be undone.`)) return
-    deleteService(
+    deleteService.mutate(
       { id: service!.id, group_id: service!.group_id },
       {
         onSuccess: () => navigate({ to: '/dashboard/services' }),
@@ -268,16 +278,11 @@ export function ServiceDetailPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link to="/dashboard/services" className="self-start">
-        <Button variant="tertiary" size="sm">
-          <ArrowLeft size={14} />
-          Back to Services
-        </Button>
-      </Link>
+    <div className="flex min-w-0 flex-col gap-6 wrap-anywhere">
+      {backLink}
 
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 basis-full sm:flex-1">
           <h1 className="text-foreground text-2xl font-semibold">{service.title}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <ServiceTypeChip
@@ -303,7 +308,7 @@ export function ServiceDetailPage() {
             ) : null}
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <AvailabilitySelector
             availability={displayAvailability}
             isDisabled={availabilityPending}
@@ -314,7 +319,7 @@ export function ServiceDetailPage() {
             size="sm"
             variant="danger-soft"
             onPress={handleDelete}
-            isPending={deleting}
+            isPending={deleteService.isPending}
             aria-label="Delete service"
           >
             <Trash2 size={14} />
@@ -323,27 +328,39 @@ export function ServiceDetailPage() {
         </div>
       </div>
 
+      {deleteService.isError ? (
+        <p className="text-danger text-sm" role="alert">Could not delete this listing. Try again.</p>
+      ) : null}
+
       <Card>
-        <Card.Content className="gap-4 p-5">
+        <Card.Content className="gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-foreground text-sm font-medium">Listing details</p>
-            <Button size="sm" onPress={handleSave} isPending={updating}>
+            <Button size="sm" onPress={handleSave} isPending={updateService.isPending}>
               Save changes
             </Button>
           </div>
+          {updateService.isError ? (
+            <p className="text-danger text-sm" role="alert">Could not save this listing. Your edits are still here.</p>
+          ) : updateService.isSuccess ? (
+            <p className="text-success text-sm" role="status">Changes saved.</p>
+          ) : null}
 
           <FieldInput
             label="Title"
             value={title}
             onValueChange={setTitle}
-            placeholder="e.g. Aul's Crypt boss kills — cheap & fast"
+            maxLength={80}
+            isInvalid={saveAttempted && invalidTitle}
+            errorMessage="Enter a title between 2 and 80 characters."
           />
 
           <FieldTextArea
             label="Description"
             value={description}
             onValueChange={setDescription}
-            placeholder="Optional — anything buyers should know upfront"
+            maxLength={1000}
+            placeholder="Optional details for buyers"
             minRows={2}
           />
 
@@ -352,7 +369,10 @@ export function ServiceDetailPage() {
               label="PoE IGN"
               value={ign}
               onValueChange={setIgn}
-              description="The character buyers should whisper"
+              maxLength={32}
+              isInvalid={saveAttempted && invalidIgn}
+              errorMessage="Enter an in-game name up to 32 characters."
+              description="The character buyers should contact."
             />
             <SelectField
               label="Region"
@@ -388,7 +408,7 @@ export function ServiceDetailPage() {
               description={
                 isActive
                   ? 'Listed for buyers'
-                  : 'Hidden from public lists — keep edits private for now'
+                  : 'Hidden from public listings'
               }
             >
               <ListBox.Item id="active" textValue="Active">
@@ -404,7 +424,8 @@ export function ServiceDetailPage() {
             label="Custom whisper template"
             value={whisper}
             onValueChange={setWhisper}
-            placeholder="Leave empty to auto-generate from service type + IGN"
+            maxLength={400}
+            placeholder="Leave blank to use the default whisper"
             minRows={1}
           />
         </Card.Content>
@@ -421,19 +442,16 @@ export function ServiceDetailPage() {
         />
       ) : null}
 
-      <Card className="border-warning/30 bg-warning/5 border">
-        <Card.Content className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+      <Card className="border-info/30 bg-info-soft border">
+        <Card.Content className="flex min-w-0 flex-wrap gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-foreground text-sm font-medium">Buyer whisper preview</p>
-            <p className="text-default-500 mt-1 text-xs">
-              This is exactly what buyers copy from your listing.
-            </p>
+            <p className="text-foreground text-sm font-medium">Whisper preview</p>
           </div>
           <WhisperCopyButton
-            ign={service.poe_ign}
+            ign={ign.trim()}
             serviceType={service.service_type}
-            title={service.title}
-            whisperTemplate={service.whisper_template}
+            title={title.trim() || null}
+            whisperTemplate={whisper.trim() || null}
             size="md"
             showPreview
           />
@@ -476,7 +494,7 @@ function ServiceSpecificEditor({
 }) {
   return (
     <Card>
-      <Card.Content className="gap-4 p-5">
+      <Card.Content className="gap-4">
         <p className="text-foreground text-sm font-medium">Service specifics</p>
         {details.service_type === 'boss_carry' ? (
           <BossCarryEditor details={details} setDetails={setDetails} />
@@ -891,6 +909,7 @@ function FiveWayEditor({
       <StringListEditor
         title="Guarantees"
         values={details.extra_guarantees}
+        maxLength={160}
         placeholder="e.g. Free run if I die before 1 min"
         onChange={(values) => setDetails({ ...details, extra_guarantees: values })}
       />
@@ -1030,11 +1049,13 @@ function StringListEditor({
   values,
   placeholder,
   onChange,
+  maxLength,
 }: {
   title: string
   values: string[]
   placeholder: string
   onChange: (values: string[]) => void
+  maxLength?: number
 }) {
   const [draft, setDraft] = useState('')
 
@@ -1048,9 +1069,12 @@ function StringListEditor({
   return (
     <div>
       <p className="text-foreground mb-2 text-sm font-medium">{title}</p>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <FieldInput
+          aria-label={title}
+          className="min-w-0 flex-[1_1_12rem]"
           value={draft}
+          maxLength={maxLength}
           onValueChange={setDraft}
           placeholder={placeholder}
           onKeyDown={(event) => {
@@ -1060,7 +1084,7 @@ function StringListEditor({
             }
           }}
         />
-        <Button variant="tertiary" onPress={addValue}>
+        <Button variant="tertiary" onPress={addValue} className="shrink-0">
           Add
         </Button>
       </div>
@@ -1069,15 +1093,16 @@ function StringListEditor({
           {values.map((value, index) => (
             <div
               key={`${value}-${index}`}
-              className="rounded-medium bg-default-50/50 text-default-600 flex items-center justify-between px-3 py-2 text-sm"
+              className="rounded-medium bg-default-50/50 text-default-600 flex min-w-0 flex-wrap items-start justify-between gap-2 px-3 py-2 text-sm"
             >
-              <span>{value}</span>
+              <span className="min-w-0 flex-[1_1_10rem] wrap-anywhere py-2">{value}</span>
               <Button
                 isIconOnly
                 size="sm"
                 variant="danger-soft"
                 onPress={() => onChange(values.filter((_, valueIndex) => valueIndex !== index))}
                 aria-label="Remove item"
+                className="shrink-0"
               >
                 <Trash2 size={14} />
               </Button>

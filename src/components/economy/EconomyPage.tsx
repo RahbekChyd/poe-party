@@ -5,8 +5,9 @@ import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
 import { Spinner } from '@heroui/react/spinner'
+import { Popover } from '@heroui/react/popover'
 import { useNinjaPrices } from '../../hooks/useNinjaPrices'
-import { ArrowDownRight, ArrowUpRight, Minus, TrendingUp } from 'lucide-react'
+import { AlertTriangle, ArrowDownRight, ArrowUpRight, CalendarClock, Minus, TrendingUp } from 'lucide-react'
 import {
   AreaChart,
   Area,
@@ -16,7 +17,7 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
 } from 'recharts'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { useGroupMembers, useMyGroups } from '../../hooks/useGroups'
 import { useActiveCharacters, useGroupEconomy } from '../../hooks/useSnapshots'
 import { useGroupWealthHistory } from '../../hooks/useGroupWealthHistory'
@@ -28,7 +29,7 @@ import {
   getAvatarColor,
   snapshotAge,
 } from '../../lib/utils'
-import { filterHistoryByRange, type WealthHistoryRange } from '../../lib/wealth-history'
+import { filterHistoryByRange, formatWealthAxisTick, type WealthHistoryRange } from '../../lib/wealth-history'
 import { useCurrencyStore } from '../../store/currency-store'
 import { TableSkeleton } from '../layout/Skeletons'
 import { useGroupStore } from '../../store/group-store'
@@ -42,8 +43,11 @@ import { WealthHistoryRangeSelector } from './WealthHistoryRangeSelector'
 import { useActiveGroupContext } from '../../hooks/useGroups'
 import { Poe2EconomyPage } from './Poe2EconomyPage'
 import { hasActiveProAccess } from '../../lib/billing'
+import { getLoginHref } from '../../lib/auth-redirect'
 import { ListBox, SelectField, UserAvatar } from '../ui/heroui-native'
 import { DashboardEmptyState, DashboardPage, DashboardPageHeader } from '../ui/dashboard'
+import { QueryStatePanel } from '../ui/QueryStatePanel'
+import './economy-data.css'
 const SNAPSHOT_INTERVAL_OPTIONS: { value: SnapshotIntervalHours; label: string }[] = [
   { value: 1, label: 'Every hour' },
   { value: 2, label: 'Every 2 hours' },
@@ -62,15 +66,14 @@ export function EconomyPage() {
 }
 
 function Poe1EconomyPage() {
-  const navigate = useNavigate()
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
   const { data: members } = useGroupMembers(activeGroupId)
-  const { data: economy, isLoading } = useGroupEconomy(activeGroupId)
+  const { data: economy, isLoading, isError, refetch } = useGroupEconomy(activeGroupId)
   const { data: latestSnapshots } = useLatestSnapshots(activeGroupId)
   const { data: groupHistory } = useGroupWealthHistory(activeGroupId)
   const { data: characters } = useActiveCharacters(activeGroupId)
   const { data: myGroups } = useMyGroups()
-  const { data: myProfile } = useMyProfile()
+  const { data: myProfile, isPending: profilePending, isError: profileError, refetch: retryProfile } = useMyProfile()
   const { triggerSnapshot, isBusy, modal } = useStashSnapshotFlow()
   const display = useCurrencyStore((s) => s.display)
   const snapshotMode = useSnapshotPreferencesStore((s) => s.mode)
@@ -78,7 +81,7 @@ function Poe1EconomyPage() {
   const setSnapshotMode = useSnapshotPreferencesStore((s) => s.setMode)
   const setSnapshotIntervalHours = useSnapshotPreferencesStore((s) => s.setIntervalHours)
   const resetSnapshotTimer = useSnapshotPreferencesStore((s) => s.resetTimer)
-  const { countdownLabel, blockingReason, isEligible, mode } = useSnapshotSchedule(activeGroupId)
+  const { countdownLabel, blockingReason, isEligible } = useSnapshotSchedule(activeGroupId)
   const [groupHistoryRange, setGroupHistoryRange] = useState<WealthHistoryRange>('7d')
 
   const activeLeague = myGroups?.find((g) => g.group.id === activeGroupId)?.group.league ?? null
@@ -119,6 +122,11 @@ function Poe1EconomyPage() {
 
   const totalChaos = economy?.reduce((sum, m) => sum + m.total_chaos, 0) ?? 0
   const sorted = [...(economy ?? [])].sort((a, b) => b.total_chaos - a.total_chaos)
+  const latestCapture = sorted.reduce<string | null>(
+    (latest, row) => row.completed_at && (!latest || row.completed_at > latest) ? row.completed_at : latest,
+    null,
+  )
+  const freshness = snapshotAge(latestCapture)
   const visibleGroupHistory = useMemo(
     () => filterHistoryByRange(groupHistory ?? [], groupHistoryRange, (point) => point.created_at),
     [groupHistory, groupHistoryRange],
@@ -172,221 +180,176 @@ function Poe1EconomyPage() {
       <DashboardPage>
         <DashboardPageHeader
           title="Economy"
-          eyebrow="Stash intelligence"
-          tone="currency"
-          description="Shared stash value, snapshot schedule, and per-member wealth movement."
+          description="Review stash value, capture history, and member coverage."
           actions={
-            canSnapshot ? (
-              <Button
-                size="sm"
-                variant="tertiary"
-                isPending={isBusy}
-                isDisabled={!activeGroupId}
-                onPress={handleSnapshot}
-              >
-                {({ isPending }) => (
-                  <>
-                    {isPending ? <Spinner color="current" size="sm" /> : null}
-                    {isPending ? 'Snapshotting...' : 'Snapshot'}
-                  </>
-                )}
-              </Button>
-            ) : null
+            <>
+              <Popover>
+                <Button size="sm" variant="tertiary">
+                  <CalendarClock size={14} aria-hidden="true" /> Snapshot schedule
+                </Button>
+                <Popover.Content placement="bottom end" className="w-80 max-w-[calc(100vw-2rem)] p-4">
+                  <Popover.Dialog className="flex flex-col gap-3">
+                    <Popover.Heading className="text-foreground text-sm font-semibold">
+                      Snapshot schedule
+                    </Popover.Heading>
+                    <div role="group" aria-label="Snapshot mode" className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="tertiary"
+                        className="aria-pressed:bg-selected aria-pressed:text-highlight aria-pressed:underline"
+                        aria-pressed={snapshotMode === 'manual'}
+                        onPress={() => setSnapshotMode('manual')}
+                      >
+                        Manual only
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="tertiary"
+                        className="aria-pressed:bg-selected aria-pressed:text-highlight aria-pressed:underline"
+                        aria-pressed={snapshotMode === 'mix'}
+                        isDisabled={!isPro}
+                        onPress={() => setSnapshotMode('mix')}
+                      >
+                        Mix
+                      </Button>
+                    </div>
+
+                    {snapshotMode === 'mix' && isPro ? (
+                      <>
+                        <SelectField
+                          label="Snapshot interval"
+                          selectedKey={String(snapshotIntervalHours)}
+                          onSelectionChange={(key) => {
+                            if (typeof key === 'string') {
+                              setSnapshotIntervalHours(Number(key) as SnapshotIntervalHours)
+                            }
+                          }}
+                        >
+                          {SNAPSHOT_INTERVAL_OPTIONS.map((option) => (
+                            <ListBox.Item key={option.value} id={String(option.value)} textValue={option.label}>
+                              {option.label}
+                            </ListBox.Item>
+                          ))}
+                        </SelectField>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-default-600 text-xs">
+                            {isEligible && countdownLabel ? 'Next snapshot in ' + countdownLabel : 'Timer paused'}
+                          </p>
+                          <Button size="sm" variant="tertiary" onPress={() => resetSnapshotTimer()}>
+                            Reset timer
+                          </Button>
+                        </div>
+                        {blockingReason && (
+                          <p className="text-default-500 text-xs">{blockingReason}</p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-default-500 text-xs">
+                        {isPro ? 'Mix takes snapshots on demand and at regular intervals.' : (
+                          <><Link to="/dashboard/support" className="text-brand-readable hover:underline">Supporter access</Link> enables scheduled snapshots.</>
+                        )}
+                      </p>
+                    )}
+                  </Popover.Dialog>
+                </Popover.Content>
+              </Popover>
+              {canSnapshot && (
+                <Button size="sm" isPending={isBusy} isDisabled={!activeGroupId} onPress={handleSnapshot}>
+                  {({ isPending }) => (
+                    <>
+                      {isPending ? <Spinner color="current" size="sm" /> : null}
+                      {isPending ? 'Taking snapshot…' : 'Snapshot stash'}
+                    </>
+                  )}
+                </Button>
+              )}
+              {sorted.length > 0 && activeLeague && !profilePending && !profileError && !canSnapshot && (
+                <a href={getLoginHref('/dashboard/economy')} className="button button--sm button--tertiary">
+                  Reconnect PoE account
+                </a>
+              )}
+              {sorted.length > 0 && activeLeague && !profilePending && !profileError && !canSnapshot && (
+                <a href={getLoginHref('/dashboard/economy')} className="button button--sm button--tertiary">
+                  Reconnect PoE account
+                </a>
+              )}
+            </>
           }
         />
 
-        <Card>
-          <Card.Content className="gap-4 p-5">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div>
-                <p className="text-foreground text-sm font-semibold">Snapshot schedule</p>
-                <p className="text-default-400 mt-1 text-sm">
-                  Manual only is the default. Supporters can switch to Mix and set an interval.
-                </p>
-              </div>
-              {!isPro && (
-                <Link to="/dashboard/support" className="inline-flex">
-                  <Chip className="cursor-pointer px-3" color="warning" variant="soft">
-                    Supporter capacity
-                  </Chip>
-                </Link>
-              )}
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => setSnapshotMode('manual')}
-                className={`rounded-xl border p-4 text-left transition-colors ${
-                  snapshotMode === 'manual'
-                    ? 'border-primary bg-primary/10'
-                    : 'border-divider bg-content2 hover:bg-default-100'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-foreground text-sm font-medium">Manual only</p>
-                    <p className="text-default-400 mt-1 text-xs">
-                      Snapshots run only when you trigger them yourself.
-                    </p>
-                  </div>
-                  {snapshotMode === 'manual' && (
-                    <Chip size="sm" color="accent" variant="soft">
-                      Active
-                    </Chip>
-                  )}
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (!isPro) return
-                  setSnapshotMode('mix')
-                }}
-                disabled={!isPro}
-                className={`rounded-xl border p-4 text-left transition-colors ${
-                  snapshotMode === 'mix'
-                    ? 'border-primary bg-primary/10'
-                    : 'border-divider bg-content2 hover:bg-default-100'
-                } ${!isPro ? 'hover:bg-content2 cursor-not-allowed opacity-60' : ''}`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-foreground text-sm font-medium">Mix</p>
-                    <p className="text-default-400 mt-1 text-xs">
-                      Keep manual snapshots and allow interval-based snapshotting.
-                    </p>
-                  </div>
-                  {snapshotMode === 'mix' ? (
-                    <Chip size="sm" color="accent" variant="soft">
-                      Active
-                    </Chip>
-                  ) : !isPro ? (
-                    <Chip size="sm" variant="soft">
-                      Supporter
-                    </Chip>
-                  ) : null}
-                </div>
-              </button>
-            </div>
-
-            {snapshotMode === 'mix' && (
-              <div className="flex flex-col gap-2 md:max-w-xs">
-                <SelectField
-                  label="Snapshot interval"
-                  selectedKey={String(snapshotIntervalHours)}
-                  onSelectionChange={(key) => {
-                    if (typeof key !== 'string') return
-                    setSnapshotIntervalHours(Number(key) as SnapshotIntervalHours)
-                  }}
-                >
-                  {SNAPSHOT_INTERVAL_OPTIONS.map((option) => (
-                    <ListBox.Item
-                      key={String(option.value)}
-                      id={String(option.value)}
-                      textValue={option.label}
-                    >
-                      {option.label}
-                    </ListBox.Item>
-                  ))}
-                </SelectField>
-                <p className="text-default-400 text-xs">
-                  Current interval:{' '}
-                  {
-                    SNAPSHOT_INTERVAL_OPTIONS.find(
-                      (option) => option.value === snapshotIntervalHours,
-                    )?.label
-                  }
-                </p>
-                <div className="flex items-center gap-2">
-                  <Chip size="sm" color={isEligible ? 'accent' : 'default'} variant="soft">
-                    {isEligible && countdownLabel
-                      ? `Next snapshot in ${countdownLabel}`
-                      : 'Timer paused'}
-                  </Chip>
-                  <Button size="sm" variant="tertiary" onPress={() => resetSnapshotTimer()}>
-                    Reset timer
-                  </Button>
-                </div>
-                {mode === 'mix' && blockingReason && (
-                  <p className="text-default-400 text-xs">{blockingReason}</p>
-                )}
-              </div>
-            )}
-          </Card.Content>
-        </Card>
-
         {isLoading ? (
           <TableSkeleton rows={4} cols={5} />
+        ) : isError && !economy ? (
+          <QueryStatePanel kind="error" title="Couldn’t load economy data" description="Try again to view your stash values." onRetry={refetch} />
         ) : !sorted.length ? (
           <DashboardEmptyState
             icon={TrendingUp}
             tone="currency"
             action={
-              canSnapshot ? (
-                <Button
-                  size="sm"
-                  variant="tertiary"
-                  isPending={isBusy}
-                  isDisabled={!activeLeague}
-                  onPress={handleSnapshot}
-                >
-                  {({ isPending }) => (
-                    <>
-                      {isPending ? <Spinner color="current" size="sm" /> : null}
-                      {isPending ? 'Snapshotting...' : 'Snapshot stash'}
-                    </>
-                  )}
-                </Button>
+              profileError ? (
+                <Button size="sm" variant="tertiary" onPress={() => void retryProfile()}>Try again</Button>
+              ) : activeLeague && !profilePending && !canSnapshot ? (
+                <a href={getLoginHref('/dashboard/economy')} className="button button--sm button--primary">
+                  Reconnect PoE account
+                </a>
               ) : null
             }
           >
-            Snapshot your stash to see economy data.
+            {profileError
+              ? 'Could not check your stash access. Try again to continue.'
+              : profilePending
+                ? 'Checking account access?'
+                : !activeLeague
+                  ? 'Choose a workspace with a league to take stash snapshots.'
+                  : canSnapshot
+                    ? 'No snapshots yet. Choose Snapshot stash to capture your first value.'
+                    : 'Reconnect your PoE account to give PoE Party access to your stash.'}
           </DashboardEmptyState>
         ) : (
           <>
             {valuationPartial && (
-              <p role="status" className="text-warning text-sm">Partial pricing: this subtotal excludes items without available price estimates.</p>
+              <p role="status" className="bg-warning-soft text-warning flex items-start gap-2 rounded-lg px-4 py-3 text-sm">
+                <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+                Partial pricing: this subtotal excludes items without available price estimates.
+              </p>
             )}
             {/* Group total */}
-            <Card>
-              <button
-                type="button"
-                className="w-full text-left"
-                onClick={() => navigate({ to: '/dashboard/economy/group' })}
+            <Card className="p-0">
+              <Link
+                to="/dashboard/economy/group"
+                className="block w-full rounded-large text-left"
               >
-                <Card.Content className="flex flex-row flex-wrap items-center gap-4 p-5">
-                  <div className="bg-success/15 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
-                    <TrendingUp size={20} className="text-success" />
-                  </div>
-                  <div>
-                    <p className="text-default-400 text-xs tracking-wider uppercase">
+                <Card.Content className="flex flex-row flex-wrap items-center gap-3 p-4">
+                  <div className="min-w-0">
+                    <p className="text-default-500 text-sm">
                       {valuationPartial ? 'Priced subtotal' : 'Total Group Wealth'}
                     </p>
-                    <p className="text-foreground text-2xl font-bold">{valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}</p>
+                    <p className="text-foreground text-2xl font-bold wrap-anywhere tabular-nums">{valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}</p>
                   </div>
-                  <div className="flex w-full items-center justify-between gap-4 sm:ml-auto sm:w-auto">
-                    <div className="text-right">
+                  <div className="flex basis-full flex-wrap items-center gap-3 sm:ml-auto sm:basis-auto">
+                    <div>
                       <p className="text-default-400 text-xs">
                         {sorted.length} member{sorted.length !== 1 ? 's' : ''} synced
                       </p>
                       <p className="text-default-500 text-xs">{divinePrice == null ? 'Divine conversion unavailable' : `1 div = ${divinePrice.toFixed(0)}c`}</p>
                     </div>
-                    <span className="text-default-600 inline-flex h-8 items-center rounded-md px-3 text-sm">
+                    <Chip size="sm" color={freshness.color} variant="soft">
+                      {latestCapture ? `Last snapshot ${freshness.label}` : freshness.label}
+                    </Chip>
+                    <span className="text-brand-readable text-sm font-medium">
                       Details
                     </span>
                   </div>
                 </Card.Content>
-              </button>
+              </Link>
             </Card>
 
             {/* Group wealth history chart */}
             {groupHistory && groupHistory.length > 0 && (
-              <Card>
+              <Card className="p-0">
                 <Card.Header className="px-4 pt-4 pb-0">
-                  <div className="grid w-full grid-cols-[1fr_auto_1fr] items-start gap-4">
-                    <div className="flex items-center gap-3">
+                  <div className="flex w-full flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-foreground text-sm font-semibold">
                         Group Wealth History
                       </h2>
@@ -397,7 +360,7 @@ function Poe1EconomyPage() {
                     </div>
                     <div className="flex items-center justify-center gap-3">
                       <p className={`text-base font-semibold ${groupRateColor}`}>
-                        {groupChaosPerHour == null ? 'No data' : fmtRate(groupChaosPerHour)}
+                        {groupChaosPerHour == null ? 'Rate unavailable' : fmtRate(groupChaosPerHour)}
                       </p>
                       <div
                         className={`border-divider/60 flex items-center gap-1.5 border-l pl-3 text-xs ${groupTrendColor}`}
@@ -406,37 +369,37 @@ function Poe1EconomyPage() {
                         <span>{groupTrendLabel}</span>
                       </div>
                     </div>
-                    <div />
                   </div>
                 </Card.Header>
                 <Card.Content className="px-2 pt-2 pb-3">
                   <ResponsiveContainer width="100%" height={200}>
                     <AreaChart
                       data={visibleGroupHistory}
+                      title="Group wealth in chaos orbs"
+                      desc="Use the left and right arrow keys to read snapshot values."
                       margin={{ top: 4, right: 12, left: 0, bottom: 0 }}
                     >
                       <defs>
                         <linearGradient id="groupWealthGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#17c964" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#17c964" stopOpacity={0} />
+                          <stop offset="5%" stopColor="var(--wealth-series)" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="var(--wealth-series)" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
                       <XAxis
                         dataKey="created_at"
                         tickFormatter={(v: string) => {
                           const d = new Date(v)
                           return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
                         }}
-                        tick={{ fontSize: 10, fill: '#888' }}
+                        tick={{ fontSize: 10, fill: 'var(--muted-text)' }}
                         axisLine={false}
                         tickLine={false}
                       />
                       <YAxis
-                        tickFormatter={(v: number) =>
-                          v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))
-                        }
-                        tick={{ fontSize: 10, fill: '#888' }}
+                        tickFormatter={formatWealthAxisTick}
+                        unit="c"
+                        tick={{ fontSize: 10, fill: 'var(--muted-text)' }}
                         axisLine={false}
                         tickLine={false}
                         width={44}
@@ -452,10 +415,14 @@ function Poe1EconomyPage() {
                             minute: '2-digit',
                           })
                           return (
-                            <div className="bg-content1 border-divider rounded-lg border px-3 py-2 text-xs shadow-lg">
+                            <div role="status" className="bg-overlay border-divider rounded-lg border px-3 py-2 text-xs shadow-lg">
                               <p className="text-default-400 mb-1">{label}</p>
                               <p className="text-foreground font-semibold">
-                                {fmt(point.total_wealth_chaos)}
+                                {point.pricing_summary?.status === 'unavailable'
+                                  ? 'Pricing unavailable'
+                                  : point.pricing_summary?.status === 'partial'
+                                    ? `Priced subtotal: ${fmt(point.total_wealth_chaos)}`
+                                    : fmt(point.total_wealth_chaos)}
                               </p>
                               <p className="text-default-400 mt-0.5">
                                 {point.member_count} member{point.member_count !== 1 ? 's' : ''}
@@ -472,11 +439,11 @@ function Poe1EconomyPage() {
                       <Area
                         type="monotone"
                         dataKey="total_wealth_chaos"
-                        stroke="#17c964"
+                        stroke="var(--wealth-series)"
                         fill="url(#groupWealthGrad)"
                         strokeWidth={2}
-                        dot={{ r: 3, fill: '#17c964' }}
-                        activeDot={{ r: 6, fill: '#17c964', stroke: 'white', strokeWidth: 2 }}
+                        dot={{ r: 3, fill: 'var(--wealth-series)' }}
+                        activeDot={{ r: 6, fill: 'var(--wealth-series)', stroke: 'var(--surface)', strokeWidth: 2 }}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -485,32 +452,36 @@ function Poe1EconomyPage() {
             )}
 
             {/* Per-member table */}
-            <Card>
+            <Card className="min-w-0 gap-0 p-0">
               <Card.Header className="px-4 pt-4 pb-0">
-                <h2 className="text-foreground text-sm font-semibold">Member Breakdown</h2>
+                <h2 className="text-foreground text-sm font-semibold" id="economy-members">Member breakdown</h2>
               </Card.Header>
-              <Card.Content className="p-0">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-divider border-b">
-                      <th className="text-default-400 px-4 py-3 text-left text-xs font-medium tracking-wider uppercase">
+              <Card.Content
+                className="economy-data block min-w-0 p-0"
+                role="region"
+                aria-labelledby="economy-members"
+              >
+                <table className="economy-members" role="table">
+                  <thead role="rowgroup">
+                    <tr className="border-divider border-b" role="row">
+                      <th className="text-default-400 w-1/4 px-4 py-3 text-left text-xs font-medium tracking-wider uppercase" role="columnheader" scope="col">
                         Member
                       </th>
-                      <th className="text-default-400 px-4 py-3 text-left text-xs font-medium tracking-wider uppercase">
+                      <th className="text-default-400 w-1/4 px-4 py-3 text-left text-xs font-medium tracking-wider uppercase" role="columnheader" scope="col">
                         Character
                       </th>
-                      <th className="text-default-400 px-4 py-3 text-right text-xs font-medium tracking-wider uppercase">
+                      <th className="text-default-400 w-32 px-4 py-3 text-right text-xs font-medium tracking-wider uppercase" role="columnheader" scope="col">
                         Value
                       </th>
-                      <th className="text-default-400 hidden px-4 py-3 text-left text-xs font-medium tracking-wider uppercase md:table-cell">
+                      <th className="text-default-400 px-4 py-3 text-left text-xs font-medium tracking-wider uppercase" role="columnheader" scope="col">
                         Tabs
                       </th>
-                      <th className="text-default-400 px-4 py-3 text-right text-xs font-medium tracking-wider uppercase">
+                      <th className="text-default-400 w-28 px-4 py-3 text-right text-xs font-medium tracking-wider uppercase" role="columnheader" scope="col">
                         Snapshot
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody role="rowgroup">
                     {sorted.map((row, i) => {
                       const user = memberByUser[row.user_id]
                       const char = charByUser[row.user_id]
@@ -520,17 +491,17 @@ function Poe1EconomyPage() {
                       return (
                         <tr
                           key={row.user_id}
-                          className={`hover:bg-default-50 cursor-pointer transition-colors ${i < sorted.length - 1 ? 'border-divider border-b' : ''}`}
-                          onClick={() =>
-                            navigate({
-                              to: '/dashboard/economy/$userId',
-                              params: { userId: row.user_id },
-                            })
-                          }
+                          role="row"
+                          className={`hover:bg-default-50 transition-colors ${i < sorted.length - 1 ? 'border-divider border-b' : ''}`}
                         >
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
+                          <td className="px-4 py-3" data-cell="member" role="cell">
+                            <Link
+                              to="/dashboard/economy/$userId"
+                              params={{ userId: row.user_id }}
+                              className="flex min-w-0 items-center gap-2 rounded-sm hover:underline"
+                            >
                               <UserAvatar
+                                className="shrink-0"
                                 src={user?.avatar_url ?? undefined}
                                 name={user?.display_name ?? user?.poe_account_name ?? '?'}
                                 size="sm"
@@ -542,21 +513,21 @@ function Poe1EconomyPage() {
                                     : undefined
                                 }
                               />
-                              <div>
-                                <p className="text-foreground text-sm font-medium">
-                                  {user?.display_name ?? user?.poe_account_name ?? '—'}
+                              <div className="min-w-0">
+                                <p className="text-foreground text-sm font-medium break-words">
+                                  {user?.display_name ?? user?.poe_account_name ?? 'View snapshot'}
                                 </p>
                                 <p className="text-default-400 text-xs">
                                   {pct.toFixed(1)}% of group
                                 </p>
                               </div>
-                            </div>
+                            </Link>
                           </td>
 
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3" data-cell="character" role="cell">
                             {char ? (
                               <div>
-                                <p className="text-foreground text-sm">{char.name}</p>
+                                <p className="text-foreground text-sm break-words">{char.name}</p>
                                 <p className="text-default-400 text-xs">
                                   {char.class} {char.level}
                                 </p>
@@ -566,26 +537,28 @@ function Poe1EconomyPage() {
                             )}
                           </td>
 
-                          <td className="px-4 py-3 text-right">
-                            <p className="text-foreground text-sm font-semibold">
+                          <td className="px-4 py-3 text-right" data-cell="value" role="cell">
+                            <span className="economy-data-label">Value</span>
+                            <p className="text-foreground text-sm font-semibold tabular-nums">
                               {fmt(row.total_chaos)}
                             </p>
                           </td>
 
-                          <td className="hidden px-4 py-3 md:table-cell">
+                          <td className="px-4 py-3" data-cell="tabs" role="cell">
                             <div className="flex flex-wrap gap-1">
                               {row.tabs.map((t) => (
-                                <Chip key={t.name} size="sm" variant="soft" color="default">
+                                <span key={t.name} className="bg-default-100 text-default-600 max-w-full rounded-md px-2 py-1 text-xs wrap-anywhere">
                                   {t.name}
-                                  <span className="text-default-400 ml-1 text-xs">
+                                  <span className="text-default-400 ml-1 inline-block max-w-full text-xs tabular-nums">
                                     {Math.round(t.value).toLocaleString()}c
                                   </span>
-                                </Chip>
+                                </span>
                               ))}
                             </div>
                           </td>
 
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-4 py-3 text-right" data-cell="snapshot" role="cell">
+                            <span className="economy-data-label">Snapshot</span>
                             <Chip size="sm" color={age.color} variant="soft">
                               {age.label}
                             </Chip>
