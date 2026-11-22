@@ -85,48 +85,80 @@ async function expectDecodedImage(image: Locator, source: string) {
   )).toBe(source)
 }
 
-test('Analysis resolves stored item art and falls back when image requests fail', async ({ page }) => {
+const crestArtwork = 'https://cdn.poedb.tw/image/Art/2DItems/Armours/Helmets/HelmetInt11.webp'
+const glovesArtwork = 'https://cdn.poedb.tw/image/Art/2DItems/Armours/Gloves/GlovesStr4.webp'
+
+async function mockArtworkFallback(
+  page: Page,
+  baseURL: string | undefined,
+  artwork: { crest: string; gloves: string },
+) {
   await mockAnalysisRuns(page, { icons: true })
-  const wikiIcon = 'https://www.poewiki.net/wiki/Special:Redirect/file/Hubris_Circlet_inventory_icon.png'
-  const brokenWikiIcon = 'https://www.poewiki.net/wiki/Special:Redirect/file/Titan_Gauntlets_inventory_icon.png'
   for (const failedUrl of [recommendationIconPaths['Fixture Crest'], recommendationIconPaths['Fixture Gloves']]) {
     await page.route(failedUrl, (route) => route.fulfill({ status: 404 }))
   }
-  let requestedBrokenFallback = false
-  await page.route(brokenWikiIcon, (route) => {
-    requestedBrokenFallback = true
-    return route.fulfill({ status: 404 })
-  })
-  await page.route('https://www.poewiki.net/w/api.php?*', (route) => {
-    const where = new URL(route.request().url()).searchParams.get('where')
-    const cargoquery = [
-      { name: 'Hubris Circlet', 'inventory icon': 'File:Hubris Circlet inventory icon.png' },
-      { name: 'Titan Gauntlets', 'inventory icon': 'File:Titan Gauntlets inventory icon.png' },
-    ].filter(({ name }) => where === `name="${name}"`).map((title) => ({ title }))
-    return route.fulfill({ json: { cargoquery }, headers: { 'Access-Control-Allow-Origin': '*' } })
-  })
+  const requests = new Set<string>()
+  page.on('request', (request) => requests.add(request.url()))
 
+  for (const [slug, image] of [
+    ['Hubris_Circlet', artwork.crest],
+    ['Titan_Gauntlets', artwork.gloves],
+  ]) {
+    await page.route(`${baseURL}/api/poedb/us/${slug}`, (route) => route.fulfill({
+      contentType: 'text/html',
+      body: `<!doctype html><html><head><meta property="og:image" content="${image}" /></head></html>`,
+    }))
+  }
+  return requests
+}
+
+async function openSavedRecommendations(page: Page) {
   await page.goto('/dashboard/analysis')
   await page.getByRole('button', { name: 'Run history', exact: true }).click()
   await page.getByRole('button', { name: /completed.*quick/i }).click()
-  const results = page.getByRole('region', { name: 'Recommendations', exact: true })
+  return page.getByRole('region', { name: 'Recommendations', exact: true })
+}
+
+test('Analysis resolves stored item art and looks up missing art through the PoEDB proxy', async ({ page, baseURL }) => {
+  const requests = await mockArtworkFallback(page, baseURL, { crest: crestArtwork, gloves: glovesArtwork })
+  const results = await openSavedRecommendations(page)
 
   await expectDecodedImage(results.getByRole('img', { name: 'Fixture Ward', exact: true }), `https://web.poecdn.com${recommendationIconPaths['Fixture Ward']}`)
   await expectDecodedImage(results.getByRole('img', { name: 'Fixture Band', exact: true }), `https://web.poecdn.com${recommendationIconPaths['Fixture Band']}`)
-  await expectDecodedImage(results.getByRole('img', { name: 'Fixture Crest', exact: true }), wikiIcon)
-  await results.getByRole('button', { name: 'View Fixture Gloves', exact: true }).scrollIntoViewIfNeeded()
-  await expect.poll(() => requestedBrokenFallback).toBe(true)
+
+  for (const [item, image] of [['Fixture Crest', crestArtwork], ['Fixture Gloves', glovesArtwork]]) {
+    await expectDecodedImage(results.getByRole('img', { name: item, exact: true }), image)
+    await results.getByRole('button', { name: `View ${item}`, exact: true }).click()
+    const details = page.getByRole('dialog', { name: item, exact: true })
+    await expectDecodedImage(details.locator('img').first(), image)
+    await details.getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(details).toHaveCount(0)
+  }
+
+  expect(requests.has(`${baseURL}/api/poedb/us/Hubris_Circlet`)).toBe(true)
+  expect(requests.has(`${baseURL}/api/poedb/us/Titan_Gauntlets`)).toBe(true)
+  expect([...requests].filter((url) => url.startsWith('https://www.poewiki.net/w/api.php'))).toEqual([])
+})
+
+test('Analysis shows slots when fallback artwork is invalid or unavailable', async ({ page, baseURL }) => {
+  const invalidArtwork = 'https://example.invalid/image/Art/2DItems/fixture.png'
+  const requests = await mockArtworkFallback(page, baseURL, { crest: invalidArtwork, gloves: glovesArtwork })
+  await page.route(glovesArtwork, (route) => route.fulfill({ status: 404 }))
+  const results = await openSavedRecommendations(page)
+  const crest = results.getByRole('button', { name: 'View Fixture Crest', exact: true })
+  const gloves = results.getByRole('button', { name: 'View Fixture Gloves', exact: true })
+  await crest.scrollIntoViewIfNeeded()
+  await expect.poll(() => requests.has(`${baseURL}/api/poedb/us/Hubris_Circlet`)).toBe(true)
+  await expect(results.getByText('He', { exact: true })).toBeVisible()
+  await expect(results.getByRole('img', { name: 'Fixture Crest', exact: true })).toHaveCount(0)
+  await gloves.scrollIntoViewIfNeeded()
+  await expect.poll(() => requests.has(glovesArtwork)).toBe(true)
   await expect(results.getByText('Gl', { exact: true })).toBeVisible()
   await expect(results.getByRole('img', { name: 'Fixture Gloves', exact: true })).toHaveCount(0)
 
-  await results.getByRole('button', { name: 'View Fixture Crest', exact: true }).click()
-  const details = page.getByRole('dialog', { name: 'Fixture Crest', exact: true })
-  await expectDecodedImage(details.locator('img').first(), wikiIcon)
-  await details.getByRole('button', { name: 'Close', exact: true }).click()
-  await expect(details).toHaveCount(0)
-
-  await results.getByRole('button', { name: 'View Fixture Gloves', exact: true }).click()
+  await gloves.click()
   const detailsWithoutArt = page.getByRole('dialog', { name: 'Fixture Gloves', exact: true })
   await expect(detailsWithoutArt.getByText('Gl', { exact: true })).toBeVisible()
   await expect(detailsWithoutArt.locator('img')).toHaveCount(0)
+  expect(requests.has(invalidArtwork)).toBe(false)
 })

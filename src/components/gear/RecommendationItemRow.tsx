@@ -25,7 +25,7 @@ import {
   getRecommendationDependencies,
   type RecommendationDependency,
 } from '../../lib/recommendation-dependencies'
-import { usePoeWikiInventoryIcon } from '../../hooks/usePoeWikiInventoryIcon'
+import { usePoedbInventoryIcon } from '../../hooks/usePoedbInventoryIcon'
 import {
   getRecommendationScoreBreakdown,
   shouldShowRecommendationScore,
@@ -1506,8 +1506,8 @@ export function RecommendationItemRow({
   const iconBaseType = getItemBaseType(item) ?? readString(payload.type_line)
   const storedIconUrl = getItemIconUrl(item)
   const payloadIconUrl = storedIconUrl && !failedIconUrls.includes(storedIconUrl) ? storedIconUrl : null
-  const { data: wikiIconUrl } = usePoeWikiInventoryIcon(iconBaseType, !payloadIconUrl)
-  const fallbackIconUrl = wikiIconUrl && !failedIconUrls.includes(wikiIconUrl) ? wikiIconUrl : null
+  const { data: poedbIconUrl } = usePoedbInventoryIcon(iconBaseType, !payloadIconUrl)
+  const fallbackIconUrl = poedbIconUrl && !failedIconUrls.includes(poedbIconUrl) ? poedbIconUrl : null
   const iconUrl = payloadIconUrl ?? fallbackIconUrl
   function handleIconError(url: string) {
     setFailedIconUrls((failed) => failed.includes(url) ? failed : [...failed, url])
