@@ -24,9 +24,16 @@ The page canvas extends to the content gutters. Shared page headings sit above o
 
 The HTML declares dark on every route. Register new seasonal accents in `src/lib/league-theme.ts` and `src/index.css`. The featured preset drives home and sign-in. The sample and each active workspace resolve a preset from their game and league. Public tools use the base palette. Theme scope is applied to the document so portal-based controls inherit it.
 
+### Covens frames
+
+Use the dark timber edge and tarnished silver hairline at the boundary between the masthead and the reading pane. On desktop, a pair of bound-twig corners sits at the ends of the upper rail. A feather-and-cord tie finishes the page heading rule on wider screens. Keep the frame behind content and within existing gutters so focus outlines and controls remain clear while scrolling. At narrow widths, keep the shallow join and let the dock retain its full touch area. Forced colors uses the underlying structural borders.
+
+The entry scene has a narrow recessed rim and uses the same desktop corners. The existing seasonal caption uses a restrained parchment edge. Use plain semantic borders on tables, cards, filters, and overlays.
+
 ### Seasonal artwork
 
 - `covens-workbench.webp`, `covens-workbench-close.webp`, and `covens-workbench-masthead.webp` are crops of an original ImageGen illustration. The brief called for a moonlit woodland workbench with a wicker effigy, damp blue-black wood, coarse twine, cold light on feathers, and one dim ember. The crops serve desktop home, mobile home and sign-in, and the 1280 px desktop masthead. The respective budgets are 300, 150, and 50 KiB. Text and controls sit on opaque surfaces around the art.
 - `covens-talisman.webp` is an original transparent ImageGen engraving of bound twigs, feathers, and a small matte bone charm. It accompanies the no-capture state.
+- `covens-frame-corner-start.webp`, `covens-frame-corner-end.webp`, and `covens-frame-divider.webp` are original transparent ImageGen cutouts. The brief called for two distinct crooked, cord-bound twigs with short downturned ends and one nearly horizontal feather lashed to split wood. Cool edge light keeps their silhouettes legible at small sizes. The three compressed assets total under 24 KiB.
 
 The material references are from the [official Covens of Umbra page](https://www.pathofexile.com/covens) and the [official trailer](https://www.youtube.com/watch?v=XaySR0RjRPA). The seasonal assets depict independent PoE Party illustrations. Item imagery follows the app's existing game-data sources.

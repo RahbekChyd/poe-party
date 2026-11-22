@@ -227,6 +227,11 @@
   --palette-selected-hover: #233b46;
   --palette-highlight: #83c7dc;
   --palette-focus: #b7e4f0;
+  --covens-frame-wood: #302a26;
+  --covens-frame-edge: #55595e;
+  --covens-corner-start: url('./assets/seasonal/covens-frame-corner-start.webp');
+  --covens-corner-end: url('./assets/seasonal/covens-frame-corner-end.webp');
+  --covens-frame-divider: url('./assets/seasonal/covens-frame-divider.webp');
 }
 
 body {

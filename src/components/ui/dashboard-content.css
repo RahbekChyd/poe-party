@@ -22,6 +22,12 @@
     }
   }
 
+  @media (min-width: 48rem) and (forced-colors: none) {
+    [data-workspace-art] .dashboard-page-header {
+      background: var(--covens-frame-divider) right bottom / 8rem auto no-repeat;
+    }
+  }
+
   .workspace-lead-amount {
     color: var(--foreground);
     font-size: 1.875rem;

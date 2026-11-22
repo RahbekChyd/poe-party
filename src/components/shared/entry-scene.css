@@ -67,6 +67,39 @@
     object-position: center 34%;
   }
 
+  :root[data-league-theme='covens'] .entry-scene {
+    --entry-frame-width: 2px;
+  }
+
+  :root[data-league-theme='covens'] .entry-scene::before {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    border: 1px solid var(--covens-frame-edge);
+    box-shadow:
+      inset 0 0 0 var(--entry-frame-width) var(--covens-frame-wood),
+      inset 0 0 0 calc(var(--entry-frame-width) + 1px) var(--navigation);
+    content: '';
+  }
+
+  @media (min-width: 48rem) and (forced-colors: none) {
+    :root[data-league-theme='covens'] .entry-scene {
+      --entry-frame-width: 4px;
+      --entry-corner-width: clamp(5rem, 8.5vw, 8rem);
+    }
+
+    :root[data-league-theme='covens'] .entry-scene::after {
+      position: absolute;
+      z-index: 2;
+      inset: 0;
+      background-image: var(--covens-corner-start, none), var(--covens-corner-end, none);
+      background-position: left top, right top;
+      background-repeat: no-repeat;
+      background-size: var(--entry-corner-width) auto;
+      content: '';
+    }
+  }
+
   .entry-hero-stage {
     display: grid;
     grid-template: 'copy art' minmax(0, 1fr) 'sample sample' auto / minmax(0, 0.96fr) minmax(0, 1fr);
@@ -100,13 +133,25 @@
 
   .entry-hero-art figcaption {
     width: fit-content;
+    max-width: 100%;
     margin: 0.5rem 0 0.625rem auto;
     padding: 0.125rem 0.5rem;
     border-radius: 0.125rem;
-    background: var(--palette-parchment);
+    background:
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--palette-parchment-ink) 17%, transparent),
+        transparent 14% 86%,
+        color-mix(in srgb, var(--palette-parchment-ink) 17%, transparent)
+      ),
+      var(--palette-parchment);
+    box-shadow:
+      inset 0 1px color-mix(in srgb, var(--foreground-strong) 36%, transparent),
+      inset 0 -1px color-mix(in srgb, var(--palette-parchment-ink) 14%, transparent);
     color: var(--palette-parchment-ink);
     font-family: Georgia, serif;
     font-size: 0.75rem;
+    overflow-wrap: anywhere;
   }
 
   .entry-hero-title {

@@ -2,7 +2,7 @@ import type { CharacterProfileItem } from '../../src/lib/character-profile'
 import { expect, groupId, test, userId } from './fixture'
 import { groupName, mockApp, profileId, standardWorkspace } from './ui-data'
 
-test('workspace colors follow the active league through menus and sign-out', async ({ page }) => {
+test('workspace colors follow the active league through menus and sign-out', async ({ page }, testInfo) => {
   const savedPreference = JSON.stringify({ state: { theme: 'light' }, version: 0 })
   await page.emulateMedia({ colorScheme: 'light' })
   await page.addInitScript((preference) => {
@@ -17,6 +17,8 @@ test('workspace colors follow the active league through menus and sign-out', asy
   await page.route('**/auth/v1/logout*', (route) => route.fulfill({ status: 204 }))
   await page.goto('/dashboard')
   const root = page.locator('html')
+  const main = page.getByRole('main')
+  const frameImage = testInfo.project.name === 'chromium-desktop' ? /covens-frame-corner-start/ : /linear-gradient/
   const switcher = page.getByRole('button', { name: /switch group/i })
   const menu = page.getByRole('menu', { name: /switch group/i })
   const popover = page.locator('.dropdown__popover').filter({ has: menu })
@@ -24,6 +26,7 @@ test('workspace colors follow the active league through menus and sign-out', asy
   await expect(root).toHaveAttribute('data-league-theme', 'covens')
   await expect(root).toHaveAttribute('data-theme', 'dark')
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(7, 8, 13)')
+  await expect(main).toHaveCSS('background-image', frameImage)
   const title = page.getByRole('heading', { name: 'Today', exact: true, level: 1 })
   await expect(title).toHaveCSS('font-family', /Cinzel/)
   await expect.poll(() => page.evaluate(async () => (await document.fonts.load('500 32px Cinzel')).length))
@@ -38,9 +41,11 @@ test('workspace colors follow the active league through menus and sign-out', asy
     await expect(menu).not.toBeVisible()
     if (group === groupName) {
       await expect(root).toHaveAttribute('data-league-theme', 'covens')
+      await expect(main).toHaveCSS('background-image', frameImage)
       await expect(primary).toHaveCSS('background-color', 'rgb(117, 187, 209)')
     } else {
       await expect(root).not.toHaveAttribute('data-league-theme', 'covens')
+      await expect(main).toHaveCSS('background-image', 'none')
       await expect(primary).toHaveCSS('background-color', 'rgb(170, 184, 198)')
     }
   }
