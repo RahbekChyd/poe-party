@@ -5,13 +5,14 @@ import { getAscendancyLabel } from '../../lib/character-profile'
 import { previewMembers } from '../../lib/preview-fixtures'
 import { ROLE_CHIP } from '../../lib/constants'
 import { PreviewPageIntro, UnlockCard } from './PreviewShared'
+import { DashboardPage } from '../ui/dashboard'
 import { AscendancyArt } from '../shared/AscendancyArt'
 import { UserAvatar } from '../ui/heroui-native'
 const selectedMemberId = previewMembers[0].id
 
 export function TeaserMembersPage() {
   return (
-    <div className="flex flex-col gap-6">
+    <DashboardPage>
       <PreviewPageIntro
         title="Members"
         description="Explore a sample party roster and the characters assigned to it."
@@ -90,6 +91,6 @@ export function TeaserMembersPage() {
           'Inspect full gear, passive tree, atlas tree, and roster permissions from one page.',
         ]}
       />
-    </div>
+    </DashboardPage>
   )
 }

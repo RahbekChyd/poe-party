@@ -75,46 +75,41 @@ export function PublicGroupDetailView({
   }
 
   const backLink = isPreview ? (
-    <Link to="/preview/search" className="button button--sm button--tertiary self-start">
+    <Link to="/preview/search" className="button button--sm button--tertiary">
       <ArrowLeft size={14} aria-hidden="true" /> Back to directory
     </Link>
   ) : (
-    <Link to="/dashboard/search" search={{ tab: 'groups' }} className="button button--sm button--tertiary self-start">
+    <Link to="/dashboard/search" search={{ tab: 'groups' }} className="button button--sm button--tertiary">
       <ArrowLeft size={14} aria-hidden="true" /> Back to directory
     </Link>
   )
 
   if (!groupDetail) {
     return (
-      <div className="flex flex-col gap-4">
-        {backLink}
-        <h1 className="text-2xl font-semibold">{groupQuery.isError ? 'Group unavailable' : 'Group not found'}</h1>
+      <DashboardPage>
+        <DashboardPageHeader backLink={backLink} title={groupQuery.isError ? 'Group unavailable' : 'Group not found'} />
         {groupQuery.isError ? (
           <QueryStatePanel kind="error" title="Could not load group" description="Try again to open the public group." onRetry={groupQuery.refetch} />
         ) : (
           <p className="text-default-500 text-sm">This group may have been removed or no longer has public characters.</p>
         )}
-      </div>
+      </DashboardPage>
     )
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-6 wrap-anywhere">
-      {backLink}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-foreground text-2xl font-semibold">{groupDetail.group_name}</h1>
-          <p className="text-default-500 mt-1 text-sm">
-            {getPoeGameShortLabel(groupGame)} · {groupDetail.league}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <DashboardPage className="wrap-anywhere">
+      <DashboardPageHeader
+        backLink={backLink}
+        title={groupDetail.group_name}
+        description={`${getPoeGameShortLabel(groupGame)} · ${groupDetail.league}`}
+        metadata={
           <Chip size="sm" variant="soft">
             {groupDetail.public_character_count} public character
             {groupDetail.public_character_count === 1 ? '' : 's'}
           </Chip>
-        </div>
-      </div>
+        }
+      />
 
       {charactersQuery.isLoading ? (
         <DetailPageSkeleton />
@@ -271,6 +266,7 @@ export function PublicGroupDetailView({
           ) : null}
         </div>
       )}
-    </div>
+    </DashboardPage>
   )
 }
+import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'

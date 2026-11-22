@@ -32,15 +32,18 @@ import { CreateStrategyModal } from './CreateStrategyModal'
 import { DIFFICULTY_CHIP } from '../../lib/constants'
 import { StrategyCardsSkeleton } from '../layout/Skeletons'
 import { cn, formatCurrencyAmount } from '../../lib/utils'
-import { DashboardEmptyState, DashboardPage, DashboardPageHeader, DashboardPanel } from '../ui/dashboard'
+import { DashboardEmptyState, DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import { StrategyInfoSection } from './StrategyInfoSection'
 import { StrategyMetadataBadges } from './StrategyMetadataBadges'
+import { StrategySearch } from './StrategySearch'
 import { QueryFreshnessNotice, QueryStatePanel } from '../ui/QueryStatePanel'
 import { ResponsiveFilter } from '../ui/ResponsiveFilter'
 import {
   STRATEGY_STAGE_FILTER_OPTIONS,
   type StrategyContentStage,
 } from '../../lib/public-strategy-content'
+import './strategy-library.css'
+
 type Mode = 'own' | 'public'
 type StageFilter = StrategyContentStage | 'all'
 function OwnedStrategyCard({
@@ -97,15 +100,15 @@ function OwnedStrategyCard({
   const hasAlternativeThreads = strategy.threads.some((thread) => thread.alternatives.length > 0)
 
   return (
-    <Card className={isActive ? 'border-highlight' : undefined}>
+    <Card className={cn('p-0', isActive && 'strategy-active-stop')}>
       <Card.Content className="gap-0 p-0">
         <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5 pb-4">
           <div className="min-w-0 basis-full wrap-anywhere sm:flex-1">
-            <h3 className="text-foreground mb-2 font-semibold wrap-anywhere">
+            <h3 className="strategy-name text-foreground mb-2 font-semibold wrap-anywhere">
               <Link
                 to="/dashboard/strategies/$strategyId"
                 params={{ strategyId: strategy.id }}
-                className="hover:text-brand-readable"
+                className="hover:text-brand-readable hover:underline underline-offset-4"
               >
                 {strategy.name}
               </Link>
@@ -156,11 +159,12 @@ function OwnedStrategyCard({
               </p>
             ) : null}
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             {(myRole === 'admin' || myRole === 'editor') && activeGroupId ? (
               <Button
                 size="sm"
                 variant="tertiary"
+                className="min-h-11"
                 isPending={settingCurrent}
                 onPress={() => onSetCurrent(strategy.id)}
               >
@@ -170,7 +174,7 @@ function OwnedStrategyCard({
             <Link
               to="/dashboard/strategies/$strategyId"
               params={{ strategyId: strategy.id }}
-              className="button button--sm button--tertiary"
+              className={cn('button button--sm min-h-11', isActive ? 'button--primary' : 'button--tertiary')}
             >
               Details
             </Link>
@@ -244,7 +248,7 @@ function PublicStrategyCard({
         <div className="flex flex-wrap items-start justify-between gap-3 p-4">
           <div className="min-w-0 basis-full wrap-anywhere sm:flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-foreground font-semibold">{strategy.name}</h2>
+              <h3 className="text-foreground font-semibold">{strategy.name}</h3>
               <Chip size="sm" variant="soft">
                 {diffChip.label}
               </Chip>
@@ -393,6 +397,8 @@ export function StrategiesPage() {
   const { data: strategyEconomy } = useStrategyHourlyEstimates(activeGroupId)
   const [createOpen, setCreateOpen] = useState(false)
   const [stageFilter, setStageFilter] = useState<StageFilter>('all')
+  const [librarySearch, setLibrarySearch] = useState('')
+  const [publicSearch, setPublicSearch] = useState('')
   const { tab } = Route.useSearch()
   const mode = tab ?? 'own'
   const activeQuery = mode === 'own' ? strategiesQuery : publicQuery
@@ -432,14 +438,15 @@ export function StrategiesPage() {
   )
   const activeStrategy = ownStrategies.find((strategy) => strategy.id === currentStrategyId)
   const libraryStrategies = ownStrategies.filter((strategy) => strategy.id !== currentStrategyId)
+  const libraryTerm = librarySearch.trim().toLowerCase()
+  const publicTerm = publicSearch.trim().toLowerCase()
+  const filteredLibrary = libraryStrategies.filter((strategy) => strategy.name.toLowerCase().includes(libraryTerm))
   const filteredPublicStrategies = useMemo(
-    () =>
-      stageFilter === 'all'
-        ? (publicStrategies ?? [])
-        : (publicStrategies ?? []).filter(
-            (strategy) => strategy.content_metadata?.stage === stageFilter,
-          ),
-    [publicStrategies, stageFilter],
+    () => (publicStrategies ?? []).filter((strategy) =>
+      (stageFilter === 'all' || strategy.content_metadata?.stage === stageFilter) &&
+      strategy.name.toLowerCase().includes(publicTerm),
+    ),
+    [publicStrategies, publicTerm, stageFilter],
   )
 
   const fmt = (chaos: number): string => formatCurrencyAmount(chaos, divinePrice == null ? 'chaos' : display, divinePrice ?? 1)
@@ -488,110 +495,118 @@ export function StrategiesPage() {
     )
   }
 
+  const freshness = (
+    <QueryFreshnessNotice
+      isRefreshing={activeQuery.isFetching && hasResults}
+      refreshFailed={activeQuery.isError && hasResults}
+      onRetry={activeQuery.refetch}
+    />
+  )
+  const listState = activeQuery.isLoading ? (
+    <StrategyCardsSkeleton />
+  ) : activeQuery.isError && !hasResults ? (
+    <QueryStatePanel kind="error" title="Could not load strategies" description="Try again to reload the strategy list." onRetry={activeQuery.refetch} />
+  ) : null
+
   return (
     <DashboardPage>
       <DashboardPageHeader
         title="Strategies"
         description="Plan runs with your group or browse strategies from your league."
-        actions={
-          <>
-            <ToggleButtonGroup
-              size="sm"
-              aria-label="Strategy source"
-              selectionMode="single"
-              disallowEmptySelection
-              selectedKeys={new Set([mode])}
-              onSelectionChange={(keys) => {
-                const [nextMode] = Array.from(keys)
-                if (nextMode === 'own' || nextMode === 'public') setMode(nextMode)
-              }}
-            >
-              <ToggleButton id="own">Your strategies</ToggleButton>
-              <ToggleButton id="public">
-                <ToggleButtonGroup.Separator />
-                Public
-              </ToggleButton>
-            </ToggleButtonGroup>
-            {activeGroupId && myRole !== 'viewer' ? (
-              <Button size="sm" onPress={() => setCreateOpen(true)}>
-                Create strategy
-              </Button>
-            ) : null}
-          </>
-        }
+        actions={(
+          <ToggleButtonGroup
+            size="sm"
+            aria-label="Strategy source"
+            className="[&_button]:min-h-11"
+            selectionMode="single"
+            disallowEmptySelection
+            selectedKeys={new Set([mode])}
+            onSelectionChange={(keys) => {
+              const [nextMode] = Array.from(keys)
+              if (nextMode === 'own' || nextMode === 'public') setMode(nextMode)
+            }}
+          >
+            <ToggleButton id="own">Your strategies</ToggleButton>
+            <ToggleButton id="public">
+              <ToggleButtonGroup.Separator />
+              Public
+            </ToggleButton>
+          </ToggleButtonGroup>
+        )}
       />
 
-      {mode === 'public' ? (
-        <DashboardPanel className="@container" contentClassName="gap-2">
-          <ResponsiveFilter
-            label="Strategy stage"
-            options={STRATEGY_STAGE_FILTER_OPTIONS}
-            value={stageFilter}
-            onChange={setStageFilter}
-          />
-          <p className="text-default-500 text-sm">
-            Subscriptions follow the original while it’s public.
-          </p>
-        </DashboardPanel>
-      ) : showsPoe1PlanningFields ? (
-        <p className="text-default-500 text-sm">
-          Star a strategy to link new snapshots to it.
-        </p>
-      ) : null}
-
-      {mode === 'public' && (subscribeFailed || unsubscribeFailed) ? (
-        <p className="text-danger text-sm" role="alert">
-          {subscribeFailed
-            ? 'Could not subscribe to this strategy. Try again.'
-            : 'Could not unsubscribe from this strategy. Try again.'}
-        </p>
-      ) : null}
-
-      <QueryFreshnessNotice
-        isRefreshing={activeQuery.isFetching && hasResults}
-        refreshFailed={activeQuery.isError && hasResults}
-        onRetry={activeQuery.refetch}
-      />
-      {mode === 'own' && setCurrentFailed && (
-        <p role="alert" className="text-danger text-sm">Could not change the active strategy. Try again.</p>
-      )}
-
-      {activeQuery.isLoading ? (
-        <StrategyCardsSkeleton />
-      ) : activeQuery.isError && !hasResults ? (
-        <QueryStatePanel kind="error" title="Could not load strategies" description="Try again to reload the strategy list." onRetry={activeQuery.refetch} />
-      ) : mode === 'own' ? (
-        ownStrategies.length === 0 ? (
-          <DashboardEmptyState icon={Target} tone="arcane">
-            No strategies yet. Create one or subscribe to a public strategy to get started.
-          </DashboardEmptyState>
-        ) : (
-          <>
-            <section aria-labelledby="active-strategy-heading" className="space-y-2">
-              <h2 id="active-strategy-heading" className="text-foreground text-lg font-semibold">Active strategy</h2>
+      {mode === 'own' ? (
+        <>
+          {setCurrentFailed ? (
+            <p role="alert" className="text-danger text-sm">Could not change the active strategy. Try again.</p>
+          ) : null}
+          {ownStrategies.length > 0 ? (
+            <section aria-labelledby="active-strategy-heading" className="space-y-3">
+              <h2 id="active-strategy-heading" className="strategy-active-heading text-foreground">Active strategy</h2>
               {activeStrategy ? renderOwnedStrategy(activeStrategy) : (
                 <p className="text-default-500 text-sm">Choose a strategy from your library to use for your next run.</p>
               )}
+              {capabilities?.supportsStashSnapshots ? (
+                <p className="text-default-500 text-sm">New stash snapshots are linked to the active strategy.</p>
+              ) : null}
             </section>
-            {libraryStrategies.length > 0 && (
-              <section aria-labelledby="strategy-library-heading" className="space-y-3">
-                <h2 id="strategy-library-heading" className="text-foreground text-lg font-semibold">Strategy library</h2>
-                <div className="flex flex-col gap-3">{libraryStrategies.map(renderOwnedStrategy)}</div>
-              </section>
-            )}
-          </>
-        )
-      ) : !publicStrategies?.length ? (
-        <DashboardEmptyState icon={Globe} tone="arcane">
-          No public strategies found for the {activeLeague ?? 'current'} league yet.
-        </DashboardEmptyState>
-      ) : filteredPublicStrategies.length === 0 ? (
-        <DashboardEmptyState icon={Globe} tone="arcane">
-          No public strategies matched this stage for the {activeLeague ?? 'current'} league.
-        </DashboardEmptyState>
+          ) : null}
+          <section aria-labelledby="strategy-library-heading" className="flex min-w-0 flex-col gap-3">
+            <header className="strategy-library-toolbar">
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                <h2 id="strategy-library-heading" className="strategy-library-heading text-foreground">Strategy library</h2>
+                {activeGroupId && myRole !== 'viewer' ? (
+                  <Button className="min-h-11" onPress={() => setCreateOpen(true)}>Create strategy</Button>
+                ) : null}
+              </div>
+              {libraryStrategies.length > 0 ? <StrategySearch value={librarySearch} onChange={setLibrarySearch} /> : null}
+            </header>
+            {freshness}
+            {listState ?? (ownStrategies.length === 0 ? (
+              <DashboardEmptyState icon={Target} tone="arcane">
+                No strategies yet. Create one or subscribe to a public strategy to get started.
+              </DashboardEmptyState>
+            ) : libraryStrategies.length === 0 ? (
+              <p className="text-default-500 text-sm">No other strategies yet.</p>
+            ) : filteredLibrary.length === 0 ? (
+              <p className="text-default-500 text-sm" role="status">No strategies match this name.</p>
+            ) : (
+              <div className="flex flex-col gap-3">{filteredLibrary.map(renderOwnedStrategy)}</div>
+            ))}
+          </section>
+        </>
       ) : (
-        <div className="flex flex-col gap-4">
-          {filteredPublicStrategies.map((strategy) => (
+        <section aria-labelledby="public-strategies-heading" className="flex min-w-0 flex-col gap-3">
+          <header className="strategy-library-toolbar">
+            <h2 id="public-strategies-heading" className="strategy-library-heading text-foreground">Public strategies</h2>
+            <StrategySearch value={publicSearch} onChange={setPublicSearch} />
+            <ResponsiveFilter
+              label="Strategy stage"
+              options={STRATEGY_STAGE_FILTER_OPTIONS}
+              value={stageFilter}
+              onChange={setStageFilter}
+            />
+            <p className="text-default-500 text-sm">Subscriptions follow the original while it’s public.</p>
+          </header>
+          {subscribeFailed || unsubscribeFailed ? (
+            <p className="text-danger text-sm" role="alert">
+              {subscribeFailed
+                ? 'Could not subscribe to this strategy. Try again.'
+                : 'Could not unsubscribe from this strategy. Try again.'}
+            </p>
+          ) : null}
+          {freshness}
+          {listState ?? (!publicStrategies?.length ? (
+            <DashboardEmptyState icon={Globe} tone="arcane">
+              No public strategies found for the {activeLeague ?? 'current'} league yet.
+            </DashboardEmptyState>
+          ) : filteredPublicStrategies.length === 0 ? (
+            <DashboardEmptyState icon={Globe} tone="arcane">
+              {publicTerm
+                ? 'No public strategies match this search and stage.'
+                : `No public strategies matched this stage for the ${activeLeague ?? 'current'} league.`}
+            </DashboardEmptyState>
+          ) : filteredPublicStrategies.map((strategy) => (
             <PublicStrategyCard
               key={strategy.id}
               strategy={strategy}
@@ -606,8 +621,8 @@ export function StrategiesPage() {
               fmt={fmt}
               showsPoe1PlanningFields={showsPoe1PlanningFields}
             />
-          ))}
-        </div>
+          )))}
+        </section>
       )}
 
       <CreateStrategyModal isOpen={createOpen} onClose={() => setCreateOpen(false)} />

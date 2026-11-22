@@ -6,12 +6,13 @@ import { previewGearSuggestions, previewMembers } from '../../lib/preview-fixtur
 import { getPreviewItemImage } from '../../lib/preview-item-images'
 import { UserAvatar } from '../ui/heroui-native'
 import { PreviewPageIntro, UnlockCard } from './PreviewShared'
+import { DashboardPage } from '../ui/dashboard'
 import { useGuestGateStore } from '../../store/guest-gate-store'
 export function TeaserGearPage() {
   const openGuestGate = useGuestGateStore((state) => state.open)
 
   return (
-    <div className="flex flex-col gap-6">
+    <DashboardPage>
       <PreviewPageIntro
         title="Gear"
         description="Explore a sample queue of gear suggestions, priorities, and upgrade statuses."
@@ -110,6 +111,6 @@ export function TeaserGearPage() {
           'Track open and completed upgrades.',
         ]}
       />
-    </div>
+    </DashboardPage>
   )
 }

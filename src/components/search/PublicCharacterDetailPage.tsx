@@ -93,29 +93,24 @@ export function PublicCharacterDetailView({
 
   if (!detail) {
     return (
-      <div className="flex flex-col gap-4">
-        {backLink}
-        <h1 className="text-2xl font-semibold">{detailQuery.isError ? 'Character unavailable' : 'Character not found'}</h1>
+      <DashboardPage>
+        <DashboardPageHeader backLink={backLink} title={detailQuery.isError ? 'Character unavailable' : 'Character not found'} />
         {detailQuery.isError ? (
           <QueryStatePanel kind="error" title="Could not load character" description="Try again to open the public profile." onRetry={detailQuery.refetch} />
         ) : (
           <p className="text-default-500 text-sm">This profile may have been removed or made private.</p>
         )}
-      </div>
+      </DashboardPage>
     )
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-6 wrap-anywhere">
-      {backLink}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-foreground text-2xl font-semibold">{detail.character_name}</h1>
-          <p className="text-default-500 mt-1 text-sm">
-            Shared by {detail.owner_name} · {detail.group_name}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
+    <DashboardPage className="wrap-anywhere">
+      <DashboardPageHeader
+        backLink={backLink}
+        title={detail.character_name}
+        description={`Shared by ${detail.owner_name} · ${detail.group_name}`}
+        actions={
           <Link
             to={isPreview ? '/preview/search/groups/$groupId' : '/dashboard/search/groups/$groupId'}
             params={{ groupId: detail.group_id }}
@@ -123,18 +118,22 @@ export function PublicCharacterDetailView({
           >
             View group
           </Link>
-          {displayGame ? (
-            <Chip size="sm" variant="soft">
-              {getPoeGameShortLabel(displayGame)}
-            </Chip>
-          ) : null}
-          {detail.league ? (
-            <Chip size="sm" variant="soft">
-              {detail.league}
-            </Chip>
-          ) : null}
-        </div>
-      </div>
+        }
+        metadata={
+          <>
+            {displayGame ? (
+              <Chip size="sm" variant="soft">
+                {getPoeGameShortLabel(displayGame)}
+              </Chip>
+            ) : null}
+            {detail.league ? (
+              <Chip size="sm" variant="soft">
+                {detail.league}
+              </Chip>
+            ) : null}
+          </>
+        }
+      />
 
       <Card>
         <Card.Content className="gap-4 p-5">
@@ -229,6 +228,7 @@ export function PublicCharacterDetailView({
           }
         />
       )}
-    </div>
+    </DashboardPage>
   )
 }
+import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'

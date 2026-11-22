@@ -14,6 +14,7 @@ import { ArrowRight, Coins, Sword } from 'lucide-react'
 import {
   previewGearSuggestions,
   previewHistory,
+  previewLinkedSnapshot,
   previewMembers,
   previewStrategies,
   previewWorkspace,
@@ -23,7 +24,8 @@ import { formatCurrencyAmount } from '../../lib/utils'
 import { formatWealthAxisTick } from '../../lib/wealth-history'
 import { getPreviewItemImage } from '../../lib/preview-item-images'
 import { UserAvatar } from '../ui/heroui-native'
-import { ActiveStrategySummary, DashboardPage } from '../ui/dashboard'
+import { RunOverviewData, RunRoute } from '../overview/RunRoute'
+import { DashboardPage } from '../ui/dashboard'
 import { PreviewPageIntro, UnlockCard } from './PreviewShared'
 const divinePrice = 205
 const sampleStrategy = previewStrategies[0]
@@ -45,122 +47,134 @@ export function TeaserOverviewPage() {
         description="See a sample workspace with stash history, members, strategies, and gear suggestions."
       />
 
-      <ActiveStrategySummary
+      <RunRoute
+        strategy={(
+          <>
+            <p className="run-route__strategy">{sampleStrategy.name}</p>
+            <div className="text-default-500 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+              <span className="flex items-center gap-1.5">
+                <Coins size={14} aria-hidden="true" />
+                ~{formatCurrencyAmount(sampleStrategy.map_cost, 'chaos')} per map
+              </span>
+              <Chip size="sm" variant="soft">{diffChip.label}</Chip>
+            </div>
+          </>
+        )}
+        resultTitle="Latest linked snapshot"
         result={(
-          <dl className="min-w-0 space-y-1">
-            <dt className="text-default-500 text-sm font-medium">Estimated chaos per hour</dt>
-            <dd className="workspace-lead-amount">
-              {sampleStrategy.benchmark_chaos_per_hour.toLocaleString()}
-            </dd>
-          </dl>
+          <>
+            <p className="run-route__amount">{formatCurrencyAmount(previewLinkedSnapshot.total_wealth_chaos, 'chaos')}</p>
+            <time className="text-default-500 text-xs" dateTime={previewLinkedSnapshot.created_at}>
+              {new Date(previewLinkedSnapshot.created_at).toLocaleString(undefined, {
+                month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+              })}
+            </time>
+          </>
         )}
         action={(
-          <Link to="/preview/strategies" className="button button--primary min-h-11">
-            Browse strategies <ArrowRight size={16} aria-hidden="true" />
+          <Link to="/preview/economy" hash="strategy-results" className="button button--primary">
+            View strategy results <ArrowRight size={16} aria-hidden="true" />
           </Link>
         )}
-      >
-        <p className="workspace-lead-title">{sampleStrategy.name}</p>
-        <div className="text-default-500 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-          <span className="flex items-center gap-1.5">
-            <Coins size={14} aria-hidden="true" />
-            ~{formatCurrencyAmount(sampleStrategy.map_cost, 'chaos')} per map
-          </span>
-          <Chip size="sm" variant="soft">{diffChip.label}</Chip>
-        </div>
-      </ActiveStrategySummary>
+      />
 
-      <dl className="workspace-metrics">
-        <div className="min-w-0">
-          <dt className="text-default-500 text-sm">Sample wealth</dt>
-          <dd className="text-foreground mt-1 font-semibold wrap-anywhere tabular-nums">
-            {formatCurrencyAmount(previewWorkspace.total_wealth_chaos, 'divine', divinePrice)}
-          </dd>
-        </div>
-        <div className="min-w-0">
-          <dt className="text-default-500 text-sm">Synced members</dt>
-          <dd className="text-foreground mt-1 font-semibold tabular-nums">{previewWorkspace.synced_members}</dd>
-        </div>
-        <div className="min-w-0">
-          <dt className="text-default-500 text-sm">Open gear suggestions</dt>
-          <dd className="text-foreground mt-1 font-semibold tabular-nums">{previewWorkspace.open_gear_items}</dd>
-        </div>
-      </dl>
+      <RunOverviewData
+        metrics={(
+          <>
+            <div className="min-w-0">
+              <dt className="text-default-500 text-sm">Sample wealth</dt>
+              <dd className="text-foreground mt-1 font-semibold wrap-anywhere tabular-nums">
+                {formatCurrencyAmount(previewWorkspace.total_wealth_chaos, 'divine', divinePrice)}
+              </dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-default-500 text-sm">Synced members</dt>
+              <dd className="text-foreground mt-1 font-semibold tabular-nums">{previewWorkspace.synced_members}</dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-default-500 text-sm">Open gear suggestions</dt>
+              <dd className="text-foreground mt-1 font-semibold tabular-nums">{previewWorkspace.open_gear_items}</dd>
+            </div>
+          </>
+        )}
 
-      <Card>
-        <Card.Header>
-          <div>
-            <p className="text-foreground text-sm font-semibold">Sample wealth trend</p>
-            <p className="text-default-500 mt-1 text-sm">
-              Stash value in Chaos Orbs from recent snapshots.
-            </p>
-          </div>
-        </Card.Header>
-        <Card.Content>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart
-              title="Sample stash value in Chaos Orbs"
-              desc="Use the left and right arrow keys to read snapshot values."
-              data={previewHistory}
-              margin={{ top: 4, right: 12, left: 0, bottom: 0 }}
-            >
-              <defs>
-                <linearGradient id="previewOverviewHistory" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--wealth-series)" stopOpacity={0.24} />
-                  <stop offset="95%" stopColor="var(--wealth-series)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
-              <XAxis
-                dataKey="created_at"
-                tickFormatter={(value: string) =>
-                  new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                }
-                tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tickFormatter={formatWealthAxisTick}
-                tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
-                axisLine={false}
-                tickLine={false}
-                width={42}
-              />
-              <RechartsTooltip
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null
-                  const point = payload[0].payload as (typeof previewHistory)[number]
-                  return (
-                    <div role="status" className="rounded-large border-divider bg-overlay border px-3 py-2 text-xs shadow-lg">
-                      <p className="text-default-400">
-                        {new Date(point.created_at).toLocaleString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </p>
-                      <p className="text-foreground mt-1 font-semibold">
-                        {formatCurrencyAmount(point.total_wealth_chaos, 'chaos')}
-                      </p>
-                    </div>
-                  )
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="total_wealth_chaos"
-                name="Stash value"
-                stroke="var(--wealth-series)"
-                fill="url(#previewOverviewHistory)"
-                strokeWidth={2}
-                dot={{ r: 3, fill: 'var(--wealth-series)' }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </Card.Content>
-      </Card>
+        history={(
+          <Card className="min-w-0">
+            <Card.Header>
+              <div>
+                <h2 className="text-foreground text-sm font-semibold">Sample wealth trend</h2>
+                <p className="text-default-500 mt-1 text-sm">
+                  Stash value in Chaos Orbs from recent snapshots.
+                </p>
+              </div>
+            </Card.Header>
+            <Card.Content>
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart
+                  title="Sample stash value in Chaos Orbs"
+                  desc="Use the left and right arrow keys to read snapshot values."
+                  data={previewHistory}
+                  margin={{ top: 4, right: 12, left: 0, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="previewOverviewHistory" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--wealth-series)" stopOpacity={0.24} />
+                      <stop offset="95%" stopColor="var(--wealth-series)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
+                  <XAxis
+                    dataKey="created_at"
+                    tickFormatter={(value: string) =>
+                      new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                    }
+                    tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={formatWealthAxisTick}
+                    tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={42}
+                  />
+                  <RechartsTooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null
+                      const point = payload[0].payload as (typeof previewHistory)[number]
+                      return (
+                        <div role="status" className="rounded-large border-divider bg-overlay border px-3 py-2 text-xs shadow-lg">
+                          <p className="text-default-400">
+                            {new Date(point.created_at).toLocaleString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </p>
+                          <p className="text-foreground mt-1 font-semibold">
+                            {formatCurrencyAmount(point.total_wealth_chaos, 'chaos')}
+                          </p>
+                        </div>
+                      )
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="total_wealth_chaos"
+                    name="Stash value"
+                    stroke="var(--wealth-series)"
+                    fill="url(#previewOverviewHistory)"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: 'var(--wealth-series)' }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Card.Content>
+          </Card>
+        )}
+      />
 
       <div className="min-w-0">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

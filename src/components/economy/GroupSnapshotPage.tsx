@@ -264,20 +264,21 @@ export function GroupSnapshotPage() {
     : 'All members'
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <Link to="/dashboard/economy" className="button button--sm button--tertiary mb-2 -ml-2">
+    <DashboardPage>
+      <DashboardPageHeader
+        backLink={
+          <Link to="/dashboard/economy" className="button button--sm button--tertiary">
             Back to Economy
           </Link>
-          <h1 className="text-foreground text-2xl font-semibold">Group snapshot</h1>
-          <p className="text-default-400 mt-1 text-sm">
+        }
+        title="Group snapshot"
+        description={
+          <>
             {activeLeague ?? '…'}
             {rawItems && ` · ${items.length.toLocaleString()} items across ${uniqueMembers.length} member${uniqueMembers.length !== 1 ? 's' : ''}`}
-          </p>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {snapshots?.length && !isLoading ? (
         <SnapshotPricingNotice summaries={snapshots.map((snapshot) => snapshot.pricing_summary)}
@@ -798,6 +799,7 @@ export function GroupSnapshotPage() {
           )}
         </>
       )}
-    </div>
+    </DashboardPage>
   )
 }
+import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'

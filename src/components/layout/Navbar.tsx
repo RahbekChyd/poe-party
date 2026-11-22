@@ -12,6 +12,7 @@ import { GroupSwitcher } from '../groups/GroupSwitcher'
 import { useThemeStore } from '../../store/theme-store'
 import { useGroupStore } from '../../store/group-store'
 import { useLatestSnapshots } from '../../hooks/useSnapshots'
+import { useActiveGroupContext } from '../../hooks/useGroups'
 import { useCharacterSyncFlow } from '../../hooks/useCharacterSyncFlow'
 import { useSnapshotSchedule } from '../../hooks/useSnapshotSchedule'
 import { useSnapshotStore } from '../../store/snapshot-store'
@@ -20,7 +21,7 @@ import { useCurrentUser, useMyProfile } from '../../hooks/useCurrentUser'
 import { useEarlyAccessNoticeStore } from '../../store/early-access-notice-store'
 import { useMyLatestAnalysisRuns } from '../../hooks/useGearOptimizer'
 import { hasActiveProAccess, isBillingAvailableForProfile } from '../../lib/billing'
-import { WorkspaceEngraving } from './WorkspaceFrame'
+import logo from '../../assets/poe-party-logo.png'
 export function Navbar() {
   const navigate = useNavigate()
   const { theme, toggle, setTheme } = useThemeStore()
@@ -29,6 +30,7 @@ export function Navbar() {
   const [isSigningOut, setIsSigningOut] = useState(false)
 
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
+  const { capabilities } = useActiveGroupContext(activeGroupId)
   const { data: snapshots } = useLatestSnapshots(activeGroupId)
   const { isBusy } = useCharacterSyncFlow()
   const { progress } = useSnapshotStore()
@@ -128,10 +130,9 @@ export function Navbar() {
     <>
       <header className="workspace-masthead">
         <div className="workspace-masthead-identity">
+          <img src={logo} alt="" className="hidden size-8 shrink-0 rounded-lg sm:block" />
           <GroupSwitcher />
         </div>
-
-        <WorkspaceEngraving />
 
         <div className="workspace-masthead-tools">
           <div className="hidden min-w-0 items-center sm:inline-flex">
@@ -182,7 +183,7 @@ export function Navbar() {
                   color={liveRun ? 'default' : recentlyCompletedRun?.status === 'partial' ? 'warning' : 'success'}
                 >
                   {liveRun ? (
-                    <span className="mr-1.5 size-2 shrink-0 animate-pulse rounded-full bg-info" aria-hidden="true" />
+                    <span className="mr-1.5 size-2 shrink-0 rounded-full bg-info" aria-hidden="true" />
                   ) : (
                     <FlaskConical size={12} className="mr-1.5 shrink-0" aria-hidden="true" />
                   )}
@@ -192,16 +193,18 @@ export function Navbar() {
             </div>
           ) : null}
 
-          <div className="hidden min-w-0 items-center xl:inline-flex">
-            <Chip
-              className={`h-8 max-w-52 justify-start px-3 ${snapshotIsInformational ? 'bg-info-soft text-info' : ''}`}
-              size="sm"
-              variant="soft"
-              color={snapshotIsInformational ? 'default' : freshnessColor}
-            >
-              <span className="truncate">{chipLabel}</span>
-            </Chip>
-          </div>
+          {capabilities?.supportsStashSnapshots ? (
+            <div className="hidden min-w-0 items-center lg:inline-flex">
+              <Chip
+                className={`h-8 max-w-44 justify-start px-3 xl:max-w-52 ${snapshotIsInformational ? 'bg-info-soft text-info' : ''}`}
+                size="sm"
+                variant="soft"
+                color={snapshotIsInformational ? 'default' : freshnessColor}
+              >
+                <span className="truncate">{chipLabel}</span>
+              </Chip>
+            </div>
+          ) : null}
 
           <div className="inline-flex min-w-0 items-center">
             <Dropdown>
@@ -235,6 +238,22 @@ export function Navbar() {
                   <Dropdown.Item id="display-currency" onAction={toggleCurrency}>
                     Show amounts in {currencyDisplay === 'chaos' ? 'Divine Orbs' : 'Chaos Orbs'}
                   </Dropdown.Item>
+                  {analysisChipLabel ? (
+                    <Dropdown.Item
+                      id="analysis-status"
+                      onAction={() => navigate({ to: '/dashboard/analysis' })}
+                    >
+                      {analysisChipLabel}
+                    </Dropdown.Item>
+                  ) : null}
+                  {capabilities?.supportsStashSnapshots ? (
+                    <Dropdown.Item
+                      id="snapshot-status"
+                      onAction={() => navigate({ to: '/dashboard/economy' })}
+                    >
+                      {chipLabel}
+                    </Dropdown.Item>
+                  ) : null}
                   <Dropdown.Item
                     id="early-access"
                     textValue="Early Access"

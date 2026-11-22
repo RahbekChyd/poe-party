@@ -61,6 +61,7 @@ import { useCurrencyStore } from '../../store/currency-store'
 import { DIFFICULTY_OPTIONS, MAP_REQ_FIELDS as MAP_REQ_FIELDS_CONST } from '../../lib/constants'
 import { DetailPageSkeleton } from '../layout/Skeletons'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
+import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import { formatCurrencyAmount } from '../../lib/utils'
 import { getPoeGameShortLabel } from '../../lib/poe-game'
 import { StrategyLinkedSnapshotsModal } from './StrategyLinkedSnapshotsModal'
@@ -573,19 +574,22 @@ export function StrategyDetailPage() {
     return <DetailPageSkeleton />
   }
 
+  const backLink = (
+    <Link to="/dashboard/strategies" className="button button--sm button--tertiary">
+      <ArrowLeft size={14} aria-hidden="true" /> Back to strategies
+    </Link>
+  )
+
   if (!strategy) {
     return (
-      <div className="flex flex-col gap-4">
-        <Link to="/dashboard/strategies" className="button button--sm button--tertiary self-start">
-          <ArrowLeft size={14} aria-hidden="true" /> Back to strategies
-        </Link>
-        <h1 className="text-2xl font-semibold">{isError ? 'Strategy unavailable' : 'Strategy not found'}</h1>
+      <DashboardPage>
+        <DashboardPageHeader backLink={backLink} title={isError ? 'Strategy unavailable' : 'Strategy not found'} />
         {isError ? (
           <QueryStatePanel kind="error" title="Could not load strategy" description="Try again to open this strategy." onRetry={refetch} />
         ) : (
           <p className="text-default-500 text-sm">It may have been deleted or moved out of your workspace.</p>
         )}
-      </div>
+      </DashboardPage>
     )
   }
 
@@ -656,13 +660,8 @@ export function StrategyDetailPage() {
       />
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <div className="flex min-w-0 flex-col gap-6 wrap-anywhere">
-          <div>
-            <Link to="/dashboard/strategies" className="text-default-500 hover:text-foreground inline-flex min-h-9 items-center gap-2 text-sm">
-              <ArrowLeft size={14} aria-hidden="true" /> Back to strategies
-            </Link>
-            <h1 className="text-foreground mt-2 text-2xl font-semibold tracking-tight wrap-anywhere">{strategy.name}</h1>
-          </div>
+        <DashboardPage className="wrap-anywhere">
+          <DashboardPageHeader backLink={backLink} title={strategy.name} />
           <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
             {canEditContent && !isEditing && (
               <Button
@@ -1496,7 +1495,7 @@ export function StrategyDetailPage() {
             </Card>
           ) : null}
 
-        </div>
+        </DashboardPage>
       </form>
     </>
   )

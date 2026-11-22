@@ -195,14 +195,17 @@ test('mobile dashboard menus reach secondary destinations', async ({ page }, tes
   const nav = page.getByRole('navigation', { name: 'Primary dashboard' })
 
   for (const [section, label, path] of [
+    ['Runs', 'Strategies', '/dashboard/strategies'],
     ['Runs', 'Economy', '/dashboard/economy'],
+    ['Builds', 'Analysis', '/dashboard/analysis'],
     ['Builds', 'Gear Planning', '/dashboard/gear'],
+    ['Discover', 'Directory', '/dashboard/search'],
     ['Discover', 'Services', '/dashboard/services'],
   ]) {
     const trigger = nav.getByRole('button', { name: section, exact: true })
     const menu = page.getByRole('menu', { name: section, exact: true })
-    await trigger.click()
-    await menu.getByRole('menuitem', { name: label, exact: true }).click()
+    await trigger.tap()
+    await menu.getByRole('menuitem', { name: label, exact: true }).tap()
     await expect(menu).toHaveCount(0)
     await expect(page).toHaveURL(new RegExp(`${path}/?$`))
     await expect(page.getByRole('heading', { name: label, exact: true, level: 1 })).toBeVisible()
@@ -214,6 +217,15 @@ test('mobile dashboard menus reach secondary destinations', async ({ page }, tes
     await expect(trigger).toBeFocused()
     await expectContained(page)
   }
+
+  const party = nav.getByRole('link', { name: 'Party, members' })
+  await party.tap()
+  await expect(party).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible()
+  const today = nav.getByRole('link', { name: 'Today', exact: true })
+  await today.tap()
+  await expect(today).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('heading', { name: 'Today', level: 1 })).toBeVisible()
 })
 
 test('a changed account must be looked up again before public analysis can queue', async ({ page }) => {
@@ -247,6 +259,8 @@ test('selecting a completed analysis remains active when a newer run refreshes',
 
   await page.goto('/dashboard/analysis')
   await page.bringToFront()
+  const run = page.getByRole('region', { name: 'Analysis run', exact: true })
+  await expect(run.getByRole('status').filter({ hasText: 'Analysis running' })).toBeVisible()
   await page.getByRole('button', { name: 'Run history', exact: true }).click()
   const completed = page.getByRole('button', { name: /completed.*quick/i })
   const running = page.getByRole('button', { name: /running.*quick/i })
@@ -254,8 +268,44 @@ test('selecting a completed analysis remains active when a newer run refreshes',
   await completed.click()
   await expect(completed).toHaveAttribute('aria-pressed', 'true')
   await expect(running).toHaveAttribute('aria-pressed', 'false')
+  await expect(page.getByRole('region', { name: 'Recommendations', exact: true })
+    .getByRole('button', { name: 'View Fixture Ward', exact: true })).toBeVisible()
   const initialRequests = countHistoryRequests()
   await expect.poll(countHistoryRequests, { timeout: 15_000 }).toBeGreaterThan(initialRequests)
   await expect(completed).toHaveAttribute('aria-pressed', 'true')
+  await expectContained(page)
+})
+
+test('a saved public analysis shows progress followed by results above setup', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('poe-party:guest-analysis-run-token:v1', 'fixture-run-token'))
+  const started = new Date().toISOString()
+  let completed = false
+  await page.route('**/functions/v1/guest-upgrade-analysis-status', (route) => route.fulfill({ json: {
+    run: {
+      id: 'fixture-public-run', character_name: 'FixtureWitch', target_name: 'Fixture target',
+      character_league: 'Covens', status: completed ? 'completed' : 'running',
+      created_at: started, started_at: started, completed_at: completed ? started : null,
+    },
+    plans: route.request().postDataJSON()?.include_results ? [{
+      id: 'fixture-public-recommendation', title: 'Fixture Ward', section: 'primary',
+      items: [{ id: 'fixture-public-item', item_name: 'Fixture Ward', slot: 'Body Armour', source: 'compare' }],
+    }] : [],
+  } }))
+  await page.goto('/preview/analysis')
+  await page.bringToFront()
+  const run = page.getByRole('region', { name: 'Current public run', exact: true })
+  await expect(run).toContainText('FixtureWitch compared with Fixture target')
+  await expect(run.getByText('Running', { exact: true })).toBeVisible()
+  await expect(page.getByText('Analysis in progress', { exact: true })).toBeVisible()
+  completed = true
+
+  await expect(run.getByText('Completed', { exact: true })).toBeVisible({ timeout: 15_000 })
+  const results = page.getByText('Recommendations', { exact: true })
+  const setup = page.getByRole('heading', { name: 'Find a character', exact: true })
+  await expect(results).toBeVisible()
+  expect((await run.boundingBox())!.y).toBeLessThan((await results.boundingBox())!.y)
+  expect((await results.boundingBox())!.y).toBeLessThan((await setup.boundingBox())!.y)
+  await run.getByRole('link', { name: 'Analysis setup', exact: true }).press('Enter')
+  await expect(setup).toBeInViewport()
   await expectContained(page)
 })

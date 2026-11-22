@@ -1,14 +1,14 @@
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
-import { TrendingUp } from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts'
-import { previewHistory, previewMembers, previewWorkspace } from '../../lib/preview-fixtures'
+import { previewHistory, previewLinkedSnapshot, previewMembers, previewStrategies, previewWorkspace } from '../../lib/preview-fixtures'
 import { formatCurrencyAmount } from '../../lib/utils'
 import { formatWealthAxisTick } from '../../lib/wealth-history'
 import { PreviewPageIntro, UnlockCard } from './PreviewShared'
 import { useGuestGateStore } from '../../store/guest-gate-store'
 import { DashboardPage } from '../ui/dashboard'
+import { EconomySnapshotSummary } from '../economy/EconomySnapshotSummary'
 import '../economy/economy-data.css'
 const divinePrice = 205
 
@@ -22,20 +22,17 @@ export function TeaserEconomyPage() {
         description="Explore how a PoE1 stash snapshot tracks value over time and across party members."
       />
 
-      <Card className="p-0">
-        <Card.Content className="flex flex-row flex-wrap items-center gap-3 p-4">
-          <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-3">
-            <div className="bg-wealth-series/15 flex size-10 shrink-0 items-center justify-center rounded-lg">
-              <TrendingUp size={20} className="text-wealth-series" aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-default-500 text-xs font-medium tracking-wider uppercase">Sample stash value</h2>
-              <p className="workspace-lead-amount mt-1">
-                {formatCurrencyAmount(previewWorkspace.total_wealth_chaos, 'divine', divinePrice)}
-              </p>
-              <p className="text-default-500 text-xs">{previewMembers.length} members synced</p>
-            </div>
-          </div>
+      <EconomySnapshotSummary
+        valueLabel="Sample stash value"
+        amount={<p className="workspace-lead-amount">{formatCurrencyAmount(previewWorkspace.total_wealth_chaos, 'divine', divinePrice)}</p>}
+        metadata={<span>{previewMembers.length} members synced</span>}
+        pricing={
+          <>
+            <h3 className="text-foreground text-sm font-semibold">Sample pricing</h3>
+            <p className="text-default-600 text-xs">1 div = {divinePrice}c in this example</p>
+          </>
+        }
+        actions={
           <Button
             size="sm"
             variant="primary"
@@ -49,12 +46,16 @@ export function TeaserEconomyPage() {
           >
             Snapshot stash
           </Button>
-        </Card.Content>
-      </Card>
+        }
+      />
 
-      <Card className="p-0">
-        <Card.Header className="px-4 pb-0 pt-4">
+      <Card id="strategy-results" className="scroll-mt-6 p-0">
+        <Card.Header className="flex-row flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 pb-0 pt-4">
           <h2 className="text-foreground text-sm font-semibold">Wealth history</h2>
+          <p className="text-default-600 text-sm wrap-anywhere">
+            {previewStrategies[0].name} · Linked snapshot ·{' '}
+            <strong className="text-foreground tabular-nums">{formatCurrencyAmount(previewLinkedSnapshot.total_wealth_chaos, 'chaos')}</strong>
+          </p>
         </Card.Header>
         <Card.Content className="px-2 pb-3 pt-2">
           <ResponsiveContainer width="100%" height={220}>
@@ -111,6 +112,7 @@ export function TeaserEconomyPage() {
               />
               <Area
                 type="monotone"
+                isAnimationActive={false}
                 dataKey="total_wealth_chaos"
                 stroke="var(--wealth-series)"
                 fill="url(#previewEconomyHistory)"

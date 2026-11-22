@@ -1,4 +1,4 @@
-import { useId, type CSSProperties, type ElementType, type ReactNode } from 'react'
+import type { CSSProperties, ElementType, ReactNode } from 'react'
 import { Card } from '@heroui/react/card'
 import { cn } from '../../lib/utils'
 import './dashboard-content.css'
@@ -70,13 +70,17 @@ export function DashboardPage({
 
 export function DashboardPageHeader({
   actions,
+  backLink,
   className,
   description,
+  metadata,
   title,
 }: {
   actions?: ReactNode
+  backLink?: ReactNode
   className?: string
   description?: ReactNode
+  metadata?: ReactNode
   title: ReactNode
 }) {
   return (
@@ -87,42 +91,17 @@ export function DashboardPageHeader({
       )}
     >
       <div className="min-w-0 md:flex-[1_1_22rem]">
+        {backLink ? <div className="mb-2 -ml-2">{backLink}</div> : null}
         <h1 className="dashboard-page-title wrap-anywhere">
           {title}
         </h1>
         {description ? (
           <p className="text-default-500 mt-1 max-w-3xl text-sm leading-5 wrap-anywhere">{description}</p>
         ) : null}
+        {metadata ? <div className="mt-2 flex flex-wrap items-center gap-2">{metadata}</div> : null}
       </div>
       {actions ? <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{actions}</div> : null}
     </header>
-  )
-}
-
-export function ActiveStrategySummary({
-  children,
-  result,
-  action,
-}: {
-  children: ReactNode
-  result?: ReactNode
-  action?: ReactNode
-}) {
-  const headingId = useId()
-
-  return (
-    <section aria-labelledby={headingId} data-result={result ? '' : undefined} className="workspace-lead">
-      <div className="workspace-lead-context">
-        <h2 id={headingId} className="text-default-500 text-sm font-medium">Active strategy</h2>
-        {children}
-      </div>
-      {result || action ? (
-        <div className="workspace-lead-side">
-          {result}
-          {action}
-        </div>
-      ) : null}
-    </section>
   )
 }
 

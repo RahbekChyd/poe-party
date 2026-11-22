@@ -63,7 +63,8 @@ test('completed Analysis uses the full results width across desktop breakpoints'
     for (const [width, height] of [...desktopViewports, zoomEquivalentViewport]) {
       await test.step(`${theme} ${width}×${height}`, async () => {
         await page.setViewportSize({ width, height })
-        await expect(page.getByRole('complementary').getByRole('navigation', { name: 'Primary dashboard' })).toBeVisible()
+        await expect(page.getByRole('navigation', { name: 'Primary dashboard' })
+          .getByRole('link', { name: 'Analysis', exact: true })).toHaveAttribute('aria-current', 'page')
         await expectNoHorizontalScroll(page.getByRole('main'))
         await expectNoHorizontalScroll(results)
         const panel = await results.boundingBox()

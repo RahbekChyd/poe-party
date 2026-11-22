@@ -40,6 +40,7 @@ import { ServiceDetailSection } from './ServiceDetailSection'
 import { ServiceTypeChip } from './ServiceTypeChip'
 import { WhisperCopyButton } from './WhisperCopyButton'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
+import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 const SERVICE_HEADER_CHIP_CLASS_NAME = 'px-3'
 
 interface FieldInputProps extends Omit<
@@ -231,15 +232,14 @@ export function ServiceDetailPage() {
 
   if (!service) {
     return (
-      <div className="flex flex-col gap-4">
-        {backLink}
-        <h1 className="text-2xl font-semibold">{isError ? 'Service unavailable' : 'Service not found'}</h1>
+      <DashboardPage>
+        <DashboardPageHeader backLink={backLink} title={isError ? 'Service unavailable' : 'Service not found'} />
         {isError ? (
           <QueryStatePanel kind="error" title="Could not load service" description="Try again to open your listing." onRetry={refetch} />
         ) : (
           <p className="text-default-500 text-sm">This listing may have been deleted.</p>
         )}
-      </div>
+      </DashboardPage>
     )
   }
 
@@ -278,13 +278,12 @@ export function ServiceDetailPage() {
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-6 wrap-anywhere">
-      {backLink}
-
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 basis-full sm:flex-1">
-          <h1 className="text-foreground text-2xl font-semibold">{service.title}</h1>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+    <DashboardPage className="wrap-anywhere">
+      <DashboardPageHeader
+        backLink={backLink}
+        title={service.title}
+        metadata={
+          <>
             <ServiceTypeChip
               type={service.service_type}
               className={SERVICE_HEADER_CHIP_CLASS_NAME}
@@ -306,27 +305,28 @@ export function ServiceDetailPage() {
                 Inactive
               </Chip>
             ) : null}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <AvailabilitySelector
-            availability={displayAvailability}
-            isDisabled={availabilityPending}
-            onChange={updateAvailability}
-          />
-
-          <Button
-            size="sm"
-            variant="danger-soft"
-            onPress={handleDelete}
-            isPending={deleteService.isPending}
-            aria-label="Delete service"
-          >
-            <Trash2 size={14} />
-            Delete
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <>
+            <AvailabilitySelector
+              availability={displayAvailability}
+              isDisabled={availabilityPending}
+              onChange={updateAvailability}
+            />
+            <Button
+              size="sm"
+              variant="danger-soft"
+              onPress={handleDelete}
+              isPending={deleteService.isPending}
+              aria-label="Delete service"
+            >
+              <Trash2 size={14} />
+              Delete
+            </Button>
+          </>
+        }
+      />
 
       {deleteService.isError ? (
         <p className="text-danger text-sm" role="alert">Could not delete this listing. Try again.</p>
@@ -473,7 +473,7 @@ export function ServiceDetailPage() {
           owner_name: '',
         }}
       />
-    </div>
+    </DashboardPage>
   )
 }
 

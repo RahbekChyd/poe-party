@@ -8,7 +8,7 @@ import { DIFFICULTY_CHIP, MAP_REQ_LABELS } from '../../lib/constants'
 import { getPoeGameCapabilities, getPoeGameShortLabel } from '../../lib/poe-game'
 import { formatCurrencyAmount } from '../../lib/utils'
 import { Route } from '../../routes/preview/strategies/$strategyId'
-import { PreviewPageIntro } from './PreviewShared'
+import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import { StrategyMetadataBadges, StrategySourceLinks } from '../strategies/StrategyMetadataBadges'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
 const divinePrice = 205
@@ -30,20 +30,22 @@ export function GuestStrategyDetailPage() {
     )
   }
 
+  const backLink = (
+    <Link to="/preview/strategies" className="button button--sm button--tertiary">
+      <ArrowLeft size={14} aria-hidden="true" /> Back to strategies
+    </Link>
+  )
+
   if (!strategy) {
     return (
-      <div className="flex flex-col gap-4">
-        <Link to="/preview/strategies" className="button button--sm button--tertiary self-start">
-          <ArrowLeft size={14} />
-          Back to strategies
-        </Link>
-        <h1 className="text-2xl font-semibold">{isError ? 'Strategy unavailable' : 'Strategy not found'}</h1>
+      <DashboardPage>
+        <DashboardPageHeader backLink={backLink} title={isError ? 'Strategy unavailable' : 'Strategy not found'} />
         {isError ? (
           <QueryStatePanel kind="error" title="Could not load strategy" description="Try again to open the public setup." onRetry={refetch} />
         ) : (
           <p className="text-default-500 text-sm">This strategy may have been removed or made private.</p>
         )}
-      </div>
+      </DashboardPage>
     )
   }
 
@@ -59,13 +61,9 @@ export function GuestStrategyDetailPage() {
   const fmt = (chaos: number): string => formatCurrencyAmount(chaos, 'chaos', divinePrice)
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link to="/preview/strategies" className="button button--sm button--tertiary self-start">
-        <ArrowLeft size={14} />
-        Back to strategies
-      </Link>
-
-      <PreviewPageIntro
+    <DashboardPage>
+      <DashboardPageHeader
+        backLink={backLink}
         title={strategy.name}
         description={`Published by ${strategy.group_name} · ${getPoeGameShortLabel(game)} ${strategy.group_league}`}
       />
@@ -197,6 +195,6 @@ export function GuestStrategyDetailPage() {
 
         </section>
       ) : null}
-    </div>
+    </DashboardPage>
   )
 }

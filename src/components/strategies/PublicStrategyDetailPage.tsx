@@ -16,6 +16,7 @@ import { formatCurrencyAmount } from '../../lib/utils'
 import { DetailPageSkeleton } from '../layout/Skeletons'
 import { StrategyMetadataBadges, StrategySourceLinks } from './StrategyMetadataBadges'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
+import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 export function PublicStrategyDetailPage() {
   const { strategyId } = Route.useParams()
   const activeGroupId = useGroupStore((state) => state.activeGroupId)
@@ -41,19 +42,22 @@ export function PublicStrategyDetailPage() {
     return <DetailPageSkeleton />
   }
 
+  const backLink = (
+    <Link to="/dashboard/strategies" search={{ tab: 'public' }} className="button button--sm button--tertiary">
+      <ArrowLeft size={14} aria-hidden="true" /> Back to strategies
+    </Link>
+  )
+
   if (!strategy) {
     return (
-      <div className="flex flex-col gap-4">
-        <Link to="/dashboard/strategies" search={{ tab: 'public' }} className="button button--sm button--tertiary self-start">
-          <ArrowLeft size={14} aria-hidden="true" /> Back to strategies
-        </Link>
-        <h1 className="text-2xl font-semibold">{isError ? 'Strategy unavailable' : 'Strategy not found'}</h1>
+      <DashboardPage>
+        <DashboardPageHeader backLink={backLink} title={isError ? 'Strategy unavailable' : 'Strategy not found'} />
         {isError ? (
           <QueryStatePanel kind="error" title="Could not load strategy" description="Try again to open the public setup." onRetry={refetch} />
         ) : (
           <p className="text-default-500 text-sm">This strategy may have been removed or made private.</p>
         )}
-      </div>
+      </DashboardPage>
     )
   }
 
@@ -66,19 +70,13 @@ export function PublicStrategyDetailPage() {
   const hasSetup = hasAtlas || hasMapSetup || showsThreadSetup || !!strategy.content_metadata?.source_refs.length
 
   return (
-    <div className="flex min-w-0 flex-col gap-6 wrap-anywhere">
-      <Link to="/dashboard/strategies" search={{ tab: 'public' }} className="button button--sm button--tertiary self-start">
-        <ArrowLeft size={14} aria-hidden="true" /> Back to strategies
-      </Link>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 basis-full sm:flex-1">
-          <h1 className="text-foreground text-2xl font-semibold">{strategy.name}</h1>
-          <p className="text-default-500 mt-1 text-sm">
-            Published by {strategy.group_name} · {strategy.group_league}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {strategy.live_subscription_id ? (
+    <DashboardPage className="wrap-anywhere">
+      <DashboardPageHeader
+        backLink={backLink}
+        title={strategy.name}
+        description={`Published by ${strategy.group_name} · ${strategy.group_league}`}
+        actions={
+          strategy.live_subscription_id ? (
             <Link
               to="/dashboard/strategies/$strategyId"
               params={{ strategyId: strategy.live_subscription_id }}
@@ -110,9 +108,9 @@ export function PublicStrategyDetailPage() {
                 </>
               )}
             </Button>
-          ) : null}
-        </div>
-      </div>
+          ) : null
+        }
+      />
 
       {subscribeFailed ? (
         <p className="text-danger text-sm" role="alert">Could not subscribe to this strategy. Try again.</p>
@@ -251,6 +249,6 @@ export function PublicStrategyDetailPage() {
           ) : null}
         </section>
       ) : null}
-    </div>
+    </DashboardPage>
   )
 }

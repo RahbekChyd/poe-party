@@ -419,26 +419,22 @@ export function SnapshotDetailPage() {
   return (
     <>
       {modal}
-      <div className="flex flex-col gap-6">
-        {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <Link to="/dashboard/economy" className="button button--sm button--tertiary mb-2 -ml-2">
+      <DashboardPage>
+        <DashboardPageHeader
+          backLink={
+            <Link to="/dashboard/economy" className="button button--sm button--tertiary">
               Back to Economy
             </Link>
-            <h1 className="text-foreground text-2xl font-semibold wrap-anywhere">{displayName}’s snapshot</h1>
-            <p className="text-default-400 mt-1 text-sm">
-              {activeLeague ?? '…'} · {age.label}
-            </p>
-          </div>
-          {canSnapshot && (
+          }
+          title={`${displayName}’s snapshot`}
+          description={`${activeLeague ?? '…'} · ${age.label}`}
+          actions={canSnapshot && (
             <Button
               size="sm"
               variant="tertiary"
               isPending={isBusy}
               isDisabled={!activeGroupId}
               onPress={() => triggerSnapshot(activeGroupId!, activeLeague)}
-              className="shrink-0 sm:mt-8"
             >
               {({ isPending }) => (
                 <>
@@ -448,7 +444,7 @@ export function SnapshotDetailPage() {
               )}
             </Button>
           )}
-        </div>
+        />
 
         {(snap || currentHistoryPoint) && !isLoading && (
           <SnapshotPricingNotice summaries={[capturePricing]}
@@ -1324,7 +1320,8 @@ export function SnapshotDetailPage() {
             )}
           </>
         )}
-      </div>
+      </DashboardPage>
     </>
   )
 }
+import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'

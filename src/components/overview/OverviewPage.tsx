@@ -49,8 +49,9 @@ import { filterHistoryByRange, formatWealthAxisTick, type WealthHistoryRange } f
 import { useCurrencyStore } from '../../store/currency-store'
 import { STATUS_COLOR, DIFFICULTY_CHIP, IMPORTANCE_CHIP } from '../../lib/constants'
 import { WealthHistoryRangeSelector } from '../economy/WealthHistoryRangeSelector'
-import { ActiveStrategySummary, DashboardPage, DashboardPageHeader } from '../ui/dashboard'
+import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
+import { RunOverviewData, RunRoute } from './RunRoute'
 
 export function OverviewPage() {
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
@@ -217,32 +218,52 @@ export function OverviewPage() {
   else if (!profile?.poe_token_expires_at) captureMessage = 'Connect your PoE account in Economy to capture a linked snapshot.'
   else if (!activeLeague) captureMessage = 'An active league is required to capture a linked snapshot.'
 
+  let resultTitle = 'Latest result'
+  if (latestResult) {
+    resultTitle = resultPricing?.status === 'partial' ? 'Latest linked priced subtotal' : 'Latest linked snapshot'
+  }
+  let emptyResultMessage = captureMessage
+  if (!supportsSnapshots) emptyResultMessage = 'Linked stash snapshots are available in PoE1.'
+  else if (strategiesLoading) emptyResultMessage = 'Checking for a linked snapshot…'
+  else if (!activeStrategy) emptyResultMessage = 'Snapshots are linked to the active strategy.'
+
   return (
     <DashboardPage className="@container">
       <DashboardPageHeader title="Today" />
       {snapshotModal}
-      <ActiveStrategySummary
+      <RunRoute
+        strategy={strategiesLoading ? (
+          <p className="text-default-500 text-sm" role="status">Loading strategies…</p>
+        ) : activeStrategy ? (
+          <Link
+            to="/dashboard/strategies/$strategyId"
+            params={{ strategyId: activeStrategy.id }}
+            className="run-route__strategy"
+          >
+            {activeStrategy.name}
+          </Link>
+        ) : (
+          <p className="text-default-500 text-sm">
+            {strategiesError ? 'Could not load the active strategy.' : 'Choose a strategy to use for your next run.'}
+          </p>
+        )}
+        resultTitle={resultTitle}
         result={latestResult ? (
-          <dl className="min-w-0 space-y-1">
-            <dt className="text-default-500 text-sm font-medium">
-              {resultPricing?.status === 'partial' ? 'Latest linked priced subtotal' : 'Latest linked snapshot'}
-            </dt>
-            <dd>
-              {resultPricing?.status === 'unavailable' ? (
-                <p className="text-foreground text-xl font-semibold">Pricing unavailable</p>
-              ) : (
-                <p className="workspace-lead-amount">{resultValue}</p>
+          <>
+            {resultPricing?.status === 'unavailable' ? (
+              <p className="text-foreground text-xl font-semibold">Pricing unavailable</p>
+            ) : (
+              <p className="run-route__amount">{resultValue}</p>
+            )}
+            <div className="text-default-500 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+              <time dateTime={latestResult.created_at}>{resultDate}</time>
+              {resultPricing?.status === 'partial' && (
+                <span>{resultPricing.unpriced_item_count.toLocaleString()} unpriced items</span>
               )}
-              <div className="text-default-500 mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-                <time dateTime={latestResult.created_at}>{resultDate}</time>
-                {resultPricing?.status === 'partial' && (
-                  <span>{resultPricing.unpriced_item_count.toLocaleString()} unpriced items</span>
-                )}
-              </div>
-            </dd>
-          </dl>
-        ) : null}
-        action={!strategiesLoading && (activeStrategy ? (
+            </div>
+          </>
+        ) : <p className="text-default-500 text-sm">{emptyResultMessage}</p>}
+        action={strategiesLoading ? <Skeleton className="h-11 w-36 max-w-full rounded-lg" /> : activeStrategy ? (
           supportsSnapshots && !latestResult && canCapture && !historyPending && !historyError ? (
             <Button
               className="min-h-11"
@@ -269,210 +290,192 @@ export function OverviewPage() {
           <Link to="/dashboard/strategies" className="button button--primary min-h-11">
             Browse strategies <ArrowRight size={16} aria-hidden="true" />
           </Link>
-        ))}
-      >
-        {strategiesLoading ? (
-          <p className="text-default-500 text-sm" role="status">Loading strategies…</p>
-        ) : activeStrategy ? (
-          <>
-            <Link
-              to="/dashboard/strategies/$strategyId"
-              params={{ strategyId: activeStrategy.id }}
-              className="workspace-lead-title"
-            >
-              {activeStrategy.name}
-            </Link>
-            {supportsSnapshots && !latestResult ? (
-              <p className="text-default-500 text-sm">{captureMessage}</p>
-            ) : null}
-          </>
-        ) : (
-          <p className="text-default-500 text-sm">
-            {strategiesError ? 'Could not load the active strategy.' : 'Choose a strategy to use for your next run.'}
-          </p>
         )}
-      </ActiveStrategySummary>
+      />
 
       {!isMarketOnly && valuationPartial && (
         <p role="status" className="text-warning text-sm">Partial pricing: some items have no price estimate.</p>
       )}
-      <dl className="workspace-metrics">
-        <div className="min-w-0">
-          <dt className="text-default-500 text-sm">{isMarketOnly ? 'Market' : wealthLabel}</dt>
-          <dd className="mt-1">
-            {isMarketOnly ? (
-              <Link to="/dashboard/economy" className="text-foreground hover:text-brand-readable text-base font-semibold">
-                Market overview
-              </Link>
-            ) : snapsLoading || economyLoading ? (
-              <Skeleton className="h-6 w-24 rounded-md" />
-            ) : (
-              <Link
-                to="/dashboard/economy"
-                className="text-foreground hover:text-brand-readable text-base font-semibold wrap-anywhere tabular-nums"
-              >
-                {wealthValue}
-              </Link>
-            )}
-          </dd>
-        </div>
+      <RunOverviewData
+        metrics={(
+          <>
+            <div className="min-w-0">
+              <dt className="text-default-500 text-sm">{isMarketOnly ? 'Market' : wealthLabel}</dt>
+              <dd className="mt-1">
+                {isMarketOnly ? (
+                  <Link to="/dashboard/economy" className="text-foreground hover:text-brand-readable text-base font-semibold">
+                    Market overview
+                  </Link>
+                ) : snapsLoading || economyLoading ? (
+                  <Skeleton className="h-6 w-24 rounded-md" />
+                ) : (
+                  <Link
+                    to="/dashboard/economy"
+                    className="text-foreground hover:text-brand-readable text-base font-semibold wrap-anywhere tabular-nums"
+                  >
+                    {wealthValue}
+                  </Link>
+                )}
+              </dd>
+            </div>
 
-        {!isSolo && (
-          <div className="min-w-0">
-            <dt className="text-default-500 text-sm">{isMarketOnly ? 'Party members' : 'Synced members'}</dt>
-            <dd className="text-foreground mt-1 text-base font-semibold tabular-nums">
-              {!isMarketOnly && snapsLoading ? (
-                <Skeleton className="h-6 w-16 rounded-md" />
-              ) : (
-                isMarketOnly ? (members?.length ?? '—') : syncedCount + ' / ' + (members?.length ?? '—')
-              )}
-            </dd>
-          </div>
-        )}
-
-        <div className="min-w-0">
-          <dt className="text-default-500 text-sm">Gear for me</dt>
-          <dd className="mt-1">
-            {gearLoading ? (
-              <Skeleton className="h-6 w-14 rounded-md" />
-            ) : (
-              <Link to="/dashboard/gear" className="text-foreground hover:text-brand-readable text-base font-semibold tabular-nums">
-                {myGearCount}
-              </Link>
-            )}
-          </dd>
-        </div>
-
-        {!isSolo && !isMarketOnly && (
-          <div className="min-w-0">
-            <dt className="text-default-500 text-sm" title="The member who has gone the longest without taking a snapshot">Oldest snapshot</dt>
-            <dd className="mt-1">
-              {snapsLoading ? (
-                <Skeleton className="h-6 w-20 rounded-md" />
-              ) : stalestMember ? (
-                <>
-                  <p className="text-foreground text-base font-semibold">{stalestMember.age.label}</p>
-                  <p className="text-default-500 text-xs wrap-anywhere">{stalestMember.name}</p>
-                </>
-              ) : (
-                <p className="text-default-500 text-sm">No snapshots</p>
-              )}
-            </dd>
-          </div>
-        )}
-      </dl>
-
-      {/* Group Wealth History */}
-      {!isMarketOnly && groupHistory && groupHistory.length > 0 && (
-        <Card className="p-0">
-          <Card.Header className="px-4 pt-4 pb-0">
-            <div className="flex w-full flex-wrap items-start justify-between gap-3">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <h2 className="text-foreground text-sm font-semibold">
-                  {isSolo ? 'Wealth history' : 'Group wealth history'}
-                </h2>
-                <WealthHistoryRangeSelector
-                  value={groupHistoryRange}
-                  onChange={setGroupHistoryRange}
-                />
+            {!isSolo && (
+              <div className="min-w-0">
+                <dt className="text-default-500 text-sm">{isMarketOnly ? 'Party members' : 'Synced members'}</dt>
+                <dd className="text-foreground mt-1 text-base font-semibold tabular-nums">
+                  {!isMarketOnly && snapsLoading ? (
+                    <Skeleton className="h-6 w-16 rounded-md" />
+                  ) : (
+                    isMarketOnly ? (members?.length ?? '—') : syncedCount + ' / ' + (members?.length ?? '—')
+                  )}
+                </dd>
               </div>
-              <div className="flex items-center justify-center gap-3">
-                <p className={`text-base font-semibold ${groupRateColor}`}>
-                  {groupChaosPerHour == null ? 'Rate unavailable' : fmtRate(groupChaosPerHour)}
-                </p>
-                <div
-                  className={`border-divider/60 flex items-center gap-1.5 border-l pl-3 text-xs ${groupTrendColor}`}
-                >
-                  <GroupTrendIcon size={13} aria-hidden="true" />
-                  <span>{groupTrendLabel}</span>
+            )}
+
+            <div className="min-w-0">
+              <dt className="text-default-500 text-sm">Gear for me</dt>
+              <dd className="mt-1">
+                {gearLoading ? (
+                  <Skeleton className="h-6 w-14 rounded-md" />
+                ) : (
+                  <Link to="/dashboard/gear" className="text-foreground hover:text-brand-readable text-base font-semibold tabular-nums">
+                    {myGearCount}
+                  </Link>
+                )}
+              </dd>
+            </div>
+
+            {!isSolo && !isMarketOnly && (
+              <div className="min-w-0">
+                <dt className="text-default-500 text-sm" title="The member who has gone the longest without taking a snapshot">Oldest snapshot</dt>
+                <dd className="mt-1">
+                  {snapsLoading ? (
+                    <Skeleton className="h-6 w-20 rounded-md" />
+                  ) : stalestMember ? (
+                    <>
+                      <p className="text-foreground text-base font-semibold">{stalestMember.age.label}</p>
+                      <p className="text-default-500 text-xs wrap-anywhere">{stalestMember.name}</p>
+                    </>
+                  ) : (
+                    <p className="text-default-500 text-sm">No snapshots</p>
+                  )}
+                </dd>
+              </div>
+            )}
+          </>
+        )}
+
+        history={!isMarketOnly && groupHistory && groupHistory.length > 0 && (
+          <Card className="min-w-0 p-0">
+            <Card.Header className="px-4 pt-4 pb-0">
+              <div className="flex w-full flex-wrap items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <h2 className="text-foreground text-sm font-semibold">
+                    {isSolo ? 'Wealth history' : 'Group wealth history'}
+                  </h2>
+                  <WealthHistoryRangeSelector
+                    value={groupHistoryRange}
+                    onChange={setGroupHistoryRange}
+                  />
+                </div>
+                <div className="flex items-center justify-center gap-3">
+                  <p className={`text-base font-semibold ${groupRateColor}`}>
+                    {groupChaosPerHour == null ? 'Rate unavailable' : fmtRate(groupChaosPerHour)}
+                  </p>
+                  <div
+                    className={`border-divider/60 flex items-center gap-1.5 border-l pl-3 text-xs ${groupTrendColor}`}
+                  >
+                    <GroupTrendIcon size={13} aria-hidden="true" />
+                    <span>{groupTrendLabel}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Card.Header>
-          <Card.Content className="px-2 pt-2 pb-3">
-            <p className="text-default-500 px-2 text-xs">Stash value (chaos)</p>
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart
-                title="Stash value in Chaos Orbs"
-                desc="Use the left and right arrow keys to read snapshot values."
-                data={visibleGroupHistory}
-                margin={{ top: 4, right: 12, left: 0, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="overviewWealthGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--wealth-series)" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="var(--wealth-series)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
-                <XAxis
-                  dataKey="created_at"
-                  tickFormatter={(v: string) => {
-                    const d = new Date(v)
-                    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                  }}
-                  tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tickFormatter={formatWealthAxisTick}
-                  tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={44}
-                />
-                <RechartsTooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null
-                    const point = payload[0].payload as GroupWealthDataPoint
-                    const label = new Date(point.created_at).toLocaleString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })
-                    return (
-                      <div role="status" className="bg-overlay border-divider rounded-lg border px-3 py-2 text-xs shadow-lg">
-                        <p className="text-default-400 mb-1">{label}</p>
-                        <p className="text-foreground font-semibold">
-                          {point.pricing_summary?.status === 'unavailable'
-                            ? 'Pricing unavailable'
-                            : point.pricing_summary?.status === 'partial'
-                              ? `Priced subtotal: ${fmt(point.total_wealth_chaos)}`
-                              : fmt(point.total_wealth_chaos)}
-                        </p>
-                        {!isSolo && (
-                          <>
-                            <p className="text-default-400 mt-0.5">
-                              {point.member_count} member{point.member_count !== 1 ? 's' : ''}
-                            </p>
-                            {point.member_wealth_breakdown.map((m) => (
-                              <p key={m.user_id} className="text-default-500 text-xs">
-                                {m.display_name}: {fmt(m.total_chaos)}
+            </Card.Header>
+            <Card.Content className="px-2 pt-2 pb-3">
+              <p className="text-default-500 px-2 text-xs">Stash value (chaos)</p>
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart
+                  title="Stash value in Chaos Orbs"
+                  desc="Use the left and right arrow keys to read snapshot values."
+                  data={visibleGroupHistory}
+                  margin={{ top: 4, right: 12, left: 0, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="overviewWealthGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--wealth-series)" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="var(--wealth-series)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
+                  <XAxis
+                    dataKey="created_at"
+                    tickFormatter={(v: string) => {
+                      const d = new Date(v)
+                      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                    }}
+                    tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={formatWealthAxisTick}
+                    tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={44}
+                  />
+                  <RechartsTooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null
+                      const point = payload[0].payload as GroupWealthDataPoint
+                      const label = new Date(point.created_at).toLocaleString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                      return (
+                        <div role="status" className="bg-overlay border-divider rounded-lg border px-3 py-2 text-xs shadow-lg">
+                          <p className="text-default-400 mb-1">{label}</p>
+                          <p className="text-foreground font-semibold">
+                            {point.pricing_summary?.status === 'unavailable'
+                              ? 'Pricing unavailable'
+                              : point.pricing_summary?.status === 'partial'
+                                ? `Priced subtotal: ${fmt(point.total_wealth_chaos)}`
+                                : fmt(point.total_wealth_chaos)}
+                          </p>
+                          {!isSolo && (
+                            <>
+                              <p className="text-default-400 mt-0.5">
+                                {point.member_count} member{point.member_count !== 1 ? 's' : ''}
                               </p>
-                            ))}
-                          </>
-                        )}
-                      </div>
-                    )
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="total_wealth_chaos"
-                  name="Stash value"
-                  stroke="var(--wealth-series)"
-                  fill="url(#overviewWealthGrad)"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: 'var(--wealth-series)' }}
-                  activeDot={{ r: 6, fill: 'var(--wealth-series)', stroke: 'var(--foreground)', strokeWidth: 2 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Card.Content>
-        </Card>
-      )}
+                              {point.member_wealth_breakdown.map((m) => (
+                                <p key={m.user_id} className="text-default-500 text-xs">
+                                  {m.display_name}: {fmt(m.total_chaos)}
+                                </p>
+                              ))}
+                            </>
+                          )}
+                        </div>
+                      )
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="total_wealth_chaos"
+                    name="Stash value"
+                    stroke="var(--wealth-series)"
+                    fill="url(#overviewWealthGrad)"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: 'var(--wealth-series)' }}
+                    activeDot={{ r: 6, fill: 'var(--wealth-series)', stroke: 'var(--foreground)', strokeWidth: 2 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Card.Content>
+          </Card>
+        )}
+      />
 
       <div className="@container">
         <div className="grid items-start gap-4 @min-[52rem]:grid-cols-2">

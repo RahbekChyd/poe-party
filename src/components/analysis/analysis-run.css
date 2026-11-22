@@ -1,0 +1,22 @@
+@layer components {
+  .analysis-run-summary {
+    display: grid;
+    min-inline-size: 0;
+    gap: 0.875rem;
+    padding: 1rem;
+    border-block: 1px solid var(--separator);
+    background: var(--surface);
+  }
+
+  .analysis-run-progress {
+    min-inline-size: 0;
+    padding-block-start: 0.875rem;
+    border-block-start: 1px solid var(--separator);
+  }
+
+  @media (width >= 48rem) {
+    .analysis-run-summary {
+      padding: 1rem 1.25rem;
+    }
+  }
+}

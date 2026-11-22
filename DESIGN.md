@@ -2,7 +2,7 @@
 
 ## Overview
 
-The entry pages establish the featured league with original art and editorial typography. Inside the workspace, the same colors and a thin line along the navigation and masthead identify the league. Dense screens keep their focus on data, controls, and the next action.
+The entry pages establish the featured league with original art and editorial typography. Inside the workspace, a horizontal route marks the current destination and carries the seasonal artwork at its edge. Dense screens keep their focus on data, controls, and the next action.
 
 ## Colors
 
@@ -14,10 +14,14 @@ Use Cormorant Garamond at weight 600 for display headings and prominent workspac
 
 ## Layout
 
-The landing page pairs a wide environmental image with a short product headline, two actions, and a sample result. Sign-in crops into the same scene and uses an opaque panel for the connection action and access details. Working screens share a compact title and filter rhythm. The dashboard navigation moves into a labeled bottom dock on phones.
+The landing page pairs a wide environmental image with a short product headline, two actions, and a sample result. Sign-in crops into the same scene and uses an opaque panel for the connection action and access details.
+
+At 1024 CSS pixels, the compact workspace bar sits above a route line with labeled stops. The current marker branches down toward the page. Below that width, the dashboard uses a five-group bottom dock with safe-area spacing. The sample keeps its four workspace stops and an Explore menu. The selection branch changes immediately when reduced motion is requested.
+
+The page canvas extends to the viewport gutters. Shared page headings sit above opaque controls and reading surfaces. Today connects the active strategy, its latest linked snapshot, and the next action in a stepped sequence that stacks vertically on narrow screens. Wealth history and metrics sit together where space allows. Economy places stash value, pricing coverage, and snapshot controls together, followed by full-width history and breakdown. Analysis places current progress above recommendations.
 
 ## Components
 
 Register new seasons in `src/lib/league-theme.ts` and add light and dark palette values in `src/index.css`. The featured preset drives home and sign-in. The sample and each active workspace resolve their own game and league. Theme scope is applied to the document so portal-based controls inherit it, while the saved light or dark preference remains independent.
 
-Supply a desktop illustration, a close crop for phones and sign-in, and a narrow crop for the desktop masthead. Keep each crop at or below 300, 150, and 50 KiB respectively. The Covens plate was generated with ImageGen as an original moonlit stone circle in a dark woodland, with a single blue-white light on the right and deep shadow on the left for live text.
+Supply a desktop illustration, a close crop for phones and sign-in, and a narrow crop for the desktop route line. Keep each crop at or below 300, 150, and 50 KiB respectively. The Covens plate was generated with ImageGen as an original moonlit stone circle in a dark woodland, with a single blue-white light on the right and deep shadow on the left for live text.

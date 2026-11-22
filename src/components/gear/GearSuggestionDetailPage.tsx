@@ -17,7 +17,7 @@ import { IMPORTANCE_CHIP, IMPORTANCE_OPTIONS } from '../../lib/constants'
 import { getAvatarColor } from '../../lib/utils'
 import { ItemSearchAutocomplete, type SelectedItem } from '../shared/ItemSearchAutocomplete'
 import { FieldInput, FieldTextArea, ListBox, SelectField, UserAvatar } from '../ui/heroui-native'
-import { DashboardPage } from '../ui/dashboard'
+import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
 const STATUS_OPTIONS: { key: GearStatus; label: string }[] = [
   { key: 'open', label: 'Open' },
@@ -149,19 +149,23 @@ function GearSuggestionDetails({ suggestionId }: { suggestionId: string }) {
     return <DetailPageSkeleton />
   }
 
+  const backLink = (
+    <Link to="/dashboard/gear" className="button button--sm button--tertiary">
+      <ArrowLeft size={14} aria-hidden="true" />
+      Back to Gear Planning
+    </Link>
+  )
+
   if (!suggestion) {
     return (
-      <div className="flex flex-col gap-4">
-        <Link to="/dashboard/gear" className="button button--sm button--tertiary self-start">
-          <ArrowLeft size={14} aria-hidden="true" />
-          Back to Gear Planning
-        </Link>
+      <DashboardPage>
+        <DashboardPageHeader backLink={backLink} title="Gear suggestion" />
         {isError ? (
           <QueryStatePanel kind="error" title="Couldn’t load the suggestion" description="Try again to view the upgrade." onRetry={refetch} />
         ) : (
           <QueryStatePanel kind="empty" title="Suggestion unavailable" description="It may have been removed or belong to a workspace you can’t access." />
         )}
-      </div>
+      </DashboardPage>
     )
   }
 
@@ -171,18 +175,22 @@ function GearSuggestionDetails({ suggestionId }: { suggestionId: string }) {
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
       <DashboardPage>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link to="/dashboard/gear" className="button button--sm button--tertiary -ml-2">
-            <ArrowLeft size={14} aria-hidden="true" />
-            Back to Gear Planning
-          </Link>
+        <DashboardPageHeader
+          backLink={backLink}
+          title={suggestion.item_name || 'Gear suggestion'}
+          metadata={
+            <>
+              <Chip size="sm" variant="soft">
+                {importanceChip.label} Importance
+              </Chip>
+              <Chip size="sm" variant="soft">
+                {getActionLabel(suggestion.action_type)}
+              </Chip>
+            </>
+          }
+        />
+        {canEdit && (
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <Chip size="sm" variant="soft">
-              {importanceChip.label} Importance
-            </Chip>
-            <Chip size="sm" variant="soft">
-              {getActionLabel(suggestion.action_type)}
-            </Chip>
             {isAdmin && (
               <Button
                 isIconOnly
@@ -202,12 +210,12 @@ function GearSuggestionDetails({ suggestionId }: { suggestionId: string }) {
                 {suggestion.admin_locked ? <Unlock size={14} /> : <Lock size={14} />}
               </Button>
             )}
-            {canEdit && saveError && (
+            {saveError && (
               <p role="alert" className="text-danger text-xs">
                 Couldn’t save the suggestion. Try again.
               </p>
             )}
-            {canEdit && (confirmingDelete ? (
+            {confirmingDelete ? (
               <>
                 <span className="text-default-500 text-xs">Delete this gear suggestion?</span>
                 <Button
@@ -289,11 +297,10 @@ function GearSuggestionDetails({ suggestionId }: { suggestionId: string }) {
                   </div>
                 ) : null}
               </>
-            ))}
+            )}
           </div>
-        </div>
+        )}
 
-        <h1 className="text-foreground text-2xl font-semibold wrap-anywhere">{suggestion.item_name || 'Gear suggestion'}</h1>
         <Card>
           <Card.Header className="px-5 pb-0 pt-5">
             <h2 className="text-foreground text-sm font-semibold">Suggestion Details</h2>

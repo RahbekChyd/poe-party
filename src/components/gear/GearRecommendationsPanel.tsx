@@ -99,6 +99,7 @@ import type {
 import { CardListSkeleton } from '../layout/Skeletons'
 import { RecommendationItemRow } from './RecommendationItemRow'
 import { RecommendationsInsightsRail } from '../analysis/RecommendationsInsightsRail'
+import '../analysis/analysis-run.css'
 import {
   FieldInput,
   FieldTextArea,
@@ -1749,7 +1750,7 @@ function RunActivityStrip({
   elapsedLabel?: string | null
 }) {
   return (
-    <div className={`rounded-medium border p-3 ${waitLabel ? 'border-warning/40 bg-warning-soft' : 'border-divider bg-content1'}`}>
+    <div className="analysis-run-progress">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <div className="mt-0.5 shrink-0" aria-hidden="true">
@@ -1788,7 +1789,7 @@ function RunActivityStrip({
       {timeline && timeline.length > 0 ? (
         <details className="mt-3">
           <summary className="cursor-pointer text-sm font-medium">Run progress</summary>
-          <ol className="mt-2 flex flex-col gap-1.5">
+          <ol className="mt-2 grid gap-x-4 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-3">
             {timeline.map((step) => {
               const active = step.status === 'active'
               const StepIcon = step.status === 'done' ? Check : active ? ArrowRight : Circle
@@ -3503,8 +3504,8 @@ export function GearRecommendationsPanel() {
 
   return (
     <div className="@container flex min-w-0 flex-col gap-5">
-      {selectedRun || runsLoading || runsFailed ? (
-        <section aria-labelledby="analysis-run-title" className="border-divider min-w-0 border-b pb-4">
+      {selectedRun || latestLiveRun || runsLoading || runsFailed ? (
+        <section aria-labelledby="analysis-run-title" className="analysis-run-summary">
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <h2 id="analysis-run-title" className="text-foreground text-base font-semibold">Analysis run</h2>
@@ -3516,11 +3517,19 @@ export function GearRecommendationsPanel() {
                 ].filter(Boolean).join(' · ')}
               </p>
               {selectedRun ? (
-                <p className="text-default-500 mt-1 text-sm wrap-anywhere">
-                  Selected run: {getAnalysisModeLabel(selectedRun.analysis_mode)} · {selectedRun.status}
-                  {selectedRun.completed_at ? ' · ' + formatRelativeTimestamp(selectedRun.completed_at) : ''}
-                  {selectedRunContextDetails.length ? ' · ' + selectedRunContextDetails.join(' · ') : ''}
-                </p>
+                <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  {latestLiveRun?.id !== selectedRun.id ? (
+                    <Chip size="sm" color={RUN_STATUS_COLORS[selectedRun.status]} variant="soft" className="capitalize">
+                      {selectedRun.status}
+                    </Chip>
+                  ) : null}
+                  <p className="text-default-600 min-w-0 text-sm wrap-anywhere">
+                    {latestLiveRun && latestLiveRun.id !== selectedRun.id ? 'Viewing previous run · ' : ''}
+                    {getAnalysisModeLabel(selectedRun.analysis_mode)}
+                    {selectedRun.completed_at ? ' · ' + formatRelativeTimestamp(selectedRun.completed_at) : ''}
+                    {selectedRunContextDetails.length ? ' · ' + selectedRunContextDetails.join(' · ') : ''}
+                  </p>
+                </div>
               ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
@@ -3547,7 +3556,31 @@ export function GearRecommendationsPanel() {
               ) : null}
             </div>
           </div>
-          <div id="analysis-run-history" hidden={!historyExpanded} className="mt-3">
+          {latestLiveRun ? (
+            <RunActivityStrip
+              title={
+                latestLiveRun.summary?.queue_submission_pending === true
+                  ? 'Preparing your analysis'
+                  : liveRunWaitInfo
+                    ? 'Waiting for trade cooldown'
+                    : latestLiveRun.status === 'queued'
+                      ? 'Analysis queued'
+                      : 'Analysis running'
+              }
+              detail={getRunStatusCopy(latestLiveRun, nowMs)}
+              waitLabel={liveRunWaitInfo ? 'Resumes in ' + formatCountdown(liveRunWaitInfo.remainingMs) : null}
+              timeline={
+                latestLiveRun.status === 'running'
+                  ? getRunPhaseTimeline(latestLiveRun, getCurrentRunPhaseId(latestLiveRun)?.id ?? null)
+                  : undefined
+              }
+              elapsedLabel={latestLiveRun.status === 'running' && !liveRunWaitInfo ? formatElapsedSince(latestLiveRun.started_at, nowMs) : null}
+              estimatedLabel={runtimeEstimateChipLabel}
+              onCancel={canQueueRun ? () => void handleCancelRun() : undefined}
+              cancelLoading={cancellingAnalysis}
+            />
+          ) : null}
+          <div id="analysis-run-history" hidden={!historyExpanded} className="analysis-run-progress">
             {runsFailed ? (
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <p role="status" className="text-danger text-sm">Could not refresh run history.</p>
@@ -3619,30 +3652,6 @@ export function GearRecommendationsPanel() {
             )}
           </div>
         </section>
-      ) : null}
-      {latestLiveRun ? (
-        <RunActivityStrip
-          title={
-            latestLiveRun.summary?.queue_submission_pending === true
-              ? 'Preparing your analysis'
-              : liveRunWaitInfo
-                ? 'Waiting for trade cooldown'
-                : latestLiveRun.status === 'queued'
-                  ? 'Analysis queued'
-                  : 'Analysis running'
-          }
-          detail={getRunStatusCopy(latestLiveRun, nowMs)}
-          waitLabel={liveRunWaitInfo ? 'Resumes in ' + formatCountdown(liveRunWaitInfo.remainingMs) : null}
-          timeline={
-            latestLiveRun.status === 'running'
-              ? getRunPhaseTimeline(latestLiveRun, getCurrentRunPhaseId(latestLiveRun)?.id ?? null)
-              : undefined
-          }
-          elapsedLabel={latestLiveRun.status === 'running' && !liveRunWaitInfo ? formatElapsedSince(latestLiveRun.started_at, nowMs) : null}
-          estimatedLabel={runtimeEstimateChipLabel}
-          onCancel={canQueueRun ? () => void handleCancelRun() : undefined}
-          cancelLoading={cancellingAnalysis}
-        />
       ) : null}
       {actionMessage ? <p role="status" className="text-default-600 text-sm wrap-anywhere">{actionMessage}</p> : null}
       <div

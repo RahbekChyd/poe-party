@@ -47,6 +47,7 @@ import { getLoginHref } from '../../lib/auth-redirect'
 import { ListBox, SelectField, UserAvatar } from '../ui/heroui-native'
 import { DashboardEmptyState, DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
+import { EconomySnapshotSummary } from './EconomySnapshotSummary'
 import './economy-data.css'
 const SNAPSHOT_INTERVAL_OPTIONS: { value: SnapshotIntervalHours; label: string }[] = [
   { value: 1, label: 'Every hour' },
@@ -69,7 +70,7 @@ function Poe1EconomyPage() {
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
   const { data: members } = useGroupMembers(activeGroupId)
   const { data: economy, isLoading, isError, refetch } = useGroupEconomy(activeGroupId)
-  const { data: latestSnapshots } = useLatestSnapshots(activeGroupId)
+  const { data: latestSnapshots, isPending: coveragePending, isError: coverageError } = useLatestSnapshots(activeGroupId)
   const { data: groupHistory } = useGroupWealthHistory(activeGroupId)
   const { data: characters } = useActiveCharacters(activeGroupId)
   const { data: myGroups } = useMyGroups()
@@ -133,6 +134,12 @@ function Poe1EconomyPage() {
   )
   const valuationUnavailable = latestSnapshots?.some((snapshot) => snapshot.pricing_summary?.status === 'unavailable') ?? false
   const valuationPartial = latestSnapshots?.some((snapshot) => snapshot.pricing_summary?.status === 'partial') ?? false
+  const pricingCoverage = latestSnapshots?.length && latestSnapshots.every((snapshot) => snapshot.pricing_summary)
+    ? latestSnapshots.reduce(({ priced, unpriced }, snapshot) => ({
+        priced: priced + (snapshot.pricing_summary?.priced_item_count ?? 0),
+        unpriced: unpriced + (snapshot.pricing_summary?.unpriced_item_count ?? 0),
+      }), { priced: 0, unpriced: 0 })
+    : null
   const groupChaosPerHour = valuationUnavailable || !comparablePricing(visibleGroupHistory) ? null : calculateChaosPerHour(
     visibleGroupHistory,
     (point) => point.created_at,
@@ -181,6 +188,47 @@ function Poe1EconomyPage() {
         <DashboardPageHeader
           title="Economy"
           description="Review stash value, capture history, and member coverage."
+        />
+
+        <EconomySnapshotSummary
+          valueLabel={!sorted.length || valuationUnavailable ? 'Stash value' : valuationPartial ? 'Priced subtotal' : 'Total Group Wealth'}
+          amount={sorted.length > 0 ? (
+            valuationUnavailable
+              ? <p className="text-foreground text-xl font-semibold">Pricing unavailable</p>
+              : <p className="workspace-lead-amount">{fmt(totalChaos)}</p>
+          ) : null}
+          metadata={sorted.length > 0 && (
+            <>
+              <span>{sorted.length} member{sorted.length !== 1 ? 's' : ''} synced</span>
+              <Chip size="sm" color={freshness.color} variant="soft">
+                {latestCapture ? `Last snapshot ${freshness.label}` : freshness.label}
+              </Chip>
+              <Link to="/dashboard/economy/group" className="text-brand-readable rounded-sm font-medium hover:underline">
+                Stash details <ArrowUpRight size={12} className="inline" aria-hidden="true" />
+              </Link>
+            </>
+          )}
+          pricing={sorted.length > 0 && (
+            <>
+              <h3 className="text-foreground text-sm font-semibold">Pricing coverage</h3>
+              {valuationPartial && !valuationUnavailable && (
+                <p role="status" className="text-warning flex items-start gap-2 text-sm">
+                  <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+                  Partial pricing: this subtotal excludes items without available price estimates.
+                </p>
+              )}
+              <p className="text-default-600 text-xs">
+                {pricingCoverage
+                  ? `${pricingCoverage.priced.toLocaleString()} priced · ${pricingCoverage.unpriced.toLocaleString()} unpriced`
+                  : coveragePending
+                    ? 'Checking pricing coverage…'
+                    : coverageError
+                      ? 'Could not load pricing coverage'
+                      : 'Pricing coverage not recorded for every capture'}
+              </p>
+              <p className="text-default-600 text-xs">{divinePrice == null ? 'Divine conversion unavailable' : `1 div = ${divinePrice.toFixed(0)}c`}</p>
+            </>
+          )}
           actions={
             <>
               <Popover>
@@ -293,7 +341,7 @@ function Poe1EconomyPage() {
             {profileError
               ? 'Could not check your stash access. Try again to continue.'
               : profilePending
-                ? 'Checking account access?'
+                ? 'Checking account access…'
                 : !activeLeague
                   ? 'Choose a workspace with a league to take stash snapshots.'
                   : canSnapshot
@@ -302,47 +350,6 @@ function Poe1EconomyPage() {
           </DashboardEmptyState>
         ) : (
           <>
-            {valuationPartial && (
-              <p role="status" className="bg-warning-soft text-warning flex items-start gap-2 rounded-lg px-4 py-3 text-sm">
-                <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
-                Partial pricing: this subtotal excludes items without available price estimates.
-              </p>
-            )}
-            {/* Group total */}
-            <Card className="p-0">
-              <Link
-                to="/dashboard/economy/group"
-                className="block w-full rounded-large text-left"
-              >
-                <Card.Content className="flex flex-row flex-wrap items-center gap-3 p-4">
-                  <div className="min-w-0">
-                    <p className="text-default-500 text-sm">
-                      {valuationPartial ? 'Priced subtotal' : 'Total Group Wealth'}
-                    </p>
-                    {valuationUnavailable ? (
-                      <p className="text-foreground text-xl font-semibold">Pricing unavailable</p>
-                    ) : (
-                      <p className="workspace-lead-amount mt-1">{fmt(totalChaos)}</p>
-                    )}
-                  </div>
-                  <div className="flex basis-full flex-wrap items-center gap-3 sm:ml-auto sm:basis-auto">
-                    <div>
-                      <p className="text-default-400 text-xs">
-                        {sorted.length} member{sorted.length !== 1 ? 's' : ''} synced
-                      </p>
-                      <p className="text-default-500 text-xs">{divinePrice == null ? 'Divine conversion unavailable' : `1 div = ${divinePrice.toFixed(0)}c`}</p>
-                    </div>
-                    <Chip size="sm" color={freshness.color} variant="soft">
-                      {latestCapture ? `Last snapshot ${freshness.label}` : freshness.label}
-                    </Chip>
-                    <span className="text-brand-readable text-sm font-medium">
-                      Details
-                    </span>
-                  </div>
-                </Card.Content>
-              </Link>
-            </Card>
-
             {/* Group wealth history chart */}
             {groupHistory && groupHistory.length > 0 && (
               <Card className="p-0">
@@ -437,6 +444,7 @@ function Poe1EconomyPage() {
                       />
                       <Area
                         type="monotone"
+                        isAnimationActive={false}
                         dataKey="total_wealth_chaos"
                         stroke="var(--wealth-series)"
                         fill="url(#groupWealthGrad)"

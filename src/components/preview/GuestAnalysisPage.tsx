@@ -31,6 +31,7 @@ import { RecommendationItemRow } from '../gear/RecommendationItemRow'
 import { FieldInput, FieldTextArea, SelectField } from '../ui/heroui-native'
 import { PreviewPageIntro } from './PreviewShared'
 import { DashboardPage } from '../ui/dashboard'
+import '../analysis/analysis-run.css'
 
 const GUEST_RUN_TOKEN_STORAGE_KEY = 'poe-party:guest-analysis-run-token:v1'
 const ALL_GUEST_LEAGUES_KEY = '__all__'
@@ -394,6 +395,8 @@ export function GuestAnalysisPage() {
   const targetActionPending = useRef(false)
   const [runNotice, setRunNotice] = useState<string | null>(null)
   const [runToken, setRunToken] = useState<string | null>(() => readStoredGuestRunToken())
+  const runSummaryRef = useRef<HTMLElement>(null)
+  const focusQueuedRun = useRef(false)
   const characterLookup = useGuestCharacterLookup()
   const queueGuestRun = useQueueGuestUpgradeAnalysis()
   const {
@@ -434,6 +437,10 @@ export function GuestAnalysisPage() {
 
   useEffect(() => {
     writeStoredGuestRunToken(runToken)
+    if (runToken && focusQueuedRun.current) {
+      focusQueuedRun.current = false
+      runSummaryRef.current?.focus()
+    }
   }, [runToken])
 
   useEffect(() => {
@@ -586,6 +593,7 @@ export function GuestAnalysisPage() {
         raw_import: rawImport,
         ...selection,
       })
+      focusQueuedRun.current = true
       setRunToken(result.run_token)
       setRunNotice('Quick analysis queued.')
     } catch (error) {
@@ -606,261 +614,84 @@ export function GuestAnalysisPage() {
         description="Compare a public PoE1 character with a Path of Building target to find upgrades."
       />
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="flex min-w-0 flex-col gap-4">
-          <Card id="public-character" className="scroll-mt-6 p-0">
-            <Card.Header className="flex-col items-start gap-1 px-4 pt-4 pb-0 sm:px-5 sm:pt-5">
-              <h2 className="text-foreground text-base font-semibold">Find a character</h2>
-              <p className="text-default-500 text-sm">Enter your account name, including the number after #.</p>
-            </Card.Header>
-            <Card.Content className="gap-4 p-4 sm:p-5">
-              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-                <FieldInput
-                  label="PoE account"
-                  value={accountName}
-                  onValueChange={handleAccountChange}
-                  isDisabled={targetAction === 'queue'}
-                  placeholder="AccountName#1234"
-                  startContent={<Search size={16} />}
-                />
-                <Button
-                  className="md:mb-[1px]"
-                  variant={selectedCharacter ? 'tertiary' : 'primary'}
-                  isPending={characterLookup.isPending}
-                  isDisabled={!accountName.trim() || targetAction === 'queue'}
-                  onPress={() => void handleLookupCharacters()}
-                >
-                  Find characters
-                </Button>
-              </div>
-              {characterMessage ? (
-                <p
-                  role={characterMessage.error ? 'alert' : 'status'}
-                  className={characterMessage.error ? 'text-danger wrap-anywhere text-sm' : 'text-default-500 text-sm'}
-                >
-                  {characterMessage.text}
-                </p>
-              ) : null}
-              {characters.length > 0 ? (
-                <div className="grid gap-3 md:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] md:items-end">
-                  <SelectField
-                    label="League"
-                    selectedKey={leagueFilter}
-                    isDisabled={targetAction === 'queue'}
-                    onSelectionChange={(key) =>
-                      handleLeagueFilterChange(typeof key === 'string' ? key : null)
-                    }
-                  >
-                    {toSelectItems(leagueFilterOptions)}
-                  </SelectField>
-                  <p className="text-default-500 text-sm md:pb-2">
-                    Showing {filteredCharacters.length} of {characters.length} public character
-                    {characters.length === 1 ? '' : 's'}.
+      {runToken ? (
+        <section
+          id="current-public-run"
+          ref={runSummaryRef}
+          tabIndex={-1}
+          aria-labelledby="current-public-run-title"
+          className="analysis-run-summary scroll-mt-6"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-3">
+              {RunIcon ? <RunIcon size={18} className="text-default-500 mt-0.5 shrink-0" aria-hidden="true" /> : null}
+              <div className="min-w-0">
+                <h2 id="current-public-run-title" className="text-foreground text-base font-semibold">Current public run</h2>
+                {activeRun ? (
+                  <p className="text-default-600 mt-1 text-sm wrap-anywhere">
+                    {activeRun.character_name} compared with {activeRun.target_name}
                   </p>
-                </div>
-              ) : null}
-              <CharacterPicker
-                characters={filteredCharacters}
-                selectedCharacter={selectedCharacter}
-                isDisabled={targetAction === 'queue'}
-                onSelect={setSelectedCharacter}
-              />
-            </Card.Content>
-          </Card>
-
-          <Card id="target-pob" className="scroll-mt-6 p-0">
-            <Card.Header className="flex-col items-start gap-1 px-4 pt-4 pb-0 sm:px-5 sm:pt-5">
-              <h2 className="text-foreground text-base font-semibold">Choose a PoB target</h2>
-              <p className="text-default-500 text-sm">Paste a share code or XML export. Read the layouts to choose which ones to use.</p>
-            </Card.Header>
-            <Card.Content className="gap-4 p-4 sm:p-5">
-              <FieldInput
-                label="Target name"
-                value={targetName}
-                onValueChange={setTargetName}
-                isDisabled={targetAction !== null}
-                placeholder="Mapping starter target"
-              />
-              <FieldTextArea
-                label="PoB import"
-                minRows={5}
-                value={rawImport}
-                isDisabled={targetAction !== null}
-                onValueChange={(value) => {
-                  setRawImport(value)
-                  setParsedMetadata(null)
-                  setParseError(null)
-                  setQueueError(null)
-                }}
-                placeholder="Paste PoB code or XML"
-              />
-              {parseError ? <p role="alert" className="text-danger wrap-anywhere text-sm">{parseError}</p> : null}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="tertiary"
-                  isDisabled={!rawImport.trim() || targetAction === 'queue'}
-                  isPending={targetAction === 'parse'}
-                  onPress={() => void handleParseTarget()}
-                >
-                  Read PoB layouts
-                </Button>
-                {parsedMetadata ? (
-                  <Chip size="sm" color="success" variant="soft">
-                    {parsedMetadata.tree_specs.length} tree / {parsedMetadata.item_sets.length}{' '}
-                    item / {parsedMetadata.skill_sets.length} skill
-                  </Chip>
                 ) : null}
               </div>
-
-              {parsedMetadata ? (
-                <div className="grid gap-3 md:grid-cols-2">
-                  <SelectField
-                    label="Tree"
-                    selectedKey={treeSpecId}
-                    isDisabled={targetAction === 'queue'}
-                    onSelectionChange={(key) =>
-                      setTreeSpecId(typeof key === 'string' ? key : null)
-                    }
-                  >
-                    {toSelectItems(parsedMetadata.tree_specs)}
-                  </SelectField>
-                  <SelectField
-                    label="Item set"
-                    selectedKey={itemSetId}
-                    isDisabled={targetAction === 'queue'}
-                    onSelectionChange={(key) => setItemSetId(typeof key === 'string' ? key : null)}
-                  >
-                    {toSelectItems(parsedMetadata.item_sets)}
-                  </SelectField>
-                  <SelectField
-                    label="Skill set"
-                    selectedKey={skillSetId}
-                    isDisabled={targetAction === 'queue'}
-                    onSelectionChange={(key) =>
-                      setSkillSetId(typeof key === 'string' ? key : null)
-                    }
-                  >
-                    {toSelectItems(parsedMetadata.skill_sets)}
-                  </SelectField>
-                  <SelectField
-                    label="Configuration"
-                    selectedKey={configSetId}
-                    isDisabled={targetAction === 'queue'}
-                    onSelectionChange={(key) =>
-                      setConfigSetId(typeof key === 'string' ? key : null)
-                    }
-                  >
-                    {toSelectItems(parsedMetadata.config_sets)}
-                  </SelectField>
-                </div>
-              ) : null}
-
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-divider/70 pt-4">
-                <div className="min-w-0">
-                  <p className="text-foreground text-sm font-medium">
-                    {!selectedCharacter
-                      ? 'Find and select a public character.'
-                      : !rawImport.trim()
-                        ? 'Paste a PoB share code or XML export.'
-                        : parseError
-                          ? 'Check the PoB import before running analysis.'
-                          : 'Ready for Quick analysis.'}
-                  </p>
-                  <p className="text-default-500 mt-1 text-xs">
-                    One Quick run per PoE account per UTC day. Failed validation does not count.
-                  </p>
-                </div>
+            </div>
+            {activeRun ? (
+              <div className="flex flex-wrap gap-2">
+                <a href="#public-character" className="button button--sm button--tertiary">Analysis setup</a>
                 <Button
-                  isPending={targetAction === 'queue'}
-                  isDisabled={!resolvedAccountName || !selectedCharacter || !rawImport.trim() || targetAction === 'parse'}
-                  onPress={() => void handleQueueRun()}
+                  size="sm"
+                  variant="tertiary"
+                  onPress={() => {
+                    setRunToken(null)
+                    setRunNotice(null)
+                  }}
                 >
-                  Run Quick analysis
+                  Clear saved run
                 </Button>
               </div>
-              {queueError ? <p role="alert" className="text-danger wrap-anywhere text-sm">{queueError}</p> : null}
-            </Card.Content>
-          </Card>
-        </div>
+            ) : null}
+          </div>
 
-        <div className="flex min-w-0 flex-col gap-4">
-          <Card id="current-public-run" className="scroll-mt-6 p-0">
-            <Card.Content className="gap-4 p-4 sm:p-5">
-              <div className="flex items-start gap-3">
-                {RunIcon ? <RunIcon size={18} className="text-default-500 mt-0.5 shrink-0" aria-hidden="true" /> : null}
-                <div className="min-w-0">
-                  <h2 className="text-foreground text-sm font-semibold">Current public run</h2>
-                  {activeRun ? (
-                    <p className="text-default-500 wrap-anywhere mt-1 text-sm">
-                      {activeRun.character_name} compared with {activeRun.target_name}
-                    </p>
-                  ) : (
-                    <p className="text-default-500 mt-1 text-sm">
-                      Start an analysis to see progress and results here. This browser will
-                      remember your latest public run.
-                    </p>
-                  )}
-                </div>
+          {statusLoading ? (
+            <div role="status" className="text-default-600 flex items-center gap-2 text-sm">
+              <Spinner size="sm" />
+              Loading your latest analysis…
+            </div>
+          ) : null}
+
+          {activeRun && runTone ? (
+            <div className="analysis-run-progress flex flex-wrap items-baseline gap-x-4 gap-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Chip
+                  size="sm"
+                  color={runTone.color}
+                  variant="soft"
+                  className={activeRun.status === 'running' ? 'bg-info-soft text-info' : undefined}
+                >
+                  {runTone.label}
+                </Chip>
+                <Chip size="sm" variant="soft">Quick</Chip>
+                {activeRun.character_league ? (
+                  <Chip size="sm" variant="soft">{activeRun.character_league}</Chip>
+                ) : null}
               </div>
+              <p className="text-default-600 min-w-0 text-sm wrap-anywhere">{getRunStatusDescription(activeRun)}</p>
+              <p className="text-default-500 text-xs">
+                Queued {formatRelativeTime(activeRun.created_at) ?? activeRun.created_at}
+              </p>
+            </div>
+          ) : null}
 
-              {statusLoading && runToken ? (
-                <div role="status" className="text-default-500 flex items-center gap-2 text-sm">
-                  <Spinner size="sm" />
-                  Loading your latest analysis…
-                </div>
-              ) : null}
-
-              {activeRun && runTone ? (
-                <div className="flex flex-col gap-3">
-                  <div className="flex flex-wrap gap-2">
-                    <Chip
-                      size="sm"
-                      color={runTone.color}
-                      variant="soft"
-                      className={activeRun.status === 'running' ? 'bg-info-soft text-info' : undefined}
-                    >
-                      {runTone.label}
-                    </Chip>
-                    <Chip size="sm" variant="soft">
-                      Quick
-                    </Chip>
-                    {activeRun.character_league ? (
-                      <Chip size="sm" variant="soft">
-                        {activeRun.character_league}
-                      </Chip>
-                    ) : null}
-                  </div>
-                  <p className="text-default-600 text-sm">{getRunStatusDescription(activeRun)}</p>
-                  <p className="text-default-400 text-xs">
-                    Queued {formatRelativeTime(activeRun.created_at) ?? activeRun.created_at}
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="tertiary"
-                    onPress={() => {
-                      setRunToken(null)
-                      setRunNotice(null)
-                    }}
-                  >
-                    Clear saved run
-                  </Button>
-                </div>
-              ) : null}
-
-              {runToken && statusError ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <p role="alert" className="text-danger text-sm">Could not load the latest analysis results.</p>
-                  <Button size="sm" variant="tertiary" onPress={() => void retryStatus()}>
-                    Try again
-                  </Button>
-                </div>
-              ) : null}
-              {runNotice ? <p role="status" className="text-default-600 text-sm">{runNotice}</p> : null}
-            </Card.Content>
-          </Card>
-
-        </div>
-      </div>
+          {statusError ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <p role="alert" className="text-danger text-sm">Could not load the latest analysis results.</p>
+              <Button size="sm" variant="tertiary" onPress={() => void retryStatus()}>
+                Try again
+              </Button>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+      {runNotice ? <p role="status" className="text-default-600 text-sm">{runNotice}</p> : null}
 
       {activeRun && (!statusError || activePlans.length > 0) ? (
         <div id="public-recommendations" className="scroll-mt-6">
@@ -872,6 +703,183 @@ export function GuestAnalysisPage() {
           />
         </div>
       ) : null}
+
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <Card id="public-character" className="min-w-0 scroll-mt-6 p-0">
+          <Card.Header className="flex-col items-start gap-1 px-4 pt-4 pb-0 sm:px-5 sm:pt-5">
+            <h2 className="text-foreground text-base font-semibold">Find a character</h2>
+            <p className="text-default-500 text-sm">Enter your account name, including the number after #.</p>
+          </Card.Header>
+          <Card.Content className="gap-4 p-4 sm:p-5">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+              <FieldInput
+                label="PoE account"
+                value={accountName}
+                onValueChange={handleAccountChange}
+                isDisabled={targetAction === 'queue'}
+                placeholder="AccountName#1234"
+                startContent={<Search size={16} />}
+              />
+              <Button
+                className="md:mb-[1px]"
+                variant={selectedCharacter ? 'tertiary' : 'primary'}
+                isPending={characterLookup.isPending}
+                isDisabled={!accountName.trim() || targetAction === 'queue'}
+                onPress={() => void handleLookupCharacters()}
+              >
+                Find characters
+              </Button>
+            </div>
+            {characterMessage ? (
+              <p
+                role={characterMessage.error ? 'alert' : 'status'}
+                className={characterMessage.error ? 'text-danger wrap-anywhere text-sm' : 'text-default-500 text-sm'}
+              >
+                {characterMessage.text}
+              </p>
+            ) : null}
+            {characters.length > 0 ? (
+              <div className="grid gap-3 md:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] md:items-end">
+                <SelectField
+                  label="League"
+                  selectedKey={leagueFilter}
+                  isDisabled={targetAction === 'queue'}
+                  onSelectionChange={(key) =>
+                    handleLeagueFilterChange(typeof key === 'string' ? key : null)
+                  }
+                >
+                  {toSelectItems(leagueFilterOptions)}
+                </SelectField>
+                <p className="text-default-500 text-sm md:pb-2">
+                  Showing {filteredCharacters.length} of {characters.length} public character
+                  {characters.length === 1 ? '' : 's'}.
+                </p>
+              </div>
+            ) : null}
+            <CharacterPicker
+              characters={filteredCharacters}
+              selectedCharacter={selectedCharacter}
+              isDisabled={targetAction === 'queue'}
+              onSelect={setSelectedCharacter}
+            />
+          </Card.Content>
+        </Card>
+
+        <Card id="target-pob" className="min-w-0 scroll-mt-6 p-0">
+          <Card.Header className="flex-col items-start gap-1 px-4 pt-4 pb-0 sm:px-5 sm:pt-5">
+            <h2 className="text-foreground text-base font-semibold">Choose a PoB target</h2>
+            <p className="text-default-500 text-sm">Paste a share code or XML export. Read the layouts to choose which ones to use.</p>
+          </Card.Header>
+          <Card.Content className="gap-4 p-4 sm:p-5">
+            <FieldInput
+              label="Target name"
+              value={targetName}
+              onValueChange={setTargetName}
+              isDisabled={targetAction !== null}
+              placeholder="Mapping starter target"
+            />
+            <FieldTextArea
+              label="PoB import"
+              minRows={5}
+              value={rawImport}
+              isDisabled={targetAction !== null}
+              onValueChange={(value) => {
+                setRawImport(value)
+                setParsedMetadata(null)
+                setParseError(null)
+                setQueueError(null)
+              }}
+              placeholder="Paste PoB code or XML"
+            />
+            {parseError ? <p role="alert" className="text-danger wrap-anywhere text-sm">{parseError}</p> : null}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="tertiary"
+                isDisabled={!rawImport.trim() || targetAction === 'queue'}
+                isPending={targetAction === 'parse'}
+                onPress={() => void handleParseTarget()}
+              >
+                Read PoB layouts
+              </Button>
+              {parsedMetadata ? (
+                <Chip size="sm" color="success" variant="soft">
+                  {parsedMetadata.tree_specs.length} tree / {parsedMetadata.item_sets.length}{' '}
+                  item / {parsedMetadata.skill_sets.length} skill
+                </Chip>
+              ) : null}
+            </div>
+
+            {parsedMetadata ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                <SelectField
+                  label="Tree"
+                  selectedKey={treeSpecId}
+                  isDisabled={targetAction === 'queue'}
+                  onSelectionChange={(key) =>
+                    setTreeSpecId(typeof key === 'string' ? key : null)
+                  }
+                >
+                  {toSelectItems(parsedMetadata.tree_specs)}
+                </SelectField>
+                <SelectField
+                  label="Item set"
+                  selectedKey={itemSetId}
+                  isDisabled={targetAction === 'queue'}
+                  onSelectionChange={(key) => setItemSetId(typeof key === 'string' ? key : null)}
+                >
+                  {toSelectItems(parsedMetadata.item_sets)}
+                </SelectField>
+                <SelectField
+                  label="Skill set"
+                  selectedKey={skillSetId}
+                  isDisabled={targetAction === 'queue'}
+                  onSelectionChange={(key) =>
+                    setSkillSetId(typeof key === 'string' ? key : null)
+                  }
+                >
+                  {toSelectItems(parsedMetadata.skill_sets)}
+                </SelectField>
+                <SelectField
+                  label="Configuration"
+                  selectedKey={configSetId}
+                  isDisabled={targetAction === 'queue'}
+                  onSelectionChange={(key) =>
+                    setConfigSetId(typeof key === 'string' ? key : null)
+                  }
+                >
+                  {toSelectItems(parsedMetadata.config_sets)}
+                </SelectField>
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-divider/70 pt-4">
+              <div className="min-w-0">
+                <p className="text-foreground text-sm font-medium">
+                  {!selectedCharacter
+                    ? 'Find and select a public character.'
+                    : !rawImport.trim()
+                      ? 'Paste a PoB share code or XML export.'
+                      : parseError
+                        ? 'Check the PoB import before running analysis.'
+                        : 'Ready for Quick analysis.'}
+                </p>
+                <p className="text-default-500 mt-1 text-xs">
+                  One Quick run per PoE account per UTC day. Failed validation does not count.
+                  This browser remembers your latest run.
+                </p>
+              </div>
+              <Button
+                isPending={targetAction === 'queue'}
+                isDisabled={!resolvedAccountName || !selectedCharacter || !rawImport.trim() || targetAction === 'parse'}
+                onPress={() => void handleQueueRun()}
+              >
+                Run Quick analysis
+              </Button>
+            </div>
+            {queueError ? <p role="alert" className="text-danger wrap-anywhere text-sm">{queueError}</p> : null}
+          </Card.Content>
+        </Card>
+      </div>
     </DashboardPage>
   )
 }

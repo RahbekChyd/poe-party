@@ -68,7 +68,7 @@ export function GuestServicesPage() {
   }, [services, debouncedSearch, region])
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-5">
+    <DashboardPage>
       <PreviewPageIntro
         title="Services"
         description="Find carries, 5-way runs, and gold rotas. Copy a whisper to contact the provider in-game."
@@ -174,6 +174,7 @@ export function GuestServicesPage() {
           ))}
         </div>
       )}
-    </div>
+    </DashboardPage>
   )
 }
+import { DashboardPage } from '../ui/dashboard'

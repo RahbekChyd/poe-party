@@ -40,6 +40,11 @@ const profile = {
   subscription_tier: 'free', subscription_expires_at: null, poe_token_expires_at: null,
 }
 
+export const runMapStrategyName = 'Breach Beacon Loop'
+export const runMapWorkspaceName = 'Beacon Party'
+
+type RunMapResult = 'complete' | 'partial' | 'unavailable' | null
+
 function records(group: typeof groups[number]) {
   const publicGroup = {
     group_id: group.id, group_name: group.name, game: group.game, league: group.league,
@@ -79,12 +84,38 @@ export async function mockApp(
   page: Page,
   workspace: 'poe1' | 'none' | 'guest' = 'guest',
   extraGroups: typeof groups = [],
+  options?: { runMapResult: RunMapResult },
 ) {
   if (workspace !== 'guest') {
     await seedSignedIn(page, workspace === 'none' ? null : groupId)
   }
 
   const fixtureGroups = [...groups, ...extraGroups]
+  const now = Date.now()
+  const result = options?.runMapResult
+  const runMapHistory = result ? [680, 1040, 1450, 1710, 1960].map((total, index, values) => {
+    const daysAgo = values.length - index - 1
+    const isLatest = daysAgo === 0
+    const status = isLatest ? result : 'complete'
+    const createdAt = new Date(now - daysAgo * 86_400_000 - 18 * 60_000).toISOString()
+    return {
+      id: `run-map-wealth-${index}`,
+      group_id: groupId,
+      created_at: createdAt,
+      total_wealth_chaos: status === 'unavailable' ? 0 : total,
+      member_count: 1,
+      strategy_id: strategyId,
+      triggered_by_user_id: userId,
+      triggered_by_snapshot_id: isLatest ? 'run-map-snapshot' : null,
+      member_wealth_breakdown: [],
+      pricing_summary: {
+        status, version: 1, source: 'poe.ninja', priced_at: createdAt, divine_price: 175,
+        priced_item_count: status === 'unavailable' ? 0 : 24,
+        unpriced_item_count: status === 'complete' ? 0 : 3,
+        failed_categories: status === 'complete' ? [] : ['Currency'],
+      },
+    }
+  }) : []
   await page.route('**/rest/v1/**', (route) => {
     const request = route.request()
     const url = new URL(request.url())
@@ -97,14 +128,35 @@ export async function mockApp(
       query.get('group_id') === `eq.${group.id}`,
     ) ?? fixtureGroups[0]
     const { publicGroup, character, service, strategy, gear } = records(currentGroup)
+    const isRunMapGroup = options !== undefined && currentGroup.id === groupId
+    const activeStrategy = isRunMapGroup
+      ? { ...strategy, name: runMapStrategyName, description: 'Breach sustain for short mapping sessions.' }
+      : strategy
+    const history = isRunMapGroup ? runMapHistory : []
+    const latest = history.at(-1)
     const responses: Record<string, unknown> = {
-      users: profile,
+      users: options ? { ...profile, poe_token_expires_at: new Date(now + 86_400_000).toISOString() } : profile,
       group_members: query.get('select')?.includes('group:groups')
-        ? workspace === 'none' ? [] : fixtureGroups.map((group) => ({ role: 'admin', group }))
+        ? workspace === 'none' ? [] : fixtureGroups.map((group) => ({
+            role: 'admin',
+            group: options && group.id === groupId
+              ? { ...group, name: runMapWorkspaceName, current_strategy_id: strategyId }
+              : group,
+          }))
         : [{ role: 'admin', user: profile }],
       gear_suggestions: query.has('id') ? gear : [gear],
       services: query.has('id') ? service : [service],
-      strategies: query.has('id') ? strategy : [strategy],
+      strategies: query.has('id') ? activeStrategy : [activeStrategy],
+      group_wealth_history: history,
+      latest_snapshots: latest ? [{
+        id: 'run-map-snapshot', user_id: userId, group_id: groupId,
+        completed_at: latest.created_at, tab_count: 1, item_count: 24,
+        pricing_summary: latest.pricing_summary,
+      }] : [],
+      stash_tabs: latest ? [{
+        id: 'run-map-tab', snapshot_id: 'run-map-snapshot', user_id: userId,
+        name: 'Currency', tab_type: 'CurrencyStash', estimated_value_chaos: latest.total_wealth_chaos,
+      }] : [],
       list_public_services_for_league: [service],
       list_public_services: [service],
       list_public_strategies_for_league: [strategy],

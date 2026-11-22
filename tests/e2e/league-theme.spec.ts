@@ -58,7 +58,11 @@ test('the sample shows Covens without tinting live public tools', async ({ page 
     await page.getByRole('navigation', { name: 'Explore PoE Party on mobile' })
       .getByRole('link', { name: 'Analysis' }).tap()
   } else {
-    await page.getByRole('link', { name: 'Try public Analysis' }).click()
+    const explore = page.getByRole('button', { name: 'Explore', exact: true })
+    await explore.press('ArrowDown')
+    const menu = page.getByRole('menu', { name: 'Explore', exact: true })
+    await expect(menu.getByRole('menuitem', { name: 'Analysis', exact: true })).toBeFocused()
+    await page.keyboard.press('Enter')
   }
   await expect(page).toHaveURL(/\/preview\/analysis\/?$/)
   await expect(root).not.toHaveAttribute('data-league-theme', 'covens')

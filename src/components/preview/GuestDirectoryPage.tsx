@@ -64,7 +64,7 @@ export function GuestDirectoryPage() {
   }, [activeQuery.isFetching, activeQuery.isSuccess, debouncedQuery, hasSearch, mode, resultCount, selectedGame, selectedLeague])
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-5">
+    <DashboardPage>
       <PreviewPageIntro
         title="Directory"
         description="Find public characters and groups by game and league."
@@ -231,6 +231,7 @@ export function GuestDirectoryPage() {
           </Card.Content>
         </Card>
       )}
-    </div>
+    </DashboardPage>
   )
 }
+import { DashboardPage } from '../ui/dashboard'
