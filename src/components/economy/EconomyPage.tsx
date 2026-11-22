@@ -48,6 +48,8 @@ import { ListBox, SelectField, UserAvatar } from '../ui/heroui-native'
 import { DashboardEmptyState, DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
 import { EconomySnapshotSummary } from './EconomySnapshotSummary'
+import { SnapshotTalisman } from './SnapshotEmptyState'
+import { resolveLeagueTheme } from '../../lib/league-theme'
 import './economy-data.css'
 const SNAPSHOT_INTERVAL_OPTIONS: { value: SnapshotIntervalHours; label: string }[] = [
   { value: 1, label: 'Every hour' },
@@ -85,7 +87,8 @@ function Poe1EconomyPage() {
   const { countdownLabel, blockingReason, isEligible } = useSnapshotSchedule(activeGroupId)
   const [groupHistoryRange, setGroupHistoryRange] = useState<WealthHistoryRange>('7d')
 
-  const activeLeague = myGroups?.find((g) => g.group.id === activeGroupId)?.group.league ?? null
+  const activeGroup = myGroups?.find((g) => g.group.id === activeGroupId)?.group
+  const activeLeague = activeGroup?.league ?? null
   const isPro = hasActiveProAccess(myProfile)
   const canSnapshot = !!myProfile?.poe_token_expires_at && !!activeLeague
 
@@ -321,12 +324,17 @@ function Poe1EconomyPage() {
         />
 
         {isLoading ? (
-          <TableSkeleton rows={4} cols={5} />
+          <>
+            <p role="status" className="text-default-500 text-sm">Loading economy data…</p>
+            <TableSkeleton rows={4} cols={5} />
+          </>
         ) : isError && !economy ? (
           <QueryStatePanel kind="error" title="Couldn’t load economy data" description="Try again to view your stash values." onRetry={refetch} />
         ) : !sorted.length ? (
           <DashboardEmptyState
-            icon={TrendingUp}
+            icon={canSnapshot && resolveLeagueTheme(activeGroup?.game ?? null, activeLeague) === 'covens'
+              ? SnapshotTalisman
+              : TrendingUp}
             tone="currency"
             action={
               profileError ? (

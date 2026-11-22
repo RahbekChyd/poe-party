@@ -1,7 +1,7 @@
 import { useLayoutEffect } from 'react'
-import covensDesktop from '../assets/seasonal/covens-ground.webp'
-import covensMobile from '../assets/seasonal/covens-ground-close.webp'
-import covensWorkspace from '../assets/seasonal/covens-engraving.webp'
+import covensDesktop from '../assets/seasonal/covens-workbench.webp'
+import covensMobile from '../assets/seasonal/covens-workbench-close.webp'
+import covensWorkspace from '../assets/seasonal/covens-workbench-masthead.webp'
 import type { PoeGame } from './poe-game'
 
 const leagueThemes = {
@@ -17,8 +17,8 @@ export type LeagueTheme = {
 interface LeagueThemeDetails {
   label: string
   artwork: {
-    desktop: string
-    mobile: string
+    desktop: { src: string; width: number; height: number }
+    mobile: { src: string; width: number; height: number }
     workspace: string
   }
 }
@@ -27,8 +27,8 @@ export const leagueThemeDetails: Record<LeagueTheme, LeagueThemeDetails> = {
   covens: {
     label: 'Covens of Umbra',
     artwork: {
-      desktop: covensDesktop,
-      mobile: covensMobile,
+      desktop: { src: covensDesktop, width: 1536, height: 1024 },
+      mobile: { src: covensMobile, width: 910, height: 665 },
       workspace: covensWorkspace,
     },
   },

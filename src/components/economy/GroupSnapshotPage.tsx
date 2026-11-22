@@ -1,7 +1,9 @@
 import { SnapshotPricingNotice } from './SnapshotPricingNotice'
+import { SnapshotEmptyState } from './SnapshotEmptyState'
 import './economy-data.css'
 import { storedSnapshotPrice } from '../../lib/snapshot-pricing'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
+import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { Dropdown } from '@heroui/react/dropdown'
 import { useNinjaPrices } from '../../hooks/useNinjaPrices'
@@ -10,7 +12,6 @@ import {
   TrendingUp,
   Archive,
   Trophy,
-  Package,
   Check,
   ChevronUp,
   ChevronDown,
@@ -61,7 +62,8 @@ export function GroupSnapshotPage() {
   const { data: myGroups } = useMyGroups()
   const display = useCurrencyStore((s) => s.display)
 
-  const activeLeague = myGroups?.find((g) => g.group.id === activeGroupId)?.group.league ?? null
+  const activeGroup = myGroups?.find((g) => g.group.id === activeGroupId)?.group
+  const activeLeague = activeGroup?.league ?? null
 
   const { data: ninjaData } = useNinjaPrices(activeLeague)
   const divinePrice = ninjaData?.divinePrice ?? null
@@ -80,6 +82,7 @@ export function GroupSnapshotPage() {
 
   const [minValueChaos, setMinValueChaos] = useState(0)
   const [search, setSearch] = useState('')
+  const searchInput = useRef<HTMLInputElement>(null)
   const debouncedSearch = useDebouncedValue(search)
   const [tabFilters, setTabFilters] = useState<string[]>([])
   const [memberFilter, setMemberFilter] = useState('')
@@ -238,7 +241,7 @@ export function GroupSnapshotPage() {
   }
 
   const sortIcon = (col: SortKey) => {
-    if (sortKey !== col) return <ChevronsUpDown size={12} className="text-default-300" />
+    if (sortKey !== col) return <ChevronsUpDown size={12} className="text-default-400" aria-hidden="true" />
     return sortDir === 'asc' ? (
       <ChevronUp size={12} className="text-highlight" aria-hidden="true" />
     ) : (
@@ -287,20 +290,18 @@ export function GroupSnapshotPage() {
 
       {isLoading ? (
         <>
+          <p role="status" className="text-default-500 text-sm">Loading stash items…</p>
           <KpiCardsSkeleton />
           <ItemTableSkeleton />
         </>
       ) : isError && !rawItems ? (
         <QueryStatePanel kind="error" title="Couldn’t load the group snapshot" description="Try again to view stash items." onRetry={refetch} />
       ) : !items.length ? (
-        <Card className="p-0">
-          <Card.Content className="flex flex-col items-center gap-3 p-12 text-center">
-            <Package size={32} className="text-default-300" />
-            <p className="text-default-400 text-sm">
-              No stash items yet. Take a snapshot from Economy.
-            </p>
-          </Card.Content>
-        </Card>
+        <SnapshotEmptyState
+          game={activeGroup?.game ?? null}
+          league={activeLeague}
+          message="No stash items yet."
+        />
       ) : (
         <>
           {/* KPI cards */}
@@ -378,6 +379,7 @@ export function GroupSnapshotPage() {
           <Card className="p-0">
             <Card.Content className="flex flex-row flex-wrap items-center gap-3 p-3">
               <FieldInput
+                ref={searchInput}
                 size="sm"
                 aria-label="Search items"
                 placeholder="Search items…"
@@ -520,7 +522,7 @@ export function GroupSnapshotPage() {
                   </Dropdown.Menu>
                 </Dropdown.Popover>
               </Dropdown>
-              <span className="text-default-400 ml-auto text-xs">
+              <span role="status" className="text-default-400 ml-auto text-xs tabular-nums">
                 {filtered.length.toLocaleString()} item{filtered.length !== 1 ? 's' : ''}
                 {filtered.length !== items.length && ` of ${items.length.toLocaleString()}`}
               </span>
@@ -528,7 +530,7 @@ export function GroupSnapshotPage() {
           </Card>
 
           {/* Table */}
-          <Card className="p-0">
+          <Card className="overflow-visible p-0">
             <Card.Content className="p-0">
               <div className="economy-data" role="region" aria-label="Group stash items">
                 <table className="economy-stash" role="table">
@@ -741,7 +743,7 @@ export function GroupSnapshotPage() {
                               {item.tab_name}
                             </button>
                           </td>
-                          <td role="cell" data-cell="quantity" className="px-4 py-2 text-right">
+                        <td role="cell" data-cell="quantity" className="px-4 py-2 text-right tabular-nums">
                             <span className="economy-data-label" aria-hidden="true">
                               Stack
                             </span>
@@ -779,9 +781,26 @@ export function GroupSnapshotPage() {
                         <td
                           role="cell"
                           colSpan={7}
-                          className="text-default-400 py-12 text-center text-sm"
+                          className="economy-empty-cell"
                         >
-                          No items match the current filters.
+                          <div className="economy-empty-results">
+                            <p>No results match these filters.</p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="min-h-11"
+                              onPress={() => {
+                                searchInput.current?.focus()
+                                setSearch('')
+                                setMinValueChaos(0)
+                                setTabFilters([])
+                                setMemberFilter('')
+                                setPage(1)
+                              }}
+                            >
+                              Clear filters
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     )}

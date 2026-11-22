@@ -1,5 +1,6 @@
-import { expect, test, userId } from './fixture'
-import { groupName, mockApp, standardWorkspace } from './ui-data'
+import type { CharacterProfileItem } from '../../src/lib/character-profile'
+import { expect, groupId, test, userId } from './fixture'
+import { groupName, mockApp, profileId, standardWorkspace } from './ui-data'
 
 test('workspace colors follow the active league through menus and sign-out', async ({ page }) => {
   const savedPreference = JSON.stringify({ state: { theme: 'light' }, version: 0 })
@@ -18,27 +19,34 @@ test('workspace colors follow the active league through menus and sign-out', asy
   const root = page.locator('html')
   const switcher = page.getByRole('button', { name: /switch group/i })
   const menu = page.getByRole('menu', { name: /switch group/i })
+  const popover = page.locator('.dropdown__popover').filter({ has: menu })
   const primary = page.getByRole('link', { name: 'Browse strategies' })
   await expect(root).toHaveAttribute('data-league-theme', 'covens')
   await expect(root).toHaveAttribute('data-theme', 'dark')
-  await expect(primary).toHaveCSS('background-color', 'rgb(154, 204, 241)')
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(7, 8, 13)')
+  const title = page.getByRole('heading', { name: 'Today', exact: true, level: 1 })
+  await expect(title).toHaveCSS('font-family', /Cinzel/)
+  await expect.poll(() => page.evaluate(async () => (await document.fonts.load('500 32px Cinzel')).length))
+    .toBeGreaterThan(0)
+  await expect(primary).toHaveCSS('background-color', 'rgb(117, 187, 209)')
   await expect(page.getByRole('button', { name: 'Toggle theme' })).toHaveCount(0)
 
   for (const group of ['Standard Fixture Party', 'PoE2 Fixture Party', groupName]) {
     await switcher.click()
+    await expect(popover).toHaveCSS('background-color', 'rgb(25, 34, 44)')
     await menu.getByRole('menuitemradio', { name: group }).click()
     await expect(menu).not.toBeVisible()
     if (group === groupName) {
       await expect(root).toHaveAttribute('data-league-theme', 'covens')
+      await expect(primary).toHaveCSS('background-color', 'rgb(117, 187, 209)')
     } else {
       await expect(root).not.toHaveAttribute('data-league-theme', 'covens')
-      await expect(primary).toHaveCSS('background-color', 'rgb(210, 180, 132)')
+      await expect(primary).toHaveCSS('background-color', 'rgb(170, 184, 198)')
     }
   }
 
   await switcher.press('ArrowDown')
-  await expect(page.locator('.dropdown__popover').filter({ has: menu }))
-    .toHaveCSS('background-color', 'rgb(43, 35, 28)')
+  await expect(popover).toHaveCSS('background-color', 'rgb(25, 34, 44)')
   await expect(menu.getByRole('menuitemradio').first()).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(menu).not.toBeVisible()
@@ -84,11 +92,16 @@ test('the sample shows Covens without tinting live public tools', async ({ page 
 
 test('the featured scene follows entry routes and clears on a trust page', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' })
-  await page.route('**/covens-ground*.webp', (route) => route.abort())
+  let artworkRequests = 0
+  await page.route('**/covens-workbench*.webp', (route) => {
+    artworkRequests += 1
+    return route.abort()
+  })
   await page.goto('/')
   const root = page.locator('html')
   await expect(root).toHaveAttribute('data-league-theme', 'covens')
   await expect(root).toHaveAttribute('data-theme', 'dark')
+  await expect.poll(() => artworkRequests).toBeGreaterThan(0)
   await expect(page.getByTestId('home-hero-analysis-cta')).toBeInViewport()
   await page.getByTestId('home-hero-connect-cta').click()
   await expect(root).toHaveAttribute('data-league-theme', 'covens')
@@ -134,4 +147,43 @@ test('the focused chart period stays visible in a short viewport', async ({ page
   await expect(selected).toBeInViewport({ ratio: 0.98 })
   await page.keyboard.press('Escape')
   await expect(period).toBeFocused()
+})
+
+test('member equipment details open with the keyboard and touch', async ({ page }, testInfo) => {
+  await mockApp(page, 'poe1')
+  const item: CharacterProfileItem = {
+    id: 'fixture-helmet', slot: 'Helm', name: 'Fixture Crown', typeLine: 'Iron Hat', baseType: 'Iron Hat',
+    icon: null, rarity: 'Rare', frameType: 2, itemLevel: 83, identified: true,
+    corrupted: true, fractured: false, synthesised: false, veiled: false,
+    influences: [], note: null, width: 2, height: 2,
+    sockets: [{ group: 0, color: 'B' }], socketedItems: [],
+    properties: [{ name: 'Armour', values: ['34'] }], requirements: [],
+    implicitMods: [], explicitMods: ['+42 to maximum Life'], craftedMods: [], fracturedMods: [],
+    enchantMods: [], veiledMods: [], modifiers: [],
+  }
+  await page.route('**/rest/v1/character_profile_snapshots?*', (route) => route.fulfill({ json: [{
+    id: profileId, group_id: groupId, user_id: userId, character_id: null,
+    character_name: 'Fixture Witch', class: 'Witch', ascendancy_class: null,
+    level: 91, league: 'Covens', visibility: 'group_only', last_synced_at: '2026-11-18T00:00:00Z',
+    gear: [item], inventory: [], jewels: [], atlas_tree: { url: null, hashes: [], league: 'Covens' },
+  }] }))
+
+  const isMobile = testInfo.project.name === 'chromium-mobile'
+  await page.setViewportSize(isMobile ? { width: 390, height: 844 } : { width: 1440, height: 900 })
+  await page.goto('/dashboard/members')
+  const trigger = page.getByRole('button', { name: `Helmet: ${item.name}`, exact: true })
+  if (isMobile) await trigger.tap()
+  else await trigger.press('Enter')
+  const dialog = page.getByRole('dialog', { name: item.name, exact: true })
+  await expect(dialog).toBeInViewport()
+  await expect(dialog.getByText(item.explicitMods[0], { exact: true })).toBeVisible()
+  await expect(dialog.getByText('Corrupted', { exact: true })).toBeVisible()
+  await expect(dialog).toHaveCSS('background-color', 'rgb(25, 34, 44)')
+  await page.evaluate(() => document.fonts.ready)
+  await page.screenshot({ path: testInfo.outputPath('equipment-details.png'), animations: 'disabled' })
+
+  if (isMobile) await dialog.getByRole('button', { name: /close/i }).tap()
+  else await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  if (!isMobile) await expect(trigger).toBeFocused()
 })

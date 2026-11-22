@@ -5,9 +5,10 @@
   }
 
   .entry-display {
-    font-family: var(--font-editorial, Georgia), Georgia, serif;
-    font-weight: 600;
-    line-height: 0.98;
+    color: var(--heading);
+    font-family: var(--font-display);
+    font-weight: 500;
+    line-height: 1.12;
   }
 
   .entry-ink {
@@ -24,9 +25,9 @@
   }
 
   .entry-wordmark {
-    color: var(--foreground);
-    font-weight: 650;
-    letter-spacing: -0.02em;
+    color: var(--foreground-strong);
+    font-family: var(--font-display);
+    font-weight: 500;
   }
 
   .entry-nav-link {
@@ -98,16 +99,21 @@
   }
 
   .entry-hero-art figcaption {
-    padding-block: 0.5rem 0.875rem;
-    color: var(--muted-text);
+    width: fit-content;
+    margin: 0.5rem 0 0.625rem auto;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.125rem;
+    background: var(--palette-parchment);
+    color: var(--palette-parchment-ink);
+    font-family: Georgia, serif;
     font-size: 0.75rem;
-    text-align: end;
   }
 
   .entry-hero-title {
-    color: var(--foreground);
-    font-size: clamp(3.25rem, 5.4vw, 5.5rem);
-    letter-spacing: -0.035em;
+    color: var(--foreground-strong);
+    font-size: clamp(2.5rem, 4.15vw, 4rem);
+    letter-spacing: -0.025em;
+    text-wrap: balance;
   }
 
   .entry-hero-title span {
@@ -188,7 +194,7 @@
   }
 
   .entry-section-title {
-    font-size: clamp(2rem, 3.6vw, 3.25rem);
+    font-size: clamp(1.75rem, 3vw, 2.5rem);
     letter-spacing: -0.025em;
   }
 
@@ -253,7 +259,7 @@
   }
 
   .entry-login-art img {
-    object-position: 60% center;
+    object-position: center;
   }
 
   .entry-login-column {
@@ -276,8 +282,8 @@
   }
 
   .entry-login-title {
-    font-size: clamp(2.3rem, 4vw, 3.75rem);
-    letter-spacing: -0.034em;
+    font-size: clamp(1.875rem, 3.3vw, 2.5rem);
+    letter-spacing: -0.025em;
     text-wrap: balance;
   }
 
@@ -303,7 +309,7 @@
     }
 
     .entry-hero-image img {
-      object-position: 61% 45%;
+      object-position: center 26%;
     }
 
     .entry-hero-copy {
@@ -311,7 +317,7 @@
     }
 
     .entry-hero-title {
-      font-size: clamp(2.7rem, 1rem + 9vw, 4.4rem);
+      font-size: clamp(2rem, 1rem + 5.5vw, 3.5rem);
     }
 
     .entry-hero-summary {
@@ -341,7 +347,7 @@
     }
 
     .entry-login-art img {
-      object-position: center 48%;
+      object-position: center 26%;
     }
 
     .entry-login-column {

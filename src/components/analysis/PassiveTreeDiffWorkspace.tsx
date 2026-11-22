@@ -351,11 +351,11 @@ function getPassiveImpactEhp(row: ComparePowerRow) {
 
 function getPassiveImpactNodeBadgeToneClassName(impact: number | null | undefined): string {
   if (!impact) {
-    return 'border-default-200 bg-slate-950/90 text-slate-100'
+    return 'border-divider bg-content1 text-foreground'
   }
   return impact > 0
-    ? 'border-success/50 bg-success/15 text-success-300'
-    : 'border-danger/50 bg-danger/15 text-danger-300'
+    ? 'border-success/50 bg-content1 text-success'
+    : 'border-danger/50 bg-content1 text-danger'
 }
 
 function formatPassiveImpactEhp(row: ComparePowerRow): string | null {
@@ -1763,20 +1763,20 @@ export function PassiveTreeDiffWorkspace({
                         setSelectedEntryKey(entryKey)
                         setViewMode('selected')
                       }}
-                      className="pointer-events-auto absolute rounded-[10px] border bg-slate-950/92 px-2.5 py-1.5 text-left shadow-[0_12px_32px_rgba(0,0,0,0.4)] backdrop-blur-sm transition"
+                      className="pointer-events-auto absolute rounded-small border bg-content4 px-2.5 py-1.5 text-left shadow-large transition-colors hover:bg-surface-hover"
                       style={{
                         left,
                         top,
                         width: label.width,
                         minHeight: label.height,
-                        borderColor: selected ? '#f8fafc' : tone.stroke,
+                        borderColor: selected ? 'var(--highlight)' : tone.stroke,
                         color: tone.text,
                       }}
                     >
                       {label.lines.map((line, index) => (
                         <span
                           key={`${entryKey}-line-${index}`}
-                          className={`block ${index === 0 ? 'text-[12px] leading-4 font-semibold' : 'mt-0.5 text-[10px] leading-3.5 opacity-90'}`}
+                          className={`block ${index === 0 ? 'text-[12px] leading-4 font-semibold' : 'mt-0.5 text-[10px] leading-3.5'}`}
                         >
                           {line}
                         </span>

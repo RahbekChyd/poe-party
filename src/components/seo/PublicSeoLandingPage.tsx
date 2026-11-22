@@ -173,7 +173,7 @@ function ToolLandingPage({ route }: { route: PublicSeoRoute }) {
             <Chip variant="soft">
               {content.eyebrow}
             </Chip>
-            <h1 className="mt-4 text-3xl font-semibold tracking-normal text-foreground md:text-4xl">
+            <h1 className="display-heading mt-4 text-3xl md:text-4xl">
               {content.headline}
             </h1>
             <p className="mt-4 text-base leading-relaxed text-default-500">{content.intro}</p>
@@ -213,7 +213,7 @@ function StrategyLandingPage({ route }: { route: PublicSeoRoute }) {
             <Chip variant="soft">
               Farming strategy tracker
             </Chip>
-            <h1 className="mt-4 text-3xl font-semibold tracking-normal text-foreground md:text-4xl">
+            <h1 className="display-heading mt-4 text-3xl md:text-4xl">
               {content.headline}
             </h1>
             <p className="mt-4 text-base leading-relaxed text-default-500">{content.intro}</p>

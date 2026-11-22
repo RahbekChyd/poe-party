@@ -849,7 +849,7 @@ function getSocketTextColorClass(socketColor: string | null): string {
     case 'RED':
     case 'R':
     case 'STRENGTH':
-      return 'text-[#d20000]'
+      return 'text-[#e06a6a]'
     case 'GREEN':
     case 'G':
     case 'DEXTERITY':
@@ -1546,39 +1546,39 @@ function RareSearchItemEditor({
         </div>
       ) : null}
 
-      <div className="rounded-large border border-amber-300/35 bg-[#11100d]/95 px-3 py-2 text-[#d9c7a2] shadow-2xl">
-        <div className="border-b border-amber-300/20 pb-2 text-center">
-          <p className="text-sm font-semibold tracking-[0.18em] text-[#e1c47a] uppercase">
+      <div className="rounded-large border-divider bg-content1 text-foreground wrap-anywhere border px-3 py-2">
+        <div className="border-divider border-b pb-2 text-center">
+          <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
             {option.title}
           </p>
           {option.subtitle ? (
-            <p className="mt-1 text-xs tracking-[0.15em] text-[#f2ebd0] uppercase">
+            <p className="text-default-500 mt-1 text-xs">
               {option.subtitle}
             </p>
           ) : null}
         </div>
 
         {option.properties.length > 0 ? (
-          <div className="border-b border-amber-300/15 py-2 text-center">
+          <div className="border-divider border-b py-2 text-center">
             {option.properties.map((property, index) => (
               <p
                 key={`${option.slot}-property-${property.name}-${index}`}
-                className="text-xs leading-5 text-[#d7d7d7]"
+                className="text-xs leading-5 tabular-nums"
               >
-                <span className="text-[#b4b4b4]">{property.name}:</span>{' '}
-                <span className="text-white">{property.values.join(', ')}</span>
+                <span className="text-default-500">{property.name}:</span>{' '}
+                <span className="text-[color:var(--foreground-strong)]">{property.values.join(', ')}</span>
               </p>
             ))}
           </div>
         ) : null}
 
         {option.requirements.length > 0 ? (
-          <div className="border-b border-amber-300/15 py-2 text-center">
-            <p className="text-[11px] tracking-[0.14em] text-[#8f8f8f] uppercase">Requires</p>
+          <div className="border-divider border-b py-2 text-center">
+            <p className="text-default-500 text-xs">Requires</p>
             {option.requirements.map((requirement, index) => (
               <p
                 key={`${option.slot}-requirement-${requirement.name}-${index}`}
-                className="text-xs leading-5 text-[#d7d7d7]"
+                className="text-xs leading-5 tabular-nums"
               >
                 {requirement.name} {requirement.values.join(', ')}
               </p>
@@ -1587,14 +1587,14 @@ function RareSearchItemEditor({
         ) : null}
 
         {option.sections.length > 0 ? (
-          <div className="border-b border-amber-300/15">
+          <div className="border-divider border-b">
             {option.sections.map((section, sectionIndex) => (
               <div
                 key={`${option.slot}-${section.key}`}
-                className={`${sectionIndex > 0 ? 'border-t border-amber-300/10' : ''} py-2`}
+                className={`${sectionIndex > 0 ? 'border-divider border-t' : ''} py-2`}
               >
                 {section.title ? (
-                  <p className="mb-2 text-center text-[10px] tracking-[0.14em] text-[#8f8f8f] uppercase">
+                  <p className="text-default-500 mb-2 text-center text-xs">
                     {section.title}
                   </p>
                 ) : null}
@@ -1604,7 +1604,7 @@ function RareSearchItemEditor({
                       return (
                         <p
                           key={`${option.slot}-${line.id}`}
-                          className={`text-center text-xs leading-5 ${line.lineClassName}`}
+                          className={`text-center text-xs leading-5 tabular-nums ${line.lineClassName}`}
                         >
                           {line.text}
                         </p>
@@ -1618,8 +1618,8 @@ function RareSearchItemEditor({
                         key={`${option.slot}-${line.id}`}
                         className={`rounded-large border px-2 py-2 ${
                           isDisabled
-                            ? 'border-amber-300/8 bg-black/25 opacity-75'
-                            : 'border-amber-300/12 bg-black/10'
+                            ? 'border-divider bg-content1'
+                            : 'border-divider bg-content2'
                         }`}
                       >
                         <div className="flex items-start gap-2">
@@ -1636,8 +1636,8 @@ function RareSearchItemEditor({
                             </span>
                           </NativeCheckbox>
                           <div className="min-w-0 flex-1 text-center">
-                            <p className={`text-xs leading-5 ${line.lineClassName}`}>{line.text}</p>
-                            <p className="mt-1 text-[10px] tracking-[0.08em] text-[#b39a67] uppercase">
+                            <p className={`text-xs leading-5 tabular-nums ${line.lineClassName}`}>{line.text}</p>
+                            <p className="text-default-500 mt-1 text-xs">
                               {lineTarget.label}
                               {lineTarget.supportsValueOverride ? ' target' : ' filter'}
                               {lineTarget.targetMultiplier > 1 && lineTarget.summaryTargetKey
@@ -1645,7 +1645,7 @@ function RareSearchItemEditor({
                                 : ''}
                             </p>
                             {!lineTarget.supportsValueOverride ? (
-                              <p className="mt-1 text-[10px] text-[#c7b08a]">
+                              <p className="text-default-500 mt-1 text-xs">
                                 Toggle this exact search filter on or off.
                               </p>
                             ) : null}
@@ -1689,11 +1689,11 @@ function RareSearchItemEditor({
             ))}
           </div>
         ) : (
-          <div className="py-3 text-center text-xs text-[#d7d7d7]">No item details available.</div>
+          <div className="text-default-500 py-3 text-center text-xs">No item details available.</div>
         )}
 
         {option.footerLines.length > 0 ? (
-          <div className="pt-2 text-center text-[11px] text-[#a89467]">
+          <div className="text-default-500 pt-2 text-center text-xs tabular-nums">
             {option.footerLines.map((line) => (
               <p key={`${option.slot}-${line.text}`} className={line.className ?? undefined}>
                 {line.text}

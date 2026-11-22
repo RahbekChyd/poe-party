@@ -96,6 +96,90 @@ test('group KPIs and rows consistently exclude an expensive item from totals', a
   await page.screenshot({ path: testInfo.outputPath('excluded-snapshot.png'), fullPage: true })
 })
 
+test('member stash filters preserve exclusion meaning and recover from no matches', async ({ page }, testInfo) => {
+  await mockCapture(page, 'partial', exclusionItems)
+  const date = new Date()
+  await page.route('**/rest/v1/snapshot_value_history?*', (route) => route.fulfill({
+    json: [
+      { id: 'earlier-capture', snapshot_id: null, completed_at: new Date(date.getTime() - 86_400_000).toISOString(), included_chaos_total: 12, excluded_chaos_total: 0, pricing_summary: summary },
+      { id: 'current-capture', snapshot_id: 'snapshot', completed_at: date.toISOString(), included_chaos_total: 6, excluded_chaos_total: 100_000, pricing_summary: summary },
+    ],
+  }))
+  const isMobile = testInfo.project.name === 'chromium-mobile'
+  await page.setViewportSize(isMobile ? { width: 390, height: 844 } : { width: 1440, height: 900 })
+  await page.goto(`/dashboard/economy/${userId}`)
+
+  const table = page.getByRole('region', { name: 'Snapshot stash items' }).getByRole('table')
+  const excluded = table.getByRole('row', { name: /Excluded trophy/ })
+  const included = table.getByRole('row', { name: /Included currency/ })
+  const excludedTab = excluded.getByRole('button', { name: 'Excluded stash', exact: true })
+  await expect(excluded).toBeVisible()
+  await expect(excluded).toHaveCSS('opacity', '1')
+  await expect(excluded.getByRole('button', { name: 'Include item', exact: true })).toBeVisible()
+  await expect(included.getByRole('button', { name: 'Exclude item', exact: true })).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+  await page.screenshot({ path: testInfo.outputPath('member-stash-overview.png'), animations: 'disabled' })
+
+  if (isMobile) await excludedTab.tap()
+  else await excludedTab.press('Enter')
+  await expect(excludedTab).toHaveAttribute('aria-pressed', 'true')
+  await expect(excluded.getByRole('button', { name: 'Include item', exact: true })).toBeVisible()
+  await expect(included).toHaveCount(0)
+  await page.screenshot({ path: testInfo.outputPath('member-stash-selected.png'), animations: 'disabled' })
+
+  const search = page.getByRole('textbox', { name: 'Search items', exact: true })
+  await search.fill('nothing matches this')
+  const empty = table.getByText('No results match these filters.')
+  await expect(empty).toBeVisible()
+  await page.getByRole('button', { name: 'Clear', exact: true }).click()
+  await expect(search).toBeEmpty()
+  await expect(search).toBeFocused()
+  await expect(excludedTab).toHaveAttribute('aria-pressed', 'true')
+  await search.fill('nothing matches this')
+  await expect(empty).toBeVisible()
+  const clearFilters = table.getByRole('button', { name: 'Clear filters' })
+  await clearFilters.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: testInfo.outputPath('member-stash-no-results.png'), animations: 'disabled' })
+  await clearFilters.click()
+  await expect(search).toBeEmpty()
+  await expect(search).toBeFocused()
+  await expect(excludedTab).toHaveAttribute('aria-pressed', 'false')
+  await expect(included).toBeVisible()
+})
+
+test('member stash distinguishes pending, failed, and empty captures', async ({ page }, testInfo) => {
+  await mockCapture(page, 'complete', [])
+  let allowFirstResponse: () => void = () => {}
+  const firstResponse = new Promise<void>((resolve) => { allowFirstResponse = resolve })
+  let showError = true
+  await page.route('**/rest/v1/latest_stash_items?*', async (route) => {
+    await firstResponse
+    if (showError) return route.fulfill({ status: 500, json: { message: 'Fixture snapshot unavailable' } })
+    return route.fulfill({ json: [] })
+  })
+
+  const isMobile = testInfo.project.name === 'chromium-mobile'
+  await page.setViewportSize(isMobile ? { width: 390, height: 844 } : { width: 1440, height: 900 })
+  try {
+    await page.goto(`/dashboard/economy/${userId}`)
+    await expect(page.getByRole('status').filter({ hasText: 'Loading stash items' })).toBeAttached()
+    await page.evaluate(() => document.fonts.ready)
+    await page.screenshot({ path: testInfo.outputPath('member-stash-loading.png'), animations: 'disabled' })
+  } finally {
+    allowFirstResponse()
+  }
+
+  const alert = page.getByRole('alert').filter({ hasText: 'Couldn’t load the snapshot' })
+  await expect(alert).toBeVisible()
+  await alert.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: testInfo.outputPath('member-stash-error.png'), animations: 'disabled' })
+  showError = false
+  await alert.getByRole('button', { name: 'Try again', exact: true }).press('Enter')
+  await expect(alert).toHaveCount(0)
+  await expect(page.getByText(/no stash items/i)).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Snapshot stash items' })).toHaveCount(0)
+})
+
 test('stash tables retain readable item and total cells when columns reflow', async ({ page }) => {
   await mockCapture(page, 'complete', exclusionItems)
   for (const [url, regionName] of [

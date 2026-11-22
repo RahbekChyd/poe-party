@@ -1360,39 +1360,39 @@ function RecommendationTooltipContent({
   )
 
   return (
-    <div className="rounded-large max-w-[24rem] min-w-[18rem] border border-amber-300/35 bg-[#11100d]/95 px-3 py-2 text-[#d9c7a2] shadow-2xl">
-      <div className="border-b border-amber-300/20 pb-2 text-center">
-        <p className="text-sm font-semibold tracking-[0.18em] text-[#e1c47a] uppercase">
+    <div className="rounded-large border-divider bg-overlay text-foreground w-96 max-w-[calc(100dvw-2rem)] wrap-anywhere border px-3 py-2 shadow-large">
+      <div className="border-divider border-b pb-2 text-center">
+        <p className={`text-sm font-semibold ${getRarityColor(parsed.rarity)}`}>
           {parsed.title}
         </p>
         {parsed.baseLine ? (
-          <p className="mt-1 text-xs tracking-[0.15em] text-[#f2ebd0] uppercase">
+          <p className="text-default-500 mt-1 text-xs">
             {parsed.baseLine}
           </p>
         ) : null}
       </div>
 
       {visibleProperties.length > 0 ? (
-        <div className="border-b border-amber-300/15 py-2 text-center">
+        <div className="border-divider border-b py-2 text-center">
           {visibleProperties.map((property, index) => (
             <p
               key={`${property.name}-${property.values.join('|')}-${index}`}
-              className="text-xs leading-5 text-[#d7d7d7]"
+              className="text-xs leading-5 tabular-nums"
             >
-              <span className="text-[#b4b4b4]">{property.name}:</span>{' '}
-              <span className="text-white">{property.values.join(', ')}</span>
+              <span className="text-default-500">{property.name}:</span>{' '}
+              <span className="text-[color:var(--foreground-strong)]">{property.values.join(', ')}</span>
             </p>
           ))}
         </div>
       ) : null}
 
       {visibleRequirements.length > 0 ? (
-        <div className="border-b border-amber-300/15 py-2 text-center">
-          <p className="text-[11px] tracking-[0.14em] text-[#8f8f8f] uppercase">Requires</p>
+        <div className="border-divider border-b py-2 text-center">
+          <p className="text-default-500 text-xs">Requires</p>
           {visibleRequirements.map((requirement, index) => (
             <p
               key={`${requirement.name}-${requirement.values.join('|')}-${index}`}
-              className="text-xs leading-5 text-[#d7d7d7]"
+              className="text-xs leading-5 tabular-nums"
             >
               {requirement.name} {requirement.values.join(', ')}
             </p>
@@ -1401,16 +1401,16 @@ function RecommendationTooltipContent({
       ) : null}
 
       {parsed.modifierSections.length > 0 ? (
-        <div className="border-b border-amber-300/15">
+        <div className="border-divider border-b">
           {parsed.modifierSections.map((section, index) => (
             <div
               key={`${parsed.title}-section-${index}`}
-              className={`${index > 0 ? 'border-t border-amber-300/10' : ''} py-2`}
+              className={`${index > 0 ? 'border-divider border-t' : ''} py-2`}
             >
               {section.lines.map((line) => (
                 <p
                   key={`${parsed.title}-${index}-${line}`}
-                  className={`text-center text-xs leading-5 ${section.lineClassName}`}
+                  className={`text-center text-xs leading-5 tabular-nums ${section.lineClassName}`}
                 >
                   {line}
                 </p>
@@ -1419,17 +1419,17 @@ function RecommendationTooltipContent({
           ))}
         </div>
       ) : (
-        <div className="py-3 text-center text-xs text-[#d7d7d7]">No item details available.</div>
+        <div className="text-default-500 py-3 text-center text-xs">No item details available.</div>
       )}
 
       {parsed.footerLines.length > 0 ? (
-        <div className="pt-2 text-center text-[11px] text-[#a89467]">
+        <div className="text-default-500 pt-2 text-center text-xs tabular-nums">
           {parsed.footerLines.map((line) => (
             <p
               key={`${parsed.title}-footer-${line}`}
               className={
                 line === 'Corrupted'
-                  ? 'text-[#d14b4b]'
+                  ? 'text-[#e06a6a]'
                   : line.includes('Synthesised')
                     ? 'text-[#8ee8ff]'
                     : line.includes('Fractured')
@@ -1446,17 +1446,17 @@ function RecommendationTooltipContent({
       ) : null}
 
       {analysisNotes.length > 0 ? (
-        <div className="mt-2 border-t border-amber-300/15 pt-2 text-left">
-          <p className="text-[11px] tracking-[0.14em] text-[#a89467] uppercase">
+        <div className="border-divider mt-2 border-t pt-2 text-left">
+          <p className="text-default-500 text-xs">
             Analysis notes
           </p>
           <div className="mt-1 flex flex-col gap-2">
             {analysisNotes.map((note) => (
               <div key={note.key}>
-                <p className="text-[11px] font-semibold tracking-[0.12em] text-[#e1c47a] uppercase">
+                <p className="text-foreground text-xs font-semibold">
                   {note.label}
                 </p>
-                <div className="text-xs leading-5 text-[#d7d7d7]">{note.content}</div>
+                <div className="text-default-500 text-xs leading-5">{note.content}</div>
               </div>
             ))}
           </div>
@@ -2236,21 +2236,21 @@ export function RecommendationItemRow({
                     </Tooltip>
                   </div>
                   {hasFullItemText ? (
-                    <div className="rounded-large mt-2 border border-amber-300/20 bg-[#11100d] p-3">
+                    <div className="rounded-large border-divider bg-content1 text-foreground mt-2 border p-3">
                       {preview.title ? (
-                        <p className="font-mono text-xs leading-5 text-[#d7d7d7]">
+                        <p className="font-mono text-xs leading-5">
                           {preview.title}
                         </p>
                       ) : null}
                       {preview.subtitle ? (
-                        <p className="font-mono text-xs leading-5 text-[#d7d7d7]">
+                        <p className="font-mono text-xs leading-5">
                           {preview.subtitle}
                         </p>
                       ) : null}
                       {preview.bodyLines.map((line, index) => (
                         <p
                           key={`${preview.title}-body-${index}`}
-                          className="font-mono text-xs leading-5 text-[#d7d7d7]"
+                          className="font-mono text-xs leading-5"
                         >
                           {line}
                         </p>

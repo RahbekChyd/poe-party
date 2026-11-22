@@ -5,11 +5,11 @@
   }
 
   .dashboard-page-title {
-    color: var(--foreground);
-    font-family: var(--font-editorial, Georgia), serif;
-    font-size: 2.1875rem;
-    font-weight: 600;
-    line-height: 1.09;
+    color: var(--heading);
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 500;
+    line-height: 1.15;
   }
 
   @media (min-width: 48rem) {
@@ -18,7 +18,7 @@
     }
 
     .dashboard-page-title {
-      font-size: 2.75rem;
+      font-size: 2.5rem;
     }
   }
 

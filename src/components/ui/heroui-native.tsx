@@ -5,6 +5,8 @@ import {
   type Key,
   type ReactNode,
   forwardRef,
+  useImperativeHandle,
+  useRef,
 } from 'react'
 import { Avatar } from '@heroui/react/avatar'
 import { Button } from '@heroui/react/button'
@@ -68,6 +70,9 @@ export const FieldInput = forwardRef<HTMLInputElement, FieldInputProps>(function
   },
   ref,
 ) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  useImperativeHandle(ref, () => inputRef.current!)
+
   const controlSizeClassName =
     size === 'lg' ? 'min-h-12' : size === 'sm' ? 'h-9 min-h-9' : 'min-h-10'
   const affixClassName = cn(
@@ -75,7 +80,8 @@ export const FieldInput = forwardRef<HTMLInputElement, FieldInputProps>(function
     size === 'sm' ? 'px-2.5' : undefined,
   )
   const inputClassName = cn('min-w-0', size === 'lg' ? 'text-base' : 'text-sm')
-  const hasTrailingContent = (isClearable && !!value) || !!endContent
+  const canClear = isClearable && value && onClear && !isDisabled && !isReadOnly
+  const hasTrailingContent = canClear || !!endContent
 
   return (
     <TextField
@@ -92,14 +98,14 @@ export const FieldInput = forwardRef<HTMLInputElement, FieldInputProps>(function
     >
       {label ? <Label>{label}</Label> : null}
       {startContent || endContent || isClearable ? (
-        <InputGroup fullWidth className={cn('w-full', controlSizeClassName)}>
+        <InputGroup fullWidth className={cn('w-full', controlSizeClassName, isClearable && 'clearable-field')}>
           {startContent ? (
             <InputGroup.Prefix className={cn(affixClassName, '[&_svg]:size-4')}>
               {startContent}
             </InputGroup.Prefix>
           ) : null}
           <InputGroup.Input
-            ref={ref}
+            ref={inputRef}
             className={inputClassName}
             value={value}
             onChange={(event) => {
@@ -110,14 +116,17 @@ export const FieldInput = forwardRef<HTMLInputElement, FieldInputProps>(function
           />
           {hasTrailingContent ? (
             <InputGroup.Suffix className={cn(affixClassName, 'gap-1', isClearable && 'pr-1')}>
-              {isClearable && value ? (
+              {canClear ? (
                 <Button
                   isIconOnly
                   size="sm"
                   variant="tertiary"
                   aria-label="Clear"
-                  onPress={onClear}
-                  className="h-7 min-h-7 w-7 min-w-7"
+                  onPress={() => {
+                    inputRef.current?.focus()
+                    onClear()
+                  }}
+                  className="field-clear-button h-7 min-h-7 w-7 min-w-7"
                 >
                   <X size={14} />
                 </Button>
@@ -128,7 +137,7 @@ export const FieldInput = forwardRef<HTMLInputElement, FieldInputProps>(function
         </InputGroup>
       ) : (
         <Input
-          ref={ref}
+          ref={inputRef}
           className={cn('w-full', controlSizeClassName, inputClassName)}
           value={value}
           onChange={(event) => {

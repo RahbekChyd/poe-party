@@ -13,6 +13,7 @@
   --color-navigation: var(--navigation);
   --color-selected: var(--selected);
   --color-highlight: var(--highlight);
+  --color-surface-hover: var(--surface-hover);
   --color-control: var(--control-edge);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
@@ -83,9 +84,10 @@
   --color-danger-300: color-mix(in oklab, var(--danger) 42%, transparent);
   --color-danger-600: color-mix(in oklab, var(--danger) 78%, var(--foreground) 22%);
 
-  --radius-small: 0.5rem;
-  --radius-medium: 0.75rem;
-  --radius-large: 0.875rem;
+  --radius-small: 0.25rem;
+  --radius-medium: 0.375rem;
+  --radius-large: 0.375rem;
+  --font-display: 'Cinzel', Georgia, serif;
   --text-tiny: 0.75rem;
   --text-tiny--line-height: 1rem;
   --shadow-small: var(--surface-shadow);
@@ -104,15 +106,21 @@
   --background: var(--palette-canvas);
   --navigation: var(--palette-navigation);
   --surface: var(--palette-panel);
-  --surface-secondary: color-mix(in oklab, var(--surface) 65%, var(--navigation));
-  --surface-tertiary: color-mix(in oklab, var(--surface) 35%, var(--navigation));
+  --surface-secondary: var(--palette-raised);
+  --surface-tertiary: var(--palette-raised);
+  --surface-hover: var(--palette-hover);
   --overlay: var(--palette-overlay);
   --foreground: var(--palette-ink);
+  --foreground-strong: var(--palette-ink-strong);
+  --surface-foreground: var(--foreground);
+  --overlay-foreground: var(--foreground);
+  --heading: var(--palette-heading);
   --muted: var(--palette-muted);
   --muted-subtle-text: var(--muted);
   --muted-text: var(--muted);
   --default: var(--surface-tertiary);
   --default-foreground: var(--foreground);
+  --color-default-hover: var(--surface-hover);
   --separator: var(--palette-divider);
   --border: var(--control-edge);
   --control-edge: var(--palette-control-edge);
@@ -120,14 +128,15 @@
 
   --accent: var(--palette-action);
   --accent-foreground: var(--palette-on-action);
-  --accent-hover: color-mix(in oklab, var(--accent) 90%, var(--accent-foreground) 10%);
+  --accent-hover: var(--palette-action-hover);
+  --color-accent-hover: var(--accent-hover);
   --accent-soft: color-mix(in oklab, var(--accent) 15%, transparent);
   --accent-readable: var(--palette-link);
   --accent-soft-foreground: var(--accent-readable);
   --link: var(--accent-readable);
 
   --selected: var(--palette-selected);
-  --selected-hover: color-mix(in oklab, var(--selected) 90%, var(--highlight));
+  --selected-hover: var(--palette-selected-hover);
   --highlight: var(--palette-highlight);
   --focus: var(--palette-focus);
   --focus-outline: var(--focus);
@@ -135,7 +144,7 @@
   --segment: var(--selected);
   --segment-foreground: var(--highlight);
   --wealth-series: var(--palette-verdigris);
-  --currency: var(--palette-verdigris);
+  --currency: var(--palette-value);
   --currency-soft: color-mix(in oklab, var(--currency) 13%, transparent);
   --currency-border: color-mix(in oklab, var(--currency) 30%, var(--separator));
 
@@ -151,62 +160,73 @@
   --warning-soft: color-mix(in oklab, var(--warning) 13%, transparent);
   --warning-foreground: var(--palette-on-status);
   --danger: var(--palette-danger);
-  --danger-soft: color-mix(in oklab, var(--danger) 12%, transparent);
+  --danger-soft: var(--palette-danger-surface);
+  --danger-soft-hover: color-mix(in oklab, var(--danger-soft) 92%, var(--danger));
   --danger-foreground: var(--palette-on-status);
 
   --field-border-width: 1px;
   --field-border: var(--control-edge);
-  --field-background: color-mix(in oklab, var(--surface) 82%, var(--navigation));
+  --field-background: var(--surface);
+  --color-field-hover: var(--surface-hover);
+  --field-radius: 0.25rem;
   --field-foreground: var(--foreground);
   --field-placeholder: var(--muted);
   --field-shadow: 0 0 0 0 transparent;
-  --overlay-shadow: 0 12px 32px color-mix(in oklab, var(--background) 48%, transparent);
+  --overlay-shadow: 0 12px 32px color-mix(in oklab, var(--navigation) 65%, transparent);
+  --surface-shadow: 0 0 0 0 transparent;
 
-  /* Soot-dark stone and aged brass. Data and status colors are shared across seasons. */
-  --palette-canvas: #11100e;
-  --palette-navigation: #1a1713;
-  --palette-panel: #211b16;
-  --palette-overlay: #2b231c;
-  --palette-ink: #eee5d4;
-  --palette-muted: #b9aa98;
-  --palette-brass: #d2b484;
-  --palette-action: var(--palette-brass);
-  --palette-on-action: #17120c;
-  --palette-on-status: #211b16;
-  --palette-link: var(--palette-brass);
-  --palette-selected: #352b1e;
-  --palette-highlight: var(--palette-brass);
-  --palette-focus: var(--palette-brass);
-  --palette-control-edge: #8d795f;
-  --palette-divider: #554534;
+  /* Reading surfaces and status colors are shared across league presets. */
+  --palette-canvas: #07080d;
+  --palette-navigation: #030509;
+  --palette-panel: #10161d;
+  --palette-raised: #19222c;
+  --palette-hover: #202c38;
+  --palette-overlay: var(--palette-raised);
+  --palette-ink: #dad9d9;
+  --palette-ink-strong: #f0ede7;
+  --palette-heading: #898ea5;
+  --palette-muted: #a5adb8;
+  --palette-action: #aab8c6;
+  --palette-action-hover: #c2cdd6;
+  --palette-action-pressed: #94a7b8;
+  --palette-on-action: #071016;
+  --palette-on-status: #071016;
+  --palette-link: #bdccdb;
+  --palette-selected: #263442;
+  --palette-selected-hover: #2c3a48;
+  --palette-highlight: #bdccdb;
+  --palette-focus: #d1dae4;
+  --palette-control-edge: #657a8c;
+  --palette-divider: #33414e;
+  --palette-parchment: #c6b38d;
+  --palette-parchment-ink: #261f19;
+  --palette-value: #d5ba83;
   --palette-verdigris: oklch(81.524% 0.06076 181.458);
-  --palette-success: oklch(83.412% 0.12239 158.598);
+  --palette-success: #a5b98b;
   --palette-warning: oklch(88.383% 0.11032 84.229);
-  --palette-danger: oklch(79.588% 0.12032 10.471);
+  --palette-danger: #e38a85;
+  --palette-danger-surface: #2a151b;
   --palette-info: #bab7ed;
 }
 
 @font-face {
-  font-family: 'Cormorant Garamond';
-  src: url('./assets/fonts/cormorant-garamond-600-latin.woff2') format('woff2');
-  font-weight: 600;
+  font-family: 'Cinzel';
+  src: url('./assets/fonts/cinzel-500-latin.woff2') format('woff2');
+  font-weight: 500;
   font-style: normal;
   font-display: swap;
 }
 
-:root {
-  --font-editorial: 'Cormorant Garamond', Georgia, serif;
-}
-
-/* Covens uses cold blue light for interactive accents on the shared stone surfaces. */
+/* Cold light identifies the featured season within the shared dark theme. */
 :root[data-league-theme='covens'] {
-  --palette-ice: #9accf1;
-  --palette-action: var(--palette-ice);
-  --palette-on-action: #101a21;
-  --palette-link: var(--palette-ice);
-  --palette-selected: #26343c;
-  --palette-highlight: var(--palette-ice);
-  --palette-focus: var(--palette-ice);
+  --palette-action: #75bbd1;
+  --palette-action-hover: #96d3e3;
+  --palette-action-pressed: #64a9bf;
+  --palette-link: #83c7dc;
+  --palette-selected: #1a3039;
+  --palette-selected-hover: #233b46;
+  --palette-highlight: #83c7dc;
+  --palette-focus: #b7e4f0;
 }
 
 body {
@@ -214,6 +234,8 @@ body {
   min-height: 100dvh;
   background: var(--background);
   color: var(--foreground);
+  caret-color: var(--accent-readable);
+  scrollbar-color: var(--scrollbar) var(--background);
 }
 
 ::selection {
@@ -233,6 +255,13 @@ body {
 }
 
 @layer components {
+  .display-heading {
+    color: var(--heading);
+    font-family: var(--font-display);
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+
   .toggle-button {
     --toggle-button-bg-selected: var(--selected);
     --toggle-button-bg-selected-hover: var(--selected-hover);
@@ -275,7 +304,8 @@ body {
   }
 
   .card {
-    border: 1px solid color-mix(in oklab, var(--separator) 80%, transparent);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-medium);
     box-shadow: none;
   }
 
@@ -295,8 +325,36 @@ body {
       color 150ms ease;
   }
 
+  :is(.button, .toggle-button):not(.button--icon-only) {
+    border-radius: var(--radius-small);
+  }
+
+  .button--primary:is(:active, [data-pressed='true']) {
+    background-color: var(--palette-action-pressed);
+  }
+
+  .button--secondary {
+    --button-bg: var(--surface);
+    --button-bg-hover: var(--surface-hover);
+    --button-bg-pressed: var(--surface-tertiary);
+    --button-fg: var(--foreground);
+    border: 1px solid var(--control-edge);
+  }
+
   .select__trigger {
     align-items: center;
+  }
+
+  @media (pointer: coarse) {
+    .button--primary:not(.button--icon-only),
+    .clearable-field {
+      min-block-size: 2.75rem;
+    }
+
+    .field-clear-button {
+      min-inline-size: 2.75rem;
+      min-block-size: 2.75rem;
+    }
   }
 
   .input-group__prefix,
@@ -311,8 +369,10 @@ body {
   .dropdown__popover,
   .select__popover,
   .modal__dialog,
-  .popover__content {
-    border: 1px solid color-mix(in oklab, var(--separator) 88%, transparent);
+  .popover__content,
+  .tooltip {
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-medium);
     background: var(--overlay);
   }
 

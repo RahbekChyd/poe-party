@@ -1,7 +1,8 @@
 import { SnapshotPricingNotice } from './SnapshotPricingNotice'
+import { SnapshotEmptyState } from './SnapshotEmptyState'
 import './economy-data.css'
 import { storedSnapshotPrice, comparablePricing } from '../../lib/snapshot-pricing'
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
@@ -165,6 +166,7 @@ export function SnapshotDetailPage() {
   // Min value stored in chaos internally; displayed in current currency unit
   const [minValueChaos, setMinValueChaos] = useState(0)
   const [search, setSearch] = useState('')
+  const searchInput = useRef<HTMLInputElement>(null)
   const debouncedSearch = useDebouncedValue(search)
   const [tabFilters, setTabFilters] = useState<string[]>([])
   const [sortKey, setSortKey] = useState<SortKey>('price_chaos')
@@ -374,7 +376,7 @@ export function SnapshotDetailPage() {
   }
 
   const sortIcon = (col: SortKey) => {
-    if (sortKey !== col) return <ChevronsUpDown size={12} className="text-default-300" />
+    if (sortKey !== col) return <ChevronsUpDown size={12} className="text-default-400" aria-hidden="true" />
     return sortDir === 'asc' ? (
       <ChevronUp size={12} className="text-highlight" aria-hidden="true" />
     ) : (
@@ -431,7 +433,6 @@ export function SnapshotDetailPage() {
           actions={canSnapshot && (
             <Button
               size="sm"
-              variant="tertiary"
               isPending={isBusy}
               isDisabled={!activeGroupId}
               onPress={() => triggerSnapshot(activeGroupId!, activeLeague)}
@@ -519,20 +520,18 @@ export function SnapshotDetailPage() {
         )}
         {isLoading ? (
           <>
+            <p role="status" className="text-default-500 text-sm">Loading stash items…</p>
             <KpiCardsSkeleton />
             <ItemTableSkeleton />
           </>
         ) : isError && !rawItems ? (
           <QueryStatePanel kind="error" title="Couldn’t load the snapshot" description="Try again to view stash items." onRetry={refetch} />
         ) : !items.length && !currentHistoryPoint ? (
-          <Card className="p-0">
-            <Card.Content className="flex flex-col items-center gap-3 p-12 text-center">
-              <Package size={32} className="text-default-300" />
-              <p className="text-default-400 text-sm">
-                No stash items in this snapshot.
-              </p>
-            </Card.Content>
-          </Card>
+          <SnapshotEmptyState
+            game={membership?.group.game ?? null}
+            league={activeLeague}
+            message="No stash items in this snapshot."
+          />
         ) : (
           <>
             {!items.length && selectedHistoryId && !currentHistoryPoint?.snapshot_id && (
@@ -784,6 +783,7 @@ export function SnapshotDetailPage() {
             <Card className="p-0">
               <Card.Content className="flex flex-row flex-wrap items-center gap-3 p-3">
                 <FieldInput
+                  ref={searchInput}
                   size="sm"
                   aria-label="Search items"
                   placeholder="Search items…"
@@ -962,7 +962,7 @@ export function SnapshotDetailPage() {
                   </Dropdown>
                 )}
 
-                <span className="text-default-400 ml-auto text-xs">
+                <span role="status" className="text-default-400 ml-auto text-xs tabular-nums">
                   {filtered.length.toLocaleString()} item{filtered.length !== 1 ? 's' : ''}
                   {filtered.length !== items.length && ` of ${items.length.toLocaleString()}`}
                 </span>
@@ -970,7 +970,7 @@ export function SnapshotDetailPage() {
             </Card>
 
             {/* Table — columns: Icon | Item | Tab | Stack | Unit | Total */}
-            <Card className="p-0">
+            <Card className="overflow-visible p-0">
               <Card.Content className="p-0">
                 <div className="economy-data" role="region" aria-label="Snapshot stash items">
                   <table className="economy-stash" role="table">
@@ -1099,9 +1099,7 @@ export function SnapshotDetailPage() {
                           <Fragment key={item.id}>
                             <tr
                               role="row"
-                              className={`${i < paginated.length - 1 ? 'border-divider border-b' : ''} ${
-                                item.is_excluded && !promptActive ? 'opacity-70' : ''
-                              }`}
+                              className={i < paginated.length - 1 ? 'border-divider border-b' : undefined}
                             >
                               <td role="cell" data-cell="include" className="px-2 py-2 text-center">
                                 <span className="economy-data-label" aria-hidden="true">
@@ -1136,13 +1134,13 @@ export function SnapshotDetailPage() {
                                           },
                                         )
                                       }
-                                      className={`inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs font-semibold transition-colors ${
+                                      className={`economy-inclusion-toggle border-control inline-flex h-6 w-6 items-center justify-center rounded-md border text-xs font-semibold transition-colors ${
                                         item.is_excluded
-                                          ? 'border-warning/50 bg-warning/15 text-warning'
-                                          : 'border-success/40 bg-success/10 text-success hover:bg-success/15'
+                                          ? 'bg-warning/15 text-warning hover:bg-warning/20'
+                                          : 'bg-success/10 text-success hover:bg-success/15'
                                       } ${updatingExclusion || updatingExclusionAllHistory ? 'cursor-wait opacity-60' : ''}`}
                                     >
-                                      {item.is_excluded ? <X size={12} /> : <Check size={12} />}
+                                      {item.is_excluded ? <X size={12} aria-hidden="true" /> : <Check size={12} aria-hidden="true" />}
                                     </button>
                                   </div>
                                 ) : item.is_excluded ? (
@@ -1166,7 +1164,8 @@ export function SnapshotDetailPage() {
                                 )}
                               </td>
                               <td role="cell" data-cell="item" className="px-4 py-2">
-                                <p className="text-foreground text-sm">{item.display_name}</p>
+                                <p className={`text-sm ${item.is_excluded ? 'text-default-500' : 'text-foreground'}`}>{item.display_name}</p>
+                                {item.is_excluded && <p className="text-default-500 text-xs">Excluded from totals</p>}
                                 {item.base_type && item.base_type !== item.display_name && (
                                   <p className="text-default-400 text-xs">{item.base_type}</p>
                                 )}
@@ -1189,7 +1188,7 @@ export function SnapshotDetailPage() {
                                   {item.tab_name}
                                 </button>
                               </td>
-                              <td role="cell" data-cell="quantity" className="px-4 py-2 text-right">
+                              <td role="cell" data-cell="quantity" className="px-4 py-2 text-right tabular-nums">
                                 <span className="economy-data-label" aria-hidden="true">
                                   Stack
                                 </span>
@@ -1301,9 +1300,29 @@ export function SnapshotDetailPage() {
                           <td
                             role="cell"
                             colSpan={7}
-                            className="text-default-400 py-12 text-center text-sm"
+                            className="economy-empty-cell"
                           >
-                            No items match the current filters.
+                            {items.length > 0 ? (
+                              <div className="economy-empty-results">
+                                <p>No results match these filters.</p>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="min-h-11"
+                                  onPress={() => {
+                                    searchInput.current?.focus()
+                                    setSearch('')
+                                    setMinValueChaos(0)
+                                    setTabFilters([])
+                                    setPage(1)
+                                  }}
+                                >
+                                  Clear filters
+                                </Button>
+                              </div>
+                            ) : (
+                              <p>No stash items in this snapshot.</p>
+                            )}
                           </td>
                         </tr>
                       )}
