@@ -1,10 +1,18 @@
-import { Link } from '@tanstack/react-router'
+import { Link, getRouteApi } from '@tanstack/react-router'
+import { useCallback } from 'react'
 import { useActiveGroupContext } from '../../hooks/useGroups'
 import { GearRecommendationsPanel } from '../gear/GearRecommendationsPanel'
 import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 
+const analysisRoute = getRouteApi('/dashboard/analysis/')
+
 export function AnalysisPage() {
   const { capabilities } = useActiveGroupContext()
+  const { runId, buildTargetId } = analysisRoute.useSearch()
+  const navigate = analysisRoute.useNavigate()
+  const clearRunRequest = useCallback(() => {
+    void navigate({ search: {}, replace: true, resetScroll: false })
+  }, [navigate])
 
   if (!capabilities?.supportsOptimizer) {
     return (
@@ -38,7 +46,11 @@ export function AnalysisPage() {
         Analysis is in development. We use analysis data to improve recommendations.
       </p>
 
-      <GearRecommendationsPanel />
+      <GearRecommendationsPanel
+        requestedRunId={runId}
+        requestedBuildTargetId={buildTargetId}
+        onRunRequestHandled={clearRunRequest}
+      />
     </DashboardPage>
   )
 }

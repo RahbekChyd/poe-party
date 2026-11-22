@@ -184,8 +184,19 @@ export async function mockApp(
 }
 
 export const analysisWorkerTrace = 'Modules/Common.lua:1029: attempt to call method gsub (a nil value)\nstack traceback:\n/app/pob/run-analysis.lua:3828'
+export const recommendationIconPaths = {
+  'Fixture Ward': '/gen/image/fixture-ward.png',
+  'Fixture Band': '/image/Art/fixture-band.png',
+  'Fixture Crest': 'https://web.poecdn.com/image/Art/fixture-missing-crest.png',
+  'Fixture Gloves': 'https://web.poecdn.com/image/Art/fixture-missing-gloves.png',
+} as const
 
-export async function mockAnalysisRuns(page: Page, options?: { running?: boolean; failed?: boolean }) {
+export async function mockAnalysisRuns(page: Page, options?: {
+  running?: boolean
+  failed?: boolean
+  notification?: 'completed' | 'partial'
+  icons?: boolean
+}) {
   await mockApp(page, 'poe1')
   const characterId = '70000000-0000-0000-0000-000000000001'
   const targetId = '80000000-0000-0000-0000-000000000001'
@@ -194,6 +205,8 @@ export async function mockAnalysisRuns(page: Page, options?: { running?: boolean
   const runningId = '90000000-0000-0000-0000-000000000002'
   const failedId = '90000000-0000-0000-0000-000000000003'
   const submittedId = '90000000-0000-0000-0000-000000000004'
+  const alternateReadyId = '90000000-0000-0000-0000-000000000005'
+  const alternateFailedId = '90000000-0000-0000-0000-000000000006'
   const now = Date.now()
   const finished = new Date(now - 60_000).toISOString()
   const started = new Date(now - 10_000).toISOString()
@@ -202,16 +215,33 @@ export async function mockAnalysisRuns(page: Page, options?: { running?: boolean
     created_by: userId, name: 'Fixture build', source_kind: 'pob_xml',
     compatibility_status: 'compatible', is_selected: true, selected_stage_id: stageId, created_at: finished,
   }
-  await page.route('**/rest/v1/characters?*', (route) => route.fulfill({ json: [{
+  const character = {
     id: characterId, user_id: userId, name: 'Fixture Witch', class: 'Witch', level: 91, is_active: true,
-  }] }))
-  await page.route('**/rest/v1/build_targets?*', (route) => {
-    const isDetail = new URL(route.request().url()).searchParams.has('id')
-    return route.fulfill({ json: isDetail ? target : [target] })
+  }
+  const alternateCharacter = {
+    ...character, id: '70000000-0000-0000-0000-000000000002', name: 'Fixture Ranger',
+    class: 'Ranger', level: 88, is_active: false,
+  }
+  const alternateTarget = {
+    ...target, id: '80000000-0000-0000-0000-000000000003', name: 'Fixture Ranger build',
+    character_id: alternateCharacter.id, selected_stage_id: '80000000-0000-0000-0000-000000000004',
+  }
+  await page.route('**/rest/v1/characters?*', (route) => {
+    const activeOnly = new URL(route.request().url()).searchParams.get('is_active') === 'eq.true'
+    return route.fulfill({ json: options?.notification && !activeOnly ? [character, alternateCharacter] : [character] })
   })
-  await page.route('**/rest/v1/build_target_stages?*', (route) => route.fulfill({ json: [{
-    id: stageId, build_target_id: targetId, label: 'Current setup', primary_offensive_metric: 'totalDps',
-  }] }))
+  await page.route('**/rest/v1/build_targets?*', (route) => {
+    const idFilter = new URL(route.request().url()).searchParams.get('id')
+    const targets = options?.notification ? [target, alternateTarget] : [target]
+    return route.fulfill({ json: idFilter ? targets.find(({ id }) => `eq.${id}` === idFilter) : targets })
+  })
+  await page.route('**/rest/v1/build_target_stages?*', (route) => {
+    const isAlternate = new URL(route.request().url()).searchParams.get('build_target_id') === `eq.${alternateTarget.id}`
+    const selected = isAlternate ? alternateTarget : target
+    return route.fulfill({ json: [{
+      id: selected.selected_stage_id, build_target_id: selected.id, label: 'Current setup', primary_offensive_metric: 'totalDps',
+    }] })
+  })
 
   const shared = {
     group_id: groupId, build_target_id: targetId, target_stage_id: stageId,
@@ -226,7 +256,9 @@ export async function mockAnalysisRuns(page: Page, options?: { running?: boolean
 
   let historyRequests = 0
   await page.route('**/rest/v1/upgrade_analysis_runs?*', (route) => {
-    if (new URL(route.request().url()).searchParams.has('build_target_id')) historyRequests += 1
+    const query = new URL(route.request().url()).searchParams
+    const targetFilter = query.get('build_target_id')
+    if (targetFilter) historyRequests += 1
     const completed = {
       ...shared, id: completedId, status: 'completed', started_at: finished,
       completed_at: finished, created_at: finished, summary: { generated_plan_count: 3 },
@@ -239,12 +271,22 @@ export async function mockAnalysisRuns(page: Page, options?: { running?: boolean
       ...shared, id: failedId, status: 'failed', started_at: started, completed_at: started,
       created_at: started, error_detail: analysisWorkerTrace,
     }
-    return route.fulfill({ json: [
+    const alternateRun = {
+      ...completed, id: alternateReadyId, character_id: alternateCharacter.id,
+      build_target_id: alternateTarget.id, target_stage_id: alternateTarget.selected_stage_id,
+      status: options?.notification ?? 'completed', created_at: started, completed_at: started,
+    }
+    const runs = [
       ...(submittedRun ? [submittedRun] : []),
       ...(options?.running ? [running] : []),
       ...(options?.failed ? [failed] : []),
+      ...(options?.notification ? [
+        { ...alternateRun, id: alternateFailedId, status: 'failed', created_at: new Date(now - 5_000).toISOString() },
+        alternateRun,
+      ] : []),
       completed,
-    ] })
+    ].filter((run) => !targetFilter || targetFilter === `eq.${run.build_target_id}`)
+    return route.fulfill({ json: runs })
   })
 
   await page.route('**/rest/v1/upgrade_recommendation_plans?*', (route) => {
@@ -254,12 +296,16 @@ export async function mockAnalysisRuns(page: Page, options?: { running?: boolean
           { title: 'Fixture Ward', rarity: 'Rare', base: 'Vaal Regalia', slot: 'Body Armour' },
           { title: 'Fixture Band', rarity: 'Rare', base: 'Amethyst Ring', slot: 'Ring 1' },
           { title: 'Fixture Crest', rarity: 'Unique', base: 'Hubris Circlet', slot: 'Helmet' },
+          ...(options?.icons ? [{ title: 'Fixture Gloves', rarity: 'Rare', base: 'Titan Gauntlets', slot: 'Gloves' }] : []),
         ]
       : runId === submittedId && submittedRun?.status === 'completed'
         ? [{ title: 'New Fixture Ward', rarity: 'Rare', base: 'Vaal Regalia', slot: 'Body Armour' }]
-        : []
+        : runId === alternateReadyId
+          ? [{ title: 'Fixture Stormcoat', rarity: 'Rare', base: 'Full Dragonscale', slot: 'Body Armour' }]
+          : []
     return route.fulfill({ json: recommendations.map(({ title, rarity, base, slot }, index) => {
       const planId = `fixture-plan-${index}`
+      const icon = options?.icons ? recommendationIconPaths[title as keyof typeof recommendationIconPaths] : undefined
       return {
         id: planId, run_id: runId, group_id: groupId, target_user_id: userId,
         category: 'best_single', kind: 'single', section: 'primary', title,
@@ -268,12 +314,16 @@ export async function mockAnalysisRuns(page: Page, options?: { running?: boolean
         items: [{
           id: `fixture-item-${index}`, plan_id: planId, run_id: runId, slot,
           source: 'market', item_name: title, effective_price_chaos: 65 + index,
-          item_payload: { rarity, type_line: base, raw_text: `Rarity: ${rarity}\n${title}\n${base}` },
+          item_payload: {
+            rarity, base_type: title === 'Fixture Gloves' ? undefined : base, type_line: base,
+            raw_text: `Rarity: ${rarity}\n${title}\n${base}`, icon_url: icon,
+          },
         }],
       }
     }) })
   })
   return {
+    alternateReadyId,
     countHistoryRequests: () => historyRequests,
     completeSubmittedRun: () => {
       if (!submittedRun) throw new Error('No fixture analysis was queued')

@@ -59,6 +59,10 @@ export function Navbar() {
       : recentlyCompletedRun
         ? 'Analysis ready'
         : null
+  const announcedAnalysis = liveRun ?? recentlyCompletedRun
+  const analysisSearch = announcedAnalysis
+    ? { runId: announcedAnalysis.id, buildTargetId: announcedAnalysis.build_target_id }
+    : undefined
 
   const mySnapshot = snapshots?.find((s) => s.user_id === currentUserId)
 
@@ -144,6 +148,7 @@ export function Navbar() {
             <div className="hidden min-w-0 items-center lg:inline-flex">
               <Link
                 to="/dashboard/analysis"
+                search={analysisSearch}
                 className="block max-w-44 rounded-lg hover:underline"
                 aria-label={analysisChipLabel}
               >
@@ -212,7 +217,7 @@ export function Navbar() {
                   {analysisChipLabel ? (
                     <Dropdown.Item
                       id="analysis-status"
-                      onAction={() => navigate({ to: '/dashboard/analysis' })}
+                      onAction={() => navigate({ to: '/dashboard/analysis', search: analysisSearch })}
                     >
                       {analysisChipLabel}
                     </Dropdown.Item>

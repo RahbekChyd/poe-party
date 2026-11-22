@@ -1913,7 +1913,15 @@ export function StageSummaryCard({
   )
 }
 
-export function GearRecommendationsPanel() {
+export function GearRecommendationsPanel({
+  requestedRunId,
+  requestedBuildTargetId,
+  onRunRequestHandled,
+}: {
+  requestedRunId?: string
+  requestedBuildTargetId?: string
+  onRunRequestHandled: () => void
+}) {
   const activeGroupId = useGroupStore((state) => state.activeGroupId)
   const { data: currentUser } = useCurrentUser()
   const membersQuery = useGroupMembers(activeGroupId)
@@ -1978,6 +1986,7 @@ export function GearRecommendationsPanel() {
   const [analysisSubmitFlowPending, setAnalysisSubmitFlowPending] = useState(false)
   const submitFlowSequenceRef = useRef(0)
   const activeSubmitFlowIdRef = useRef<number | null>(null)
+  const refreshedRunRequestRef = useRef<string | null>(null)
 
   const activeLeague =
     myGroups?.find((membership) => membership.group.id === activeGroupId)?.group.league ?? null
@@ -2251,6 +2260,7 @@ export function GearRecommendationsPanel() {
   const {
     data: analysisRuns = [],
     isLoading: runsLoading,
+    isFetching: runsFetching,
     isError: runsFailed,
     refetch: retryRuns,
   } = useUpgradeAnalysisRuns(
@@ -2329,6 +2339,67 @@ export function GearRecommendationsPanel() {
     displayedAnalysisRuns,
     pendingSelectedRunId,
     selectedRunId,
+  ])
+
+  useEffect(() => {
+    if (!requestedRunId) {
+      refreshedRunRequestRef.current = null
+      return
+    }
+    if (
+      !activeGroupId || !targetUserId || myCharactersLoading || buildTargetsLoading ||
+      selectedCharacterStorageHydratedKey !== selectedCharacterStorageKey
+    ) return
+
+    const requestedTarget = buildTargets.find((target) => target.id === requestedBuildTargetId)
+    const requestedCharacter = myCharacters.find((character) => character.id === requestedTarget?.character_id)
+    if (requestedTarget && requestedCharacter) {
+      if (selectedCharacterId !== requestedCharacter.id || selectedBuildTargetId !== requestedTarget.id) {
+        setHasManuallySelectedCharacter(true)
+        setSelectedCharacterId(requestedCharacter.id)
+        setSelectedBuildTargetId(requestedTarget.id)
+        return
+      }
+
+      if (runsFetching) return
+      if (analysisRuns.some((run) => run.id === requestedRunId)) {
+        setSelectedRunId(requestedRunId)
+        setSetupExpanded(false)
+        setHistoryExpanded(false)
+        setActionMessage(null)
+        onRunRequestHandled()
+        return
+      }
+
+      // The top bar and history use separate queries, so history may have an older cache entry.
+      if (!runsFailed && refreshedRunRequestRef.current !== requestedRunId) {
+        refreshedRunRequestRef.current = requestedRunId
+        void retryRuns()
+        return
+      }
+    }
+
+    setSelectedRunId(null)
+    setActionMessage('Could not open this analysis run.')
+    onRunRequestHandled()
+  }, [
+    activeGroupId,
+    analysisRuns,
+    buildTargets,
+    buildTargetsLoading,
+    myCharacters,
+    myCharactersLoading,
+    onRunRequestHandled,
+    requestedBuildTargetId,
+    requestedRunId,
+    retryRuns,
+    runsFailed,
+    runsFetching,
+    selectedBuildTargetId,
+    selectedCharacterId,
+    selectedCharacterStorageHydratedKey,
+    selectedCharacterStorageKey,
+    targetUserId,
   ])
 
   const selectedRun = displayedAnalysisRuns.find((run) => run.id === selectedRunId) ?? null

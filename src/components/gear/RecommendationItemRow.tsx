@@ -146,7 +146,11 @@ function getPayload(item: UpgradeRecommendationItem): Record<string, unknown> {
 
 function getItemIconUrl(item: UpgradeRecommendationItem): string | null {
   const payload = getPayload(item)
-  return readString(payload.icon_url) ?? readString(payload.icon)
+  const url = (readString(payload.icon_url) ?? readString(payload.icon))?.trim()
+  if (url?.startsWith('/gen/image/') || url?.startsWith('/image/Art/')) {
+    return `https://web.poecdn.com${url}`
+  }
+  return url ?? null
 }
 
 function getItemRawText(item: UpgradeRecommendationItem): string | null {
@@ -1494,14 +1498,20 @@ export function RecommendationItemRow({
   showRankBadge?: boolean
 }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [failedIconUrls, setFailedIconUrls] = useState<string[]>([])
   const [copiedFullItemText, setCopiedFullItemText] = useState(false)
   const copyResetTimeoutRef = useRef<number | null>(null)
   const currencyDisplay = useCurrencyStore((s) => s.display)
   const payload = getPayload(item)
-  const baseType = getItemBaseType(item)
-  const payloadIconUrl = getItemIconUrl(item)
-  const { data: fallbackIconUrl } = usePoeWikiInventoryIcon(baseType, !payloadIconUrl)
-  const iconUrl = payloadIconUrl ?? fallbackIconUrl ?? null
+  const iconBaseType = getItemBaseType(item) ?? readString(payload.type_line)
+  const storedIconUrl = getItemIconUrl(item)
+  const payloadIconUrl = storedIconUrl && !failedIconUrls.includes(storedIconUrl) ? storedIconUrl : null
+  const { data: wikiIconUrl } = usePoeWikiInventoryIcon(iconBaseType, !payloadIconUrl)
+  const fallbackIconUrl = wikiIconUrl && !failedIconUrls.includes(wikiIconUrl) ? wikiIconUrl : null
+  const iconUrl = payloadIconUrl ?? fallbackIconUrl
+  function handleIconError(url: string) {
+    setFailedIconUrls((failed) => failed.includes(url) ? failed : [...failed, url])
+  }
   const tradeActionLabel = getTradeActionLabel(item)
   const tradeActionHint = getTradeActionHint(item)
   const tradeLinksDisabledForStaleRun = runIsStale
@@ -1776,6 +1786,7 @@ export function RecommendationItemRow({
               alt={preview.title}
               className="h-14 w-14 object-contain"
               loading="lazy"
+              onError={() => handleIconError(iconUrl)}
             />
           ) : (
             <span className="text-default-400 text-xs font-semibold tracking-[0.14em] uppercase">
@@ -1944,7 +1955,12 @@ export function RecommendationItemRow({
                 <div className="flex items-start gap-4">
                   <div className="rounded-large border-divider/70 bg-default-100 flex h-12 w-12 shrink-0 items-center justify-center border sm:h-20 sm:w-20">
                     {iconUrl ? (
-                      <img src={iconUrl} alt="" className="h-10 w-10 object-contain sm:h-16 sm:w-16" />
+                      <img
+                        src={iconUrl}
+                        alt=""
+                        className="h-10 w-10 object-contain sm:h-16 sm:w-16"
+                        onError={() => handleIconError(iconUrl)}
+                      />
                     ) : (
                       <span className="text-default-400 text-xs font-semibold tracking-[0.14em] uppercase">
                         {item.slot?.slice(0, 2) ?? 'It'}
