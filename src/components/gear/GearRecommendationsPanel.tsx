@@ -72,7 +72,6 @@ import {
 import {
   getRetiredAnalysisEngineMessage,
   getUpgradeAnalysisEmptyPlansCopy,
-  getUpgradeAnalysisFailureCopy,
   usesRetiredAnalysisEngine,
 } from '../../lib/upgrade-analysis-run-state'
 import {
@@ -509,10 +508,6 @@ function formatCountdown(ms: number): string {
   if (minutes <= 0) return `${seconds}s`
   if (seconds === 0) return `${minutes}m`
   return `${minutes}m ${seconds}s`
-}
-
-function getPreferredRun(runs: UpgradeAnalysisRun[]): UpgradeAnalysisRun | null {
-  return runs.find((run) => run.status !== 'stale') ?? runs[0] ?? null
 }
 
 function getLatestLiveRun(runs: UpgradeAnalysisRun[]): UpgradeAnalysisRun | null {
@@ -1335,7 +1330,7 @@ function getDisplayedPartialReason(
   run: UpgradeAnalysisRun | null | undefined,
   nowMs: number = Date.now(),
 ): string | null {
-  if (!run) return null
+  if (!run || run.status === 'failed') return null
   if (getTradeRateLimitWaitInfo(run, nowMs)) return null
   if (usesRetiredAnalysisEngine(run)) {
     return getRetiredAnalysisEngineMessage()
@@ -2336,17 +2331,7 @@ export function GearRecommendationsPanel() {
     selectedRunId,
   ])
 
-  const selectedRun =
-    displayedAnalysisRuns.find((run) => run.id === selectedRunId) ??
-    (contextualPendingRunPreview &&
-    (selectedRunId === contextualPendingRunPreview.id ||
-      pendingSelectedRunId === contextualPendingRunPreview.id ||
-      contextualPendingRunPreview.status === 'queued' ||
-      contextualPendingRunPreview.status === 'running')
-      ? contextualPendingRunPreview
-      : null) ??
-    latestLiveRun ??
-    getPreferredRun(displayedAnalysisRuns)
+  const selectedRun = displayedAnalysisRuns.find((run) => run.id === selectedRunId) ?? null
   const reservationAuditAnchorId = selectedRun ? `reservation-audit-${selectedRun.id}` : undefined
   const selectedRunIsLive = selectedRun?.status === 'queued' || selectedRun?.status === 'running'
   const runtimeEstimateMode = latestLiveRun?.analysis_mode ?? analysisMode
@@ -2550,10 +2535,6 @@ export function GearRecommendationsPanel() {
   }, [selectedRunComparePowerReport])
   const selectedRunHasConfigurationInsightButton =
     !!selectedRunConfigurationInsights || !!selectedRunConfigSetTitle
-  const selectedRunFailureCopy = useMemo(
-    () => getUpgradeAnalysisFailureCopy(selectedRun),
-    [selectedRun],
-  )
   const selectedRunEmptyPlansCopy = useMemo(
     () => getUpgradeAnalysisEmptyPlansCopy(selectedRun),
     [selectedRun],
@@ -3504,7 +3485,7 @@ export function GearRecommendationsPanel() {
 
   return (
     <div className="@container flex min-w-0 flex-col gap-5">
-      {selectedRun || latestLiveRun || runsLoading || runsFailed ? (
+      {displayedAnalysisRuns.length > 0 || runsLoading || runsFailed ? (
         <section aria-labelledby="analysis-run-title" className="analysis-run-summary">
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
@@ -3642,9 +3623,6 @@ export function GearRecommendationsPanel() {
                       <p className="text-default-500 mt-1 text-xs">
                         {getDisplayedPartialReason(run, nowMs)}
                       </p>
-                    ) : null}
-                    {run.error_detail ? (
-                      <p className="text-danger wrap-anywhere mt-1 text-xs">{run.error_detail}</p>
                     ) : null}
                   </button>
                 ))}
@@ -4280,7 +4258,7 @@ export function GearRecommendationsPanel() {
             </div>
           </Card.Header>
           <Card.Content className="@container/recommendations px-4 pt-3 pb-4">
-            {selectedRun ? (
+            {selectedRun && selectedRun.status !== 'failed' ? (
               <details className="border-divider mb-4 border-b pb-3">
                 <summary className="cursor-pointer text-sm font-medium">Run details</summary>
                 <div className="mt-4 flex flex-col gap-4">
@@ -4375,37 +4353,30 @@ export function GearRecommendationsPanel() {
                         : `Partial confidence: ${getDisplayedPartialReason(selectedRun, nowMs)}`}
                     </p>
                   ) : null}
-                  {selectedRun.error_detail ? (
-                    <p className="text-danger wrap-anywhere text-sm">{selectedRun.error_detail}</p>
-                  ) : null}
                 </div>
               </details>
             ) : null}
             <div className="grid grid-cols-1 items-start gap-5 @min-[52rem]/recommendations:grid-cols-[minmax(0,1fr)_19rem]">
               <div className="flex min-w-0 flex-col gap-5">
                 {!selectedRun ? (
-                  <p className="text-default-500 text-sm">Queue or select a run first.</p>
+                  <p className="text-default-500 text-sm">Run analysis or choose a run from history.</p>
                 ) : selectedRunIsLive ? (
                   <LiveRecommendationsSkeleton />
                 ) : recommendationsLoading && selectedRun.status !== 'failed' ? (
                   <LiveRecommendationsSkeleton />
                 ) : selectedRun.status === 'failed' ? (
                   <div className="rounded-large border-danger/40 bg-danger-soft border p-4">
-                    <p role="alert" className="text-danger text-sm font-semibold">
-                      {selectedRunFailureCopy.title}
-                    </p>
-                    <p className="text-default-600 mt-1 text-sm">
-                      {selectedRunFailureCopy.description}
-                    </p>
-                    {selectedRunFailureCopy.technicalDetail ? (
-                      <p className="text-default-500 mt-2 text-xs">
-                        Worker detail: {selectedRunFailureCopy.technicalDetail}
+                    <div role="alert">
+                      <p className="text-danger text-sm font-semibold">Exact analysis failed</p>
+                      <p className="text-default-600 mt-1 text-sm">
+                        Recommendations could not be generated. Try running the analysis again.
                       </p>
-                    ) : null}
+                    </div>
                     {canQueueRun ? (
                       <div className="mt-3">
                         <Button
                           size="sm"
+                          isDisabled={!selectedBuildTarget || !!latestLiveRun}
                           isPending={analysisActionPending}
                           onPress={() => void handleQueueAnalysis()}
                         >

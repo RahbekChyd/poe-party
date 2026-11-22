@@ -16,7 +16,6 @@ import { getPobTreeSpecUrl } from '../../lib/pob'
 import gemColorLookup from '../../assets/poe_gem_color_lookup.json'
 import { fetchNinjaSkillGemIcons } from '../../lib/poe-ninja-client'
 import { queryKeys } from '../../lib/queryKeys'
-import { getUpgradeAnalysisFailureCopy } from '../../lib/upgrade-analysis-run-state'
 import { getReservationAudit } from '../../lib/upgrade-analysis-summary'
 import {
   formatCompareImpact,
@@ -688,7 +687,6 @@ export function RecommendationsInsightsRail({
     () => buildGemIconLookup(selectedProfile, ninjaGemIcons ?? []),
     [selectedProfile, ninjaGemIcons],
   )
-  const selectedRunFailureCopy = getUpgradeAnalysisFailureCopy(selectedRun)
   const reservationAudit = getReservationAudit(selectedRun?.summary)
   const reservationTone = getReservationTone(reservationAudit?.status ?? 'unknown')
   const displayedSkillSetTitle =
@@ -1278,15 +1276,7 @@ export function RecommendationsInsightsRail({
             </div>
           </div>
         ) : selectedRun.status === 'failed' ? (
-          <div className="rounded-large border-danger/40 bg-danger/10 border p-4">
-            <p className="text-foreground text-sm font-semibold">{selectedRunFailureCopy.title}</p>
-            <p className="text-default-600 mt-1 text-sm">{selectedRunFailureCopy.description}</p>
-            {selectedRunFailureCopy.technicalDetail ? (
-              <p className="text-default-500 mt-2 text-xs">
-                Worker detail: {selectedRunFailureCopy.technicalDetail}
-              </p>
-            ) : null}
-          </div>
+          <p className="text-default-600 text-sm">Reservation results are unavailable for this run.</p>
         ) : !reservationAudit ? (
           <p className="text-default-600 text-sm">Run analysis again to check mana reservation.</p>
         ) : (

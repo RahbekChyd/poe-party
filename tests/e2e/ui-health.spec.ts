@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
 import { expect, groupId, test } from './fixture'
 import {
+  analysisWorkerTrace,
   characterName,
   gearId,
   groupName,
@@ -255,7 +256,7 @@ test('a changed account must be looked up again before public analysis can queue
 })
 
 test('selecting a completed analysis remains active when a newer run refreshes', async ({ page }) => {
-  const countHistoryRequests = await mockAnalysisRuns(page, true)
+  const { countHistoryRequests } = await mockAnalysisRuns(page, { running: true })
 
   await page.goto('/dashboard/analysis')
   await page.bringToFront()
@@ -265,6 +266,7 @@ test('selecting a completed analysis remains active when a newer run refreshes',
   const completed = page.getByRole('button', { name: /completed.*quick/i })
   const running = page.getByRole('button', { name: /running.*quick/i })
   await expect(running).toBeVisible()
+  await expect(running).toHaveAttribute('aria-pressed', 'false')
   await completed.click()
   await expect(completed).toHaveAttribute('aria-pressed', 'true')
   await expect(running).toHaveAttribute('aria-pressed', 'false')
@@ -273,6 +275,89 @@ test('selecting a completed analysis remains active when a newer run refreshes',
   const initialRequests = countHistoryRequests()
   await expect.poll(countHistoryRequests, { timeout: 15_000 }).toBeGreaterThan(initialRequests)
   await expect(completed).toHaveAttribute('aria-pressed', 'true')
+  await expectContained(page)
+})
+
+test('Analysis opens fresh and shows safe failure copy when a saved run is selected', async ({ page }, testInfo) => {
+  const { completeSubmittedRun } = await mockAnalysisRuns(page, { failed: true })
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+
+  await page.goto('/dashboard/analysis')
+  const setup = page.getByRole('heading', { name: 'Analysis setup', exact: true })
+  const history = page.getByRole('button', { name: 'Run history', exact: true })
+  const failedRun = page.getByRole('button', { name: /failed.*quick/i })
+  const completedRun = page.getByRole('button', { name: /completed.*quick/i })
+  const failure = page.getByRole('alert').filter({ hasText: 'Exact analysis failed' })
+  const recommendation = page.getByRole('button', { name: 'View Fixture Ward', exact: true })
+  const trace = page.getByText(/Modules\/Common\.lua|stack traceback|Worker detail|\/app\/pob/)
+
+  await expect(setup).toBeVisible()
+  await expect(failure).toHaveCount(0)
+  await expect(recommendation).toHaveCount(0)
+  await history.click()
+  await expect(failedRun).toHaveAttribute('aria-pressed', 'false')
+  await expect(completedRun).toHaveAttribute('aria-pressed', 'false')
+  await expect(trace).toHaveCount(0)
+
+  await failedRun.click()
+  await expect(failedRun).toHaveAttribute('aria-pressed', 'true')
+  await expect(failure).toHaveCount(1)
+  await expect(failure).toContainText('Try running the analysis again.')
+  await expect(trace).toHaveCount(0)
+  await expectContained(page)
+  await failure.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: testInfo.outputPath('analysis-failed-history.png'), animations: 'disabled' })
+
+  await completedRun.click()
+  await expect(recommendation).toBeVisible()
+  await expect(failure).toHaveCount(0)
+
+  const nav = page.getByRole('navigation', { name: 'Primary dashboard' })
+  await nav.getByRole('link', { name: 'Today', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Today', level: 1 })).toBeVisible()
+  if (testInfo.project.name === 'chromium-mobile') {
+    await nav.getByRole('button', { name: 'Builds', exact: true }).tap()
+    await page.getByRole('menuitem', { name: 'Analysis', exact: true }).tap()
+  } else {
+    await nav.getByRole('link', { name: 'Analysis', exact: true }).click()
+  }
+  await expect(setup).toBeVisible()
+  await expect(recommendation).toHaveCount(0)
+  await expect(failure).toHaveCount(0)
+  await expect(history).toHaveAttribute('aria-expanded', 'false')
+  await page.screenshot({ path: testInfo.outputPath('analysis-fresh-entry.png'), animations: 'disabled' })
+  await history.click()
+  await expect(completedRun).toHaveAttribute('aria-pressed', 'false')
+  await expect(failedRun).toBeVisible()
+  await expect(trace).toHaveCount(0)
+  await expectContained(page)
+
+  await history.click()
+  await page.getByRole('button', { name: 'Run analysis', exact: true }).click()
+  await page.bringToFront()
+  await expect(page.getByRole('status').filter({ hasText: 'Analysis queued' })).toBeVisible()
+  completeSubmittedRun()
+  await expect(page.getByRole('button', { name: 'View New Fixture Ward', exact: true })).toBeVisible({ timeout: 15_000 })
+  await expect(recommendation).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
+test('public Analysis displays a retry message for a failed saved run', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('poe-party:guest-analysis-run-token:v1', 'fixture-run-token'))
+  const createdAt = new Date().toISOString()
+  await page.route('**/functions/v1/guest-upgrade-analysis-status', (route) => route.fulfill({ json: {
+    run: {
+      id: 'fixture-public-run', character_name: 'FixtureWitch', target_name: 'Fixture target',
+      character_league: 'Covens', status: 'failed', error_detail: analysisWorkerTrace,
+      created_at: createdAt, started_at: createdAt, completed_at: createdAt,
+    },
+    plans: [],
+  } }))
+  await page.goto('/preview/analysis')
+  await expect(page.getByRole('alert').filter({ hasText: 'Public analysis failed' })).toBeVisible()
+  await expect(page.getByText('Recommendations could not be generated. Try running the analysis again.').first()).toBeVisible()
+  await expect(page.getByText(/Modules\/Common\.lua|stack traceback|\/app\/pob/)).toHaveCount(0)
   await expectContained(page)
 })
 

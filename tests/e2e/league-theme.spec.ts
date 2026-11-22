@@ -157,8 +157,14 @@ test('the focused chart period stays visible in a short viewport', async ({ page
   await expect(period).toBeFocused()
 })
 
-test('member equipment details open with the keyboard and touch', async ({ page }, testInfo) => {
+test('member cards stay compact and equipment details support hover, keyboard, and touch', async ({ page }, testInfo) => {
   await mockApp(page, 'poe1')
+  const characterId = '70000000-0000-0000-0000-000000000001'
+  const character = {
+    id: characterId, user_id: userId, name: 'Fixture Witch', class: 'Witch',
+    level: 91, ascendancy_class: 1, group_id: groupId, league: 'Covens', is_active: true,
+  }
+  await page.route('**/rest/v1/characters?*', (route) => route.fulfill({ json: [character] }))
   const item: CharacterProfileItem = {
     id: 'fixture-helmet', slot: 'Helm', name: 'Fixture Crown', typeLine: 'Iron Hat', baseType: 'Iron Hat',
     icon: null, rarity: 'Rare', frameType: 2, itemLevel: 83, identified: true,
@@ -166,11 +172,14 @@ test('member equipment details open with the keyboard and touch', async ({ page 
     influences: [], note: null, width: 2, height: 2,
     sockets: [{ group: 0, color: 'B' }], socketedItems: [],
     properties: [{ name: 'Armour', values: ['34'] }], requirements: [],
-    implicitMods: [], explicitMods: ['+42 to maximum Life'], craftedMods: [], fracturedMods: [],
+    implicitMods: [], explicitMods: [
+      '+42 to maximum Life',
+      'Gain increased Armour and Energy Shield for each equipped item with an Evasion Rating requirement',
+    ], craftedMods: [], fracturedMods: [],
     enchantMods: [], veiledMods: [], modifiers: [],
   }
   await page.route('**/rest/v1/character_profile_snapshots?*', (route) => route.fulfill({ json: [{
-    id: profileId, group_id: groupId, user_id: userId, character_id: null,
+    id: profileId, group_id: groupId, user_id: userId, character_id: characterId,
     character_name: 'Fixture Witch', class: 'Witch', ascendancy_class: null,
     level: 91, league: 'Covens', visibility: 'group_only', last_synced_at: '2026-11-18T00:00:00Z',
     gear: [item], inventory: [], jewels: [], atlas_tree: { url: null, hashes: [], league: 'Covens' },
@@ -178,20 +187,46 @@ test('member equipment details open with the keyboard and touch', async ({ page 
 
   const isMobile = testInfo.project.name === 'chromium-mobile'
   await page.setViewportSize(isMobile ? { width: 390, height: 844 } : { width: 1440, height: 900 })
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
   await page.goto('/dashboard/members')
   const trigger = page.getByRole('button', { name: `Helmet: ${item.name}`, exact: true })
+  await expect(trigger).toBeVisible()
+  const member = page.getByRole('button', { name: 'View Fixture Player', exact: true })
+  const card = page.locator('.card').filter({ has: member })
+  await expect(member).toContainText(character.name)
+  const cardBounds = await card.boundingBox()
+  expect(cardBounds!.width / cardBounds!.height).toBeLessThan(1.85)
+  await page.screenshot({ path: testInfo.outputPath('member-card.png'), animations: 'disabled' })
+
+  if (!isMobile) {
+    await trigger.hover()
+    const overlay = page.getByRole('tooltip').filter({ hasText: item.name })
+    await expect(overlay.getByText(item.explicitMods[0], { exact: true })).toBeVisible()
+    await expect(overlay.getByText(item.explicitMods[1], { exact: true })).toBeInViewport()
+    await expect(overlay).toBeInViewport({ ratio: 0.99 })
+    await page.screenshot({ path: testInfo.outputPath('equipment-hover.png'), animations: 'disabled' })
+    await member.hover()
+    await expect(overlay).toHaveCount(0)
+  }
+
   if (isMobile) await trigger.tap()
   else await trigger.press('Enter')
   const dialog = page.getByRole('dialog', { name: item.name, exact: true })
   await expect(dialog).toBeInViewport()
   await expect(dialog.getByText(item.explicitMods[0], { exact: true })).toBeVisible()
+  await expect(dialog.getByText(item.explicitMods[1], { exact: true })).toBeInViewport()
   await expect(dialog.getByText('Corrupted', { exact: true })).toBeVisible()
   await expect(dialog).toHaveCSS('background-color', 'rgb(25, 34, 44)')
   await page.evaluate(() => document.fonts.ready)
   await page.screenshot({ path: testInfo.outputPath('equipment-details.png'), animations: 'disabled' })
 
   if (isMobile) await dialog.getByRole('button', { name: /close/i }).tap()
-  else await page.keyboard.press('Escape')
+  else {
+    await expect(dialog).toBeFocused()
+    await page.keyboard.press('Escape')
+  }
   await expect(dialog).toHaveCount(0)
   if (!isMobile) await expect(trigger).toBeFocused()
+  expect(errors).toEqual([])
 })

@@ -83,7 +83,7 @@ function getRunStatusDescription(run: GuestUpgradeAnalysisRun): string {
     case 'partial':
       return run.partial_reason ?? 'Recommendations are ready with partial confidence.'
     case 'failed':
-      return run.error_detail ?? 'The worker could not finish this run.'
+      return 'Recommendations could not be generated. Try running the analysis again.'
     case 'stale':
       return 'This public run is no longer current.'
     default:

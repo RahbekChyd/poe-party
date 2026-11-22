@@ -7,6 +7,7 @@ import { Modal } from '@heroui/react/modal'
 import { Spinner } from '@heroui/react/spinner'
 import { ToggleButton } from '@heroui/react/toggle-button'
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
+import { Tooltip } from '@heroui/react/tooltip'
 import type {
   CharacterProfileItem,
   CharacterProfileSnapshot,
@@ -472,6 +473,7 @@ function VisibleItemCard({
   wideCompact?: boolean
   className?: string
 }) {
+  const [itemPreviewOpen, setItemPreviewOpen] = useState(false)
   const shellSizeClass = wideCompact
     ? 'w-48 p-2.5'
     : tiny
@@ -532,13 +534,29 @@ function VisibleItemCard({
 
   return (
     <Modal>
-      <Modal.Trigger<'button'>
-        render={(props) => <button {...props} type="button" />}
-        aria-label={`${slotLabel}: ${itemName}`}
-        className={`${shellClassName} border-control hover:bg-surface-hover block cursor-pointer transition-colors duration-150`}
-      >
-        {content}
-      </Modal.Trigger>
+      <Tooltip delay={0} isOpen={itemPreviewOpen} onOpenChange={setItemPreviewOpen}>
+        <Modal.Trigger<'button'>
+          render={(props) => <button {...props} type="button" />}
+          aria-label={`${slotLabel}: ${itemName}`}
+          className={`${shellClassName} border-control hover:bg-surface-hover block cursor-pointer transition-colors duration-150`}
+          onPointerEnter={(event) => {
+            // Pointer entry can precede React Aria's first document pointer move.
+            if (event.pointerType !== 'touch') setItemPreviewOpen(true)
+          }}
+        >
+          {content}
+        </Modal.Trigger>
+        <Tooltip.Content
+          placement="right"
+          offset={8}
+          className="w-80 max-w-[calc(100vw-2rem)] overflow-hidden p-3 wrap-anywhere break-normal [&_div_p]:text-xs"
+        >
+          <p className="border-divider text-foreground mb-2 border-b pb-2 text-center text-sm font-semibold">
+            {itemName}
+          </p>
+          <ItemDetailContent item={item} />
+        </Tooltip.Content>
+      </Tooltip>
       <Modal.Backdrop>
         <Modal.Container>
           <Modal.Dialog className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-md overflow-hidden">

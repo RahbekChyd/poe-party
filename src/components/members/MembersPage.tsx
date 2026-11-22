@@ -300,7 +300,7 @@ export function MembersPage() {
         <QueryStatePanel kind="empty" title="No members yet" description="Members will appear here once they join." />
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-[repeat(auto-fill,min(100%,15rem))] gap-2">
               {members?.map((member) => {
                 const snap = snapshotByUser[member.user.id]
                 const char = charByUser[member.user.id]
@@ -431,7 +431,6 @@ export function MembersPage() {
                             ascendancy={ascendancy}
                             poeClass={char?.class ?? null}
                             imagePath={portraitImagePath}
-                            heightClass="h-16"
                           />
                         )}
 

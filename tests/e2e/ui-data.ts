@@ -183,19 +183,24 @@ export async function mockApp(
   })
 }
 
-export async function mockAnalysisRuns(page: Page, includeRunning = false) {
+export const analysisWorkerTrace = 'Modules/Common.lua:1029: attempt to call method gsub (a nil value)\nstack traceback:\n/app/pob/run-analysis.lua:3828'
+
+export async function mockAnalysisRuns(page: Page, options?: { running?: boolean; failed?: boolean }) {
   await mockApp(page, 'poe1')
   const characterId = '70000000-0000-0000-0000-000000000001'
   const targetId = '80000000-0000-0000-0000-000000000001'
+  const stageId = '80000000-0000-0000-0000-000000000002'
   const completedId = '90000000-0000-0000-0000-000000000001'
   const runningId = '90000000-0000-0000-0000-000000000002'
+  const failedId = '90000000-0000-0000-0000-000000000003'
+  const submittedId = '90000000-0000-0000-0000-000000000004'
   const now = Date.now()
   const finished = new Date(now - 60_000).toISOString()
   const started = new Date(now - 10_000).toISOString()
   const target = {
     id: targetId, group_id: groupId, user_id: userId, character_id: characterId,
     created_by: userId, name: 'Fixture build', source_kind: 'pob_xml',
-    compatibility_status: 'compatible', is_selected: true, created_at: finished,
+    compatibility_status: 'compatible', is_selected: true, selected_stage_id: stageId, created_at: finished,
   }
   await page.route('**/rest/v1/characters?*', (route) => route.fulfill({ json: [{
     id: characterId, user_id: userId, name: 'Fixture Witch', class: 'Witch', level: 91, is_active: true,
@@ -204,14 +209,24 @@ export async function mockAnalysisRuns(page: Page, includeRunning = false) {
     const isDetail = new URL(route.request().url()).searchParams.has('id')
     return route.fulfill({ json: isDetail ? target : [target] })
   })
+  await page.route('**/rest/v1/build_target_stages?*', (route) => route.fulfill({ json: [{
+    id: stageId, build_target_id: targetId, label: 'Current setup', primary_offensive_metric: 'totalDps',
+  }] }))
+
+  const shared = {
+    group_id: groupId, build_target_id: targetId, target_stage_id: stageId,
+    target_user_id: userId, character_id: characterId, queued_by: userId,
+  }
+  let submittedRun: Record<string, unknown> | null = null
+  await page.route('**/functions/v1/poe-sync-character-profile', (route) => route.fulfill({ json: {} }))
+  await page.route('**/functions/v1/queue-upgrade-analysis', (route) => {
+    submittedRun = { ...shared, id: submittedId, status: 'queued', created_at: new Date().toISOString() }
+    return route.fulfill({ json: { run: submittedRun, reused: false, worker_notified: true } })
+  })
 
   let historyRequests = 0
   await page.route('**/rest/v1/upgrade_analysis_runs?*', (route) => {
     if (new URL(route.request().url()).searchParams.has('build_target_id')) historyRequests += 1
-    const shared = {
-      group_id: groupId, build_target_id: targetId, target_user_id: userId,
-      character_id: characterId, queued_by: userId,
-    }
     const completed = {
       ...shared, id: completedId, status: 'completed', started_at: finished,
       completed_at: finished, created_at: finished, summary: { generated_plan_count: 3 },
@@ -220,29 +235,49 @@ export async function mockAnalysisRuns(page: Page, includeRunning = false) {
       ...shared, id: runningId, status: 'running', started_at: started, created_at: started,
       summary: { fixture_refresh: historyRequests },
     }
-    return route.fulfill({ json: includeRunning ? [running, completed] : [completed] })
+    const failed = {
+      ...shared, id: failedId, status: 'failed', started_at: started, completed_at: started,
+      created_at: started, error_detail: analysisWorkerTrace,
+    }
+    return route.fulfill({ json: [
+      ...(submittedRun ? [submittedRun] : []),
+      ...(options?.running ? [running] : []),
+      ...(options?.failed ? [failed] : []),
+      completed,
+    ] })
   })
 
   await page.route('**/rest/v1/upgrade_recommendation_plans?*', (route) => {
-    const runId = new URL(route.request().url()).searchParams.get('run_id')
-    return route.fulfill({ json: runId === `eq.${completedId}` ? [
-      { title: 'Fixture Ward', rarity: 'Rare', base: 'Vaal Regalia', slot: 'Body Armour' },
-      { title: 'Fixture Band', rarity: 'Rare', base: 'Amethyst Ring', slot: 'Ring 1' },
-      { title: 'Fixture Crest', rarity: 'Unique', base: 'Hubris Circlet', slot: 'Helmet' },
-    ].map(({ title, rarity, base, slot }, index) => {
+    const runId = new URL(route.request().url()).searchParams.get('run_id')?.replace(/^eq\./, '')
+    const recommendations = runId === completedId
+      ? [
+          { title: 'Fixture Ward', rarity: 'Rare', base: 'Vaal Regalia', slot: 'Body Armour' },
+          { title: 'Fixture Band', rarity: 'Rare', base: 'Amethyst Ring', slot: 'Ring 1' },
+          { title: 'Fixture Crest', rarity: 'Unique', base: 'Hubris Circlet', slot: 'Helmet' },
+        ]
+      : runId === submittedId && submittedRun?.status === 'completed'
+        ? [{ title: 'New Fixture Ward', rarity: 'Rare', base: 'Vaal Regalia', slot: 'Body Armour' }]
+        : []
+    return route.fulfill({ json: recommendations.map(({ title, rarity, base, slot }, index) => {
       const planId = `fixture-plan-${index}`
       return {
-        id: planId, run_id: completedId, group_id: groupId, target_user_id: userId,
+        id: planId, run_id: runId, group_id: groupId, target_user_id: userId,
         category: 'best_single', kind: 'single', section: 'primary', title,
         score: 20 - index, effective_cost_chaos: 65 + index, created_at: finished,
         before_metrics: { full_dps: 500000 }, after_metrics: { full_dps: 650000 },
         items: [{
-          id: `fixture-item-${index}`, plan_id: planId, run_id: completedId, slot,
+          id: `fixture-item-${index}`, plan_id: planId, run_id: runId, slot,
           source: 'market', item_name: title, effective_price_chaos: 65 + index,
           item_payload: { rarity, type_line: base, raw_text: `Rarity: ${rarity}\n${title}\n${base}` },
         }],
       }
-    }) : [] })
+    }) })
   })
-  return () => historyRequests
+  return {
+    countHistoryRequests: () => historyRequests,
+    completeSubmittedRun: () => {
+      if (!submittedRun) throw new Error('No fixture analysis was queued')
+      submittedRun = { ...submittedRun, status: 'completed', completed_at: new Date().toISOString() }
+    },
+  }
 }

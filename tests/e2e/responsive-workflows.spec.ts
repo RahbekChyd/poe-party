@@ -32,6 +32,10 @@ test('completed Analysis uses the full results width across desktop breakpoints'
   const setup = page.getByRole('heading', { name: 'Analysis setup', exact: true })
   const run = page.getByRole('region', { name: 'Analysis run', exact: true })
   const editSetup = page.getByRole('button', { name: 'Edit setup', exact: true })
+  const history = run.getByRole('button', { name: 'Run history', exact: true })
+  await history.click()
+  await run.getByRole('button', { name: /completed.*quick/i }).click()
+  await history.click()
   await expect(heading).toBeInViewport()
   await expect(setup).toBeHidden()
   await expect(recommendations).toHaveCount(3)
@@ -53,6 +57,7 @@ test('completed Analysis uses the full results width across desktop breakpoints'
   const itemDialog = page.getByRole('dialog', { name: 'Fixture Ward', exact: true })
   await expect(itemDialog).toBeVisible()
   await expectNoHorizontalScroll(itemDialog)
+  await expect(itemDialog).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(itemDialog).toHaveCount(0)
 
