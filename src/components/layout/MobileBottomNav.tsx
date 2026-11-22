@@ -40,7 +40,9 @@ export function MobileBottomNav() {
         if (section.items.length > 1) {
           return (
             <Dropdown key={section.label}>
-              <Dropdown.Trigger className={tabClassName}>{label}</Dropdown.Trigger>
+              <Dropdown.Trigger className={tabClassName} data-current-section={isActive ? '' : undefined}>
+                {label}
+              </Dropdown.Trigger>
               <Dropdown.Popover placement="top">
                 <Dropdown.Menu aria-label={section.label}>
                   {section.items.map((item) => {

@@ -1,6 +1,7 @@
-import type { CSSProperties, ElementType, ReactNode } from 'react'
+import { useId, type CSSProperties, type ElementType, type ReactNode } from 'react'
 import { Card } from '@heroui/react/card'
 import { cn } from '../../lib/utils'
+import './dashboard-content.css'
 
 export type DashboardTone =
   | 'accent'
@@ -81,20 +82,47 @@ export function DashboardPageHeader({
   return (
     <header
       className={cn(
-        'border-divider/70 flex flex-col gap-x-6 gap-y-3 border-b pb-4 md:flex-row md:flex-wrap md:items-end md:justify-between',
+        'dashboard-page-header flex flex-col gap-x-6 gap-y-3 md:flex-row md:flex-wrap md:items-end md:justify-between',
         className,
       )}
     >
       <div className="min-w-0 md:flex-[1_1_22rem]">
-        <h1 className="text-foreground text-2xl leading-8 font-semibold tracking-tight wrap-anywhere">
+        <h1 className="dashboard-page-title wrap-anywhere">
           {title}
         </h1>
         {description ? (
           <p className="text-default-500 mt-1 max-w-3xl text-sm leading-5 wrap-anywhere">{description}</p>
         ) : null}
       </div>
-      {actions ? <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div> : null}
+      {actions ? <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{actions}</div> : null}
     </header>
+  )
+}
+
+export function ActiveStrategySummary({
+  children,
+  result,
+  action,
+}: {
+  children: ReactNode
+  result?: ReactNode
+  action?: ReactNode
+}) {
+  const headingId = useId()
+
+  return (
+    <section aria-labelledby={headingId} data-result={result ? '' : undefined} className="workspace-lead">
+      <div className="workspace-lead-context">
+        <h2 id={headingId} className="text-default-500 text-sm font-medium">Active strategy</h2>
+        {children}
+      </div>
+      {result || action ? (
+        <div className="workspace-lead-side">
+          {result}
+          {action}
+        </div>
+      ) : null}
+    </section>
   )
 }
 

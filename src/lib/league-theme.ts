@@ -1,3 +1,7 @@
+import { useLayoutEffect } from 'react'
+import covensDesktop from '../assets/seasonal/covens-ground.webp'
+import covensMobile from '../assets/seasonal/covens-ground-close.webp'
+import covensWorkspace from '../assets/seasonal/covens-engraving.webp'
 import type { PoeGame } from './poe-game'
 
 const leagueThemes = {
@@ -10,6 +14,28 @@ export type LeagueTheme = {
   [Game in PoeGame]: LeagueThemes[Game][keyof LeagueThemes[Game]]
 }[PoeGame]
 
+interface LeagueThemeDetails {
+  label: string
+  artwork: {
+    desktop: string
+    mobile: string
+    workspace: string
+  }
+}
+
+export const leagueThemeDetails: Record<LeagueTheme, LeagueThemeDetails> = {
+  covens: {
+    label: 'Covens of Umbra',
+    artwork: {
+      desktop: covensDesktop,
+      mobile: covensMobile,
+      workspace: covensWorkspace,
+    },
+  },
+}
+
+const featuredLeague: { game: PoeGame; league: string } = { game: 'poe1', league: 'Covens' }
+
 const leagueModes = /^(?:(?:hardcore|hc|ssf|ruthless)\s+)+|(?:\s+(?:hardcore|hc|ssf|ruthless))+$/g
 
 export function resolveLeagueTheme(game: PoeGame | null, league: string | null): LeagueTheme | null {
@@ -18,4 +44,22 @@ export function resolveLeagueTheme(game: PoeGame | null, league: string | null):
   const name = league.trim().toLowerCase().replace(/\s+/g, ' ').replace(leagueModes, '')
   const themes: Readonly<Record<string, LeagueTheme>> = leagueThemes[game]
   return Object.prototype.hasOwnProperty.call(themes, name) ? themes[name] : null
+}
+
+export const featuredLeagueTheme = resolveLeagueTheme(featuredLeague.game, featuredLeague.league)
+
+export function useLeagueTheme(theme: LeagueTheme | null) {
+  useLayoutEffect(() => {
+    // HeroUI overlays are siblings of the app and inherit the active theme from the document.
+    const root = document.documentElement
+    if (theme === null) {
+      delete root.dataset.leagueTheme
+      return
+    }
+
+    root.dataset.leagueTheme = theme
+    return () => {
+      if (root.dataset.leagueTheme === theme) delete root.dataset.leagueTheme
+    }
+  }, [theme])
 }

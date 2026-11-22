@@ -6,6 +6,7 @@ import { Modal } from '@heroui/react/modal'
 import { Lock } from 'lucide-react'
 import { useGuestGateStore } from '../../store/guest-gate-store'
 import { getLoginHref } from '../../lib/auth-redirect'
+import { DashboardPageHeader } from '../ui/dashboard'
 export type PreviewMode = 'teaser' | 'public'
 
 export function PreviewModeChip({ mode }: { mode: PreviewMode }) {
@@ -28,13 +29,11 @@ export function PreviewPageIntro({
   asideClassName?: string
 }) {
   return (
-    <div className="border-divider/70 flex flex-col gap-3 border-b pb-4 md:flex-row md:flex-wrap md:items-end md:justify-between">
-      <div className="min-w-0 max-w-3xl wrap-anywhere md:flex-[1_1_24rem]">
-        <h1 className="text-foreground text-2xl leading-8 font-semibold">{title}</h1>
-        <p className="text-default-500 mt-1 max-w-2xl text-sm leading-5">{description}</p>
-      </div>
-      {aside ? <div className={asideClassName}>{aside}</div> : null}
-    </div>
+    <DashboardPageHeader
+      title={title}
+      description={description}
+      actions={aside ? <div className={asideClassName}>{aside}</div> : null}
+    />
   )
 }
 

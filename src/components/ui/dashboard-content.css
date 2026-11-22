@@ -1,0 +1,120 @@
+@layer components {
+  .dashboard-page-header {
+    padding-block-end: 0.875rem;
+    border-block-end: 1px solid var(--separator);
+  }
+
+  .dashboard-page-title {
+    color: var(--foreground);
+    font-family: var(--font-editorial, Georgia), serif;
+    font-size: 2.1875rem;
+    font-weight: 600;
+    line-height: 1.09;
+  }
+
+  @media (min-width: 48rem) {
+    .dashboard-page-header {
+      padding-block-end: 1rem;
+    }
+
+    .dashboard-page-title {
+      font-size: 2.75rem;
+    }
+  }
+
+  .workspace-lead {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    border: 1px solid var(--separator);
+    border-radius: 0.5rem;
+    background: var(--surface);
+    box-shadow: var(--surface-shadow);
+  }
+
+  .workspace-lead-context,
+  .workspace-lead-side {
+    display: grid;
+    min-inline-size: 0;
+    align-content: center;
+    justify-items: start;
+    gap: 0.625rem;
+    padding: 1rem;
+  }
+
+  .workspace-lead-title {
+    color: var(--foreground);
+    font-family: var(--font-editorial, Georgia), serif;
+    font-size: 2rem;
+    font-weight: 600;
+    line-height: 1.12;
+    overflow-wrap: anywhere;
+  }
+
+  a.workspace-lead-title:hover {
+    color: var(--accent-readable);
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+
+  .workspace-lead-side {
+    padding-block-start: 0;
+  }
+
+  .workspace-lead[data-result] .workspace-lead-side {
+    padding-block-start: 1rem;
+    border-block-start: 1px solid var(--separator);
+    border-radius: 0 0 calc(0.5rem - 1px) calc(0.5rem - 1px);
+    background: var(--surface-secondary);
+  }
+
+  .workspace-lead-amount {
+    color: var(--foreground);
+    font-size: 1.875rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 650;
+    line-height: 1.12;
+    overflow-wrap: anywhere;
+  }
+
+  .workspace-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    padding-block-end: 1rem;
+    border-block-end: 1px solid var(--separator);
+  }
+
+  @container (min-width: 35rem) {
+    .workspace-lead {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .workspace-lead[data-result] {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 0.72fr);
+    }
+
+    .workspace-lead-context,
+    .workspace-lead-side {
+      padding: 1.375rem;
+    }
+
+    .workspace-lead[data-result] .workspace-lead-side {
+      padding-block-start: 1.375rem;
+      border-block-start: 0;
+      border-inline-start: 1px solid var(--separator);
+      border-radius: 0 calc(0.5rem - 1px) calc(0.5rem - 1px) 0;
+    }
+
+    .workspace-lead-title {
+      font-size: 2.375rem;
+    }
+
+    .workspace-lead-amount {
+      font-size: 2.25rem;
+    }
+
+    .workspace-metrics {
+      grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+    }
+  }
+}

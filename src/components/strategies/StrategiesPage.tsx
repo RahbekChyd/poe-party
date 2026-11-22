@@ -32,7 +32,7 @@ import { CreateStrategyModal } from './CreateStrategyModal'
 import { DIFFICULTY_CHIP } from '../../lib/constants'
 import { StrategyCardsSkeleton } from '../layout/Skeletons'
 import { cn, formatCurrencyAmount } from '../../lib/utils'
-import { DashboardEmptyState, DashboardPage, DashboardPageHeader } from '../ui/dashboard'
+import { DashboardEmptyState, DashboardPage, DashboardPageHeader, DashboardPanel } from '../ui/dashboard'
 import { StrategyInfoSection } from './StrategyInfoSection'
 import { StrategyMetadataBadges } from './StrategyMetadataBadges'
 import { QueryFreshnessNotice, QueryStatePanel } from '../ui/QueryStatePanel'
@@ -522,19 +522,17 @@ export function StrategiesPage() {
       />
 
       {mode === 'public' ? (
-        <Card className="p-3 sm:p-4">
-          <Card.Content className="gap-2">
-            <ResponsiveFilter
-              label="Strategy stage"
-              options={STRATEGY_STAGE_FILTER_OPTIONS}
-              value={stageFilter}
-              onChange={setStageFilter}
-            />
-            <p className="text-default-500 text-sm">
-              Subscriptions follow the original while it’s public.
-            </p>
-          </Card.Content>
-        </Card>
+        <DashboardPanel className="@container" contentClassName="gap-2">
+          <ResponsiveFilter
+            label="Strategy stage"
+            options={STRATEGY_STAGE_FILTER_OPTIONS}
+            value={stageFilter}
+            onChange={setStageFilter}
+          />
+          <p className="text-default-500 text-sm">
+            Subscriptions follow the original while it’s public.
+          </p>
+        </DashboardPanel>
       ) : showsPoe1PlanningFields ? (
         <p className="text-default-500 text-sm">
           Star a strategy to link new snapshots to it.

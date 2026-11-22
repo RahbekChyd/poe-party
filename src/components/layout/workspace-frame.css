@@ -1,7 +1,8 @@
 @layer components {
   .workspace-frame {
-    --workspace-reading: color-mix(in oklab, var(--background) 81%, var(--surface));
-    --workspace-gutter: clamp(0.5rem, 1vw, 0.875rem);
+    --workspace-reading: color-mix(in oklab, var(--background) 87%, var(--surface));
+    --workspace-gutter: clamp(0.375rem, 1vw, 0.875rem);
+    --workspace-thread: var(--highlight);
     display: grid;
     grid-template: minmax(0, 1fr) / minmax(0, 1fr);
     height: 100dvh;
@@ -10,9 +11,11 @@
       max(var(--workspace-gutter), env(safe-area-inset-bottom));
     padding-inline: max(var(--workspace-gutter), env(safe-area-inset-left))
       max(var(--workspace-gutter), env(safe-area-inset-right));
-    background:
-      radial-gradient(ellipse at 28% 0%, var(--navigation), transparent 62%),
-      var(--background);
+    background: var(--navigation);
+  }
+
+  [data-league-theme] .workspace-frame {
+    --workspace-thread: var(--palette-engraving);
   }
 
   .workspace-stage {
@@ -23,33 +26,20 @@
   }
 
   .workspace-rail {
+    position: relative;
     display: none;
     min-width: 0;
     min-height: 0;
-    max-height: 100%;
     flex-direction: column;
-    align-self: start;
-    border: 1px solid var(--separator);
-    border-radius: 1.375rem 0.625rem 1rem 0.625rem;
-    background: var(--navigation);
   }
 
   .workspace-rail-brand {
     display: flex;
-    min-height: 3.5rem;
+    min-height: 4rem;
     flex-shrink: 0;
     align-items: center;
     gap: 0.625rem;
     padding: 0.625rem 0.875rem;
-  }
-
-  .workspace-rail-brand::after {
-    height: 1px;
-    min-width: 0.75rem;
-    flex: 1;
-    background: linear-gradient(90deg, var(--palette-engraving), transparent);
-    opacity: 0.55;
-    content: '';
   }
 
   .workspace-masthead {
@@ -58,7 +48,11 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     flex-shrink: 0;
-    align-items: end;
+    align-items: stretch;
+    border: 1px solid var(--separator);
+    border-block-end: 0;
+    border-radius: 0.375rem 0.375rem 0 0;
+    background: var(--navigation);
   }
 
   .workspace-masthead-identity {
@@ -70,12 +64,7 @@
     min-width: 0;
     min-height: 3.5rem;
     align-items: center;
-    margin-bottom: -1px;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--separator);
-    border-bottom: 0;
-    border-radius: 1.125rem 1.25rem 0 0;
-    background: var(--workspace-reading);
+    padding: 0.375rem 0.5rem;
   }
 
   .workspace-masthead-tools {
@@ -88,11 +77,7 @@
     align-self: center;
     justify-self: end;
     gap: 0.25rem;
-    margin-inline-start: 0.375rem;
     padding: 0.25rem;
-    border: 1px solid var(--separator);
-    border-radius: 0.875rem;
-    background: var(--navigation);
   }
 
   .workspace-reading {
@@ -104,7 +89,7 @@
     overflow: auto;
     overscroll-behavior-y: contain;
     border: 1px solid var(--separator);
-    border-radius: 0 1.125rem 1rem 1rem;
+    border-radius: 0 0 0.375rem 0.375rem;
     background: var(--workspace-reading);
   }
 
@@ -119,12 +104,40 @@
     margin-top: 0.375rem;
     padding: 0.1875rem;
     border: 1px solid var(--separator);
-    border-radius: 1rem;
+    border-radius: 0.375rem;
     background: var(--navigation);
+  }
+
+  .workspace-dock :is(a[aria-current='page'], [data-current-section]) {
+    position: relative;
+  }
+
+  .workspace-dock :is(a[aria-current='page'], [data-current-section])::before {
+    position: absolute;
+    inset: -0.0625rem 25% auto;
+    height: 2px;
+    background: var(--workspace-thread);
+    pointer-events: none;
+    content: '';
   }
 
   .workspace-engraving {
     display: none;
+  }
+
+  @media (max-width: 63.99rem) {
+    :where([data-league-theme]) .workspace-engraving {
+      position: absolute;
+      inset: auto 24% 0 42%;
+      display: block;
+      height: 1.25rem;
+      background:
+        radial-gradient(ellipse at 54% 135%, transparent 55%, var(--workspace-thread) 57%, transparent 60%),
+        radial-gradient(ellipse at 62% 150%, transparent 63%, var(--workspace-thread) 65%, transparent 68%);
+      mask-image: linear-gradient(90deg, transparent, black 34% 70%, transparent);
+      opacity: 0.44;
+      pointer-events: none;
+    }
   }
 
   @media (max-width: 47.99rem) {
@@ -145,26 +158,58 @@
 
     .workspace-masthead-tools {
       gap: 0.375rem;
-      padding-inline: 0.4375rem;
+      padding-inline: 0.625rem;
     }
   }
 
   @media (min-width: 64rem) {
     .workspace-frame {
-      grid-template-columns: 13rem minmax(0, 1fr);
-      gap: var(--workspace-gutter);
+      grid-template-columns: 12.5rem minmax(0, 1fr);
+      padding-inline-start: max(0.375rem, env(safe-area-inset-left));
     }
 
     .workspace-rail {
       display: flex;
     }
 
+    .workspace-rail::after {
+      position: absolute;
+      inset: 4rem 0 0 auto;
+      width: 1px;
+      background: linear-gradient(var(--workspace-thread), var(--separator) 22rem, transparent);
+      opacity: 0.68;
+      content: '';
+    }
+
+    .workspace-rail nav {
+      padding-inline: 0.5rem;
+    }
+
+    .workspace-rail a[aria-current='page'] {
+      position: relative;
+      border-color: var(--workspace-thread);
+      border-inline-end-width: 3px;
+      border-radius: 0.25rem 0 0 0.25rem;
+    }
+
+    .workspace-rail a[aria-current='page']::after {
+      position: absolute;
+      inset-block-start: 50%;
+      inset-inline-end: calc(-0.5rem - 3px);
+      width: 0.5rem;
+      height: 1px;
+      background: var(--workspace-thread);
+      pointer-events: none;
+      content: '';
+    }
+
     .workspace-masthead {
-      grid-template-columns: minmax(0, auto) minmax(1.5rem, 1fr) auto;
+      grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
+      min-height: 4rem;
+      border-start-start-radius: 0;
     }
 
     .workspace-masthead-identity {
-      min-height: 3.75rem;
       padding-inline: 1rem;
     }
 
@@ -179,67 +224,38 @@
       display: block;
       align-self: stretch;
       overflow: clip;
+      background-image: var(--workspace-engraving-art, none);
+      background-position: 67% 54%;
+      background-size: cover;
+      mask-image: linear-gradient(90deg, transparent, black 22% 72%, transparent);
       pointer-events: none;
     }
 
-    .workspace-engraving::after {
+    .workspace-masthead::after {
       position: absolute;
-      inset: auto 8% 1px 0;
+      inset: auto 0 -1px;
       height: 1px;
-      background: linear-gradient(90deg, var(--palette-engraving), transparent);
-      opacity: 0.5;
+      background: linear-gradient(90deg, var(--workspace-thread), var(--workspace-thread) 16%, transparent 67%);
+      pointer-events: none;
       content: '';
     }
 
-    [data-league-theme='covens'] .workspace-engraving {
-      --engraving-ink: color-mix(in oklab, var(--palette-engraving) 72%, transparent);
-      --engraving-cut: conic-gradient(
-        from 18deg,
-        black 0 75deg,
-        transparent 75deg 95deg,
-        black 95deg 226deg,
-        transparent 226deg 242deg,
-        black 242deg
-      );
-    }
-
-    [data-league-theme='covens'] .workspace-engraving::before,
-    [data-league-theme='covens'] .workspace-engraving::after {
-      position: absolute;
-      inset: auto auto -4rem 0.375rem;
-      width: 8.25rem;
-      height: auto;
-      aspect-ratio: 1;
-      border: 1px solid var(--engraving-ink);
-      border-radius: 50%;
-      background: transparent;
-      mask: var(--engraving-cut);
-      opacity: 1;
-      content: '';
-    }
-
-    [data-league-theme='covens'] .workspace-engraving::after {
-      inset: auto auto -3.375rem 1rem;
-      width: 7rem;
-      opacity: 0.62;
-      transform: rotate(28deg);
-    }
-
-    [data-league-theme='covens'] .workspace-engraving > span {
-      position: absolute;
-      inset: auto auto -2.0625rem 2.3125rem;
-      width: 4.375rem;
-      aspect-ratio: 1;
-      border-radius: 50%;
-      background: linear-gradient(165deg, var(--engraving-ink), transparent 78%);
-      mask: radial-gradient(circle at 67% 64%, transparent 61%, black 62%);
+    :root.light[data-league-theme] .workspace-engraving {
+      opacity: 0.72;
     }
   }
 
   @media (forced-colors: active) {
     .workspace-engraving,
-    .workspace-rail-brand::after {
-      visibility: hidden;
+    .workspace-rail::after,
+    .workspace-rail a[aria-current='page']::after,
+    .workspace-masthead::after,
+    .workspace-dock :is(a[aria-current='page'], [data-current-section])::before {
+      display: none;
+    }
+
+    .workspace-rail a[aria-current='page'] {
+      border-color: Highlight;
     }
   }
 }

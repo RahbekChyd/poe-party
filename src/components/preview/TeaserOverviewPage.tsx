@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Coins, Star, Sword, TrendingUp, Users } from 'lucide-react'
+import { ArrowRight, Coins, Sword } from 'lucide-react'
 import {
   previewGearSuggestions,
   previewHistory,
@@ -23,6 +23,7 @@ import { formatCurrencyAmount } from '../../lib/utils'
 import { formatWealthAxisTick } from '../../lib/wealth-history'
 import { getPreviewItemImage } from '../../lib/preview-item-images'
 import { UserAvatar } from '../ui/heroui-native'
+import { ActiveStrategySummary, DashboardPage } from '../ui/dashboard'
 import { PreviewPageIntro, UnlockCard } from './PreviewShared'
 const divinePrice = 205
 const sampleStrategy = previewStrategies[0]
@@ -38,55 +39,53 @@ export function TeaserOverviewPage() {
   const importance = IMPORTANCE_CHIP[sampleSuggestion.importance]
 
   return (
-    <div className="@container flex min-w-0 flex-col gap-6">
+    <DashboardPage className="@container">
       <PreviewPageIntro
         title="Overview"
         description="See a sample workspace with stash history, members, strategies, and gear suggestions."
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Card>
-          <Card.Content className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
-            <div className="rounded-large bg-wealth-series/15 flex size-9 shrink-0 items-center justify-center">
-              <TrendingUp size={18} className="text-wealth-series" aria-hidden="true" />
-            </div>
-            <div>
-              <p className="text-default-400 text-xs">Sample wealth</p>
-              <p className="text-foreground text-2xl font-bold">
-                {formatCurrencyAmount(previewWorkspace.total_wealth_chaos, 'divine', divinePrice)}
-              </p>
-            </div>
-          </Card.Content>
-        </Card>
+      <ActiveStrategySummary
+        result={(
+          <dl className="min-w-0 space-y-1">
+            <dt className="text-default-500 text-sm font-medium">Estimated chaos per hour</dt>
+            <dd className="workspace-lead-amount">
+              {sampleStrategy.benchmark_chaos_per_hour.toLocaleString()}
+            </dd>
+          </dl>
+        )}
+        action={(
+          <Link to="/preview/strategies" className="button button--primary min-h-11">
+            Browse strategies <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+        )}
+      >
+        <p className="workspace-lead-title">{sampleStrategy.name}</p>
+        <div className="text-default-500 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+          <span className="flex items-center gap-1.5">
+            <Coins size={14} aria-hidden="true" />
+            ~{formatCurrencyAmount(sampleStrategy.map_cost, 'chaos')} per map
+          </span>
+          <Chip size="sm" variant="soft">{diffChip.label}</Chip>
+        </div>
+      </ActiveStrategySummary>
 
-        <Card>
-          <Card.Content className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
-            <div className="rounded-large bg-info-soft flex size-9 shrink-0 items-center justify-center">
-              <Users size={18} className="text-info" aria-hidden="true" />
-            </div>
-            <div>
-              <p className="text-default-400 text-xs">Synced members</p>
-              <p className="text-foreground text-2xl font-bold">
-                {previewWorkspace.synced_members}
-              </p>
-            </div>
-          </Card.Content>
-        </Card>
-
-        <Card>
-          <Card.Content className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
-            <div className="rounded-large bg-info-soft flex size-9 shrink-0 items-center justify-center">
-              <Sword size={18} className="text-info" aria-hidden="true" />
-            </div>
-            <div>
-              <p className="text-default-400 text-xs">Open gear suggestions</p>
-              <p className="text-foreground text-2xl font-bold">
-                {previewWorkspace.open_gear_items}
-              </p>
-            </div>
-          </Card.Content>
-        </Card>
-      </div>
+      <dl className="workspace-metrics">
+        <div className="min-w-0">
+          <dt className="text-default-500 text-sm">Sample wealth</dt>
+          <dd className="text-foreground mt-1 font-semibold wrap-anywhere tabular-nums">
+            {formatCurrencyAmount(previewWorkspace.total_wealth_chaos, 'divine', divinePrice)}
+          </dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-default-500 text-sm">Synced members</dt>
+          <dd className="text-foreground mt-1 font-semibold tabular-nums">{previewWorkspace.synced_members}</dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-default-500 text-sm">Open gear suggestions</dt>
+          <dd className="text-foreground mt-1 font-semibold tabular-nums">{previewWorkspace.open_gear_items}</dd>
+        </div>
+      </dl>
 
       <Card>
         <Card.Header>
@@ -163,109 +162,59 @@ export function TeaserOverviewPage() {
         </Card.Content>
       </Card>
 
-      <div className="grid gap-4 @min-[44rem]:grid-cols-2">
-        <div className="min-w-0">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-foreground text-sm font-semibold">Active strategy</h2>
-            <Link to="/preview/strategies" className="button button--sm button--tertiary">
-              Browse strategies
-            </Link>
-          </div>
-          <Link
-            to="/preview/strategies"
-            className="block min-w-0"
-          >
-            <Card className="hover:bg-default-50 min-w-0 cursor-pointer transition-colors">
-              <Card.Content className="gap-1.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  {sampleStrategy.is_active ? (
-                    <Star size={14} className="fill-highlight text-highlight shrink-0" aria-hidden="true" />
-                  ) : null}
-                  <p className="text-foreground min-w-0 flex-1 wrap-anywhere text-sm font-medium">
-                    {sampleStrategy.name}
-                  </p>
-                  <Chip size="sm" variant="soft">
-                    {diffChip.label}
-                  </Chip>
-                </div>
-                <div className="mt-1 flex items-center justify-between">
-                  <span className="text-default-400 flex items-center gap-1 text-xs">
-                    <Coins size={10} />~{formatCurrencyAmount(sampleStrategy.map_cost, 'chaos')}/map
-                  </span>
-                  <span className="text-default-400 text-xs">Tracked</span>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <Chip size="sm" variant="soft" color="success">
-                    {formatCurrencyAmount(
-                      sampleStrategy.benchmark_chaos_per_hour,
-                      'chaos',
-                      divinePrice,
-                    )}
-                    /hr
-                  </Chip>
-                  <Chip size="sm" variant="soft" className="bg-selected text-highlight">
-                    Active
-                  </Chip>
-                </div>
-              </Card.Content>
-            </Card>
+      <div className="min-w-0">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-foreground text-sm font-semibold">Gear suggestion</h2>
+          <Link to="/preview/gear" className="button button--sm button--tertiary">
+            View gear sample
           </Link>
         </div>
-
-        <div className="min-w-0">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-foreground text-sm font-semibold">Gear suggestion</h2>
-            <Link to="/preview/gear" className="button button--sm button--tertiary">
-              View gear sample
-            </Link>
-          </div>
-          <Card className="min-w-0">
-            <Card.Content className="gap-1.5">
-              <div className="flex flex-wrap items-center gap-2">
-                {sampleItemImage ? (
-                  <img
-                    src={sampleItemImage}
-                    alt=""
-                    className="h-8 w-8 bg-transparent object-contain"
-                  />
-                ) : (
-                  <Sword size={14} className="text-default-400 shrink-0" />
-                )}
-                <p className="text-foreground min-w-0 flex-1 wrap-anywhere text-sm font-medium">
-                  {sampleSuggestion.item_name}
-                </p>
-                <Chip size="sm" variant="soft">
-                  {importance.label}
-                </Chip>
-              </div>
-              <div className="text-default-400 flex items-center gap-1.5 wrap-anywhere text-xs">
-                <UserAvatar
-                  size="sm"
-                  name={sampleTarget?.display_name ?? 'Member'}
-                  className="h-5 w-5 shrink-0"
-                  fallbackClassName="text-[10px]"
-                  style={sampleTarget ? { backgroundColor: sampleTarget.avatar_color } : undefined}
+        <Card className="min-w-0">
+          <Card.Content className="gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              {sampleItemImage ? (
+                <img
+                  src={sampleItemImage}
+                  alt=""
+                  className="h-8 w-8 bg-transparent object-contain"
                 />
-                <span className="min-w-0">
-                  For {sampleTarget?.display_name ?? 'the selected member'}
-                </span>
-              </div>
-              <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
-                <p className="text-default-400 wrap-anywhere text-xs">
-                  by {sampleSuggester?.display_name ?? 'another member'}
-                </p>
-                <Chip
-                  size="sm"
-                  color={STATUS_COLOR[sampleSuggestion.status]}
-                  variant="soft"
-                  className="capitalize"
-                >
-                  {sampleSuggestion.status}
-                </Chip>
-              </div>
-            </Card.Content>
-          </Card>
-        </div>
+              ) : (
+                <Sword size={14} className="text-default-400 shrink-0" aria-hidden="true" />
+              )}
+              <p className="text-foreground min-w-0 flex-1 wrap-anywhere text-sm font-medium">
+                {sampleSuggestion.item_name}
+              </p>
+              <Chip size="sm" variant="soft">
+                {importance.label}
+              </Chip>
+            </div>
+            <div className="text-default-400 flex items-center gap-1.5 wrap-anywhere text-xs">
+              <UserAvatar
+                size="sm"
+                name={sampleTarget?.display_name ?? 'Member'}
+                className="h-5 w-5 shrink-0"
+                fallbackClassName="text-[10px]"
+                style={sampleTarget ? { backgroundColor: sampleTarget.avatar_color } : undefined}
+              />
+              <span className="min-w-0">
+                For {sampleTarget?.display_name ?? 'the selected member'}
+              </span>
+            </div>
+            <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
+              <p className="text-default-400 wrap-anywhere text-xs">
+                by {sampleSuggester?.display_name ?? 'another member'}
+              </p>
+              <Chip
+                size="sm"
+                color={STATUS_COLOR[sampleSuggestion.status]}
+                variant="soft"
+                className="capitalize"
+              >
+                {sampleSuggestion.status}
+              </Chip>
+            </div>
+          </Card.Content>
+        </Card>
       </div>
 
       <UnlockCard
@@ -277,6 +226,6 @@ export function TeaserOverviewPage() {
           'Plan runs and share gear suggestions.',
         ]}
       />
-    </div>
+    </DashboardPage>
   )
 }

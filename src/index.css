@@ -183,8 +183,6 @@
   --palette-danger: oklch(46.480% 0.14519 12.776);
   --palette-info: oklch(41.510% 0.09551 253.177);
   --palette-petrol: oklch(16.818% 0.01129 229.883);
-  --palette-brass: oklch(78.188% 0.15845 72.327);
-  --palette-engraving: oklch(49.599% 0.083 73);
 }
 
 .dark {
@@ -207,44 +205,55 @@
   --palette-warning: oklch(88.383% 0.11032 84.229);
   --palette-danger: oklch(79.588% 0.12032 10.471);
   --palette-info: oklch(81.643% 0.09249 258.142);
-  --palette-engraving: var(--palette-brass);
 }
 
-/* Seasonal presets override appearance while semantic status and data colors stay shared. */
+@font-face {
+  font-family: 'Cormorant Garamond';
+  src: url('./assets/fonts/cormorant-garamond-600-latin.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-editorial: 'Cormorant Garamond', Georgia, serif;
+}
+
+/* Covens stone and witchlight. Semantic status and data colors are shared across seasons. */
 :root[data-league-theme='covens'] {
-  --palette-canvas: oklch(93.143% 0.01314 310.526);
-  --palette-navigation: oklch(89.832% 0.02157 306.818);
-  --palette-panel: oklch(98.283% 0.00730 312.303);
-  --palette-overlay: oklch(99.420% 0.00504 325.615);
-  --palette-ink: oklch(27.798% 0.05046 301.982);
-  --palette-muted: oklch(42.655% 0.04712 308.040);
-  --palette-action: oklch(39.899% 0.08371 303.536);
-  --palette-on-action: oklch(99.034% 0.00841 325.640);
-  --palette-link: oklch(44.673% 0.09929 303.389);
-  --palette-selected: oklch(89.244% 0.03578 305.491);
-  --palette-highlight: oklch(40.770% 0.08875 304.960);
-  --palette-focus: oklch(40.494% 0.10335 308.636);
-  --palette-control-edge: oklch(54.420% 0.06132 304.857);
-  --palette-divider: oklch(76.798% 0.04091 308.645);
-  --palette-engraving: oklch(50.337% 0.07792 307.189);
+  --palette-canvas: oklch(94.209% 0.01277 244.258);
+  --palette-navigation: oklch(91.351% 0.01807 245.399);
+  --palette-panel: oklch(98.070% 0.00512 247.876);
+  --palette-overlay: white;
+  --palette-ink: oklch(25.708% 0.03704 255.459);
+  --palette-muted: oklch(41.272% 0.04680 251.238);
+  --palette-action: oklch(40.518% 0.08000 247.886);
+  --palette-on-action: oklch(98.340% 0.00417 236.496);
+  --palette-link: oklch(41.303% 0.08299 248.575);
+  --palette-selected: oklch(89.477% 0.02827 243.126);
+  --palette-highlight: oklch(35.738% 0.07857 251.473);
+  --palette-focus: oklch(40.468% 0.08693 250.843);
+  --palette-control-edge: oklch(56.331% 0.04292 248.594);
+  --palette-divider: oklch(78.022% 0.03029 245.007);
+  --palette-engraving: oklch(46.734% 0.07774 245.874);
 }
 
 :root.dark[data-league-theme='covens'] {
-  --palette-canvas: oklch(18.356% 0.02287 300.850);
-  --palette-navigation: oklch(21.857% 0.03151 298.112);
-  --palette-panel: oklch(25.882% 0.03414 299.312);
-  --palette-overlay: oklch(30.194% 0.04401 301.032);
-  --palette-ink: oklch(95.964% 0.01468 312.244);
-  --palette-muted: oklch(79.635% 0.03681 305.411);
-  --palette-action: oklch(84.072% 0.06019 302.471);
-  --palette-on-action: oklch(24.197% 0.05347 300.593);
-  --palette-link: oklch(83.457% 0.07199 303.103);
-  --palette-selected: oklch(34.308% 0.05473 299.844);
-  --palette-highlight: oklch(88.047% 0.05241 302.539);
-  --palette-focus: oklch(91.191% 0.05983 312.873);
-  --palette-control-edge: oklch(66.055% 0.05449 306.929);
-  --palette-divider: oklch(41.010% 0.05359 304.806);
-  --palette-engraving: oklch(67.303% 0.07478 308.134);
+  --palette-canvas: oklch(20.324% 0.02457 259.263);
+  --palette-navigation: oklch(23.399% 0.03117 249.284);
+  --palette-panel: oklch(25.329% 0.03258 256.309);
+  --palette-overlay: oklch(30.269% 0.03671 258.313);
+  --palette-ink: oklch(96.852% 0.01485 260.730);
+  --palette-muted: oklch(81.578% 0.03329 249.677);
+  --palette-action: oklch(87.098% 0.06190 247.802);
+  --palette-on-action: oklch(22.689% 0.03233 252.958);
+  --palette-link: oklch(87.421% 0.05447 245.911);
+  --palette-selected: oklch(36.078% 0.05195 245.612);
+  --palette-highlight: oklch(92.940% 0.03507 250.863);
+  --palette-focus: oklch(91.040% 0.04742 242.504);
+  --palette-control-edge: oklch(63.894% 0.04793 247.557);
+  --palette-divider: oklch(45.399% 0.05001 254.100);
+  --palette-engraving: oklch(81.939% 0.06358 244.995);
 }
 
 body {
@@ -271,85 +280,6 @@ body {
 }
 
 @layer components {
-  .brass-orbit {
-    --orbit-size: clamp(22rem, 49vw, 44rem);
-    --orbit-rim: color-mix(in oklab, var(--highlight) 72%, transparent);
-    --orbit-glint: color-mix(in oklab, var(--palette-brass) 65%, transparent);
-    pointer-events: none;
-    overflow: clip;
-    background: radial-gradient(
-      ellipse at 98% 66%,
-      color-mix(in oklab, var(--highlight) 23%, transparent),
-      transparent 67%
-    );
-  }
-
-  .brass-orbit > span {
-    position: absolute;
-    width: var(--orbit-size);
-    aspect-ratio: 1.12;
-    top: var(--orbit-center-y);
-    left: 100%;
-    translate: -50% -50%;
-    border-radius: 50%;
-    padding: 1px;
-    background: conic-gradient(
-      from 224deg,
-      transparent,
-      var(--orbit-rim) 58deg,
-      var(--orbit-glint) 113deg,
-      transparent 151deg
-    );
-    mask: linear-gradient(black 0 0) content-box, linear-gradient(black 0 0);
-    mask-composite: exclude;
-  }
-
-  .brass-orbit > span:nth-child(2) {
-    width: calc(var(--orbit-size) * 0.85);
-    opacity: 0.84;
-  }
-
-  .brass-orbit > span:nth-child(3) {
-    width: calc(var(--orbit-size) * 0.71);
-    opacity: 0.7;
-  }
-
-  .brass-orbit--sign-in {
-    --orbit-center-y: 152%;
-    position: relative;
-    height: clamp(5rem, 23vw, 10rem);
-    margin: 0.75rem -1rem 0;
-    mask-image: linear-gradient(to bottom, transparent, black 28%, black 66%, transparent);
-  }
-
-  @media (min-width: 64rem) {
-    .brass-orbit--sign-in {
-      --orbit-center-y: 64%;
-      position: absolute;
-      inset: 0 0 0 calc(50% + 17rem);
-      height: auto;
-      margin: 0;
-      mask-image: none;
-    }
-  }
-
-  .brass-orbit--sample {
-    --orbit-center-y: 77%;
-    position: absolute;
-    z-index: -1;
-    inset: -3rem -3rem -3rem 0;
-    mask-image:
-      linear-gradient(to bottom, transparent, black 19%, black 81%, transparent),
-      linear-gradient(to right, transparent, black 12%, black 86%, transparent);
-    mask-composite: intersect;
-  }
-
-  @media (forced-colors: active) {
-    .brass-orbit {
-      visibility: hidden;
-    }
-  }
-
   .toggle-button {
     --toggle-button-bg-selected: var(--selected);
     --toggle-button-bg-selected-hover: var(--selected-hover);

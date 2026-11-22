@@ -11,7 +11,7 @@ test('workspace colors follow the active league through menus and sign-out', asy
   const primary = page.getByRole('link', { name: 'Browse strategies' })
   await expect(root).toHaveAttribute('data-league-theme', 'covens')
   await expect(root).toHaveAttribute('data-theme', 'dark')
-  await expect(primary).toHaveCSS('background-color', 'oklch(0.84072 0.06019 302.471)')
+  await expect(primary).toHaveCSS('background-color', 'oklch(0.87098 0.0619 247.802)')
 
   for (const group of ['Standard Fixture Party', 'PoE2 Fixture Party', groupName]) {
     await switcher.click()
@@ -27,7 +27,7 @@ test('workspace colors follow the active league through menus and sign-out', asy
 
   await switcher.press('ArrowDown')
   await expect(page.locator('.dropdown__popover').filter({ has: menu }))
-    .toHaveCSS('background-color', 'oklch(0.30194 0.04401 301.032)')
+    .toHaveCSS('background-color', 'oklch(0.30269 0.03671 258.313)')
   await expect(menu.getByRole('menuitemradio').first()).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(menu).not.toBeVisible()
@@ -35,12 +35,12 @@ test('workspace colors follow the active league through menus and sign-out', asy
   await page.getByRole('button', { name: 'Toggle theme' }).click()
   await expect(root).toHaveAttribute('data-theme', 'light')
   await expect(root).toHaveAttribute('data-league-theme', 'covens')
-  await expect(primary).toHaveCSS('background-color', 'oklch(0.39899 0.08371 303.536)')
+  await expect(primary).toHaveCSS('background-color', 'oklch(0.40518 0.08 247.886)')
 
   await page.getByRole('button', { name: 'Account menu' }).click()
   await page.getByRole('menuitem', { name: 'Sign out' }).click()
   await expect(page.getByRole('heading', { name: 'Connect to PoE Party' })).toBeVisible()
-  await expect(root).not.toHaveAttribute('data-league-theme', 'covens')
+  await expect(root).toHaveAttribute('data-league-theme', 'covens')
   await expect(root).toHaveAttribute('data-theme', 'light')
 })
 
@@ -66,8 +66,25 @@ test('the sample shows Covens without tinting live public tools', async ({ page 
 
   await page.getByRole('link', { name: 'Sign in', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Connect to PoE Party' })).toBeVisible()
-  await expect(root).not.toHaveAttribute('data-league-theme', 'covens')
+  await expect(root).toHaveAttribute('data-league-theme', 'covens')
   await expect(root).toHaveAttribute('data-theme', 'dark')
+})
+
+test('the featured scene follows entry routes and clears on a trust page', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' })
+  await page.route('**/covens-ground*.webp', (route) => route.abort())
+  await page.goto('/')
+  const root = page.locator('html')
+  await expect(root).toHaveAttribute('data-league-theme', 'covens')
+  await expect(root).toHaveAttribute('data-theme', 'light')
+  await expect(page.getByTestId('home-hero-analysis-cta')).toBeInViewport()
+  await page.getByTestId('home-hero-connect-cta').click()
+  await expect(root).toHaveAttribute('data-league-theme', 'covens')
+  await expect(page.getByRole('button', { name: 'Connect with PoE Account' })).toBeInViewport()
+  await page.getByRole('link', { name: 'Privacy', exact: true }).click()
+  await expect(page).toHaveURL(/\/legal\/privacy\/?$/)
+  await expect(root).not.toHaveAttribute('data-league-theme')
+  await expect(root).toHaveAttribute('data-theme', 'light')
 })
 
 test('the focused chart period stays visible in a short viewport', async ({ page }) => {

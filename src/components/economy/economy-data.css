@@ -47,7 +47,7 @@
 
   .economy-members tbody tr {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 0.75fr);
+    grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.75fr);
     align-items: start;
     gap: 0.5rem 0.75rem;
     padding: 0.75rem 1rem;
@@ -140,5 +140,28 @@
 
   .economy-stash td[colspan] {
     grid-column: 1 / -1;
+  }
+}
+
+@container economy-data (width < 23rem) {
+  .economy-members tbody tr {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .economy-members [data-cell='member'] {
+    grid-column: 1 / -1;
+  }
+
+  .economy-members [data-cell='value'] {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .economy-members :is([data-cell='character'], [data-cell='snapshot']) {
+    grid-row: 3;
   }
 }

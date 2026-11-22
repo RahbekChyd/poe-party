@@ -198,7 +198,7 @@ export function PreviewShell({ children }: { children: ReactNode }) {
               <img src={logo} alt="" className="size-8 rounded-lg" />
               <span className="text-foreground shrink-0 font-semibold">PoE Party</span>
             </Link>
-            <nav aria-label="Explore PoE Party" className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2.5 pt-1 pb-3">
+            <nav aria-label="Explore PoE Party" className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pt-1 pb-3">
               {isSample ? (
                 <>
                   <PreviewSidebarSection title="Workspace sample" items={privateWorkspaceItems} />

@@ -30,6 +30,7 @@ import type {
 import { RecommendationItemRow } from '../gear/RecommendationItemRow'
 import { FieldInput, FieldTextArea, SelectField } from '../ui/heroui-native'
 import { PreviewPageIntro } from './PreviewShared'
+import { DashboardPage } from '../ui/dashboard'
 
 const GUEST_RUN_TOKEN_STORAGE_KEY = 'poe-party:guest-analysis-run-token:v1'
 const ALL_GUEST_LEAGUES_KEY = '__all__'
@@ -599,7 +600,7 @@ export function GuestAnalysisPage() {
   const RunIcon = runTone?.icon
 
   return (
-    <div className="flex flex-col gap-6">
+    <DashboardPage>
       <PreviewPageIntro
         title="Analysis"
         description="Compare a public PoE1 character with a Path of Building target to find upgrades."
@@ -871,6 +872,6 @@ export function GuestAnalysisPage() {
           />
         </div>
       ) : null}
-    </div>
+    </DashboardPage>
   )
 }

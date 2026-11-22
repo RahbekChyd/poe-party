@@ -177,7 +177,7 @@ function Poe1EconomyPage() {
   return (
     <>
       {modal}
-      <DashboardPage>
+      <DashboardPage className="@container">
         <DashboardPageHeader
           title="Economy"
           description="Review stash value, capture history, and member coverage."
@@ -268,11 +268,6 @@ function Poe1EconomyPage() {
                   Reconnect PoE account
                 </a>
               )}
-              {sorted.length > 0 && activeLeague && !profilePending && !profileError && !canSnapshot && (
-                <a href={getLoginHref('/dashboard/economy')} className="button button--sm button--tertiary">
-                  Reconnect PoE account
-                </a>
-              )}
             </>
           }
         />
@@ -324,7 +319,11 @@ function Poe1EconomyPage() {
                     <p className="text-default-500 text-sm">
                       {valuationPartial ? 'Priced subtotal' : 'Total Group Wealth'}
                     </p>
-                    <p className="text-foreground text-2xl font-bold wrap-anywhere tabular-nums">{valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}</p>
+                    {valuationUnavailable ? (
+                      <p className="text-foreground text-xl font-semibold">Pricing unavailable</p>
+                    ) : (
+                      <p className="workspace-lead-amount mt-1">{fmt(totalChaos)}</p>
+                    )}
                   </div>
                   <div className="flex basis-full flex-wrap items-center gap-3 sm:ml-auto sm:basis-auto">
                     <div>
@@ -470,7 +469,7 @@ function Poe1EconomyPage() {
                       <th className="text-default-400 w-1/4 px-4 py-3 text-left text-xs font-medium tracking-wider uppercase" role="columnheader" scope="col">
                         Character
                       </th>
-                      <th className="text-default-400 w-32 px-4 py-3 text-right text-xs font-medium tracking-wider uppercase" role="columnheader" scope="col">
+                      <th className="text-default-400 w-40 px-4 py-3 text-right text-xs font-medium tracking-wider uppercase" role="columnheader" scope="col">
                         Value
                       </th>
                       <th className="text-default-400 px-4 py-3 text-left text-xs font-medium tracking-wider uppercase" role="columnheader" scope="col">

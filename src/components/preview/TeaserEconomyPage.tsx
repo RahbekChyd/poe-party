@@ -8,6 +8,7 @@ import { formatCurrencyAmount } from '../../lib/utils'
 import { formatWealthAxisTick } from '../../lib/wealth-history'
 import { PreviewPageIntro, UnlockCard } from './PreviewShared'
 import { useGuestGateStore } from '../../store/guest-gate-store'
+import { DashboardPage } from '../ui/dashboard'
 import '../economy/economy-data.css'
 const divinePrice = 205
 
@@ -15,7 +16,7 @@ export function TeaserEconomyPage() {
   const openGuestGate = useGuestGateStore((state) => state.open)
 
   return (
-    <div className="flex flex-col gap-6">
+    <DashboardPage className="@container">
       <PreviewPageIntro
         title="Economy"
         description="Explore how a PoE1 stash snapshot tracks value over time and across party members."
@@ -29,7 +30,7 @@ export function TeaserEconomyPage() {
             </div>
             <div className="min-w-0">
               <h2 className="text-default-500 text-xs font-medium tracking-wider uppercase">Sample stash value</h2>
-              <p className="text-foreground text-2xl font-bold tabular-nums wrap-anywhere">
+              <p className="workspace-lead-amount mt-1">
                 {formatCurrencyAmount(previewWorkspace.total_wealth_chaos, 'divine', divinePrice)}
               </p>
               <p className="text-default-500 text-xs">{previewMembers.length} members synced</p>
@@ -38,6 +39,7 @@ export function TeaserEconomyPage() {
           <Button
             size="sm"
             variant="primary"
+            className="min-h-11"
             onPress={() =>
               openGuestGate({
                 title: 'Sign in to capture snapshots',
@@ -137,7 +139,7 @@ export function TeaserEconomyPage() {
                 <tr className="border-b border-divider" role="row">
                   <th role="columnheader" scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-default-400">Member</th>
                   <th role="columnheader" scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-default-400">Character</th>
-                  <th role="columnheader" scope="col" className="w-32 px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-default-400">Sample value</th>
+                  <th role="columnheader" scope="col" className="w-40 px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-default-400">Sample value</th>
                   <th role="columnheader" scope="col" className="w-32 px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-default-400">Last snapshot</th>
                 </tr>
               </thead>
@@ -158,7 +160,7 @@ export function TeaserEconomyPage() {
                     </td>
                     <td role="cell" data-cell="value" className="px-4 py-3 text-right text-sm font-semibold text-foreground tabular-nums">
                       <span className="economy-data-label font-normal">Value</span>
-                      {formatCurrencyAmount(member.wealth_chaos, 'chaos')}
+                      <p>{formatCurrencyAmount(member.wealth_chaos, 'chaos')}</p>
                     </td>
                     <td role="cell" data-cell="snapshot" className="px-4 py-3 text-right">
                       <span className="economy-data-label">Snapshot</span>
@@ -183,6 +185,6 @@ export function TeaserEconomyPage() {
           'Compare party members’ snapshots.',
         ]}
       />
-    </div>
+    </DashboardPage>
   )
 }

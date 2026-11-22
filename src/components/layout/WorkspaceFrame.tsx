@@ -1,5 +1,5 @@
-import { useLayoutEffect, type ReactNode } from 'react'
-import type { LeagueTheme } from '../../lib/league-theme'
+import type { CSSProperties, ReactNode } from 'react'
+import { leagueThemeDetails, useLeagueTheme, type LeagueTheme } from '../../lib/league-theme'
 import './workspace-frame.css'
 
 interface WorkspaceFrameProps {
@@ -12,22 +12,14 @@ interface WorkspaceFrameProps {
 }
 
 export function WorkspaceFrame({ leagueTheme, rail, masthead, dock, footer, children }: WorkspaceFrameProps) {
-  useLayoutEffect(() => {
-    // HeroUI portals mount outside the frame and inherit their palette from the root.
-    const root = document.documentElement
-    if (!leagueTheme) {
-      delete root.dataset.leagueTheme
-      return
-    }
-
-    root.dataset.leagueTheme = leagueTheme
-    return () => {
-      delete root.dataset.leagueTheme
-    }
-  }, [leagueTheme])
+  useLeagueTheme(leagueTheme)
+  const artwork = leagueTheme ? leagueThemeDetails[leagueTheme].artwork.workspace : null
+  const frameStyle = artwork
+    ? ({ '--workspace-engraving-art': `url("${artwork}")` } as CSSProperties)
+    : undefined
 
   return (
-    <div className="workspace-frame">
+    <div className="workspace-frame" style={frameStyle}>
       <a
         href="#main-content"
         className="button button--primary sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50"
@@ -50,9 +42,5 @@ export function WorkspaceFrame({ leagueTheme, rail, masthead, dock, footer, chil
 }
 
 export function WorkspaceEngraving() {
-  return (
-    <div className="workspace-engraving" aria-hidden="true">
-      <span />
-    </div>
-  )
+  return <div className="workspace-engraving" aria-hidden="true" />
 }

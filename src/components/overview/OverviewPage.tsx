@@ -49,7 +49,7 @@ import { filterHistoryByRange, formatWealthAxisTick, type WealthHistoryRange } f
 import { useCurrencyStore } from '../../store/currency-store'
 import { STATUS_COLOR, DIFFICULTY_CHIP, IMPORTANCE_CHIP } from '../../lib/constants'
 import { WealthHistoryRangeSelector } from '../economy/WealthHistoryRangeSelector'
-import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
+import { ActiveStrategySummary, DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
 
 export function OverviewPage() {
@@ -218,80 +218,85 @@ export function OverviewPage() {
   else if (!activeLeague) captureMessage = 'An active league is required to capture a linked snapshot.'
 
   return (
-    <DashboardPage>
+    <DashboardPage className="@container">
       <DashboardPageHeader title="Today" />
       {snapshotModal}
-      <section aria-labelledby="today-strategy" className="border-divider bg-content1 rounded-xl border p-4 sm:p-5">
-        <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-          <div className="min-w-0 space-y-2">
-            <h2 id="today-strategy" className="text-foreground text-lg font-semibold">Active strategy</h2>
-            {strategiesLoading ? (
-              <p className="text-default-500 text-sm" role="status">Loading strategies…</p>
-            ) : activeStrategy ? (
-              <>
-                <Link
-                  to="/dashboard/strategies/$strategyId"
-                  params={{ strategyId: activeStrategy.id }}
-                  className="text-foreground hover:text-brand-readable text-2xl font-semibold tracking-tight wrap-anywhere"
-                >
-                  {activeStrategy.name}
-                </Link>
-                {supportsSnapshots && latestResult ? (
-                  <div className="text-default-500 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
-                    <span>{resultPricing?.status === 'partial' ? 'Latest linked priced subtotal' : 'Latest linked snapshot'}</span>
-                    <strong className="text-foreground tabular-nums">
-                      {resultPricing?.status === 'unavailable' ? 'Pricing unavailable' : resultValue}
-                    </strong>
-                    <time dateTime={latestResult.created_at}>{resultDate}</time>
-                    {resultPricing?.status === 'partial' && (
-                      <span>{resultPricing.unpriced_item_count.toLocaleString()} unpriced items</span>
-                    )}
-                  </div>
-                ) : supportsSnapshots ? (
-                  <p className="text-default-500 text-sm">{captureMessage}</p>
-                ) : null}
-              </>
-            ) : (
-              <p className="text-default-500 text-sm">
-                {strategiesError ? 'Could not load the active strategy.' : 'Choose a strategy to use for your next run.'}
-              </p>
-            )}
-          </div>
-          {!strategiesLoading && (activeStrategy ? (
-            supportsSnapshots && !latestResult && canCapture && !historyPending && !historyError ? (
-              <Button
-                className="justify-self-start md:justify-self-end"
-                isPending={openingSnapshot}
-                isDisabled={snapshotRunning}
-                onPress={() => {
-                  if (activeGroupId && activeLeague) void triggerSnapshot(activeGroupId, activeLeague)
-                }}
-              >
-                {openingSnapshot || snapshotRunning ? 'Taking snapshot…' : 'Snapshot stash'}
-              </Button>
-            ) : (
-              <Link
-                to="/dashboard/strategies/$strategyId"
-                params={{ strategyId: activeStrategy.id }}
-                hash={latestResult ? 'strategy-results' : undefined}
-                className="button button--primary justify-self-start md:justify-self-end"
-              >
-                {latestResult ? 'View strategy results' : 'Open strategy'}
-                <ArrowRight size={16} aria-hidden="true" />
-              </Link>
-            )
+      <ActiveStrategySummary
+        result={latestResult ? (
+          <dl className="min-w-0 space-y-1">
+            <dt className="text-default-500 text-sm font-medium">
+              {resultPricing?.status === 'partial' ? 'Latest linked priced subtotal' : 'Latest linked snapshot'}
+            </dt>
+            <dd>
+              {resultPricing?.status === 'unavailable' ? (
+                <p className="text-foreground text-xl font-semibold">Pricing unavailable</p>
+              ) : (
+                <p className="workspace-lead-amount">{resultValue}</p>
+              )}
+              <div className="text-default-500 mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                <time dateTime={latestResult.created_at}>{resultDate}</time>
+                {resultPricing?.status === 'partial' && (
+                  <span>{resultPricing.unpriced_item_count.toLocaleString()} unpriced items</span>
+                )}
+              </div>
+            </dd>
+          </dl>
+        ) : null}
+        action={!strategiesLoading && (activeStrategy ? (
+          supportsSnapshots && !latestResult && canCapture && !historyPending && !historyError ? (
+            <Button
+              className="min-h-11"
+              isPending={openingSnapshot}
+              isDisabled={snapshotRunning}
+              onPress={() => {
+                if (activeGroupId && activeLeague) void triggerSnapshot(activeGroupId, activeLeague)
+              }}
+            >
+              {openingSnapshot || snapshotRunning ? 'Taking snapshot…' : 'Snapshot stash'}
+            </Button>
           ) : (
-            <Link to="/dashboard/strategies" className="button button--primary justify-self-start md:justify-self-end">
-              Browse strategies <ArrowRight size={16} aria-hidden="true" />
+            <Link
+              to="/dashboard/strategies/$strategyId"
+              params={{ strategyId: activeStrategy.id }}
+              hash={latestResult ? 'strategy-results' : undefined}
+              className="button button--primary min-h-11"
+            >
+              {latestResult ? 'View strategy results' : 'Open strategy'}
+              <ArrowRight size={16} aria-hidden="true" />
             </Link>
-          ))}
-        </div>
-      </section>
+          )
+        ) : (
+          <Link to="/dashboard/strategies" className="button button--primary min-h-11">
+            Browse strategies <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+        ))}
+      >
+        {strategiesLoading ? (
+          <p className="text-default-500 text-sm" role="status">Loading strategies…</p>
+        ) : activeStrategy ? (
+          <>
+            <Link
+              to="/dashboard/strategies/$strategyId"
+              params={{ strategyId: activeStrategy.id }}
+              className="workspace-lead-title"
+            >
+              {activeStrategy.name}
+            </Link>
+            {supportsSnapshots && !latestResult ? (
+              <p className="text-default-500 text-sm">{captureMessage}</p>
+            ) : null}
+          </>
+        ) : (
+          <p className="text-default-500 text-sm">
+            {strategiesError ? 'Could not load the active strategy.' : 'Choose a strategy to use for your next run.'}
+          </p>
+        )}
+      </ActiveStrategySummary>
 
       {!isMarketOnly && valuationPartial && (
         <p role="status" className="text-warning text-sm">Partial pricing: some items have no price estimate.</p>
       )}
-      <dl className="border-divider grid grid-cols-2 gap-4 border-b pb-5 md:grid-cols-4">
+      <dl className="workspace-metrics">
         <div className="min-w-0">
           <dt className="text-default-500 text-sm">{isMarketOnly ? 'Market' : wealthLabel}</dt>
           <dd className="mt-1">

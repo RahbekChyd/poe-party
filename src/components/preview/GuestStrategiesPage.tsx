@@ -21,6 +21,7 @@ import {
 } from '../../lib/public-strategy-content'
 import { QueryFreshnessNotice, QueryStatePanel } from '../ui/QueryStatePanel'
 import { ResponsiveFilter } from '../ui/ResponsiveFilter'
+import { DashboardPage, DashboardPanel } from '../ui/dashboard'
 const divinePrice = 205
 type StageFilter = StrategyContentStage | 'all'
 
@@ -66,32 +67,30 @@ export function GuestStrategiesPage() {
   )
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-5">
+    <DashboardPage>
       <PreviewPageIntro
         title="Strategies"
         description="Find community strategies and compare benchmarks."
       />
 
-      <Card className="@container p-3 sm:p-4">
-        <Card.Content className="gap-3">
-          <div className="w-full max-w-xl">
-            <DiscoveryScope
-              game={selectedGame}
-              league={selectedLeague}
-              games={availableGames}
-              leagues={leagues}
-              onGameChange={setSelectedGame}
-              onLeagueChange={setSelectedLeague}
-            />
-          </div>
-          <ResponsiveFilter
-            label="Strategy stage"
-            options={STRATEGY_STAGE_FILTER_OPTIONS}
-            value={stageFilter}
-            onChange={setStageFilter}
+      <DashboardPanel className="@container" contentClassName="gap-3">
+        <div className="w-full max-w-xl">
+          <DiscoveryScope
+            game={selectedGame}
+            league={selectedLeague}
+            games={availableGames}
+            leagues={leagues}
+            onGameChange={setSelectedGame}
+            onLeagueChange={setSelectedLeague}
           />
-        </Card.Content>
-      </Card>
+        </div>
+        <ResponsiveFilter
+          label="Strategy stage"
+          options={STRATEGY_STAGE_FILTER_OPTIONS}
+          value={stageFilter}
+          onChange={setStageFilter}
+        />
+      </DashboardPanel>
 
       {!selectedLeague && leagueError ? (
         <QueryStatePanel
@@ -235,6 +234,6 @@ export function GuestStrategiesPage() {
           })}
         </div>
       )}
-    </div>
+    </DashboardPage>
   )
 }
