@@ -231,7 +231,6 @@
   --covens-frame-edge: #55595e;
   --covens-corner-start: url('./assets/seasonal/covens-frame-corner-start.webp');
   --covens-corner-end: url('./assets/seasonal/covens-frame-corner-end.webp');
-  --covens-frame-divider: url('./assets/seasonal/covens-frame-divider.webp');
 }
 
 body {
@@ -417,7 +416,7 @@ body {
   z-index: 1;
 }
 
-:where(.tabs__tab, .list-box-item, .menu-item, .mobile-nav-tab):is(:focus-visible, [data-focus-visible='true']) {
+:where(.tabs__tab, .list-box-item, .menu-item, .mobile-nav-tab, .workspace-sidebar-link):is(:focus-visible, [data-focus-visible='true']) {
   outline-offset: -2px;
   box-shadow: none;
 }

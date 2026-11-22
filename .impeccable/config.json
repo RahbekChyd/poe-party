@@ -2,16 +2,6 @@
   "detector": {
     "ignoreRules": [],
     "ignoreFiles": [],
-    "ignoreValues": [
-      {
-        "rule": "side-tab",
-        "value": "*",
-        "files": [
-          "src/components/layout/workspace-frame.css"
-        ],
-        "createdAt": "2026-11-22T17:57:09.982Z",
-        "reason": "User confirmed: the Covens of Umbra plan calls for a slim spectral marker on the active navigation destination, alongside a selected fill and aria-current."
-      }
-    ]
+    "ignoreValues": []
   }
 }

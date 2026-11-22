@@ -16,7 +16,7 @@ Use Cinzel Medium for the wordmark, major headings, and prominent strategy title
 
 The landing page pairs an environmental image with a short product headline, two actions, and a sample result. The image sits beside the headline and above it on phones. Sign-in crops into the same scene and uses an opaque panel for the connection action and access details.
 
-At 1024 CSS pixels, a full-width top bar anchors the brand and workspace switcher at left and currency, live status, and account controls at right. A 216 px sidebar below it groups workspace and discovery links. The current destination uses a tinted background, a leading marker, and `aria-current`. Public routes group the sample destinations above Explore links. Below 1024 px, the dashboard uses a five-group bottom dock with safe-area spacing. The sample keeps four workspace links and an Explore menu.
+At 1024 CSS pixels, an inset top bar anchors the brand and workspace switcher at left and currency, live status, and account controls at right. The 216 px navigation column contains a sidebar that ends below its links and scrolls independently on short screens. The current destination uses a tinted fill, a highlighted icon, and `aria-current`. Public routes group the sample destinations above Explore links. Below 1024 px, the dashboard uses a five-group bottom dock with safe-area spacing. The sample keeps four workspace links and an Explore menu.
 
 The page canvas extends to the content gutters. Shared page headings sit above opaque controls and reading surfaces. Today places the active strategy and latest result with its action in one compact summary. The two sections stack within that surface on phones. Wealth history and metrics sit together where space allows. Economy places stash value, pricing coverage, and snapshot controls together, followed by full-width history and breakdown. Analysis places current progress above recommendations.
 
@@ -24,9 +24,9 @@ The page canvas extends to the content gutters. Shared page headings sit above o
 
 The HTML declares dark on every route. Register new seasonal accents in `src/lib/league-theme.ts` and `src/index.css`. The featured preset drives home and sign-in. The sample and each active workspace resolve a preset from their game and league. Public tools use the base palette. Theme scope is applied to the document so portal-based controls inherit it.
 
-### Covens frames
+### Workspace frame
 
-Use the dark timber edge and tarnished silver hairline at the boundary between the masthead and the reading pane. On desktop, a pair of bound-twig corners sits at the ends of the upper rail. A feather-and-cord tie finishes the page heading rule on wider screens. Keep the frame behind content and within existing gutters so focus outlines and controls remain clear while scrolling. At narrow widths, keep the shallow join and let the dock retain its full touch area. Forced colors uses the underlying structural borders.
+Give the masthead and sidebar related slate surfaces, cool edges, and a deeper lower trailing curve. The inset shapes identify both navigation surfaces while keeping the reading pane open. Covens uses a bluer slate tone and a low-contrast stretch of the workbench image in the masthead from 1280 px up. Narrow layouts use a continuous top bar and a bottom dock with the same tones. Forced-colors mode uses system borders and surfaces.
 
 The entry scene has a narrow recessed rim and uses the same desktop corners. The existing seasonal caption uses a restrained parchment edge. Use plain semantic borders on tables, cards, filters, and overlays.
 
@@ -34,6 +34,6 @@ The entry scene has a narrow recessed rim and uses the same desktop corners. The
 
 - `covens-workbench.webp`, `covens-workbench-close.webp`, and `covens-workbench-masthead.webp` are crops of an original ImageGen illustration. The brief called for a moonlit woodland workbench with a wicker effigy, damp blue-black wood, coarse twine, cold light on feathers, and one dim ember. The crops serve desktop home, mobile home and sign-in, and the 1280 px desktop masthead. The respective budgets are 300, 150, and 50 KiB. Text and controls sit on opaque surfaces around the art.
 - `covens-talisman.webp` is an original transparent ImageGen engraving of bound twigs, feathers, and a small matte bone charm. It accompanies the no-capture state.
-- `covens-frame-corner-start.webp`, `covens-frame-corner-end.webp`, and `covens-frame-divider.webp` are original transparent ImageGen cutouts. The brief called for two distinct crooked, cord-bound twigs with short downturned ends and one nearly horizontal feather lashed to split wood. Cool edge light keeps their silhouettes legible at small sizes. The three compressed assets total under 24 KiB.
+- `covens-frame-corner-start.webp` and `covens-frame-corner-end.webp` are original transparent ImageGen cutouts. The brief called for distinct crooked, cord-bound twigs with short downturned ends and cool edge light. Use them on the entry art.
 
 The material references are from the [official Covens of Umbra page](https://www.pathofexile.com/covens) and the [official trailer](https://www.youtube.com/watch?v=XaySR0RjRPA). The seasonal assets depict independent PoE Party illustrations. Item imagery follows the app's existing game-data sources.
