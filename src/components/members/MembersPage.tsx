@@ -39,12 +39,6 @@ import { DropdownCaret, FieldInput, ListBox, SelectField, UserAvatar } from '../
 import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
 
-type NativeChipColor = 'default' | 'accent' | 'success' | 'warning' | 'danger'
-
-function toNativeChipColor(color: string): NativeChipColor {
-  return color === 'primary' ? 'accent' : (color as NativeChipColor)
-}
-
 function OtherPobSection({
   pob_code,
   pob_support_code,
@@ -325,7 +319,7 @@ export function MembersPage() {
                   <Card
                     key={member.user.id}
                     className={`min-w-0 border p-0 transition-colors ${
-                      isSelected ? 'border-primary/60 bg-primary/5' : 'border-divider'
+                      isSelected ? 'border-highlight bg-selected' : 'border-divider'
                     }`}
                   >
                     <Card.Content className="gap-2 p-3">
@@ -425,7 +419,7 @@ export function MembersPage() {
                         </div>
 
                         {isSelected && (
-                          <Chip size="sm" color="accent" variant="soft">
+                          <Chip size="sm" variant="soft" className="text-highlight">
                             Selected
                           </Chip>
                         )}
@@ -445,7 +439,7 @@ export function MembersPage() {
                           <Chip size="sm" color={age.color} variant="soft">
                             {age.label}
                           </Chip>
-                          <Chip size="sm" color={toNativeChipColor(roleChip.color)} variant="soft">
+                          <Chip size="sm" variant="soft">
                             {roleChip.label}
                           </Chip>
                           {ascendancy && (
@@ -504,7 +498,6 @@ export function MembersPage() {
                         <Chip
                           className="shrink-0"
                           size="sm"
-                          color={toNativeChipColor(selectedRoleChip.color)}
                           variant="soft"
                         >
                           {selectedRoleChip.label}
@@ -575,7 +568,7 @@ export function MembersPage() {
                                     </Description>
                                   </div>
                                   {myCharacter.is_active ? (
-                                    <Check size={14} className="text-accent shrink-0" />
+                                    <Check size={14} className="text-highlight shrink-0" aria-hidden="true" />
                                   ) : null}
                                 </Dropdown.Item>
                               ))}
@@ -706,7 +699,7 @@ export function MembersPage() {
                           <Chip size="sm" variant="soft">
                             Viewing {formatSnapshotDateUtc(selectedDailySummary.snapshot_date)}
                           </Chip>
-                          <Chip size="sm" color="accent" variant="soft">
+                          <Chip size="sm" variant="soft">
                             Synced {formatRelativeTimestamp(selectedDailySummary.last_synced_at)}
                           </Chip>
                           {selectedDailySummary.class ? (

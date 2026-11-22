@@ -211,6 +211,9 @@ export const previewGearSuggestions: PreviewGearSuggestion[] = [
 
 export const previewWorkspace = {
   label: 'Example party workspace',
+  game: 'poe1' as const,
+  league: 'Covens',
+  leagueLabel: 'Covens of Umbra',
   total_wealth_chaos: previewMembers.reduce((sum, member) => sum + member.wealth_chaos, 0),
   synced_members: previewMembers.length,
   open_gear_items: previewGearSuggestions.filter((suggestion) => suggestion.status !== 'implemented')

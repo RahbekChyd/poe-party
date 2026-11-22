@@ -179,7 +179,7 @@ export function PublicCharacterDetailView({
               <Chip size="sm" variant="soft">
                 Viewing {formatSnapshotDateUtc(selectedSummary.snapshot_date)}
               </Chip>
-              <Chip size="sm" color="accent" variant="soft">
+              <Chip size="sm" variant="soft">
                 Synced {formatRelativeTimestamp(selectedSummary.last_synced_at)}
               </Chip>
               {selectedSummary.class ? (

@@ -66,7 +66,6 @@ export function GuestDirectoryPage() {
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
       <PreviewPageIntro
-        mode="public"
         title="Directory"
         description="Find public characters and groups by game and league."
       />

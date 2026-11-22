@@ -8,29 +8,20 @@ import { useGuestGateStore } from '../../store/guest-gate-store'
 import { getLoginHref } from '../../lib/auth-redirect'
 export type PreviewMode = 'teaser' | 'public'
 
-const MODE_STYLES: Record<PreviewMode, { label: string; color: 'warning' | 'accent' }> = {
-  teaser: { label: 'Sample workspace', color: 'warning' },
-  public: { label: 'Public', color: 'accent' },
-}
-
 export function PreviewModeChip({ mode }: { mode: PreviewMode }) {
-  const config = MODE_STYLES[mode]
-
   return (
-    <Chip size="sm" color={config.color} variant="soft">
-      {config.label}
+    <Chip size="sm" variant="soft">
+      {mode === 'teaser' ? 'Sample workspace' : 'Public'}
     </Chip>
   )
 }
 
 export function PreviewPageIntro({
-  mode,
   title,
   description,
   aside,
   asideClassName = 'w-full max-w-sm',
 }: {
-  mode: PreviewMode
   title: string
   description: string
   aside?: ReactNode
@@ -39,10 +30,7 @@ export function PreviewPageIntro({
   return (
     <div className="border-divider/70 flex flex-col gap-3 border-b pb-4 md:flex-row md:flex-wrap md:items-end md:justify-between">
       <div className="min-w-0 max-w-3xl wrap-anywhere md:flex-[1_1_24rem]">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="text-foreground text-2xl leading-8 font-semibold">{title}</h1>
-          {mode === 'teaser' ? <PreviewModeChip mode={mode} /> : null}
-        </div>
+        <h1 className="text-foreground text-2xl leading-8 font-semibold">{title}</h1>
         <p className="text-default-500 mt-1 max-w-2xl text-sm leading-5">{description}</p>
       </div>
       {aside ? <div className={asideClassName}>{aside}</div> : null}
@@ -131,7 +119,7 @@ export function UnlockCard({
             <Modal.Dialog className="max-h-[calc(100dvh-2rem)]">
               <Modal.Header>
                 <div className="flex flex-col gap-2">
-                  <Chip size="sm" color="warning" variant="soft" className="self-start">
+                  <Chip size="sm" variant="soft" className="self-start">
                     {badgeLabel}
                   </Chip>
                   <Modal.Heading className="wrap-anywhere">{title}</Modal.Heading>
@@ -158,7 +146,7 @@ export function UnlockCard({
     <Card className="border-divider/70 bg-content1 border p-0">
       <Card.Content className="gap-4 p-5">
         <div className="flex flex-wrap items-center gap-2">
-          <Chip size="sm" color="warning" variant="soft">
+          <Chip size="sm" variant="soft">
             {badgeLabel}
           </Chip>
           <p className="text-foreground text-sm font-medium">{title}</p>
@@ -204,8 +192,8 @@ export function LockedPanel({
 
         <div className="bg-content1/72 absolute inset-0 flex items-center justify-center backdrop-blur-sm">
           <div className="mx-5 max-w-md text-center">
-            <div className="bg-warning/15 mx-auto flex h-12 w-12 items-center justify-center rounded-full">
-              <Lock size={18} className="text-warning" />
+            <div className="bg-info-soft mx-auto flex h-12 w-12 items-center justify-center rounded-full">
+              <Lock size={18} className="text-info" aria-hidden="true" />
             </div>
             <p className="text-foreground mt-4 text-base font-semibold">{title}</p>
             <p className="text-default-500 mt-2 text-sm leading-relaxed">{description}</p>

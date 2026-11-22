@@ -20,14 +20,14 @@ export function MobileBottomNav() {
   return (
     <nav
       aria-label="Primary dashboard"
-      className="border-divider bg-navigation grid shrink-0 grid-cols-5 border-t px-1 pb-[max(env(safe-area-inset-bottom),0.25rem)] lg:hidden"
+      className="workspace-dock grid shrink-0 grid-cols-5 lg:hidden"
     >
       {dashboardNavigation.map((section) => {
         const destination = section.items[0]
         const isActive = isDashboardSectionActive(location.pathname, section)
         const Icon = section.icon
         const tabClassName = cn(
-          'mobile-nav-tab relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-lg border border-transparent px-1 text-[11px] font-medium transition-colors',
+          'mobile-nav-tab relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-xl border border-transparent px-1 text-[11px] font-medium transition-colors',
           isActive ? 'border-control bg-selected text-highlight font-semibold forced-colors:border-[Highlight]' : 'text-default-500 hover:text-default-800',
         )
         const label = (

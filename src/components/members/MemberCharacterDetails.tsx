@@ -778,7 +778,6 @@ export function MemberCharacterDetails({
                 <Chip
                   size="sm"
                   variant="soft"
-                  color={displayVisibility === 'public' ? 'accent' : 'default'}
                 >
                   {displayVisibility === 'public' ? 'Currently public' : 'Currently group-only'}
                 </Chip>
@@ -805,7 +804,7 @@ export function MemberCharacterDetails({
                 <ToggleButton
                   id="group_only"
                   aria-label="Set visibility to group only"
-                  className="rounded-large border-divider bg-content1 data-[selected=true]:border-primary/60 data-[selected=true]:bg-primary/10 h-auto min-h-20 w-full justify-start border p-3 text-left"
+                  className="rounded-large border-control data-[selected=true]:border-highlight h-auto min-h-20 w-full justify-start border p-3 text-left [--toggle-button-bg:var(--surface)] [--toggle-button-bg-hover:var(--surface-secondary)]"
                 >
                   <span className="flex w-full min-w-0 items-start gap-3">
                     <Users size={18} className="text-default-500 mt-0.5 shrink-0" />
@@ -813,7 +812,7 @@ export function MemberCharacterDetails({
                       <span className="flex min-w-0 items-center justify-between gap-2">
                         <span className="text-foreground text-sm font-semibold">Group only</span>
                         {displayVisibility === 'group_only' ? (
-                          <CheckCircle2 size={16} className="text-primary shrink-0" />
+                          <CheckCircle2 size={16} className="text-highlight shrink-0" aria-hidden="true" />
                         ) : null}
                       </span>
                       <span className="text-default-500 text-xs leading-relaxed">
@@ -825,17 +824,17 @@ export function MemberCharacterDetails({
                 <ToggleButton
                   id="public"
                   aria-label="Set visibility to public directory"
-                  className="rounded-large border-divider bg-content1 data-[selected=true]:border-accent/60 data-[selected=true]:bg-accent/10 h-auto min-h-20 w-full justify-start border p-3 text-left"
+                  className="rounded-large border-control data-[selected=true]:border-highlight h-auto min-h-20 w-full justify-start border p-3 text-left [--toggle-button-bg:var(--surface)] [--toggle-button-bg-hover:var(--surface-secondary)]"
                 >
                   <span className="flex w-full min-w-0 items-start gap-3">
-                    <Globe2 size={18} className="text-accent mt-0.5 shrink-0" />
+                    <Globe2 size={18} className="text-default-500 mt-0.5 shrink-0" aria-hidden="true" />
                     <span className="flex min-w-0 flex-1 flex-col gap-1">
                       <span className="flex min-w-0 items-center justify-between gap-2">
                         <span className="text-foreground text-sm font-semibold">
                           Public directory
                         </span>
                         {displayVisibility === 'public' ? (
-                          <CheckCircle2 size={16} className="text-accent shrink-0" />
+                          <CheckCircle2 size={16} className="text-highlight shrink-0" aria-hidden="true" />
                         ) : null}
                       </span>
                       <span className="text-default-500 text-xs leading-relaxed">
@@ -862,25 +861,25 @@ export function MemberCharacterDetails({
         <div className="rounded-large border border-divider bg-default-50/60 p-4">
           <SectionTitle title={selectionTitle} subtitle={selectionSubtitle} />
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Chip size="sm" color="accent" variant="soft" className="max-w-full">
+            <Chip size="sm" variant="soft" className="max-w-full">
               <span className="min-w-0 wrap-anywhere">{profile.character_name}</span>
             </Chip>
-            <Chip size="sm" color="accent" variant="soft">
+            <Chip size="sm" variant="soft">
               Last synced {formatRelativeTimestamp(profile.last_synced_at)}
             </Chip>
             {profile.class && <Chip size="sm" variant="soft">{profile.class}</Chip>}
             {ascendancy && (
-              <Chip size="sm" variant="soft" color="accent">
+              <Chip size="sm" variant="soft">
                 {ascendancy}
               </Chip>
             )}
             {alternateAscendancy && (
-              <Chip size="sm" variant="soft" color="warning">
+              <Chip size="sm" variant="soft">
                 Bloodline {alternateAscendancy}
               </Chip>
             )}
             {clusterJewelCount > 0 ? (
-              <Chip size="sm" variant="soft" color="accent">
+              <Chip size="sm" variant="soft">
                 {clusterJewelCount} cluster jewel{clusterJewelCount === 1 ? '' : 's'}
               </Chip>
             ) : null}
@@ -942,9 +941,9 @@ export function MemberCharacterDetails({
               </div>
             )}
             {isMe && canSync && (
-              <div className="rounded-large border border-primary/25 bg-primary/5 p-4">
+              <div className="rounded-large border-divider bg-info-soft border p-4">
                 <div className="flex items-start gap-2">
-                  <Sparkles size={16} className="text-primary mt-0.5 shrink-0" />
+                  <Sparkles size={16} className="text-info mt-0.5 shrink-0" aria-hidden="true" />
                   <div>
                     <p className="text-foreground text-sm font-medium">
                       Detail snapshots refresh in the background

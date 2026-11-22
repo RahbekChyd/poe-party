@@ -27,6 +27,13 @@ const groups = [
   },
 ]
 
+export const standardWorkspace = {
+  ...groups[0],
+  id: '20000000-0000-0000-0000-000000000003',
+  name: 'Standard Fixture Party',
+  league: 'Standard',
+}
+
 const profile = {
   ...user, display_name: 'Fixture Player', poe_account_name: 'Fixture#0001',
   avatar_url: null, avatar_color: null, has_seen_early_access_notice: true, theme: 'dark',
@@ -71,27 +78,29 @@ function records(group: typeof groups[number]) {
 export async function mockApp(
   page: Page,
   workspace: 'poe1' | 'none' | 'guest' = 'guest',
+  extraGroups: typeof groups = [],
 ) {
   if (workspace !== 'guest') {
     await seedSignedIn(page, workspace === 'none' ? null : groupId)
   }
 
+  const fixtureGroups = [...groups, ...extraGroups]
   await page.route('**/rest/v1/**', (route) => {
     const request = route.request()
     const url = new URL(request.url())
     const resource = url.pathname.split('/').at(-1) ?? ''
     const query = url.searchParams
     const body = request.method() === 'POST' ? request.postDataJSON() : null
-    const currentGroup = groups.find((group) =>
+    const currentGroup = fixtureGroups.find((group) =>
       body?.p_game === group.game ||
       body?.p_viewer_group_id === group.id ||
       query.get('group_id') === `eq.${group.id}`,
-    ) ?? groups[0]
+    ) ?? fixtureGroups[0]
     const { publicGroup, character, service, strategy, gear } = records(currentGroup)
     const responses: Record<string, unknown> = {
       users: profile,
       group_members: query.get('select')?.includes('group:groups')
-        ? workspace === 'none' ? [] : groups.map((group) => ({ role: 'admin', group }))
+        ? workspace === 'none' ? [] : fixtureGroups.map((group) => ({ role: 'admin', group }))
         : [{ role: 'admin', user: profile }],
       gear_suggestions: query.has('id') ? gear : [gear],
       services: query.has('id') ? service : [service],

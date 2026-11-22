@@ -26,7 +26,7 @@ export function Poe2EconomyPage({ league }: Poe2EconomyPageProps) {
         actions={
           league ? (
             <>
-              <Chip color="accent" variant="soft">{league}</Chip>
+              <Chip variant="soft">{league}</Chip>
               {divinePrice && <Chip variant="soft">1 div = {divinePrice.toFixed(1)}c</Chip>}
             </>
           ) : null
@@ -58,7 +58,7 @@ export function Poe2EconomyPage({ league }: Poe2EconomyPageProps) {
             <Card key={section.type} className="p-0">
               <Card.Header className="px-4 pt-4">
                 <div className="flex items-center gap-2">
-                  <Coins size={16} className="text-warning" />
+                  <Coins size={16} className="text-wealth-series" aria-hidden="true" />
                   <h2 className="text-foreground text-sm font-semibold">{section.type}</h2>
                 </div>
               </Card.Header>

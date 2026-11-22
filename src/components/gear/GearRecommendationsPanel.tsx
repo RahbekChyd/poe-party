@@ -1536,7 +1536,7 @@ function RareSearchItemEditor({
                 key={`${option.slot}-${key}`}
                 size="sm"
                 variant="soft"
-                color={isDisabled ? 'default' : isAdjusted ? 'warning' : 'accent'}
+                className={isAdjusted ? 'bg-info-soft text-info' : undefined}
               >
                 {RARE_SEARCH_TARGET_LABELS[key] ?? key} {formatRareSearchTargetValue(currentValue)}
               </Chip>
@@ -1872,7 +1872,7 @@ export function StageSummaryCard({
       type="button"
       className={`rounded-large w-full border p-3 text-left transition-colors ${
         isSelected
-          ? 'border-warning/60 bg-warning/10'
+          ? 'border-highlight bg-selected'
           : 'border-divider bg-content1 hover:bg-default-50'
       }`}
       onClick={onSelect}
@@ -1884,7 +1884,7 @@ export function StageSummaryCard({
               {stage.order_index}. {stage.label}
             </p>
             {isDefault ? (
-              <Chip size="sm" color="warning" variant="soft">
+              <Chip size="sm" variant="soft">
                 Default
               </Chip>
             ) : null}
@@ -1902,7 +1902,7 @@ export function StageSummaryCard({
       {visibleRequirements.length ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {visibleRequirements.slice(0, 4).map((requirement) => (
-            <Chip key={`${stage.id}-${requirement.label}`} size="sm" variant="soft" color="accent">
+            <Chip key={`${stage.id}-${requirement.label}`} size="sm" variant="soft">
               {requirement.label}
             </Chip>
           ))}
@@ -3075,7 +3075,7 @@ export function GearRecommendationsPanel() {
         {draftSearchConstraintChips.length ? (
           <div className="flex flex-wrap gap-2">
             {draftSearchConstraintChips.map((chip) => (
-              <Chip key={chip} size="sm" variant="soft" color="accent">
+              <Chip key={chip} size="sm" variant="soft">
                 {chip}
               </Chip>
             ))}
@@ -4639,7 +4639,6 @@ export function GearRecommendationsPanel() {
                                           <Chip
                                             size="sm"
                                             variant="soft"
-                                            color={plan.kind === 'bundle' ? 'accent' : 'default'}
                                           >
                                             {plan.kind}
                                           </Chip>

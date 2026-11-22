@@ -70,7 +70,6 @@ export function GuestServicesPage() {
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
       <PreviewPageIntro
-        mode="public"
         title="Services"
         description="Find carries, 5-way runs, and gold rotas. Copy a whisper to contact the provider in-game."
       />

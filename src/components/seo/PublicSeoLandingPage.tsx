@@ -149,8 +149,8 @@ function FeatureGrid({ points }: { points: string[] }) {
         return (
           <Card key={point}>
             <Card.Content className="gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-large bg-warning/15">
-                <Icon size={20} className="text-warning" />
+              <div className="bg-info-soft rounded-large flex h-10 w-10 items-center justify-center">
+                <Icon size={20} className="text-info" aria-hidden="true" />
               </div>
               <p className="text-sm leading-relaxed text-default-600">{point}</p>
             </Card.Content>
@@ -170,7 +170,7 @@ function ToolLandingPage({ route }: { route: PublicSeoRoute }) {
       <section className="rounded-large border border-divider bg-content1 p-6 md:p-8">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="min-w-0 max-w-3xl wrap-anywhere">
-            <Chip color="warning" variant="soft">
+            <Chip variant="soft">
               {content.eyebrow}
             </Chip>
             <h1 className="mt-4 text-3xl font-semibold tracking-normal text-foreground md:text-4xl">
@@ -210,7 +210,7 @@ function StrategyLandingPage({ route }: { route: PublicSeoRoute }) {
       <section className="rounded-large border border-divider bg-content1 p-6 md:p-8">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="min-w-0 max-w-3xl wrap-anywhere">
-            <Chip color="accent" variant="soft">
+            <Chip variant="soft">
               Farming strategy tracker
             </Chip>
             <h1 className="mt-4 text-3xl font-semibold tracking-normal text-foreground md:text-4xl">
@@ -242,7 +242,7 @@ function StrategyLandingPage({ route }: { route: PublicSeoRoute }) {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <Card.Content className="gap-2 p-5">
-            <Coins size={20} className="text-warning" />
+            <Coins size={20} className="text-wealth-series" aria-hidden="true" />
             <p className="text-sm font-semibold text-foreground">Track investment</p>
             <p className="text-sm leading-relaxed text-default-500">
               Keep map costs, setup notes, and strategy assumptions near the results.

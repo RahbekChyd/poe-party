@@ -654,9 +654,8 @@ export function SnapshotDetailPage() {
                     {history.length === 1 && !isPro ? (
                       <Link to="/dashboard/support" className="inline-flex">
                         <Chip
-                          className="cursor-pointer px-3"
+                          className="bg-info-soft text-info cursor-pointer px-3"
                           size="sm"
-                          color="warning"
                           variant="soft"
                         >
                           Community keeps {SNAPSHOT_LIMITS.free}. Supporter keeps{' '}
@@ -954,7 +953,7 @@ export function SnapshotDetailPage() {
                                   {Math.round(snap.total_chaos).toLocaleString()}c
                                 </span>
                                 {!snap.snapshot_id && (
-                                  <span className="text-warning text-[10px] tracking-wide uppercase">
+                                  <span className="text-default-500 text-[10px] tracking-wide uppercase">
                                     summary only
                                   </span>
                                 )}

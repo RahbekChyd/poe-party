@@ -43,13 +43,6 @@ import {
 } from '../../lib/public-strategy-content'
 type Mode = 'own' | 'public'
 type StageFilter = StrategyContentStage | 'all'
-type NativeChipColor = 'default' | 'accent' | 'success' | 'warning' | 'danger'
-
-function toNativeChipColor(color: string): NativeChipColor {
-  if (color === 'primary' || color === 'secondary') return 'accent'
-  return color as NativeChipColor
-}
-
 function OwnedStrategyCard({
   strategy,
   currentStrategyId,
@@ -100,9 +93,7 @@ function OwnedStrategyCard({
     ? strategy.subscription_state === 'frozen'
       ? 'warning'
       : 'success'
-    : strategy.visibility === 'public'
-      ? 'secondary'
-      : 'default'
+    : 'default'
   const hasAlternativeThreads = strategy.threads.some((thread) => thread.alternatives.length > 0)
 
   return (
@@ -121,10 +112,10 @@ function OwnedStrategyCard({
             </h3>
             <div className="flex flex-wrap items-center gap-2">
               {isSubscribed && <span className="text-default-500 text-sm">Subscribed copy</span>}
-              <Chip size="sm" variant="soft" color={toNativeChipColor(diffChip.color)}>
+              <Chip size="sm" variant="soft">
                 {diffChip.label}
               </Chip>
-              <Chip size="sm" variant="soft" color={toNativeChipColor(visibilityColor)}>
+              <Chip size="sm" variant="soft" color={visibilityColor}>
                 {visibilityLabel}
               </Chip>
               {isSubscribed ? (
@@ -254,7 +245,7 @@ function PublicStrategyCard({
           <div className="min-w-0 basis-full wrap-anywhere sm:flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-foreground font-semibold">{strategy.name}</h2>
-              <Chip size="sm" variant="soft" color={toNativeChipColor(diffChip.color)}>
+              <Chip size="sm" variant="soft">
                 {diffChip.label}
               </Chip>
               {isOwned ? (
@@ -573,7 +564,7 @@ export function StrategiesPage() {
         <QueryStatePanel kind="error" title="Could not load strategies" description="Try again to reload the strategy list." onRetry={activeQuery.refetch} />
       ) : mode === 'own' ? (
         ownStrategies.length === 0 ? (
-          <DashboardEmptyState icon={Target} tone="accent">
+          <DashboardEmptyState icon={Target} tone="arcane">
             No strategies yet. Create one or subscribe to a public strategy to get started.
           </DashboardEmptyState>
         ) : (
@@ -593,11 +584,11 @@ export function StrategiesPage() {
           </>
         )
       ) : !publicStrategies?.length ? (
-        <DashboardEmptyState icon={Globe} tone="accent">
+        <DashboardEmptyState icon={Globe} tone="arcane">
           No public strategies found for the {activeLeague ?? 'current'} league yet.
         </DashboardEmptyState>
       ) : filteredPublicStrategies.length === 0 ? (
-        <DashboardEmptyState icon={Globe} tone="accent">
+        <DashboardEmptyState icon={Globe} tone="arcane">
           No public strategies matched this stage for the {activeLeague ?? 'current'} league.
         </DashboardEmptyState>
       ) : (

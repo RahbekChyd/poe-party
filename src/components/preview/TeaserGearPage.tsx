@@ -1,10 +1,10 @@
-import { Avatar } from '@heroui/react/avatar'
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
 import { IMPORTANCE_CHIP, STATUS_COLOR } from '../../lib/constants'
 import { previewGearSuggestions, previewMembers } from '../../lib/preview-fixtures'
 import { getPreviewItemImage } from '../../lib/preview-item-images'
+import { UserAvatar } from '../ui/heroui-native'
 import { PreviewPageIntro, UnlockCard } from './PreviewShared'
 import { useGuestGateStore } from '../../store/guest-gate-store'
 export function TeaserGearPage() {
@@ -13,7 +13,6 @@ export function TeaserGearPage() {
   return (
     <div className="flex flex-col gap-6">
       <PreviewPageIntro
-        mode="teaser"
         title="Gear"
         description="Explore a sample queue of gear suggestions, priorities, and upgrade statuses."
       />
@@ -53,21 +52,18 @@ export function TeaserGearPage() {
                 {itemImage ? (
                   <img src={itemImage} alt="" className="h-8 w-8 bg-transparent object-contain" />
                 ) : (
-                  <Avatar
+                  <UserAvatar
                     size="sm"
-                    style={{ backgroundColor: targetUser?.avatar_color ?? '#f5a524' }}
-                  >
-                    <Avatar.Fallback className="font-semibold text-white">
-                      {(targetUser?.display_name ?? 'Member').slice(0, 2).toUpperCase()}
-                    </Avatar.Fallback>
-                  </Avatar>
+                    name={targetUser?.display_name ?? 'Member'}
+                    style={targetUser ? { backgroundColor: targetUser.avatar_color } : undefined}
+                  />
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-medium wrap-anywhere text-foreground">
                       {suggestion.item_name}
                     </p>
-                    <Chip size="sm" variant="soft" color={importance.color}>
+                    <Chip size="sm" variant="soft">
                       {importance.label}
                     </Chip>
                   </div>

@@ -1,7 +1,8 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Button } from '@heroui/react/button'
 import {
+  Check,
   Coins,
   Handshake,
   LayoutDashboard,
@@ -22,8 +23,12 @@ import { getLoginHref } from '../../lib/auth-redirect'
 import { trackPublicEvent } from '../../lib/analytics'
 import { Footer } from '../layout/Footer'
 import { ErrorBoundary } from '../layout/ErrorBoundary'
+import { WorkspaceEngraving, WorkspaceFrame } from '../layout/WorkspaceFrame'
+import { resolveLeagueTheme } from '../../lib/league-theme'
+import { getPoeGameShortLabel } from '../../lib/poe-game'
+import { previewWorkspace } from '../../lib/preview-fixtures'
 import { useThemeStore } from '../../store/theme-store'
-import { GuestGateModal, type PreviewMode } from './PreviewShared'
+import { GuestGateModal } from './PreviewShared'
 
 interface PreviewNavItem {
   label: string
@@ -99,7 +104,8 @@ function PreviewSidebarSection({ title, items }: { title: string; items: readonl
               )}
             >
               <Icon size={16} aria-hidden="true" />
-              {item.label}
+              <span className="truncate">{item.label}</span>
+              {isActive && <Check size={14} className="ml-auto shrink-0" aria-hidden="true" />}
             </Link>
           )
         })}
@@ -108,128 +114,132 @@ function PreviewSidebarSection({ title, items }: { title: string; items: readonl
   )
 }
 
-function currentMode(pathname: string): PreviewMode {
-  if (
-    pathname.startsWith('/preview/analysis') ||
-    pathname.startsWith('/preview/strategies') ||
-    pathname.startsWith('/preview/services') ||
-    pathname.startsWith('/preview/search')
-  ) {
-    return 'public'
-  }
-  return 'teaser'
-}
-
 export function PreviewShell({ children }: { children: ReactNode }) {
   const { location } = useRouterState()
+  const pathname = location.pathname
   const { theme, toggle } = useThemeStore()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const mobileMenuTrigger = useRef<HTMLButtonElement>(null)
+  const isSample = privateWorkspaceItems.some((item) => isItemActive(pathname, item))
+  const pageMeta = currentPageMeta(pathname)
   const loginHref =
     typeof window === 'undefined'
       ? '/auth/login'
-      : getLoginHref(`${window.location.pathname}${window.location.search}${window.location.hash}`)
+      : getLoginHref(window.location.pathname + window.location.search + window.location.hash)
+  const crossLink = isSample
+    ? { to: '/preview/analysis' as const, label: 'Try public Analysis' }
+    : { to: '/preview' as const, label: 'Workspace samples' }
 
-  const mode = currentMode(location.pathname)
-  const pageMeta = currentPageMeta(location.pathname)
-  const isPublicMode = mode === 'public'
-  const crossLink =
-    mode === 'teaser'
-      ? { to: '/preview/analysis' as const, label: 'Try public Analysis' }
-      : { to: '/preview' as const, label: 'Workspace samples' }
+  const closeMenuOnEscape = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Escape' && mobileMenuOpen) {
+      setMobileMenuOpen(false)
+      mobileMenuTrigger.current?.focus()
+    }
+  }
+
+  const mobileMenu = mobileMenuOpen ? (
+    <nav
+      id="preview-mobile-menu"
+      aria-label="Explore PoE Party on mobile"
+      className={cn(
+        'border-divider bg-overlay absolute inset-x-0 z-10 grid max-h-[calc(100dvh-8rem)] gap-4 overflow-y-auto rounded-xl border p-3 shadow-lg lg:hidden',
+        isSample ? 'bottom-full mb-2' : 'top-full mt-2',
+      )}
+    >
+      {(isSample
+        ? [{ label: 'Use now', items: publicItems }]
+        : [
+            { label: 'Use now', items: publicItems },
+            { label: 'Workspace samples', items: privateWorkspaceItems },
+          ]
+      ).map((section) => (
+        <div key={section.label}>
+          <p className="text-default-500 px-1 text-xs font-medium">{section.label}</p>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {section.items.map((item) => {
+              const Icon = item.icon
+              const isActive = isItemActive(pathname, item)
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  activeOptions={{ exact: true }}
+                  aria-current={isActive ? 'page' : undefined}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    'flex min-h-12 items-center gap-2 rounded-lg border px-3 text-sm font-medium',
+                    isActive
+                      ? 'border-control bg-selected text-highlight font-semibold forced-colors:border-[Highlight]'
+                      : 'border-divider bg-default-50 text-default-600',
+                  )}
+                >
+                  <Icon size={16} aria-hidden="true" /> {item.label}
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </nav>
+  ) : null
 
   return (
     <>
       <GuestGateModal />
-      <div className="bg-background flex h-dvh overflow-hidden pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
-        <a href="#main-content" className="button button--primary sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50">
-          Skip to main content
-        </a>
-        <aside className="border-divider bg-navigation hidden h-full w-72 shrink-0 border-r lg:flex lg:flex-col">
-          <div className="border-divider border-b px-5 py-5">
+      <WorkspaceFrame
+        leagueTheme={isSample ? resolveLeagueTheme(previewWorkspace.game, previewWorkspace.league) : null}
+        rail={
+          <aside className="workspace-rail">
             <Link
               to="/"
               activeOptions={{ exact: true }}
-              className="flex items-center gap-3 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              className="workspace-rail-brand rounded-tl-2xl"
             >
-              <img src={logo} alt="" className="h-11 w-11 rounded-2xl shadow-sm" />
-              <div>
-                <p className="text-foreground text-base font-semibold">PoE Party</p>
-                <p className="text-default-400 text-sm">Explore before connecting.</p>
-              </div>
+              <img src={logo} alt="" className="size-8 rounded-lg" />
+              <span className="text-foreground shrink-0 font-semibold">PoE Party</span>
             </Link>
-          </div>
-
-          <nav aria-label="Explore PoE Party" className="flex flex-1 flex-col gap-6 overflow-y-auto px-4 py-5">
-            <PreviewSidebarSection title="Use now" items={publicItems} />
-            <PreviewSidebarSection title="Workspace samples" items={privateWorkspaceItems} />
-
-            {mode === 'teaser' ? (
-              <div className="border-warning/25 bg-warning/5 mt-auto rounded-2xl border p-4">
-                <div className="flex items-center gap-2">
-                  <Sparkles size={16} className="text-warning" aria-hidden="true" />
-                  <p className="text-foreground text-sm font-medium">Bring in your own data</p>
-                </div>
-                <p className="text-default-500 mt-2 text-sm leading-relaxed">
-                  Connect when you want character sync and a private league workspace.
-                </p>
-                <a
-                  className="button button--sm button--tertiary mt-4"
-                  href={loginHref}
-                  onClick={() =>
-                    trackPublicEvent('public_sign_in_click', {
-                      source: location.pathname,
-                      placement: 'sidebar',
-                    })
-                  }
+            <nav aria-label="Explore PoE Party" className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2.5 pt-1 pb-3">
+              {isSample ? (
+                <>
+                  <PreviewSidebarSection title="Workspace sample" items={privateWorkspaceItems} />
+                  <PreviewSidebarSection title="Use now" items={publicItems} />
+                </>
+              ) : (
+                <>
+                  <PreviewSidebarSection title="Use now" items={publicItems} />
+                  <PreviewSidebarSection title="Workspace samples" items={privateWorkspaceItems} />
+                </>
+              )}
+            </nav>
+          </aside>
+        }
+        masthead={
+          <header className="workspace-masthead" onKeyDown={closeMenuOnEscape}>
+            <div className="workspace-masthead-identity">
+              <div className="flex min-w-0 items-center gap-2">
+                <Link
+                  to="/"
+                  activeOptions={{ exact: true }}
+                  aria-label="PoE Party home"
+                  className="shrink-0 rounded-lg lg:hidden"
                 >
-                  Connect account
-                </a>
+                  <img src={logo} alt="" className="size-8 rounded-lg" />
+                </Link>
+                <div className="min-w-0">
+                  <p className="text-foreground text-sm leading-tight font-semibold wrap-anywhere">
+                    {isSample ? previewWorkspace.leagueLabel : pageMeta.page}
+                  </p>
+                  <p className="text-default-500 mt-0.5 text-xs leading-tight wrap-anywhere">
+                    {isSample ? getPoeGameShortLabel(previewWorkspace.game) + ' · Workspace sample' : pageMeta.section}
+                  </p>
+                </div>
               </div>
-            ) : null}
-          </nav>
-        </aside>
-
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <header
-            className="border-divider bg-navigation relative z-30 shrink-0 border-b"
-            onKeyDown={(event) => {
-              if (event.key === 'Escape' && mobileMenuOpen) {
-                setMobileMenuOpen(false)
-                mobileMenuTrigger.current?.focus()
-              }
-            }}
-          >
-            <div className="flex min-h-16 items-center gap-2 px-3 sm:px-4 lg:px-6">
-              <Link
-                to="/"
-                activeOptions={{ exact: true }}
-                aria-label="PoE Party home"
-                className="mr-auto flex min-w-0 items-center gap-2 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary lg:hidden"
-              >
-                <img src={logo} alt="" className="h-9 w-9 rounded-xl" />
-                <span className="min-w-0">
-                  <span className="text-foreground block truncate text-sm font-semibold">PoE Party</span>
-                  <span className="text-default-400 block truncate text-[11px]">{pageMeta.page}</span>
-                </span>
-              </Link>
-
-              <div className="mr-auto hidden min-w-0 lg:block">
-                <p className="text-default-400 text-xs font-medium tracking-[0.16em] uppercase">
-                  {pageMeta.section} / {pageMeta.page}
-                </p>
-              </div>
-
-              <Button
-                isIconOnly
-                size="sm"
-                variant="tertiary"
-                onPress={toggle}
-                aria-label="Toggle theme"
-              >
+            </div>
+            <WorkspaceEngraving />
+            <div className="workspace-masthead-tools">
+              <Button isIconOnly size="sm" variant="tertiary" onPress={toggle} aria-label="Toggle theme">
                 {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
               </Button>
-
               <Link
                 to={crossLink.to}
                 activeOptions={{ exact: true }}
@@ -237,87 +247,83 @@ export function PreviewShell({ children }: { children: ReactNode }) {
               >
                 {crossLink.label}
               </Link>
-
-              <Button
-                ref={mobileMenuTrigger}
-                isIconOnly
-                size="sm"
-                variant="tertiary"
-                onPress={() => setMobileMenuOpen((open) => !open)}
-                aria-label={mobileMenuOpen ? 'Close explore menu' : 'Open explore menu'}
-                aria-expanded={mobileMenuOpen}
-                aria-controls={mobileMenuOpen ? 'preview-mobile-menu' : undefined}
-                className="lg:hidden"
-              >
-                {mobileMenuOpen ? <X size={17} /> : <Menu size={17} />}
-              </Button>
-
+              {!isSample && (
+                <Button
+                  ref={mobileMenuTrigger}
+                  isIconOnly
+                  size="sm"
+                  variant="tertiary"
+                  onPress={() => setMobileMenuOpen((open) => !open)}
+                  aria-label={mobileMenuOpen ? 'Close explore menu' : 'Open explore menu'}
+                  aria-expanded={mobileMenuOpen}
+                  aria-controls={mobileMenuOpen ? 'preview-mobile-menu' : undefined}
+                  className="lg:hidden"
+                >
+                  {mobileMenuOpen ? <X size={17} /> : <Menu size={17} />}
+                </Button>
+              )}
               <a
                 className="button button--sm button--tertiary"
                 href={loginHref}
                 onClick={() =>
                   trackPublicEvent('public_sign_in_click', {
-                    source: location.pathname,
+                    source: pathname,
                     placement: 'header',
                   })
                 }
               >
-                <span className="hidden sm:inline">{isPublicMode ? 'Sign in' : 'Connect account'}</span>
-                <span className="sm:hidden">{isPublicMode ? 'Sign in' : 'Connect'}</span>
+                {isSample ? <><span className="hidden sm:inline">Connect account</span><span className="sm:hidden">Connect</span></> : 'Sign in'}
               </a>
             </div>
-
-            {mobileMenuOpen ? (
-              <nav
-                id="preview-mobile-menu"
-                aria-label="Explore PoE Party on mobile"
-                className="border-divider bg-content4 absolute inset-x-0 top-full grid max-h-[calc(100dvh-4rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] gap-5 overflow-y-auto border-y p-4 shadow-lg lg:hidden"
-              >
-                {[
-                  { label: 'Use now', items: publicItems },
-                  { label: 'Workspace samples', items: privateWorkspaceItems },
-                ].map((section) => (
-                  <div key={section.label}>
-                    <p className="text-default-400 px-1 text-xs font-semibold tracking-[0.18em] uppercase">
-                      {section.label}
-                    </p>
-                    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      {section.items.map((item) => {
-                        const Icon = item.icon
-                        const isActive = isItemActive(location.pathname, item)
-                        return (
-                          <Link
-                            key={item.to}
-                            to={item.to}
-                            activeOptions={{ exact: true }}
-                            aria-current={isActive ? 'page' : undefined}
-                            onClick={() => setMobileMenuOpen(false)}
-                            className={cn(
-                              'flex min-h-12 items-center gap-2 rounded-xl border px-3 text-sm font-medium',
-                              isActive
-                                ? 'border-control bg-selected text-highlight font-semibold forced-colors:border-[Highlight]'
-                                : 'border-divider bg-default-50 text-default-600',
-                            )}
-                          >
-                            <Icon size={16} aria-hidden="true" /> {item.label}
-                          </Link>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </nav>
-            ) : null}
+            {!isSample && mobileMenu}
           </header>
+        }
+        dock={isSample && (
+          <div className="workspace-dock lg:hidden" onKeyDown={closeMenuOnEscape}>
+            <nav aria-label="Workspace sample" className="grid grid-cols-5">
+              {privateWorkspaceItems.map((item) => {
+                const Icon = item.icon
+                const isActive = isItemActive(pathname, item)
 
-          <main id="main-content" tabIndex={-1} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            <div className="min-w-0 flex-1 p-4 sm:p-6">
-              <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
-            </div>
-            <Footer />
-          </main>
-        </div>
-      </div>
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    activeOptions={{ exact: true }}
+                    aria-current={isActive ? 'page' : undefined}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={cn(
+                      'mobile-nav-tab flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-xl border border-transparent px-1 text-[11px] font-medium',
+                      isActive
+                        ? 'border-control bg-selected text-highlight font-semibold forced-colors:border-[Highlight]'
+                        : 'text-default-500',
+                    )}
+                  >
+                    <Icon size={17} aria-hidden="true" />
+                    <span>{item.label}</span>
+                  </Link>
+                )
+              })}
+              <Button
+                ref={mobileMenuTrigger}
+                variant="ghost"
+                onPress={() => setMobileMenuOpen((open) => !open)}
+                aria-label={mobileMenuOpen ? 'Close explore menu' : 'Open explore menu'}
+                aria-expanded={mobileMenuOpen}
+                aria-controls={mobileMenuOpen ? 'preview-mobile-menu' : undefined}
+                className="mobile-nav-tab text-default-500 flex h-auto min-h-12 w-full flex-col gap-1 rounded-xl p-1 text-[11px]"
+              >
+                {mobileMenuOpen ? <X size={17} aria-hidden="true" /> : <Menu size={17} aria-hidden="true" />}
+                Explore
+              </Button>
+            </nav>
+            {mobileMenu}
+          </div>
+        )}
+        footer={<Footer />}
+      >
+        <ErrorBoundary resetKey={pathname}>{children}</ErrorBoundary>
+      </WorkspaceFrame>
     </>
   )
 }

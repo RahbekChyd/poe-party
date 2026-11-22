@@ -47,7 +47,7 @@ export function LoginPage() {
                 <h1 className="text-foreground text-2xl font-bold tracking-tight md:text-4xl">
                   Connect to PoE Party
                 </h1>
-                <Chip size="sm" color="warning" variant="soft" className="hidden sm:inline-flex">
+                <Chip size="sm" variant="soft" className="bg-info-soft text-info hidden sm:inline-flex">
                   Early access
                 </Chip>
               </div>

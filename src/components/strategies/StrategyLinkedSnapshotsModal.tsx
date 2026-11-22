@@ -212,7 +212,6 @@ export function StrategyLinkedSnapshotsModal({
                           <Chip
                             size="sm"
                             variant="soft"
-                            color="warning"
                             className="shrink-0 @min-[22rem]:ml-auto"
                           >
                             Summary only

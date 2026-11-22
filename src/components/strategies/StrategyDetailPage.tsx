@@ -73,12 +73,6 @@ import {
   SelectField,
 } from '../ui/heroui-native'
 
-type NativeChipColor = 'default' | 'accent' | 'success' | 'warning' | 'danger'
-
-function toNativeChipColor(color: string): NativeChipColor {
-  if (color === 'primary' || color === 'secondary') return 'accent'
-  return color as NativeChipColor
-}
 const numericPct = z.preprocess(
   (v) => (v === '' || v == null ? null : Number(v)),
   z.number().min(0).nullable().optional(),
@@ -609,13 +603,7 @@ export function StrategyDetailPage() {
       : strategyRate.chaosPerHour < 0
         ? 'danger'
         : 'default'
-  const visibilityChipColor = isSubscribed
-    ? strategy.subscription_state === 'frozen'
-      ? 'warning'
-      : 'success'
-    : displayVisibility === 'public'
-      ? 'secondary'
-      : 'default'
+  const subscriptionChipColor = strategy.subscription_state === 'frozen' ? 'warning' : 'success'
 
   const runQuickUpdate = (
     overrides: Partial<Pick<Strategy, 'visibility' | 'admin_locked'>>,
@@ -832,7 +820,7 @@ export function StrategyDetailPage() {
           <div className="flex flex-wrap items-center gap-2">
             {isSubscribed ? (
               <>
-                <Chip size="sm" variant="soft" color={toNativeChipColor(visibilityChipColor)}>
+                <Chip size="sm" variant="soft" color={subscriptionChipColor}>
                   {strategy.subscription_state === 'frozen'
                     ? 'Frozen subscription'
                     : 'Live subscription'}
@@ -847,7 +835,7 @@ export function StrategyDetailPage() {
                 </Chip>
               </>
             ) : (
-              <Chip size="sm" variant="soft" color={toNativeChipColor(visibilityChipColor)}>
+              <Chip size="sm" variant="soft">
                 {displayVisibility === 'public' ? 'Public strategy' : 'Private strategy'}
               </Chip>
             )}
@@ -886,13 +874,13 @@ export function StrategyDetailPage() {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                  <Chip size="sm" variant="soft" color="warning">
+                  <Chip size="sm" variant="soft">
                     Content locked
                   </Chip>
                   <Chip
                     size="sm"
                     variant="soft"
-                    color={strategy.subscription_state === 'frozen' ? 'warning' : 'success'}
+                    color={subscriptionChipColor}
                   >
                     {strategy.subscription_state === 'frozen'
                       ? 'Updates paused'

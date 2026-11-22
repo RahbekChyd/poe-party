@@ -22,7 +22,7 @@ export function QueryStatePanel({
 }: QueryStatePanelProps) {
   const defaultIcon =
     kind === 'loading' ? (
-      <LoaderCircle size={28} className="animate-spin text-warning" aria-hidden="true" />
+      <LoaderCircle size={28} className="animate-spin text-info" aria-hidden="true" />
     ) : kind === 'error' ? (
       <AlertTriangle size={28} className="text-danger" aria-hidden="true" />
     ) : (
@@ -77,7 +77,7 @@ export function QueryFreshnessNotice({
         {refreshFailed ? (
           <AlertTriangle size={15} className="text-warning" aria-hidden="true" />
         ) : (
-          <LoaderCircle size={15} className="animate-spin text-warning" aria-hidden="true" />
+          <LoaderCircle size={15} className="animate-spin text-info" aria-hidden="true" />
         )}
         {refreshFailed
           ? 'Refresh failed. Showing the last loaded results.'

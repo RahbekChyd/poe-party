@@ -32,8 +32,8 @@ export function StrategyMetadataBadges({
   const stageLabel = getStrategyStageLabel(metadata.stage)
   const kindLabel = getStrategyKindLabel(metadata.kind)
   const verified = includeVerified ? formatVerifiedDate(metadata.verified_at) : null
-  const labels: Array<{ label: string | null; color?: 'accent' | 'success' }> = [
-    { label: metadata.patch, color: 'accent' },
+  const labels: Array<{ label: string | null; color?: 'success' }> = [
+    { label: metadata.patch },
     { label: stageLabel },
     { label: kindLabel },
     { label: metadata.source_refs.length > 0 ? 'Source-backed' : null, color: 'success' },

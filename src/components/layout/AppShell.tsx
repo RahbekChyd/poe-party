@@ -10,7 +10,10 @@ import { CharacterProfileSyncRunner } from './CharacterProfileSyncRunner'
 import { EarlyAccessNoticeModal } from './EarlyAccessNoticeModal'
 import { useEarlyAccessNoticeStore } from '../../store/early-access-notice-store'
 import { useCurrentUser, useMyProfile } from '../../hooks/useCurrentUser'
+import { useActiveGroupContext } from '../../hooks/useGroups'
+import { resolveLeagueTheme } from '../../lib/league-theme'
 import { MobileBottomNav } from './MobileBottomNav'
+import { WorkspaceFrame } from './WorkspaceFrame'
 interface AppShellProps {
   children: ReactNode
 }
@@ -21,6 +24,7 @@ export function AppShell({ children }: AppShellProps) {
   const close = useEarlyAccessNoticeStore((s) => s.close)
   const { data: user, isLoading: userLoading } = useCurrentUser()
   const { data: profile, isLoading: profileLoading } = useMyProfile()
+  const { game, league } = useActiveGroupContext()
 
   useEffect(() => {
     if (userLoading) return
@@ -38,30 +42,20 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <GroupGate>
-      <div className="bg-background flex h-dvh overflow-hidden pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]">
-        <a
-          href="#main-content"
-          className="button button--primary sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50"
-        >
-          Skip to main content
-        </a>
-        <Sidebar />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <Navbar />
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 p-4 md:p-6">
-              <EarlyAccessNoticeModal />
-              <ErrorBoundary resetKey={pathname}>
-                <SnapshotIntervalRunner />
-                <CharacterProfileSyncRunner />
-                {children}
-              </ErrorBoundary>
-            </main>
-            <Footer variant="workspace" />
-          </div>
-          <MobileBottomNav />
-        </div>
-      </div>
+      <WorkspaceFrame
+        leagueTheme={resolveLeagueTheme(game, league)}
+        rail={<Sidebar />}
+        masthead={<Navbar />}
+        dock={<MobileBottomNav />}
+        footer={<Footer variant="workspace" />}
+      >
+        <EarlyAccessNoticeModal />
+        <ErrorBoundary resetKey={pathname}>
+          <SnapshotIntervalRunner />
+          <CharacterProfileSyncRunner />
+          {children}
+        </ErrorBoundary>
+      </WorkspaceFrame>
     </GroupGate>
   )
 }

@@ -19,13 +19,6 @@ import {
 } from '../ui/dashboard'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
 const importanceOrder = { high: 0, medium: 1, low: 2 } as const
-type NativeChipColor = 'default' | 'accent' | 'success' | 'warning' | 'danger'
-
-function toNativeChipColor(color: string): NativeChipColor {
-  if (color === 'primary' || color === 'secondary') return 'accent'
-  return color as NativeChipColor
-}
-
 function getActionLabel(actionType: GearSuggestion['action_type']): string {
   switch (actionType) {
     case 'passive_node':
@@ -75,11 +68,11 @@ function SuggestionRow({ s, showTarget = false }: { s: GearSuggestion; showTarge
           <Chip size="sm" color={STATUS_COLOR[s.status]} variant="soft" className="capitalize">
             {s.status}
           </Chip>
-          <Chip size="sm" variant="soft" color={toNativeChipColor(importanceChip.color)}>
+          <Chip size="sm" variant="soft">
             {importanceChip.label}
           </Chip>
           {s.action_type !== 'gear_item' ? (
-            <Chip size="sm" variant="soft" color="accent">
+            <Chip size="sm" variant="soft">
               {getActionLabel(s.action_type)}
             </Chip>
           ) : null}

@@ -17,7 +17,6 @@ export function TeaserEconomyPage() {
   return (
     <div className="flex flex-col gap-6">
       <PreviewPageIntro
-        mode="teaser"
         title="Economy"
         description="Explore how a PoE1 stash snapshot tracks value over time and across party members."
       />

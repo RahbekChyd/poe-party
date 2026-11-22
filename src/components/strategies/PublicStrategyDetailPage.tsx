@@ -16,13 +16,6 @@ import { formatCurrencyAmount } from '../../lib/utils'
 import { DetailPageSkeleton } from '../layout/Skeletons'
 import { StrategyMetadataBadges, StrategySourceLinks } from './StrategyMetadataBadges'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
-type NativeChipColor = 'default' | 'accent' | 'success' | 'warning' | 'danger'
-
-function toNativeChipColor(color: string): NativeChipColor {
-  if (color === 'primary' || color === 'secondary') return 'accent'
-  return color as NativeChipColor
-}
-
 export function PublicStrategyDetailPage() {
   const { strategyId } = Route.useParams()
   const activeGroupId = useGroupStore((state) => state.activeGroupId)
@@ -126,7 +119,7 @@ export function PublicStrategyDetailPage() {
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Chip size="sm" variant="soft" color={toNativeChipColor(diffChip.color)}>
+        <Chip size="sm" variant="soft">
           {diffChip.label}
         </Chip>
         <Chip size="sm" variant="soft">

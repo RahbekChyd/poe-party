@@ -66,13 +66,12 @@ export function GuestStrategyDetailPage() {
       </Link>
 
       <PreviewPageIntro
-        mode="public"
         title={strategy.name}
         description={`Published by ${strategy.group_name} · ${getPoeGameShortLabel(game)} ${strategy.group_league}`}
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <Chip size="sm" color={diffChip.color} variant="soft">
+        <Chip size="sm" variant="soft">
           {diffChip.label}
         </Chip>
         <Chip size="sm" variant="soft">

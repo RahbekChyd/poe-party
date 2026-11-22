@@ -1,4 +1,3 @@
-import { Avatar } from '@heroui/react/avatar'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
 import { getPoePortraitImagePath } from '../../lib/poe-class-art'
@@ -7,13 +6,13 @@ import { previewMembers } from '../../lib/preview-fixtures'
 import { ROLE_CHIP } from '../../lib/constants'
 import { PreviewPageIntro, UnlockCard } from './PreviewShared'
 import { AscendancyArt } from '../shared/AscendancyArt'
+import { UserAvatar } from '../ui/heroui-native'
 const selectedMemberId = previewMembers[0].id
 
 export function TeaserMembersPage() {
   return (
     <div className="flex flex-col gap-6">
       <PreviewPageIntro
-        mode="teaser"
         title="Members"
         description="Explore a sample party roster and the characters assigned to it."
       />
@@ -29,17 +28,17 @@ export function TeaserMembersPage() {
             <Card
               key={member.id}
               className={`min-w-0 border p-0 ${
-                isSelected ? 'border-warning/50' : 'border-transparent'
+                isSelected ? 'border-highlight bg-selected' : 'border-transparent'
               }`}
             >
               <Card.Content className="gap-4 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <Avatar size="sm" style={{ backgroundColor: member.avatar_color }}>
-                      <Avatar.Fallback className="font-semibold text-white">
-                        {member.display_name.slice(0, 2).toUpperCase()}
-                      </Avatar.Fallback>
-                    </Avatar>
+                    <UserAvatar
+                      size="sm"
+                      name={member.display_name}
+                      style={{ backgroundColor: member.avatar_color }}
+                    />
                     <div className="min-w-0">
                       <p className="text-foreground text-sm font-medium wrap-anywhere">
                         {member.display_name}
@@ -51,7 +50,7 @@ export function TeaserMembersPage() {
                   </div>
 
                   {isSelected ? (
-                    <Chip size="sm" color="warning" variant="soft">
+                    <Chip size="sm" variant="soft" className="text-highlight">
                       Example
                     </Chip>
                   ) : null}
@@ -67,11 +66,7 @@ export function TeaserMembersPage() {
                   <Chip size="sm" variant="soft">
                     {member.snapshot_age_label}
                   </Chip>
-                  <Chip
-                    size="sm"
-                    color={roleChip.color === 'primary' ? 'accent' : roleChip.color}
-                    variant="soft"
-                  >
+                  <Chip size="sm" variant="soft">
                     {roleChip.label}
                   </Chip>
                   {ascendancy ? (

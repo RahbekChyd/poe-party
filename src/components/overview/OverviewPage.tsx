@@ -516,7 +516,7 @@ export function OverviewPage() {
                           </div>
                           <div className="text-default-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                             <span>{strategyScope}</span>
-                            <Chip size="sm" variant="soft" color={diff.color}>{diff.label}</Chip>
+                            <Chip size="sm" variant="soft">{diff.label}</Chip>
                             {strategy.map_cost != null && strategy.map_cost > 0 && (
                               <span className="inline-flex items-center gap-1 tabular-nums">
                                 <Coins size={11} aria-hidden="true" /> ~{fmt(strategy.map_cost)}/map
@@ -575,7 +575,7 @@ export function OverviewPage() {
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <Chip size="sm" variant="soft" color={importance.color}>{importance.label}</Chip>
+                        <Chip size="sm" variant="soft">{importance.label}</Chip>
                         <Chip size="sm" variant="soft" color={STATUS_COLOR[suggestion.status]} className="capitalize">
                           {suggestion.status}
                         </Chip>

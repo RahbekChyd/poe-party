@@ -68,7 +68,6 @@ export function GuestStrategiesPage() {
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
       <PreviewPageIntro
-        mode="public"
         title="Strategies"
         description="Find community strategies and compare benchmarks."
       />
@@ -172,7 +171,7 @@ export function GuestStrategiesPage() {
                     <div className="min-w-0 basis-full wrap-anywhere sm:flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-foreground font-semibold">{strategy.name}</h2>
-                        <Chip size="sm" color={diffChip.color} variant="soft">
+                        <Chip size="sm" variant="soft">
                           {diffChip.label}
                         </Chip>
                         <Chip size="sm" variant="soft" color={benchmarkColor}>

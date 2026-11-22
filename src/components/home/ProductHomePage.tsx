@@ -101,7 +101,7 @@ export function ProductHomePage() {
           >
             <img src={logo} alt="" className="h-9 w-9 rounded-xl" />
             <span className="text-foreground truncate font-semibold">PoE Party</span>
-            <Chip size="sm" variant="soft" color="warning" className="hidden sm:inline-flex">
+            <Chip size="sm" variant="soft" className="bg-info-soft text-info hidden sm:inline-flex">
               Early access
             </Chip>
           </Link>
@@ -263,7 +263,7 @@ export function ProductHomePage() {
                 <Card.Content className="gap-3 p-5">
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="text-foreground font-semibold">Path of Exile 1</h3>
-                    <Chip size="sm" color="success" variant="soft">Full workflow</Chip>
+                    <Chip size="sm" variant="soft">Full workflow</Chip>
                   </div>
                   <p className="text-default-500 text-sm leading-relaxed">
                     Character sync, strategies, market data, stash snapshots, wealth history, atlas
@@ -275,7 +275,7 @@ export function ProductHomePage() {
                 <Card.Content className="gap-3 p-5">
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="text-foreground font-semibold">Path of Exile 2</h3>
-                    <Chip size="sm" color="warning" variant="soft">Beta</Chip>
+                    <Chip size="sm" variant="soft" className="bg-info-soft text-info">Beta</Chip>
                   </div>
                   <p className="text-default-500 text-sm leading-relaxed">
                     Character sync, market overview, public discovery, strategy basics, and shared
@@ -316,7 +316,7 @@ export function ProductHomePage() {
 
         <section className="border-divider/70 border-t px-4 py-14 text-center sm:px-6">
           <div className="mx-auto max-w-2xl">
-            <Users size={28} className="text-warning mx-auto" aria-hidden="true" />
+            <Users size={28} className="text-info mx-auto" aria-hidden="true" />
             <h2 className="text-foreground mt-4 text-2xl font-bold">Start with a useful result</h2>
             <p className="text-default-500 mt-3">
               Run a public analysis without connecting, or create a private workspace when you are

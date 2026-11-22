@@ -446,7 +446,7 @@ function getEvaluationSummary(
 
 function getEvaluationReasonChip(summary: EvaluationSummary | null): {
   label: string
-  color: 'default' | 'accent' | 'warning' | 'danger'
+  color: 'default' | 'warning' | 'danger'
 } | null {
   if (!summary) return null
 
@@ -474,10 +474,10 @@ function getEvaluationReasonChip(summary: EvaluationSummary | null): {
     case 'not_meaningful':
       return { label: 'Low local impact', color: 'default' }
     case 'score_negative':
-      return { label: 'Negative optimizer score', color: 'accent' }
+      return { label: 'Negative optimizer score', color: 'warning' }
     default:
       if (summary.status === 'retained_for_incremental_rerun') {
-        return { label: 'Rerun focus', color: 'accent' }
+        return { label: 'Rerun focus', color: 'default' }
       }
       return null
   }
@@ -485,13 +485,13 @@ function getEvaluationReasonChip(summary: EvaluationSummary | null): {
 
 function getNegativeOverallChip(summary: EvaluationSummary | null): {
   label: string
-  color: 'accent'
+  color: 'default' | 'warning'
 } | null {
   if (!summary || !summary.exactScoreNegative) return null
   if (summary.defensiveOrUtility) {
-    return { label: 'Defensive / utility', color: 'accent' }
+    return { label: 'Defensive / utility', color: 'default' }
   }
-  return { label: 'Negative optimizer score', color: 'accent' }
+  return { label: 'Negative optimizer score', color: 'warning' }
 }
 
 function getDependencyBadge(dependencies: RecommendationDependency[]): {
@@ -510,13 +510,13 @@ function getDependencyBadge(dependencies: RecommendationDependency[]): {
 
 function getDependencyStatusChip(dependency: RecommendationDependency): {
   label: string
-  color: 'success' | 'warning' | 'danger'
+  color: 'default' | 'success' | 'danger'
 } {
   switch (dependency.status) {
     case 'missing':
       return { label: 'Missing source', color: 'danger' }
     case 'paired_target':
-      return { label: 'Target source', color: 'warning' }
+      return { label: 'Target source', color: 'default' }
     default:
       return { label: 'Already covered', color: 'success' }
   }
@@ -535,15 +535,15 @@ function getPreviewRarity(item: UpgradeRecommendationItem): string {
 function getRarityColor(rarity: string): string {
   switch (rarity.toLowerCase()) {
     case 'unique':
-      return 'text-[#af6025]'
+      return 'text-[#8e421c] dark:text-[#e6aa78]'
     case 'rare':
-      return 'text-[#ffff77]'
+      return 'text-[#6f5605] dark:text-[#e8d67d]'
     case 'magic':
-      return 'text-[#8888ff]'
+      return 'text-[#4849a9] dark:text-[#aaaaff]'
     case 'gem':
-      return 'text-[#1aa29b]'
+      return 'text-[#17655c] dark:text-[#70cfc2]'
     default:
-      return 'text-[#ece3c9]'
+      return 'text-foreground'
   }
 }
 
@@ -589,7 +589,7 @@ function getTradeActionHint(item: UpgradeRecommendationItem): string | null {
 function getRecommendationMode(item: UpgradeRecommendationItem): {
   kind: 'live' | 'template' | 'name_search' | 'other'
   label: string
-  color: 'success' | 'warning' | 'accent' | 'default'
+  color: 'warning' | 'default'
 } {
   const payload = getPayload(item)
   const tradeKind = getTradeLinkKind(item)
@@ -605,30 +605,30 @@ function getRecommendationMode(item: UpgradeRecommendationItem): {
             : actionType === 'skill_gem' || actionType === 'support_gem'
               ? 'Compare gem'
               : 'Compare',
-      color: 'accent',
+      color: 'default',
     }
   }
   if (tradeKind === 'template_exact_search') {
     return { kind: 'template', label: 'Exact template', color: 'warning' }
   }
   if (tradeKind === 'exact_rare_search') {
-    return { kind: 'live', label: 'Exact market', color: 'success' }
+    return { kind: 'live', label: 'Exact market', color: 'default' }
   }
   if (tradeKind === 'pob_weighted_query') {
-    return { kind: 'live', label: 'PoB search', color: 'accent' }
+    return { kind: 'live', label: 'PoB search', color: 'default' }
   }
   if (tradeKind === 'similar_search' || payload.estimated_price === true) {
     return { kind: 'template', label: 'Template', color: 'warning' }
   }
   if (tradeKind === 'name_search') {
-    return { kind: 'name_search', label: 'Name search', color: 'accent' }
+    return { kind: 'name_search', label: 'Name search', color: 'default' }
   }
   if (
     tradeKind === 'trade_search' ||
     payload.candidate_type === 'market_rare' ||
     payload.candidate_type === 'market_unique'
   ) {
-    return { kind: 'live', label: 'Live market', color: 'success' }
+    return { kind: 'live', label: 'Live market', color: 'default' }
   }
   return { kind: 'other', label: 'Market', color: 'default' }
 }
@@ -1201,7 +1201,7 @@ function getReservationChipColor(
   if (simulation?.status === 'created_blocker' || simulation?.status === 'blocked') return 'danger'
   if ((entry?.value ?? 0) < 0) return 'danger'
   if ((entry?.value ?? 0) > 0) return 'success'
-  return 'accent'
+  return 'default'
 }
 
 function getScoreContextLabel(scoreContext: RecommendationScoreContext | undefined): string | null {
@@ -1319,17 +1319,14 @@ function getTopRankBadge(scoreContext: RecommendationScoreContext | undefined): 
     return {
       label: '#1 Top pick',
       icon: 'trophy',
-      className: 'border-warning/60 bg-warning/15 text-warning',
+      className: 'border-info/40 bg-info-soft text-info',
     }
   }
 
   return {
     label: `#${scoreContext.overallRank}`,
     icon: 'award',
-    className:
-      scoreContext.overallRank === 2
-        ? 'border-accent/50 bg-accent/10 text-accent'
-        : 'border-default-300 bg-default-100 text-default-700',
+    className: 'border-divider bg-default-100 text-default-700',
   }
 }
 
@@ -1755,7 +1752,7 @@ export function RecommendationItemRow({
 
   const card = (
     <div
-      className={`rounded-large border-divider/70 bg-content1 hover:border-warning/40 hover:bg-warning/5 relative flex h-full w-full min-w-0 flex-col border p-3 transition-colors ${topRankBadge ? 'pt-9' : ''}`}
+      className={`rounded-large border-divider/70 bg-content1 hover:border-control hover:bg-content2 relative flex h-full w-full min-w-0 flex-col border p-3 transition-colors ${topRankBadge ? 'pt-9' : ''}`}
     >
       <button
         type="button"
@@ -1802,7 +1799,7 @@ export function RecommendationItemRow({
               </Chip>
             ) : null}
             {item.source === 'compare' ? (
-              <Chip size="sm" variant="soft" color="accent">
+              <Chip size="sm" variant="soft">
                 Compare
               </Chip>
             ) : null}
@@ -1812,7 +1809,7 @@ export function RecommendationItemRow({
               </Chip>
             ) : null}
             {linkedSocketCount ? (
-              <Chip size="sm" variant="soft" color="accent">
+              <Chip size="sm" variant="soft">
                 {linkedSocketCount}-link
               </Chip>
             ) : null}
@@ -1838,7 +1835,7 @@ export function RecommendationItemRow({
               </Chip>
             ) : null}
             {flexibleResistanceSuggestion ? (
-              <Chip size="sm" variant="soft" color="accent">
+              <Chip size="sm" variant="soft" className="bg-info-soft text-info">
                 Suggested action
               </Chip>
             ) : null}
@@ -1855,7 +1852,7 @@ export function RecommendationItemRow({
             {reservationScoreEntry ? (
               <button
                 type="button"
-                className="focus-visible:ring-accent/60 relative z-20 inline-flex cursor-pointer rounded-full focus-visible:ring-2 focus-visible:outline-none"
+                className="relative z-20 inline-flex cursor-pointer rounded-full"
                 aria-label="Open reservation audit"
                 onClick={handleReservationBadgeClick}
               >
@@ -1865,7 +1862,7 @@ export function RecommendationItemRow({
               </button>
             ) : null}
             {plan?.kind === 'bundle' ? (
-              <Chip size="sm" variant="soft" color="accent">
+              <Chip size="sm" variant="soft">
                 Bundle
               </Chip>
             ) : null}
@@ -1970,7 +1967,7 @@ export function RecommendationItemRow({
                         </Chip>
                       ) : null}
                       {item.source === 'compare' ? (
-                        <Chip size="sm" variant="soft" color="accent">
+                        <Chip size="sm" variant="soft">
                           Compare source
                         </Chip>
                       ) : null}
@@ -1991,7 +1988,7 @@ export function RecommendationItemRow({
                       ) : null}
                       {flexibleResistanceSuggestion ? (
                         <Tooltip content={flexibleResistanceTooltip ?? ''} placement="top">
-                          <Chip size="sm" variant="soft" color="accent">
+                          <Chip size="sm" variant="soft" className="bg-info-soft text-info">
                             Suggested action
                           </Chip>
                         </Tooltip>
@@ -2016,7 +2013,7 @@ export function RecommendationItemRow({
                         </Tooltip>
                       ) : null}
                       {plan?.kind === 'bundle' ? (
-                        <Chip size="sm" variant="soft" color="accent">
+                        <Chip size="sm" variant="soft">
                           Bundle
                         </Chip>
                       ) : null}
@@ -2038,12 +2035,12 @@ export function RecommendationItemRow({
                         </Chip>
                       ) : null}
                       {exactEval ? (
-                        <Chip size="sm" variant="soft" color="accent">
+                        <Chip size="sm" variant="soft">
                           Exact-scored
                         </Chip>
                       ) : null}
                       {appliedSlotEffects.length > 0 ? (
-                        <Chip size="sm" variant="soft" color="accent">
+                        <Chip size="sm" variant="soft">
                           Target anoint
                         </Chip>
                       ) : null}
@@ -2197,7 +2194,7 @@ export function RecommendationItemRow({
                                 {dependency.label}
                               </Chip>
                               {dependency.source_label ? (
-                                <Chip size="sm" variant="soft" color="accent">
+                                <Chip size="sm" variant="soft">
                                   {dependency.source_label}
                                 </Chip>
                               ) : null}
@@ -2289,7 +2286,6 @@ export function RecommendationItemRow({
                                 key={`${effect.kind ?? 'effect'}-${effect.label ?? effect.passiveName ?? index}`}
                                 size="sm"
                                 variant="soft"
-                                color="accent"
                               >
                                 {effect.kind === 'transferable_anoint'
                                   ? `Target anoint: ${effect.label ?? effect.passiveName ?? 'Passive'}`
@@ -2358,12 +2354,12 @@ export function RecommendationItemRow({
                             <Chip
                               size="sm"
                               variant="soft"
-                              color={reservationSimulation.resolvesBlocker ? 'success' : 'accent'}
+                              color={reservationChipColor}
                             >
                               {getReservationStatusLabel(reservationSimulation)}
                             </Chip>
                             {reservationSimulation.deltaGain != null ? (
-                              <Chip size="sm" variant="soft" color="accent">
+                              <Chip size="sm" variant="soft">
                                 {formatSignedWholeNumber(reservationSimulation.deltaGain)} mana
                               </Chip>
                             ) : null}

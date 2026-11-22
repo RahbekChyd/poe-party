@@ -1,4 +1,5 @@
 import { Link, useRouterState } from '@tanstack/react-router'
+import { Check } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import logo from '../../assets/poe-party-logo.png'
 import { useGroupStore } from '../../store/group-store'
@@ -11,8 +12,8 @@ export function Sidebar() {
   const isSolo = useIsSoloGroup(activeGroupId)
 
   return (
-    <aside className="border-divider bg-navigation hidden h-full w-60 shrink-0 flex-col border-r lg:flex">
-      <div className="border-divider/50 flex shrink-0 items-center justify-center gap-2 border-b px-3 py-5 lg:justify-start lg:px-4">
+    <aside className="workspace-rail">
+      <div className="workspace-rail-brand">
         <img src={logo} alt="" className="h-8 w-8 rounded-lg" />
         <span className="text-foreground hidden text-base font-semibold tracking-tight lg:inline">
           PoE Party
@@ -21,7 +22,7 @@ export function Sidebar() {
 
       <nav
         aria-label="Primary dashboard"
-        className="flex flex-1 flex-col gap-4 overflow-y-auto px-2 py-3"
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2.5 pt-1 pb-3"
       >
         {dashboardNavigation.map((section) => (
           <div key={section.label} className="flex flex-col gap-0.5">
@@ -48,6 +49,7 @@ export function Sidebar() {
                 >
                   <Icon size={16} className="shrink-0" aria-hidden="true" />
                   <span className="truncate">{label}</span>
+                  {isActive && <Check size={14} className="ml-auto shrink-0" aria-hidden="true" />}
                 </Link>
               )
             })}

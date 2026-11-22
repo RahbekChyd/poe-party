@@ -149,7 +149,7 @@ export function PublicGroupDetailView({
                     key={character.profile_id}
                     className={`w-[18.5rem] max-w-[calc(100vw-2rem)] shrink-0 border transition-colors ${
                       isSelected
-                        ? 'border-primary/60 bg-primary/5'
+                        ? 'border-highlight bg-selected'
                         : 'border-transparent'
                     }`}
                   >
@@ -165,7 +165,7 @@ export function PublicGroupDetailView({
                           </p>
                         </div>
                         {isSelected ? (
-                          <Chip size="sm" color="accent" variant="soft">
+                          <Chip size="sm" variant="soft" className="text-highlight">
                             Selected
                           </Chip>
                         ) : null}
@@ -238,7 +238,7 @@ export function PublicGroupDetailView({
                     View profile history
                   </Link>
                   {selectedProfile?.last_synced_at ? (
-                    <Chip size="sm" color="accent" variant="soft">
+                    <Chip size="sm" variant="soft">
                       Last synced {formatRelativeTimestamp(selectedProfile.last_synced_at)}
                     </Chip>
                   ) : null}

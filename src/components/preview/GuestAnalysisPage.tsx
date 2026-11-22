@@ -601,7 +601,6 @@ export function GuestAnalysisPage() {
   return (
     <div className="flex flex-col gap-6">
       <PreviewPageIntro
-        mode="public"
         title="Analysis"
         description="Compare a public PoE1 character with a Path of Building target to find upgrades."
       />

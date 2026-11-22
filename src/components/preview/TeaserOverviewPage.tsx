@@ -1,4 +1,3 @@
-import { Avatar } from '@heroui/react/avatar'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
 import { Link } from '@tanstack/react-router'
@@ -23,6 +22,7 @@ import { DIFFICULTY_CHIP, IMPORTANCE_CHIP, STATUS_COLOR } from '../../lib/consta
 import { formatCurrencyAmount } from '../../lib/utils'
 import { formatWealthAxisTick } from '../../lib/wealth-history'
 import { getPreviewItemImage } from '../../lib/preview-item-images'
+import { UserAvatar } from '../ui/heroui-native'
 import { PreviewPageIntro, UnlockCard } from './PreviewShared'
 const divinePrice = 205
 const sampleStrategy = previewStrategies[0]
@@ -40,7 +40,6 @@ export function TeaserOverviewPage() {
   return (
     <div className="@container flex min-w-0 flex-col gap-6">
       <PreviewPageIntro
-        mode="teaser"
         title="Overview"
         description="See a sample workspace with stash history, members, strategies, and gear suggestions."
       />
@@ -62,8 +61,8 @@ export function TeaserOverviewPage() {
 
         <Card>
           <Card.Content className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
-            <div className="rounded-large bg-primary/15 flex size-9 shrink-0 items-center justify-center">
-              <Users size={18} className="text-primary" />
+            <div className="rounded-large bg-info-soft flex size-9 shrink-0 items-center justify-center">
+              <Users size={18} className="text-info" aria-hidden="true" />
             </div>
             <div>
               <p className="text-default-400 text-xs">Synced members</p>
@@ -76,8 +75,8 @@ export function TeaserOverviewPage() {
 
         <Card>
           <Card.Content className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
-            <div className="rounded-large bg-warning/15 flex size-9 shrink-0 items-center justify-center">
-              <Sword size={18} className="text-warning" />
+            <div className="rounded-large bg-info-soft flex size-9 shrink-0 items-center justify-center">
+              <Sword size={18} className="text-info" aria-hidden="true" />
             </div>
             <div>
               <p className="text-default-400 text-xs">Open gear suggestions</p>
@@ -185,7 +184,7 @@ export function TeaserOverviewPage() {
                   <p className="text-foreground min-w-0 flex-1 wrap-anywhere text-sm font-medium">
                     {sampleStrategy.name}
                   </p>
-                  <Chip size="sm" variant="soft" color={diffChip.color}>
+                  <Chip size="sm" variant="soft">
                     {diffChip.label}
                   </Chip>
                 </div>
@@ -235,20 +234,18 @@ export function TeaserOverviewPage() {
                 <p className="text-foreground min-w-0 flex-1 wrap-anywhere text-sm font-medium">
                   {sampleSuggestion.item_name}
                 </p>
-                <Chip size="sm" variant="soft" color={importance.color}>
+                <Chip size="sm" variant="soft">
                   {importance.label}
                 </Chip>
               </div>
               <div className="text-default-400 flex items-center gap-1.5 wrap-anywhere text-xs">
-                <Avatar
+                <UserAvatar
                   size="sm"
+                  name={sampleTarget?.display_name ?? 'Member'}
                   className="h-5 w-5 shrink-0"
-                  style={{ backgroundColor: sampleTarget?.avatar_color ?? '#f5a524' }}
-                >
-                  <Avatar.Fallback className="text-[10px] font-semibold text-white">
-                    {(sampleTarget?.display_name ?? 'Member').slice(0, 2).toUpperCase()}
-                  </Avatar.Fallback>
-                </Avatar>
+                  fallbackClassName="text-[10px]"
+                  style={sampleTarget ? { backgroundColor: sampleTarget.avatar_color } : undefined}
+                />
                 <span className="min-w-0">
                   For {sampleTarget?.display_name ?? 'the selected member'}
                 </span>

@@ -20,6 +20,7 @@ import { useCurrentUser, useMyProfile } from '../../hooks/useCurrentUser'
 import { useEarlyAccessNoticeStore } from '../../store/early-access-notice-store'
 import { useMyLatestAnalysisRuns } from '../../hooks/useGearOptimizer'
 import { hasActiveProAccess, isBillingAvailableForProfile } from '../../lib/billing'
+import { WorkspaceEngraving } from './WorkspaceFrame'
 export function Navbar() {
   const navigate = useNavigate()
   const { theme, toggle, setTheme } = useThemeStore()
@@ -125,14 +126,14 @@ export function Navbar() {
 
   return (
     <>
-      <header className="border-divider bg-navigation flex min-h-14 shrink-0 items-center gap-2 border-b px-3 py-1.5 sm:gap-3 sm:px-4">
-        <div className="mr-auto flex min-w-0 flex-1 items-center gap-2">
-          <div className="inline-flex min-w-0 items-center">
-            <GroupSwitcher />
-          </div>
+      <header className="workspace-masthead">
+        <div className="workspace-masthead-identity">
+          <GroupSwitcher />
         </div>
 
-        <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2">
+        <WorkspaceEngraving />
+
+        <div className="workspace-masthead-tools">
           <div className="hidden min-w-0 items-center sm:inline-flex">
             <ToggleButtonGroup
               aria-label="Display currency"

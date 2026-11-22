@@ -103,7 +103,7 @@ export function SupportPage() {
         title="Support PoE Party"
         description="Supporter subscriptions help fund hosting and open-source development."
         actions={
-          <Chip className="px-2" color={isPro ? 'warning' : 'default'} variant="soft">
+          <Chip className="px-2" variant="soft">
             Current: {isPro ? 'Supporter' : 'Community'}
           </Chip>
         }
@@ -121,7 +121,7 @@ export function SupportPage() {
                   : 'This page will update when your access is confirmed.'}
             </p>
             {isConfirmingCheckout && (
-              <Chip size="sm" color="warning" variant="soft" className="mt-3 self-start">
+              <Chip size="sm" variant="soft" className="bg-info-soft text-info mt-3 self-start">
                 Confirming billing
               </Chip>
             )}
@@ -135,7 +135,7 @@ export function SupportPage() {
       )}
 
       {search.checkout === 'cancel' && (
-        <Card className="border-warning/30 bg-warning/10 border">
+        <Card className="border-divider bg-info-soft border">
           <Card.Content className="p-5" role="status">
             <p className="text-foreground text-sm font-semibold">Support checkout canceled</p>
             <p className="text-default-500 mt-1 text-sm">
@@ -173,7 +173,7 @@ export function SupportPage() {
           <Link
             to="/legal/faq"
             hash="snapshot-limits"
-            className="text-primary text-sm font-medium hover:underline"
+            className="text-brand-readable text-sm font-medium hover:underline"
           >
             Snapshot limits FAQ
           </Link>

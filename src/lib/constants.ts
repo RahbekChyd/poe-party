@@ -1,18 +1,18 @@
 import type { GearImportance, GearStatus } from '../hooks/useGear'
 // ── Role chips ────────────────────────────────────────────────────────────────
 
-export const ROLE_CHIP: Record<string, { label: string; color: 'primary' | 'success' | 'default' }> = {
-  admin:  { label: 'Admin',  color: 'primary' },
-  editor: { label: 'Editor', color: 'success' },
-  viewer: { label: 'Viewer', color: 'default' },
+export const ROLE_CHIP: Record<string, { label: string }> = {
+  admin:  { label: 'Admin' },
+  editor: { label: 'Editor' },
+  viewer: { label: 'Viewer' },
 }
 
 // ── Strategy difficulty ───────────────────────────────────────────────────────
 
-export const DIFFICULTY_CHIP: Record<string, { label: string; color: 'success' | 'warning' | 'danger' }> = {
-  easy:   { label: 'Easy',   color: 'success' },
-  normal: { label: 'Normal', color: 'warning' },
-  hard:   { label: 'Hard',   color: 'danger' },
+export const DIFFICULTY_CHIP: Record<string, { label: string }> = {
+  easy:   { label: 'Easy' },
+  normal: { label: 'Normal' },
+  hard:   { label: 'Hard' },
 }
 
 export const DIFFICULTY_OPTIONS = [
@@ -62,17 +62,17 @@ export const AVATAR_COLORS = [
 
 // ── Gear suggestion status ────────────────────────────────────────────────────
 
-export const STATUS_COLOR: Record<GearStatus, 'default' | 'warning' | 'success' | 'danger'> = {
-  open:        'warning',
+export const STATUS_COLOR: Record<GearStatus, 'default' | 'success'> = {
+  open:        'default',
   acknowledged: 'default',
   implemented: 'success',
-  dismissed:   'danger',
+  dismissed:   'default',
 }
 
-export const IMPORTANCE_CHIP: Record<GearImportance, { label: string; color: 'danger' | 'warning' | 'default' }> = {
-  high: { label: 'High', color: 'danger' },
-  medium: { label: 'Medium', color: 'warning' },
-  low: { label: 'Low', color: 'default' },
+export const IMPORTANCE_CHIP: Record<GearImportance, { label: string }> = {
+  high: { label: 'High' },
+  medium: { label: 'Medium' },
+  low: { label: 'Low' },
 }
 
 export const IMPORTANCE_OPTIONS = [

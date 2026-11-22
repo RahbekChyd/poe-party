@@ -114,7 +114,7 @@ export function CharacterPickerStep({ groupId, onDone }: Props) {
                   className={[
                     'flex items-center gap-3 rounded-large border-2 px-4 py-3 text-left transition-colors',
                     isSelected
-                      ? 'border-primary bg-primary/10'
+                      ? 'border-highlight bg-selected'
                       : 'border-default-200 hover:border-default-400',
                   ].join(' ')}
                 >
@@ -124,7 +124,7 @@ export function CharacterPickerStep({ groupId, onDone }: Props) {
                       {char.class} · Level {char.level}
                     </p>
                   </div>
-                  {isSelected && <Check size={16} className="text-primary shrink-0" />}
+                  {isSelected && <Check size={16} className="text-highlight shrink-0" aria-hidden="true" />}
                 </button>
               )
             })}

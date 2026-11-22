@@ -1,6 +1,7 @@
 import {
   type ChangeEventHandler,
   type ComponentProps,
+  type FocusEvent,
   type Key,
   type ReactNode,
   forwardRef,
@@ -225,6 +226,18 @@ export function SelectField({
   popoverProps,
   ...props
 }: SelectFieldProps) {
+  const revealFocusedOption = (event: FocusEvent<HTMLElement>) => {
+    const option = event.target.closest('[role="option"]')
+    if (!option) return
+
+    // Placement can shrink a portalled list after React Aria focuses the selected option.
+    requestAnimationFrame(() => {
+      if (option.contains(document.activeElement)) {
+        option.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      }
+    })
+  }
+
   return (
     <div className="flex flex-col gap-1">
       <Select isInvalid={isInvalid} className={cn('w-full', className)} {...props}>
@@ -236,7 +249,9 @@ export function SelectField({
           </Select.Indicator>
         </Select.Trigger>
         <Select.Popover className={popoverClassName} {...popoverProps}>
-          <ListBox>{children}</ListBox>
+          <div onFocusCapture={revealFocusedOption}>
+            <ListBox>{children}</ListBox>
+          </div>
         </Select.Popover>
       </Select>
       {description ? <Description>{description}</Description> : null}

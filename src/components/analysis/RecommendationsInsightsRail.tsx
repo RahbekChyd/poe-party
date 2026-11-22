@@ -437,7 +437,7 @@ function formatManaDelta(value: number | null): string {
 }
 
 function getReservationTone(status: 'fit' | 'blocked' | 'excess' | 'unknown'): {
-  color: 'success' | 'warning' | 'danger' | 'default'
+  color: 'success' | 'danger' | 'default'
   label: string
   description: string
 } {
@@ -456,7 +456,7 @@ function getReservationTone(status: 'fit' | 'blocked' | 'excess' | 'unknown'): {
       }
     case 'excess':
       return {
-        color: 'warning',
+        color: 'default',
         label: 'Reservation has slack',
         description: 'There is room to spend more of the available mana budget.',
       }
@@ -469,12 +469,10 @@ function getReservationTone(status: 'fit' | 'blocked' | 'excess' | 'unknown'): {
   }
 }
 
-function getToneClasses(color: 'success' | 'warning' | 'danger' | 'default'): string {
+function getToneClasses(color: 'success' | 'danger' | 'default'): string {
   switch (color) {
     case 'success':
       return 'border-success/40 bg-success/10'
-    case 'warning':
-      return 'border-warning/40 bg-warning/10'
     case 'danger':
       return 'border-danger/40 bg-danger/10'
     default:
@@ -827,7 +825,7 @@ export function RecommendationsInsightsRail({
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Chip size="sm" variant="soft" color={isDraftStage ? 'accent' : 'success'}>
+                <Chip size="sm" variant="soft">
                   {isDraftStage ? 'Unsaved setup' : 'Saved setup'}
                 </Chip>
               </div>
@@ -859,18 +857,18 @@ export function RecommendationsInsightsRail({
               </div>
               <div className="flex flex-wrap gap-2">
                 {gemLevelMismatches.length > 0 ? (
-                  <Chip size="sm" variant="soft" color="accent">
+                  <Chip size="sm" variant="soft">
                     {gemLevelMismatches.length} gem level
                     {gemLevelMismatches.length === 1 ? '' : 's'} differ
                   </Chip>
                 ) : null}
                 {gemQualityMismatches.length > 0 ? (
-                  <Chip size="sm" variant="soft" color="accent">
+                  <Chip size="sm" variant="soft">
                     {gemQualityMismatches.length} gem quality
                     {gemQualityMismatches.length === 1 ? '' : 'ies'} differ
                   </Chip>
                 ) : null}
-                <Chip size="sm" variant="soft" color={isDraftStage ? 'accent' : 'default'}>
+                <Chip size="sm" variant="soft">
                   {isDraftStage ? 'Unsaved setup' : 'Saved setup'}
                 </Chip>
               </div>
@@ -1007,14 +1005,14 @@ export function RecommendationsInsightsRail({
                           <Chip
                             size="sm"
                             variant="soft"
-                            color={gemLevelMismatches.length > 0 ? 'accent' : 'success'}
+                            color={gemLevelMismatches.length > 0 ? 'default' : 'success'}
                           >
                             {gemLevelMismatches.length} level diffs
                           </Chip>
                           <Chip
                             size="sm"
                             variant="soft"
-                            color={gemQualityMismatches.length > 0 ? 'accent' : 'success'}
+                            color={gemQualityMismatches.length > 0 ? 'default' : 'success'}
                           >
                             {gemQualityMismatches.length} quality diffs
                           </Chip>
@@ -1028,7 +1026,7 @@ export function RecommendationsInsightsRail({
                           <p className="text-foreground text-sm font-semibold">
                             Compare gem impact
                           </p>
-                          <Chip size="sm" variant="soft" color="accent">
+                          <Chip size="sm" variant="soft">
                             {comparePowerReport.metricLabel}
                           </Chip>
                         </div>
@@ -1268,9 +1266,9 @@ export function RecommendationsInsightsRail({
             </p>
           </div>
         ) : selectedRunIsLive ? (
-          <div className="rounded-large border-warning/40 bg-warning/10 border p-4">
+          <div className="rounded-large border-divider bg-info-soft border p-4">
             <div className="flex items-start gap-3">
-              <Clock3 size={16} className="text-warning mt-0.5 shrink-0" />
+              <Clock3 size={16} className="text-info mt-0.5 shrink-0" aria-hidden="true" />
               <div>
                 <p className="text-foreground text-sm font-semibold">Waiting for run output</p>
                 <p className="text-default-600 mt-1 text-sm">
@@ -1324,7 +1322,7 @@ export function RecommendationsInsightsRail({
             ) : null}
 
             {reservationAudit.surplus_sources.length > 0 ? (
-              <div className="rounded-large border-warning/30 bg-warning/5 border p-4">
+              <div className="rounded-large border-divider bg-content2 border p-4">
                 <p className="text-foreground text-sm font-semibold">Spare room</p>
                 <div className="text-default-600 mt-2 flex flex-col gap-2 text-sm">
                   {reservationAudit.surplus_sources.map((entry, index) => (
@@ -1346,7 +1344,7 @@ export function RecommendationsInsightsRail({
                           key={`${suggestion.gem_name}-${suggestion.suggested_level ?? 'keep'}-${suggestion.reason}-${index}`}
                         >
                           <div className="flex flex-wrap items-center gap-2">
-                            <Chip size="sm" variant="soft" color="accent">
+                            <Chip size="sm" variant="soft">
                               {suggestion.gem_name}
                             </Chip>
                             {suggestion.current_level != null ? (

@@ -19,13 +19,6 @@ import { ItemSearchAutocomplete, type SelectedItem } from '../shared/ItemSearchA
 import { FieldInput, FieldTextArea, ListBox, SelectField, UserAvatar } from '../ui/heroui-native'
 import { DashboardPage } from '../ui/dashboard'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
-type NativeChipColor = 'default' | 'accent' | 'success' | 'warning' | 'danger'
-
-function toNativeChipColor(color: string): NativeChipColor {
-  if (color === 'primary' || color === 'secondary') return 'accent'
-  return color as NativeChipColor
-}
-
 const STATUS_OPTIONS: { key: GearStatus; label: string }[] = [
   { key: 'open', label: 'Open' },
   { key: 'acknowledged', label: 'Acknowledged' },
@@ -184,10 +177,10 @@ function GearSuggestionDetails({ suggestionId }: { suggestionId: string }) {
             Back to Gear Planning
           </Link>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <Chip size="sm" variant="soft" color={toNativeChipColor(importanceChip.color)}>
+            <Chip size="sm" variant="soft">
               {importanceChip.label} Importance
             </Chip>
-            <Chip size="sm" variant="soft" color="accent">
+            <Chip size="sm" variant="soft">
               {getActionLabel(suggestion.action_type)}
             </Chip>
             {isAdmin && (
