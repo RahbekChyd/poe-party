@@ -96,6 +96,7 @@
 }
 
 :root {
+  color-scheme: dark;
   font-family: system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -159,52 +160,30 @@
   --field-foreground: var(--foreground);
   --field-placeholder: var(--muted);
   --field-shadow: 0 0 0 0 transparent;
-  --overlay-shadow: 0 12px 32px color-mix(in oklab, var(--palette-petrol) 20%, transparent);
+  --overlay-shadow: 0 12px 32px color-mix(in oklab, var(--background) 48%, transparent);
 
-  /* Brass & Verdigris reference colors, converted from the approved sRGB palette. */
-  --palette-canvas: oklch(93.713% 0.00922 150.686);
-  --palette-navigation: oklch(90.462% 0.02018 164.546);
-  --palette-panel: oklch(99.143% 0.00565 128.524);
-  --palette-overlay: oklch(99.841% 0.00407 121.558);
-  --palette-ink: oklch(26.354% 0.02174 205.782);
-  --palette-muted: oklch(45.370% 0.03219 198.960);
-  --palette-action: oklch(43.324% 0.06314 180.130);
-  --palette-on-action: oklch(98.397% 0.00992 164.877);
-  --palette-on-status: oklch(97.858% 0.02034 81.783);
-  --palette-link: oklch(45.659% 0.06531 177.971);
-  --palette-selected: oklch(90.926% 0.02196 167.432);
-  --palette-verdigris: oklch(45.065% 0.06387 183.441);
-  --palette-highlight: var(--palette-verdigris);
-  --palette-focus: oklch(44.580% 0.06577 177.934);
-  --palette-control-edge: oklch(55.106% 0.02547 182.527);
-  --palette-divider: oklch(78.750% 0.02434 165.669);
-  --palette-success: oklch(43.918% 0.08802 161.949);
-  --palette-warning: oklch(44.587% 0.09729 65.396);
-  --palette-danger: oklch(46.480% 0.14519 12.776);
-  --palette-info: oklch(41.510% 0.09551 253.177);
-  --palette-petrol: oklch(16.818% 0.01129 229.883);
-}
-
-.dark {
-  --palette-canvas: var(--palette-petrol);
-  --palette-navigation: oklch(21.862% 0.02188 234.727);
-  --palette-panel: oklch(27.553% 0.02711 219.926);
-  --palette-overlay: oklch(32.834% 0.02917 229.035);
-  --palette-ink: oklch(97.059% 0.00344 174.483);
-  --palette-muted: oklch(80.889% 0.02200 204.009);
-  --palette-action: oklch(85.017% 0.05934 171.581);
-  --palette-on-action: oklch(26.392% 0.03168 185.315);
-  --palette-on-status: oklch(19.586% 0.01460 41.539);
-  --palette-link: oklch(84.846% 0.05218 179.382);
-  --palette-selected: oklch(36.062% 0.03867 185.385);
+  /* Soot-dark stone and aged brass. Data and status colors are shared across seasons. */
+  --palette-canvas: #11100e;
+  --palette-navigation: #1a1713;
+  --palette-panel: #211b16;
+  --palette-overlay: #2b231c;
+  --palette-ink: #eee5d4;
+  --palette-muted: #b9aa98;
+  --palette-brass: #d2b484;
+  --palette-action: var(--palette-brass);
+  --palette-on-action: #17120c;
+  --palette-on-status: #211b16;
+  --palette-link: var(--palette-brass);
+  --palette-selected: #352b1e;
+  --palette-highlight: var(--palette-brass);
+  --palette-focus: var(--palette-brass);
+  --palette-control-edge: #8d795f;
+  --palette-divider: #554534;
   --palette-verdigris: oklch(81.524% 0.06076 181.458);
-  --palette-focus: oklch(87.983% 0.07390 179.839);
-  --palette-control-edge: oklch(65.214% 0.03323 220.046);
-  --palette-divider: oklch(44.578% 0.03709 222.167);
   --palette-success: oklch(83.412% 0.12239 158.598);
   --palette-warning: oklch(88.383% 0.11032 84.229);
   --palette-danger: oklch(79.588% 0.12032 10.471);
-  --palette-info: oklch(81.643% 0.09249 258.142);
+  --palette-info: #bab7ed;
 }
 
 @font-face {
@@ -219,41 +198,15 @@
   --font-editorial: 'Cormorant Garamond', Georgia, serif;
 }
 
-/* Covens stone and witchlight. Semantic status and data colors are shared across seasons. */
+/* Covens uses cold blue light for interactive accents on the shared stone surfaces. */
 :root[data-league-theme='covens'] {
-  --palette-canvas: oklch(94.209% 0.01277 244.258);
-  --palette-navigation: oklch(91.351% 0.01807 245.399);
-  --palette-panel: oklch(98.070% 0.00512 247.876);
-  --palette-overlay: white;
-  --palette-ink: oklch(25.708% 0.03704 255.459);
-  --palette-muted: oklch(41.272% 0.04680 251.238);
-  --palette-action: oklch(40.518% 0.08000 247.886);
-  --palette-on-action: oklch(98.340% 0.00417 236.496);
-  --palette-link: oklch(41.303% 0.08299 248.575);
-  --palette-selected: oklch(89.477% 0.02827 243.126);
-  --palette-highlight: oklch(35.738% 0.07857 251.473);
-  --palette-focus: oklch(40.468% 0.08693 250.843);
-  --palette-control-edge: oklch(56.331% 0.04292 248.594);
-  --palette-divider: oklch(78.022% 0.03029 245.007);
-  --palette-engraving: oklch(46.734% 0.07774 245.874);
-}
-
-:root.dark[data-league-theme='covens'] {
-  --palette-canvas: oklch(20.324% 0.02457 259.263);
-  --palette-navigation: oklch(23.399% 0.03117 249.284);
-  --palette-panel: oklch(25.329% 0.03258 256.309);
-  --palette-overlay: oklch(30.269% 0.03671 258.313);
-  --palette-ink: oklch(96.852% 0.01485 260.730);
-  --palette-muted: oklch(81.578% 0.03329 249.677);
-  --palette-action: oklch(87.098% 0.06190 247.802);
-  --palette-on-action: oklch(22.689% 0.03233 252.958);
-  --palette-link: oklch(87.421% 0.05447 245.911);
-  --palette-selected: oklch(36.078% 0.05195 245.612);
-  --palette-highlight: oklch(92.940% 0.03507 250.863);
-  --palette-focus: oklch(91.040% 0.04742 242.504);
-  --palette-control-edge: oklch(63.894% 0.04793 247.557);
-  --palette-divider: oklch(45.399% 0.05001 254.100);
-  --palette-engraving: oklch(81.939% 0.06358 244.995);
+  --palette-ice: #9accf1;
+  --palette-action: var(--palette-ice);
+  --palette-on-action: #101a21;
+  --palette-link: var(--palette-ice);
+  --palette-selected: #26343c;
+  --palette-highlight: var(--palette-ice);
+  --palette-focus: var(--palette-ice);
 }
 
 body {

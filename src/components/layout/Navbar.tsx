@@ -1,15 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Avatar } from '@heroui/react/avatar'
-import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
 import { Dropdown } from '@heroui/react/dropdown'
 import { ToggleButton } from '@heroui/react/toggle-button'
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { FlaskConical, Moon, Sun } from 'lucide-react'
+import { FlaskConical } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { GroupSwitcher } from '../groups/GroupSwitcher'
-import { useThemeStore } from '../../store/theme-store'
 import { useGroupStore } from '../../store/group-store'
 import { useLatestSnapshots } from '../../hooks/useSnapshots'
 import { useActiveGroupContext } from '../../hooks/useGroups'
@@ -21,10 +19,10 @@ import { useCurrentUser, useMyProfile } from '../../hooks/useCurrentUser'
 import { useEarlyAccessNoticeStore } from '../../store/early-access-notice-store'
 import { useMyLatestAnalysisRuns } from '../../hooks/useGearOptimizer'
 import { hasActiveProAccess, isBillingAvailableForProfile } from '../../lib/billing'
-import logo from '../../assets/poe-party-logo.png'
+import { WorkspaceBrand } from './WorkspaceFrame'
+
 export function Navbar() {
   const navigate = useNavigate()
-  const { theme, toggle, setTheme } = useThemeStore()
   const { display: currencyDisplay, toggle: toggleCurrency } = useCurrencyStore()
   const [signOutError, setSignOutError] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
@@ -40,21 +38,6 @@ export function Navbar() {
   const currentUserId = user?.id ?? null
   const { data: profile } = useMyProfile()
   const openEarlyAccessNotice = useEarlyAccessNoticeStore((s) => s.open)
-
-  // Sync theme from DB when profile loads
-  useEffect(() => {
-    if (profile?.theme && (profile.theme === 'light' || profile.theme === 'dark')) {
-      setTheme(profile.theme)
-    }
-  }, [profile?.theme, setTheme])
-
-  const handleThemeToggle = async () => {
-    const next = theme === 'dark' ? 'light' : 'dark'
-    toggle()
-    if (currentUserId) {
-      await supabase.from('users').update({ theme: next }).eq('id', currentUserId)
-    }
-  }
 
   const { data: myLatestRuns } = useMyLatestAnalysisRuns(activeGroupId, currentUserId)
 
@@ -130,7 +113,7 @@ export function Navbar() {
     <>
       <header className="workspace-masthead">
         <div className="workspace-masthead-identity">
-          <img src={logo} alt="" className="hidden size-8 shrink-0 rounded-lg sm:block" />
+          <WorkspaceBrand to="/dashboard" className="hidden sm:inline-flex" />
           <GroupSwitcher />
         </div>
 
@@ -155,18 +138,6 @@ export function Navbar() {
                 Divine
               </ToggleButton>
             </ToggleButtonGroup>
-          </div>
-
-          <div className="inline-flex min-w-0 items-center">
-            <Button
-              isIconOnly
-              size="sm"
-              variant="tertiary"
-              onPress={handleThemeToggle}
-              aria-label="Toggle theme"
-            >
-              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-            </Button>
           </div>
 
           {analysisChipLabel ? (

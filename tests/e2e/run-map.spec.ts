@@ -18,57 +18,59 @@ async function expectContained(page: Page) {
 }
 
 for (const mode of ['signed-in', 'sample'] as const) {
-  test(`${mode} Run Map and Economy reflow across widths and themes`, async ({ page }, testInfo) => {
+  test(`${mode} run summary and Economy reflow across widths`, async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium-desktop', 'Exercises CSS breakpoints in one context')
     if (mode === 'signed-in') await mockApp(page, 'poe1', [], { runMapResult: 'complete' })
     const base = mode === 'signed-in' ? '/dashboard' : '/preview'
     const overview = mode === 'signed-in' ? 'Today' : 'Overview'
     const nav = page.getByRole('navigation', { name: mode === 'signed-in' ? 'Primary dashboard' : 'Workspace sample', exact: true })
     const root = page.locator('html')
-    const themeToggle = page.getByRole('button', { name: 'Toggle theme', exact: true })
 
     for (const [path, heading] of [[base, overview], [`${base}/economy`, 'Economy']]) {
       await page.goto(path)
       await expect(page.getByRole('heading', { name: heading, exact: true, level: 1 })).toBeVisible()
-      for (const theme of ['light', 'dark']) {
-        if (await root.getAttribute('data-theme') !== theme) await themeToggle.click()
-        await expect(root).toHaveAttribute('data-theme', theme)
-        for (const viewport of viewports) {
-          await test.step(`${heading} in ${theme} at ${viewport.width}px`, async () => {
-            await page.setViewportSize(viewport)
-            await expect(nav).toBeInViewport({ ratio: 0.99 })
+      await expect(root).toHaveAttribute('data-theme', 'dark')
+      for (const viewport of viewports) {
+        await test.step(`${heading} at ${viewport.width}px`, async () => {
+          await page.setViewportSize(viewport)
+          await expect(nav).toBeInViewport({ ratio: 0.99 })
+          if (viewport.width >= 1024) {
+            await expect(nav.getByRole('link', { name: heading, exact: true })).toHaveAttribute('aria-current', 'page')
+            await expect(nav.getByRole('link')).toHaveCount(8)
+          }
+          if (heading === overview) {
+            const run = page.getByRole('region', { name: 'Run summary', exact: true })
+            const strategy = run.locator('.run-summary__strategy')
+            const result = run.locator('.run-summary__result')
+            await expect(strategy).toContainText(runMapStrategyName)
+            await expect(result).toContainText('Latest linked snapshot')
+            await expect(result).toContainText('1,960c')
+            const action = result.getByRole('link', { name: 'View strategy results', exact: true })
+            await expect(action).toBeVisible()
+            const strategyBox = (await strategy.boundingBox())!
+            const resultBox = (await result.boundingBox())!
             if (viewport.width >= 1024) {
-              await expect(nav.getByRole('link', { name: heading, exact: true })).toHaveAttribute('aria-current', 'page')
-              await expect(nav.getByRole('link')).toHaveCount(mode === 'signed-in' ? 8 : 4)
+              expect(resultBox.x).toBeGreaterThan(strategyBox.x)
+              await expect(run).toBeInViewport({ ratio: 0.99 })
+              await expect(action).toBeInViewport({ ratio: 0.99 })
+            } else if (viewport.width <= 390) {
+              expect(resultBox.y).toBeGreaterThan(strategyBox.y)
+              expect(resultBox.x).toBe(strategyBox.x)
             }
-            if (heading === overview) {
-              const run = page.getByRole('list', { name: 'Run progress', exact: true })
-              const stops = run.getByRole('listitem')
-              await expect(stops).toHaveCount(3)
-              await expect(stops.nth(0)).toContainText(runMapStrategyName)
-              await expect(stops.nth(1)).toContainText('Latest linked snapshot')
-              await expect(stops.nth(1)).toContainText('1,960c')
-              const nextAction = stops.nth(2).getByRole('link', { name: 'View strategy results', exact: true })
-              await expect(nextAction).toBeVisible()
-              if (viewport.width >= 1024) {
-                await expect(run).toBeInViewport({ ratio: 0.99 })
-                await expect(nextAction).toBeInViewport({ ratio: 0.99 })
-              }
-            } else {
-              await expect(page.getByRole('button', { name: 'Snapshot stash', exact: true })).toBeVisible()
-              const member = page.getByRole('row', { name: mode === 'signed-in' ? /Fixture Player/ : /Iris Vale/ })
-              await expect(member.getByRole('cell', { name: mode === 'signed-in' ? /1,960c/ : /6,480c/ }).first()).toBeVisible()
-            }
-            await expectContained(page)
-          })
-        }
+          } else {
+            await expect(page.getByRole('button', { name: 'Snapshot stash', exact: true })).toBeVisible()
+            const member = page.getByRole('row', { name: mode === 'signed-in' ? /Fixture Player/ : /Iris Vale/ })
+            await expect(member.getByRole('cell', { name: mode === 'signed-in' ? /1,960c/ : /6,480c/ }).first()).toBeVisible()
+          }
+          await expectContained(page)
+        })
       }
     }
 
     for (const viewport of [viewports[1], viewports[4]]) {
       await page.setViewportSize(viewport)
       await page.goto(base)
-      const run = page.getByRole('list', { name: 'Run progress', exact: true })
+      const run = page.getByRole('region', { name: 'Run summary', exact: true })
       await run.getByRole('link', { name: 'View strategy results', exact: true }).press('Enter')
       await expect(page).toHaveURL(/#strategy-results$/)
       await expect(page.locator('#strategy-results')).toBeInViewport()
@@ -80,8 +82,8 @@ for (const mode of ['signed-in', 'sample'] as const) {
   })
 }
 
-test('desktop routes are directly reachable and highlight nested destinations', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'chromium-desktop', 'Exercises the desktop route line')
+test('desktop sidebar links reach each dashboard destination', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium-desktop', 'Exercises the desktop sidebar')
   await mockApp(page, 'poe1')
   await page.setViewportSize({ width: 1024, height: 768 })
   await page.goto('/dashboard')
@@ -103,60 +105,70 @@ test('desktop routes are directly reachable and highlight nested destinations', 
     await expect(stop).toHaveAttribute('aria-current', 'page')
     await expect(nav.locator('[aria-current="page"]')).toHaveCount(1)
   }
+})
 
-  for (const [name, path] of [
-    ['Strategies', `strategies/${strategyId}`],
-    ['Strategies', `strategies/public/${strategyId}`],
-    ['Economy', 'economy/group'],
-    ['Economy', `economy/${userId}`],
-    ['Gear Planning', `gear/${gearId}`],
-    ['Services', `services/${serviceId}`],
-    ['Directory', `search/groups/${groupId}`],
-    ['Directory', `search/characters/${profileId}`],
-  ]) {
-    await page.goto(`/dashboard/${path}`)
+for (const [name, path] of [
+  ['Strategies', `/dashboard/strategies/${strategyId}`],
+  ['Strategies', `/dashboard/strategies/public/${strategyId}`],
+  ['Economy', '/dashboard/economy/group'],
+  ['Economy', `/dashboard/economy/${userId}`],
+  ['Gear Planning', `/dashboard/gear/${gearId}`],
+  ['Services', `/dashboard/services/${serviceId}`],
+  ['Directory', `/dashboard/search/groups/${groupId}`],
+  ['Directory', `/dashboard/search/characters/${profileId}`],
+  ['Strategies', `/preview/strategies/${strategyId}`],
+  ['Directory', `/preview/search/groups/${groupId}`],
+]) {
+  test(`${path} selects ${name} in the desktop sidebar`, async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'chromium-desktop', 'Exercises the desktop sidebar')
+    const isDashboard = path.startsWith('/dashboard/')
+    await mockApp(page, isDashboard ? 'poe1' : 'guest')
+    await page.setViewportSize({ width: 1024, height: 768 })
+    await page.goto(path)
+    const nav = page.getByRole('navigation', { name: isDashboard ? 'Primary dashboard' : 'Workspace sample', exact: true })
     await expect(nav.getByRole('link', { name, exact: true })).toHaveAttribute('aria-current', 'page')
     await expect(nav.locator('[aria-current="page"]')).toHaveCount(1)
-  }
-})
+  })
+}
 
 for (const result of [null, 'partial', 'unavailable'] as const) {
   test(`Today shows the appropriate action when a linked snapshot is ${result ?? 'missing'}`, async ({ page }) => {
     await mockApp(page, 'poe1', [], { runMapResult: result })
     await page.goto('/dashboard')
-    const run = page.getByRole('list', { name: 'Run progress', exact: true })
-    const resultStop = run.getByRole('listitem').nth(1)
+    const run = page.getByRole('region', { name: 'Run summary', exact: true })
+    const resultPanel = run.locator('.run-summary__result')
     if (result === null) {
       await expect(run.getByRole('button', { name: 'Snapshot stash', exact: true })).toBeVisible()
     } else {
       await expect(run.getByRole('link', { name: 'View strategy results', exact: true })).toBeVisible()
       if (result === 'partial') {
-        await expect(resultStop).toContainText('Latest linked priced subtotal')
-        await expect(resultStop).toContainText('3 unpriced items')
+        await expect(resultPanel).toContainText('Latest linked priced subtotal')
+        await expect(resultPanel).toContainText('3 unpriced items')
       } else {
-        await expect(resultStop).toContainText('Pricing unavailable')
+        await expect(resultPanel).toContainText('Pricing unavailable')
       }
     }
     await expectContained(page)
   })
 }
 
-test('route markers keep their keyboard feedback in forced colors with reduced motion', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'chromium-desktop', 'Exercises the desktop route line')
+test('sidebar links keep their keyboard feedback in forced colors with reduced motion', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium-desktop', 'Exercises the desktop sidebar')
   await mockApp(page, 'poe1', [], { runMapResult: 'complete' })
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/dashboard')
   const nav = page.getByRole('navigation', { name: 'Primary dashboard', exact: true })
   const economy = nav.getByRole('link', { name: 'Economy', exact: true })
-  const transitionTime = () => economy.evaluate((node) => parseFloat(getComputedStyle(node, '::after').transitionDuration))
-  await expect.poll(transitionTime).toBeGreaterThan(0.05)
   await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' })
+  const transitionTime = () => economy.evaluate((node) => parseFloat(getComputedStyle(node).transitionDuration))
   await expect.poll(transitionTime).toBeLessThan(0.001)
   await economy.focus()
   await expect(economy).toBeFocused()
   await expect(economy).toHaveCSS('outline-style', /solid|auto/)
   await economy.press('Enter')
   await expect(economy).toHaveAttribute('aria-current', 'page')
-  await expect(economy.locator('.workspace-route-label')).toHaveCSS('border-top-width', '1px')
+  await expect(economy).toHaveCSS('border-width', '1px')
+  await expect(economy).toHaveCSS('text-decoration-line', 'underline')
+  await expect(nav.getByRole('link', { name: 'Today', exact: true })).toHaveCSS('border-style', 'none')
   await expectContained(page)
 })

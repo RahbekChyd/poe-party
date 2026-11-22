@@ -1,19 +1,20 @@
 import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react'
-import { useRouterState } from '@tanstack/react-router'
-import type { LucideIcon } from 'lucide-react'
+import { Link, useRouterState } from '@tanstack/react-router'
 import { leagueThemeDetails, useLeagueTheme, type LeagueTheme } from '../../lib/league-theme'
+import { cn } from '../../lib/utils'
+import logo from '../../assets/poe-party-logo.png'
 import './workspace-frame.css'
 
 interface WorkspaceFrameProps {
   leagueTheme: LeagueTheme | null
-  route: ReactNode
+  sidebar: ReactNode
   masthead: ReactNode
   dock?: ReactNode
   footer: ReactNode
   children: ReactNode
 }
 
-export function WorkspaceFrame({ leagueTheme, route, masthead, dock, footer, children }: WorkspaceFrameProps) {
+export function WorkspaceFrame({ leagueTheme, sidebar, masthead, dock, footer, children }: WorkspaceFrameProps) {
   useLeagueTheme(leagueTheme)
   const { pathname, hash } = useRouterState({
     select: (state) => state.resolvedLocation ?? state.location,
@@ -26,7 +27,7 @@ export function WorkspaceFrame({ leagueTheme, route, masthead, dock, footer, chi
 
   const artwork = leagueTheme ? leagueThemeDetails[leagueTheme].artwork.workspace : null
   const frameStyle = artwork
-    ? ({ '--workspace-engraving-art': `url("${artwork}")` } as CSSProperties)
+    ? ({ '--workspace-masthead-art': `url("${artwork}")` } as CSSProperties)
     : undefined
 
   return (
@@ -38,36 +39,39 @@ export function WorkspaceFrame({ leagueTheme, route, masthead, dock, footer, chi
         Skip to main content
       </a>
       {masthead}
-      {route}
-      <div ref={reading} className="workspace-reading">
-        <main id="main-content" tabIndex={-1} className="workspace-content">
-          {children}
-        </main>
-        {footer}
+      <div className="workspace-body">
+        {sidebar}
+        <div ref={reading} className="workspace-reading">
+          <main id="main-content" tabIndex={-1} className="workspace-content">
+            {children}
+          </main>
+          {footer}
+        </div>
       </div>
       {dock}
     </div>
   )
 }
 
-export function WorkspaceRoute({ label, children }: { label: string; children: ReactNode }) {
+export function WorkspaceBrand({ to, className }: { to: '/' | '/dashboard'; className?: string }) {
   return (
-    <div className="workspace-route">
-      <nav className="workspace-route-navigation" aria-label={label}>
-        {children}
-      </nav>
-      <div className="workspace-engraving" aria-hidden="true" />
-    </div>
+    <Link
+      to={to}
+      activeOptions={{ exact: true }}
+      aria-label={to === '/' ? 'PoE Party home' : 'PoE Party dashboard'}
+      className={cn('workspace-brand', className)}
+    >
+      <img src={logo} alt="" className="size-8 rounded-lg" />
+      <span className="hidden lg:inline">PoE Party</span>
+    </Link>
   )
 }
 
-export function WorkspaceRouteMarker({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
+export function WorkspaceSidebarGroup({ label, children }: { label?: string; children: ReactNode }) {
   return (
-    <>
-      <span className="workspace-route-marker">
-        <Icon size={16} aria-hidden="true" />
-      </span>
-      <span className="workspace-route-label">{children}</span>
-    </>
+    <div className="workspace-sidebar-group" role={label ? 'group' : undefined} aria-label={label}>
+      {label && <p className="workspace-sidebar-label" aria-hidden="true">{label}</p>}
+      {children}
+    </div>
   )
 }

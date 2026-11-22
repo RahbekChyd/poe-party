@@ -1,35 +1,28 @@
 import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { createLink, Link, useRouterState } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import { Button } from '@heroui/react/button'
-import { Dropdown } from '@heroui/react/dropdown'
 import {
-  Check,
   Coins,
-  Compass,
   Handshake,
   LayoutDashboard,
   Menu,
-  Moon,
   Search,
   Sparkles,
-  Sun,
   Sword,
   Target,
   Users,
   X,
   type LucideIcon,
 } from 'lucide-react'
-import logo from '../../assets/poe-party-logo.png'
 import { cn } from '../../lib/utils'
 import { getLoginHref } from '../../lib/auth-redirect'
 import { trackPublicEvent } from '../../lib/analytics'
 import { Footer } from '../layout/Footer'
 import { ErrorBoundary } from '../layout/ErrorBoundary'
-import { WorkspaceFrame, WorkspaceRoute, WorkspaceRouteMarker } from '../layout/WorkspaceFrame'
+import { WorkspaceBrand, WorkspaceFrame, WorkspaceSidebarGroup } from '../layout/WorkspaceFrame'
 import { resolveLeagueTheme } from '../../lib/league-theme'
 import { getPoeGameShortLabel } from '../../lib/poe-game'
 import { previewWorkspace } from '../../lib/preview-fixtures'
-import { useThemeStore } from '../../store/theme-store'
 import { GuestGateModal } from './PreviewShared'
 
 interface PreviewNavItem {
@@ -61,66 +54,43 @@ const privateWorkspaceItems: readonly PreviewNavItem[] = [
   { label: 'Members', to: '/preview/members', icon: Users },
 ]
 
-const MenuLink = createLink(Dropdown.Item)
-
 function isItemActive(pathname: string, item: PreviewNavItem) {
   return pathname === item.to || pathname === `${item.to}/` ||
     (!item.exact && pathname.startsWith(`${item.to}/`))
 }
 
-function PreviewRouteLine({ pathname }: { pathname: string }) {
-  const isPublicTool = publicItems.some((item) => isItemActive(pathname, item))
-
+function PreviewSidebar({ pathname }: { pathname: string }) {
   return (
-    <WorkspaceRoute label="Workspace sample">
-      {privateWorkspaceItems.map((item) => (
-        <Link
-          key={item.to}
-          to={item.to}
-          activeOptions={{ exact: true }}
-          aria-current={isItemActive(pathname, item) ? 'page' : undefined}
-          className="workspace-route-stop"
-        >
-          <WorkspaceRouteMarker icon={item.icon}>{item.label}</WorkspaceRouteMarker>
-        </Link>
+    <nav className="workspace-sidebar" aria-label="Workspace sample">
+      {[
+        { label: 'Sample workspace', items: privateWorkspaceItems },
+        { label: 'Explore', items: publicItems },
+      ].map(({ label, items }) => (
+        <WorkspaceSidebarGroup key={label} label={label}>
+          {items.map((item) => {
+            const Icon = item.icon
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                activeOptions={{ exact: true }}
+                aria-current={isItemActive(pathname, item) ? 'page' : undefined}
+                className="workspace-sidebar-link"
+              >
+                <Icon size={16} aria-hidden="true" />
+                {item.label}
+              </Link>
+            )
+          })}
+        </WorkspaceSidebarGroup>
       ))}
-      <Dropdown>
-        <Dropdown.Trigger className="workspace-route-stop" data-current-section={isPublicTool ? '' : undefined}>
-          <WorkspaceRouteMarker icon={Compass}>Explore</WorkspaceRouteMarker>
-        </Dropdown.Trigger>
-        <Dropdown.Popover placement="bottom">
-          <Dropdown.Menu aria-label="Explore PoE Party">
-            {publicItems.map(({ to, label, icon: Icon }) => {
-              const isCurrent = isItemActive(pathname, { to, label, icon: Icon })
-              return (
-                <MenuLink
-                  key={to}
-                  id={to}
-                  to={to}
-                  activeOptions={{ exact: true }}
-                  className={isCurrent ? 'bg-selected text-highlight font-semibold' : undefined}
-                  textValue={label}
-                  render={(props) =>
-                    'href' in props ? <a {...props} aria-current={isCurrent ? 'page' : undefined} /> : <div {...props} />
-                  }
-                >
-                  <Icon size={16} aria-hidden="true" />
-                  {label}
-                  {isCurrent && <Check size={14} className="ml-auto" aria-hidden="true" />}
-                </MenuLink>
-              )
-            })}
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
-    </WorkspaceRoute>
+    </nav>
   )
 }
 
 export function PreviewShell({ children }: { children: ReactNode }) {
   const { location } = useRouterState()
   const pathname = location.pathname
-  const { theme, toggle } = useThemeStore()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const mobileMenuTrigger = useRef<HTMLButtonElement>(null)
   const isSample = privateWorkspaceItems.some((item) => isItemActive(pathname, item))
@@ -188,33 +158,21 @@ export function PreviewShell({ children }: { children: ReactNode }) {
       <GuestGateModal />
       <WorkspaceFrame
         leagueTheme={isSample ? resolveLeagueTheme(previewWorkspace.game, previewWorkspace.league) : null}
-        route={<PreviewRouteLine pathname={pathname} />}
+        sidebar={<PreviewSidebar pathname={pathname} />}
         masthead={
           <header className="workspace-masthead" onKeyDown={closeMenuOnEscape}>
             <div className="workspace-masthead-identity">
-              <div className="flex min-w-0 items-center gap-2">
-                <Link
-                  to="/"
-                  activeOptions={{ exact: true }}
-                  aria-label="PoE Party home"
-                  className="shrink-0 rounded-lg"
-                >
-                  <img src={logo} alt="" className="size-8 rounded-lg" />
-                </Link>
-                <div className="min-w-0">
-                  <p className="text-foreground text-sm leading-tight font-semibold wrap-anywhere">
-                    {isSample ? previewWorkspace.leagueLabel : publicPage?.label ?? 'PoE Party'}
-                  </p>
-                  <p className="text-default-500 mt-0.5 text-xs leading-tight wrap-anywhere">
-                    {isSample ? getPoeGameShortLabel(previewWorkspace.game) + ' · Workspace sample' : 'Public tool'}
-                  </p>
-                </div>
+              <WorkspaceBrand to="/" />
+              <div className="min-w-0">
+                <p className="text-foreground text-sm leading-tight font-semibold wrap-anywhere">
+                  {isSample ? previewWorkspace.leagueLabel : publicPage?.label ?? 'PoE Party'}
+                </p>
+                <p className="text-default-500 mt-0.5 text-xs leading-tight wrap-anywhere">
+                  {isSample ? getPoeGameShortLabel(previewWorkspace.game) + ' · Workspace sample' : 'Public tool'}
+                </p>
               </div>
             </div>
             <div className="workspace-masthead-tools">
-              <Button isIconOnly size="sm" variant="tertiary" onPress={toggle} aria-label="Toggle theme">
-                {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-              </Button>
               {!isSample && (
                 <Button
                   ref={mobileMenuTrigger}

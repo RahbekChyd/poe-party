@@ -10,7 +10,6 @@ import { supabaseConfiguration } from './lib/supabase'
 import { ErrorBoundary } from './components/layout/ErrorBoundary'
 import { AppConfigurationError } from './components/layout/AppConfigurationError'
 import './index.css'
-import './store/theme-store'
 
 const router = createRouter({ routeTree })
 

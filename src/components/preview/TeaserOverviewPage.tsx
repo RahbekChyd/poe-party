@@ -24,7 +24,7 @@ import { formatCurrencyAmount } from '../../lib/utils'
 import { formatWealthAxisTick } from '../../lib/wealth-history'
 import { getPreviewItemImage } from '../../lib/preview-item-images'
 import { UserAvatar } from '../ui/heroui-native'
-import { RunOverviewData, RunRoute } from '../overview/RunRoute'
+import { RunOverviewData, RunSummary } from '../overview/RunSummary'
 import { DashboardPage } from '../ui/dashboard'
 import { PreviewPageIntro, UnlockCard } from './PreviewShared'
 const divinePrice = 205
@@ -47,10 +47,10 @@ export function TeaserOverviewPage() {
         description="See a sample workspace with stash history, members, strategies, and gear suggestions."
       />
 
-      <RunRoute
+      <RunSummary
         strategy={(
           <>
-            <p className="run-route__strategy">{sampleStrategy.name}</p>
+            <p className="run-summary__strategy-name">{sampleStrategy.name}</p>
             <div className="text-default-500 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
               <span className="flex items-center gap-1.5">
                 <Coins size={14} aria-hidden="true" />
@@ -63,7 +63,7 @@ export function TeaserOverviewPage() {
         resultTitle="Latest linked snapshot"
         result={(
           <>
-            <p className="run-route__amount">{formatCurrencyAmount(previewLinkedSnapshot.total_wealth_chaos, 'chaos')}</p>
+            <p className="run-summary__amount">{formatCurrencyAmount(previewLinkedSnapshot.total_wealth_chaos, 'chaos')}</p>
             <time className="text-default-500 text-xs" dateTime={previewLinkedSnapshot.created_at}>
               {new Date(previewLinkedSnapshot.created_at).toLocaleString(undefined, {
                 month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
@@ -162,6 +162,7 @@ export function TeaserOverviewPage() {
                   />
                   <Area
                     type="monotone"
+                    isAnimationActive={false}
                     dataKey="total_wealth_chaos"
                     name="Stash value"
                     stroke="var(--wealth-series)"

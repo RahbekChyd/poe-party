@@ -151,14 +151,8 @@ export function ProductHomePage() {
 
       <main id="main-content" tabIndex={-1}>
         <section className="entry-hero entry-ink" aria-labelledby="home-headline">
-          <EntryScene />
           <div className="entry-wrap entry-hero-stage">
             <div className="entry-hero-copy">
-              {featuredSeason && (
-                <p className="entry-season-label">
-                  <span aria-hidden="true" /> {featuredSeason.label}
-                </p>
-              )}
               <h1 id="home-headline" className="entry-display entry-hero-title">
                 Plan the run. <span>See what changed.</span>
               </h1>
@@ -188,6 +182,13 @@ export function ProductHomePage() {
                 />
               </div>
             </div>
+
+            <figure className="entry-hero-art">
+              <div className="entry-hero-image">
+                <EntryScene />
+              </div>
+              {featuredSeason && <figcaption>{featuredSeason.label}</figcaption>}
+            </figure>
 
             <section aria-labelledby="sample-today" className="entry-sample">
               <h2 id="sample-today">Sample workspace</h2>

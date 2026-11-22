@@ -11,50 +11,37 @@
   }
 
   .entry-ink {
-    --entry-ground: #090f19;
-    --entry-ink: #f4f8ff;
-    --entry-muted: #becddd;
-    --entry-light: #a6d7fe;
-    --entry-rule: #53677c;
-    --color-accent: #c3e3fc;
-    --color-accent-hover: #e1f1fd;
-    --color-accent-foreground: #102337;
-    --color-default: #1e2d40;
-    --color-default-hover: #344b64;
-    --color-default-foreground: var(--entry-ink);
-    --color-border: #7a95ad;
-    --focus-outline: var(--entry-light);
-    --focus-gap: var(--entry-ground);
-    color: var(--entry-ink);
-    background-color: var(--entry-ground);
+    color: var(--foreground);
+    background-color: var(--background);
   }
 
   .entry-home-header,
   .entry-login-header {
     position: relative;
     z-index: 2;
-    border-bottom: 1px solid var(--entry-rule);
+    border-bottom: 1px solid var(--separator);
+    background: var(--surface);
   }
 
   .entry-wordmark {
-    color: var(--entry-ink);
+    color: var(--foreground);
     font-weight: 650;
     letter-spacing: -0.02em;
   }
 
   .entry-nav-link {
-    color: var(--entry-muted);
+    color: var(--muted-text);
   }
 
   .entry-nav-link:hover {
-    color: var(--entry-ink);
+    color: var(--accent-readable);
     text-decoration: underline;
     text-underline-offset: 0.3em;
   }
 
   .entry-home-menu {
-    border: 1px solid var(--entry-rule);
-    background: var(--entry-ground);
+    border: 1px solid var(--separator);
+    background: var(--overlay);
   }
 
   .entry-ink .button,
@@ -79,73 +66,58 @@
     object-position: center 34%;
   }
 
-  .entry-hero {
-    position: relative;
-    isolation: isolate;
-    overflow: clip;
-  }
-
-  .entry-hero::before {
-    position: absolute;
-    z-index: -1;
-    inset: 0;
-    background:
-      linear-gradient(90deg, #090f19 0%, #090f19db 24%, #090f1961 48%, transparent 72%),
-      linear-gradient(0deg, #090f19 0%, #090f19a8 12%, transparent 37%);
-    content: '';
-  }
-
-  .entry-hero .entry-scene {
-    z-index: -2;
-  }
-
   .entry-hero-stage {
     display: grid;
-    min-height: min(46rem, calc(100svh - 4rem));
-    grid-template-rows: 1fr auto;
+    grid-template: 'copy art' minmax(0, 1fr) 'sample sample' auto / minmax(0, 0.96fr) minmax(0, 1fr);
+    min-height: min(39rem, calc(100svh - 4rem));
+    column-gap: clamp(1rem, 4vw, 4rem);
   }
 
   .entry-hero-copy {
+    grid-area: copy;
     align-self: center;
-    padding-block: clamp(3rem, 8vw, 6rem) 3rem;
+    padding-block: clamp(2rem, 6vw, 5rem);
   }
 
-  .entry-season-label {
-    display: flex;
-    align-items: center;
-    gap: 0.625rem;
-    margin-bottom: 1.25rem;
-    color: var(--entry-light);
-    font-size: 0.6875rem;
-    font-weight: 700;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
+  .entry-hero-art {
+    display: grid;
+    grid-area: art;
+    grid-template-rows: minmax(0, 1fr) auto;
+    margin-block: 0.875rem 0;
   }
 
-  .entry-season-label span {
-    width: 1.75rem;
-    height: 1px;
-    background: currentColor;
-    box-shadow: 0 0 12px var(--entry-light);
+  .entry-hero-image {
+    position: relative;
+    min-height: 12rem;
+    border: 1px solid var(--separator);
+    background: var(--navigation);
+  }
+
+  .entry-hero-image img {
+    object-position: 80% center;
+  }
+
+  .entry-hero-art figcaption {
+    padding-block: 0.5rem 0.875rem;
+    color: var(--muted-text);
+    font-size: 0.75rem;
+    text-align: end;
   }
 
   .entry-hero-title {
-    width: fit-content;
-    color: var(--entry-ink);
-    font-size: clamp(3.5rem, 6.7vw, 6.35rem);
-    letter-spacing: -0.045em;
-    text-shadow: 0 3px 28px #03070da6;
+    color: var(--foreground);
+    font-size: clamp(3.25rem, 5.4vw, 5.5rem);
+    letter-spacing: -0.035em;
   }
 
   .entry-hero-title span {
     display: block;
-    color: #d7e8f8;
   }
 
   .entry-hero-summary {
     max-width: 33ch;
     margin-top: 1.35rem;
-    color: var(--entry-muted);
+    color: var(--muted-text);
     font-size: clamp(1rem, 1.5vw, 1.125rem);
     line-height: 1.65;
   }
@@ -157,23 +129,19 @@
     margin-top: 1.625rem;
   }
 
-  .entry-hero-actions .button--outline {
-    --button-bg: #0d1725;
-  }
-
   .entry-sample {
     display: grid;
+    grid-area: sample;
     grid-template: 'label details link' / minmax(9rem, 0.8fr) minmax(0, 2fr) auto;
     align-items: center;
     gap: 1.25rem;
     padding-block: 0.9rem;
-    border-top: 1px solid var(--entry-rule);
-    background: linear-gradient(180deg, #090f198c, var(--entry-ground));
+    border-top: 1px solid var(--separator);
   }
 
   .entry-sample h2 {
     grid-area: label;
-    color: var(--entry-ink);
+    color: var(--foreground);
     font-size: 0.9375rem;
     font-weight: 650;
   }
@@ -186,20 +154,20 @@
   }
 
   .entry-sample dt {
-    color: var(--entry-muted);
+    color: var(--muted-text);
     font-size: 0.75rem;
   }
 
   .entry-sample dd {
     margin-top: 0.1875rem;
-    color: var(--entry-ink);
+    color: var(--foreground);
     font-size: 0.875rem;
     font-weight: 650;
   }
 
   .entry-sample-link {
     grid-area: link;
-    color: var(--entry-light);
+    color: var(--accent-readable);
     font-size: 0.875rem;
     font-weight: 650;
     text-decoration: underline;
@@ -207,7 +175,7 @@
   }
 
   .entry-sample-link:hover {
-    color: var(--entry-ink);
+    color: var(--foreground);
   }
 
   .entry-home-band {
@@ -272,7 +240,7 @@
     isolation: isolate;
     overflow: clip;
     border-right: 1px solid var(--separator);
-    background: radial-gradient(ellipse at 65% 40%, #29415b, #090f19 72%);
+    background: var(--navigation);
   }
 
   .entry-login-art::after {
@@ -280,7 +248,7 @@
     z-index: 1;
     inset: 0;
     pointer-events: none;
-    background: linear-gradient(0deg, #090f19b0, transparent 30%);
+    background: linear-gradient(0deg, var(--background), transparent 26%);
     content: '';
   }
 
@@ -318,77 +286,28 @@
     border-block: 1px solid var(--separator);
   }
 
-  @media (prefers-reduced-motion: no-preference) {
-    .entry-hero::after {
-      position: absolute;
-      z-index: -1;
-      inset: 0;
-      opacity: 0;
-      pointer-events: none;
-      background: radial-gradient(ellipse at 77% 50%, #b5deff24 0%, transparent 35%);
-      animation: entry-light 840ms ease-out;
-      content: '';
-    }
-
-    @keyframes entry-light {
-      0%, 100% { opacity: 0; }
-      28% { opacity: 1; }
-    }
-  }
-
   @media (max-width: 63.99rem) {
-    .entry-hero .entry-scene img {
-      object-position: 80% 34%;
-    }
-
     .entry-workflow {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
   @media (max-width: 47.99rem) {
-    .entry-hero .entry-scene {
-      bottom: auto;
-      height: clamp(16rem, 63vw, 24rem);
-      mask-image: linear-gradient(black 45%, transparent 100%);
+    .entry-hero-stage {
+      min-height: auto;
+      grid-template: 'art' auto 'copy' auto 'sample' auto / minmax(0, 1fr);
     }
 
-    .entry-hero .entry-scene img {
+    .entry-hero-image {
+      min-height: clamp(9rem, 37vw, 15rem);
+    }
+
+    .entry-hero-image img {
       object-position: 61% 45%;
     }
 
-    .entry-hero::before {
-      background: linear-gradient(0deg, var(--entry-ground) 40%, transparent 95%);
-    }
-
-    .entry-hero-stage {
-      min-height: auto;
-    }
-
     .entry-hero-copy {
-      padding-block: clamp(9rem, 34vw, 15rem) 1.75rem;
-    }
-
-    .entry-season-label {
-      position: relative;
-      isolation: isolate;
-      width: fit-content;
-      margin-bottom: 0.75rem;
-    }
-
-    .entry-season-label::before {
-      position: absolute;
-      z-index: -1;
-      inset: -0.375rem -1.5rem;
-      background: linear-gradient(
-        90deg,
-        transparent,
-        color-mix(in srgb, var(--entry-ground) 90%, transparent) 11% 89%,
-        transparent
-      );
-      mask-image: linear-gradient(transparent, black 22% 78%, transparent);
-      pointer-events: none;
-      content: '';
+      padding-block: 0.75rem 1.75rem;
     }
 
     .entry-hero-title {
@@ -443,24 +362,35 @@
     }
   }
 
+  @media (max-width: 22.5rem) {
+    .entry-login-art {
+      height: 6rem;
+    }
+  }
+
   @media (forced-colors: active) {
-    .entry-scene,
-    .entry-hero::after {
+    .entry-hero-art,
+    .entry-login-art {
       display: none;
     }
 
-    .entry-ink {
-      --focus-outline: Highlight;
-      --focus-gap: Canvas;
+    .entry-hero-stage {
+      min-height: auto;
+      grid-template: 'copy' auto 'sample' auto / minmax(0, 1fr);
+    }
+
+    .entry-login-main {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .entry-login-column {
+      margin-top: 0;
+      padding-block: 2rem;
     }
 
     .entry-ink .button,
     .entry-login-panel .button {
       border: 1px solid ButtonText;
-    }
-
-    .entry-hero-title {
-      text-shadow: none;
     }
   }
 }

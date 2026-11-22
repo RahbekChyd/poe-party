@@ -51,7 +51,7 @@ import { STATUS_COLOR, DIFFICULTY_CHIP, IMPORTANCE_CHIP } from '../../lib/consta
 import { WealthHistoryRangeSelector } from '../economy/WealthHistoryRangeSelector'
 import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
-import { RunOverviewData, RunRoute } from './RunRoute'
+import { RunOverviewData, RunSummary } from './RunSummary'
 
 export function OverviewPage() {
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
@@ -231,14 +231,14 @@ export function OverviewPage() {
     <DashboardPage className="@container">
       <DashboardPageHeader title="Today" />
       {snapshotModal}
-      <RunRoute
+      <RunSummary
         strategy={strategiesLoading ? (
           <p className="text-default-500 text-sm" role="status">Loading strategies…</p>
         ) : activeStrategy ? (
           <Link
             to="/dashboard/strategies/$strategyId"
             params={{ strategyId: activeStrategy.id }}
-            className="run-route__strategy"
+            className="run-summary__strategy-name"
           >
             {activeStrategy.name}
           </Link>
@@ -253,7 +253,7 @@ export function OverviewPage() {
             {resultPricing?.status === 'unavailable' ? (
               <p className="text-foreground text-xl font-semibold">Pricing unavailable</p>
             ) : (
-              <p className="run-route__amount">{resultValue}</p>
+              <p className="run-summary__amount">{resultValue}</p>
             )}
             <div className="text-default-500 flex flex-wrap gap-x-3 gap-y-1 text-xs">
               <time dateTime={latestResult.created_at}>{resultDate}</time>
@@ -462,6 +462,7 @@ export function OverviewPage() {
                   />
                   <Area
                     type="monotone"
+                    isAnimationActive={false}
                     dataKey="total_wealth_chaos"
                     name="Stash value"
                     stroke="var(--wealth-series)"

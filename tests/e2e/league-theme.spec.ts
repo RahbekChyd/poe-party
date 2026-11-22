@@ -2,7 +2,17 @@ import { expect, test, userId } from './fixture'
 import { groupName, mockApp, standardWorkspace } from './ui-data'
 
 test('workspace colors follow the active league through menus and sign-out', async ({ page }) => {
-  await mockApp(page, 'poe1', [standardWorkspace])
+  const savedPreference = JSON.stringify({ state: { theme: 'light' }, version: 0 })
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.addInitScript((preference) => {
+    if (localStorage.getItem('theme') === null) localStorage.setItem('theme', preference)
+  }, savedPreference)
+  await mockApp(page, 'poe1', [standardWorkspace], { profileTheme: 'light' })
+  const profileRequests: string[] = []
+  page.on('request', (request) => {
+    const url = new URL(request.url())
+    if (url.pathname === '/rest/v1/users') profileRequests.push(request.method() + ' ' + url.search)
+  })
   await page.route('**/auth/v1/logout*', (route) => route.fulfill({ status: 204 }))
   await page.goto('/dashboard')
   const root = page.locator('html')
@@ -11,7 +21,8 @@ test('workspace colors follow the active league through menus and sign-out', asy
   const primary = page.getByRole('link', { name: 'Browse strategies' })
   await expect(root).toHaveAttribute('data-league-theme', 'covens')
   await expect(root).toHaveAttribute('data-theme', 'dark')
-  await expect(primary).toHaveCSS('background-color', 'oklch(0.87098 0.0619 247.802)')
+  await expect(primary).toHaveCSS('background-color', 'rgb(154, 204, 241)')
+  await expect(page.getByRole('button', { name: 'Toggle theme' })).toHaveCount(0)
 
   for (const group of ['Standard Fixture Party', 'PoE2 Fixture Party', groupName]) {
     await switcher.click()
@@ -21,27 +32,27 @@ test('workspace colors follow the active league through menus and sign-out', asy
       await expect(root).toHaveAttribute('data-league-theme', 'covens')
     } else {
       await expect(root).not.toHaveAttribute('data-league-theme', 'covens')
-      await expect(primary).toHaveCSS('background-color', 'oklch(0.85017 0.05934 171.581)')
+      await expect(primary).toHaveCSS('background-color', 'rgb(210, 180, 132)')
     }
   }
 
   await switcher.press('ArrowDown')
   await expect(page.locator('.dropdown__popover').filter({ has: menu }))
-    .toHaveCSS('background-color', 'oklch(0.30269 0.03671 258.313)')
+    .toHaveCSS('background-color', 'rgb(43, 35, 28)')
   await expect(menu.getByRole('menuitemradio').first()).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(menu).not.toBeVisible()
   await expect(switcher).toBeFocused()
-  await page.getByRole('button', { name: 'Toggle theme' }).click()
-  await expect(root).toHaveAttribute('data-theme', 'light')
-  await expect(root).toHaveAttribute('data-league-theme', 'covens')
-  await expect(primary).toHaveCSS('background-color', 'oklch(0.40518 0.08 247.886)')
+  await expect(root).toHaveAttribute('data-theme', 'dark')
+  expect(await page.evaluate(() => localStorage.getItem('theme'))).toBe(savedPreference)
+  expect(profileRequests.length).toBeGreaterThan(0)
+  expect(profileRequests.every((request) => request.startsWith('GET ') && !request.includes('theme'))).toBe(true)
 
   await page.getByRole('button', { name: 'Account menu' }).click()
   await page.getByRole('menuitem', { name: 'Sign out' }).click()
   await expect(page.getByRole('heading', { name: 'Connect to PoE Party' })).toBeVisible()
   await expect(root).toHaveAttribute('data-league-theme', 'covens')
-  await expect(root).toHaveAttribute('data-theme', 'light')
+  await expect(root).toHaveAttribute('data-theme', 'dark')
 })
 
 test('the sample shows Covens without tinting live public tools', async ({ page }, testInfo) => {
@@ -50,7 +61,7 @@ test('the sample shows Covens without tinting live public tools', async ({ page 
   const root = page.locator('html')
   await expect(root).toHaveAttribute('data-league-theme', 'covens')
   await expect(page.getByText('Covens of Umbra', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Toggle theme' }).click()
+  await expect(page.getByRole('button', { name: 'Toggle theme' })).toHaveCount(0)
 
   if (testInfo.project.name === 'chromium-mobile') {
     const explore = page.getByRole('button', { name: 'Open explore menu' })
@@ -58,11 +69,8 @@ test('the sample shows Covens without tinting live public tools', async ({ page 
     await page.getByRole('navigation', { name: 'Explore PoE Party on mobile' })
       .getByRole('link', { name: 'Analysis' }).tap()
   } else {
-    const explore = page.getByRole('button', { name: 'Explore', exact: true })
-    await explore.press('ArrowDown')
-    const menu = page.getByRole('menu', { name: 'Explore', exact: true })
-    await expect(menu.getByRole('menuitem', { name: 'Analysis', exact: true })).toBeFocused()
-    await page.keyboard.press('Enter')
+    await page.getByRole('navigation', { name: 'Workspace sample', exact: true })
+      .getByRole('link', { name: 'Analysis', exact: true }).press('Enter')
   }
   await expect(page).toHaveURL(/\/preview\/analysis\/?$/)
   await expect(root).not.toHaveAttribute('data-league-theme', 'covens')
@@ -80,7 +88,7 @@ test('the featured scene follows entry routes and clears on a trust page', async
   await page.goto('/')
   const root = page.locator('html')
   await expect(root).toHaveAttribute('data-league-theme', 'covens')
-  await expect(root).toHaveAttribute('data-theme', 'light')
+  await expect(root).toHaveAttribute('data-theme', 'dark')
   await expect(page.getByTestId('home-hero-analysis-cta')).toBeInViewport()
   await page.getByTestId('home-hero-connect-cta').click()
   await expect(root).toHaveAttribute('data-league-theme', 'covens')
@@ -88,7 +96,17 @@ test('the featured scene follows entry routes and clears on a trust page', async
   await page.getByRole('link', { name: 'Privacy', exact: true }).click()
   await expect(page).toHaveURL(/\/legal\/privacy\/?$/)
   await expect(root).not.toHaveAttribute('data-league-theme')
-  await expect(root).toHaveAttribute('data-theme', 'light')
+  await expect(root).toHaveAttribute('data-theme', 'dark')
+})
+
+test('initial HTML declares dark before scripts run', async ({ request }) => {
+  for (const path of ['/', '/auth/login', '/dashboard/economy', '/preview', '/preview/analysis', '/legal/privacy']) {
+    const response = await request.get(path)
+    expect(response.ok()).toBe(true)
+    const html = await response.text()
+    expect(html).toMatch(/<html\b[^>]*class="dark"[^>]*data-theme="dark"/)
+    expect(html).toContain('<meta name="color-scheme" content="dark"')
+  }
 })
 
 test('the focused chart period stays visible in a short viewport', async ({ page }) => {

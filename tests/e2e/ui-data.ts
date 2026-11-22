@@ -84,7 +84,7 @@ export async function mockApp(
   page: Page,
   workspace: 'poe1' | 'none' | 'guest' = 'guest',
   extraGroups: typeof groups = [],
-  options?: { runMapResult: RunMapResult },
+  options?: { runMapResult?: RunMapResult; profileTheme?: 'light' | 'dark' },
 ) {
   if (workspace !== 'guest') {
     await seedSignedIn(page, workspace === 'none' ? null : groupId)
@@ -128,18 +128,22 @@ export async function mockApp(
       query.get('group_id') === `eq.${group.id}`,
     ) ?? fixtureGroups[0]
     const { publicGroup, character, service, strategy, gear } = records(currentGroup)
-    const isRunMapGroup = options !== undefined && currentGroup.id === groupId
+    const isRunMapGroup = result !== undefined && currentGroup.id === groupId
     const activeStrategy = isRunMapGroup
       ? { ...strategy, name: runMapStrategyName, description: 'Breach sustain for short mapping sessions.' }
       : strategy
     const history = isRunMapGroup ? runMapHistory : []
     const latest = history.at(-1)
     const responses: Record<string, unknown> = {
-      users: options ? { ...profile, poe_token_expires_at: new Date(now + 86_400_000).toISOString() } : profile,
+      users: {
+        ...profile,
+        theme: options?.profileTheme ?? profile.theme,
+        poe_token_expires_at: result !== undefined ? new Date(now + 86_400_000).toISOString() : null,
+      },
       group_members: query.get('select')?.includes('group:groups')
         ? workspace === 'none' ? [] : fixtureGroups.map((group) => ({
             role: 'admin',
-            group: options && group.id === groupId
+            group: result !== undefined && group.id === groupId
               ? { ...group, name: runMapWorkspaceName, current_strategy_id: strategyId }
               : group,
           }))

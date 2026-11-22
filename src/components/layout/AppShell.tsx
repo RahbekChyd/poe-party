@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { useRouterState } from '@tanstack/react-router'
-import { DashboardRouteLine } from './DashboardRouteLine'
+import { DashboardSidebar } from './DashboardSidebar'
 import { Navbar } from './Navbar'
 import { Footer } from './Footer'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -44,7 +44,7 @@ export function AppShell({ children }: AppShellProps) {
     <GroupGate>
       <WorkspaceFrame
         leagueTheme={resolveLeagueTheme(game, league)}
-        route={<DashboardRouteLine />}
+        sidebar={<DashboardSidebar />}
         masthead={<Navbar />}
         dock={<MobileBottomNav />}
         footer={<Footer variant="workspace" />}

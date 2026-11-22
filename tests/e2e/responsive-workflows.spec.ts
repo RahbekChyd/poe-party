@@ -56,32 +56,29 @@ test('completed Analysis uses the full results width across desktop breakpoints'
   await page.keyboard.press('Escape')
   await expect(itemDialog).toHaveCount(0)
 
-  for (const theme of ['dark', 'light']) {
-    await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
-    const desktopViewports = [[1279, 720], [1280, 720], [1366, 768], [1440, 900], [1920, 1080]]
-    const zoomEquivalentViewport = [1024, 576]
-    for (const [width, height] of [...desktopViewports, zoomEquivalentViewport]) {
-      await test.step(`${theme} ${width}×${height}`, async () => {
-        await page.setViewportSize({ width, height })
-        await expect(page.getByRole('navigation', { name: 'Primary dashboard' })
-          .getByRole('link', { name: 'Analysis', exact: true })).toHaveAttribute('aria-current', 'page')
-        await expectNoHorizontalScroll(page.getByRole('main'))
-        await expectNoHorizontalScroll(results)
-        const panel = await results.boundingBox()
-        const runPanel = await run.boundingBox()
-        expect(panel).not.toBeNull()
-        expect(runPanel).not.toBeNull()
-        for (const recommendation of await recommendations.all()) {
-          await expectNoHorizontalScroll(recommendation)
-          const card = await recommendation.boundingBox()
-          expect(card!.x).toBeGreaterThanOrEqual(panel!.x - 1)
-          expect(card!.x + card!.width).toBeLessThanOrEqual(panel!.x + panel!.width + 1)
-        }
-        expect(panel!.x).toBeLessThanOrEqual(runPanel!.x + 1)
-        expect(panel!.x + panel!.width).toBeGreaterThanOrEqual(runPanel!.x + runPanel!.width - 1)
-      })
-    }
-    if (theme === 'dark') await page.getByRole('button', { name: 'Toggle theme', exact: true }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  const desktopViewports = [[1279, 720], [1280, 720], [1366, 768], [1440, 900], [1920, 1080]]
+  const zoomEquivalentViewport = [1024, 576]
+  for (const [width, height] of [...desktopViewports, zoomEquivalentViewport]) {
+    await test.step(`${width}×${height}`, async () => {
+      await page.setViewportSize({ width, height })
+      await expect(page.getByRole('navigation', { name: 'Primary dashboard' })
+        .getByRole('link', { name: 'Analysis', exact: true })).toHaveAttribute('aria-current', 'page')
+      await expectNoHorizontalScroll(page.getByRole('main'))
+      await expectNoHorizontalScroll(results)
+      const panel = await results.boundingBox()
+      const runPanel = await run.boundingBox()
+      expect(panel).not.toBeNull()
+      expect(runPanel).not.toBeNull()
+      for (const recommendation of await recommendations.all()) {
+        await expectNoHorizontalScroll(recommendation)
+        const card = await recommendation.boundingBox()
+        expect(card!.x).toBeGreaterThanOrEqual(panel!.x - 1)
+        expect(card!.x + card!.width).toBeLessThanOrEqual(panel!.x + panel!.width + 1)
+      }
+      expect(panel!.x).toBeLessThanOrEqual(runPanel!.x + 1)
+      expect(panel!.x + panel!.width).toBeGreaterThanOrEqual(runPanel!.x + runPanel!.width - 1)
+    })
   }
 })
 
