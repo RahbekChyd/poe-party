@@ -61,6 +61,24 @@ describe('passive tree comparison', () => {
     expect(data.connectors.find((connector) => connector.id === '13-15')?.path).toContain(' L ')
   })
 
+  it('keeps ascendancy wheels separate from the main tree in the comparison map', () => {
+    const data = normalizePassiveTreeRenderData('data', {
+      ...rawGeometry,
+      nodes: {
+        21: { group: 1, orbit: 0, orbitIndex: 0, classStartIndex: 5, out: [22, 23] },
+        22: { group: 1, orbit: 1, orbitIndex: 1, in: [26] },
+        23: { group: 2, orbit: 0, orbitIndex: 0, isAscendancyStart: true, ascendancyName: 'Guardian', out: [24] },
+        24: { group: 2, orbit: 1, orbitIndex: 1, ascendancyName: 'Guardian' },
+        25: { group: 2, orbit: 1, orbitIndex: 2, isAscendancyStart: true, ascendancyName: 'Ascendant', out: [26] },
+        26: { group: 2, orbit: 1, orbitIndex: 3, name: 'Path of the Templar', ascendancyName: 'Ascendant' },
+      },
+    })
+
+    expect(data.connectors.map(({ id }) => id)).toEqual(['21-22', '23-24', '25-26'])
+    expect(data.nodes[21].connectedNodeIds).toContain(23)
+    expect(data.nodes[22].connectedNodeIds).toContain(26)
+  })
+
   it('compares the saved pair by node and effect and retains review information', () => {
     const summary = {
       passive_tree_comparison: {

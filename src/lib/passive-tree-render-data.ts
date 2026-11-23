@@ -403,9 +403,14 @@ export function normalizePassiveTreeRenderData(
 
   for (const from of Object.values(nodes)) {
     if (from.isProxy) continue
+    const fromAscendancy = from.ascendancyName !== null || from.isAscendancyStart
     for (const toId of from.connectedNodeIds) {
       const to = nodes[toId]
       if (!to || to.isProxy || to.nodeId === from.nodeId) continue
+      const toAscendancy = to.ascendancyName !== null || to.isAscendancyStart
+      // Keep each ascendancy wheel visually separate while preserving the exported adjacency.
+      if (fromAscendancy !== toAscendancy) continue
+
       const id = `${Math.min(from.nodeId, to.nodeId)}-${Math.max(from.nodeId, to.nodeId)}`
       if (!connectors.has(id)) {
         connectors.set(id, {
