@@ -1,38 +1,21 @@
-import { isThreadName } from '../../lib/strategy-threads'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
-import { ComboBox } from '@heroui/react/combo-box'
-import { Description } from '@heroui/react/description'
-import { FieldError } from '@heroui/react/field-error'
-import { Input } from '@heroui/react/input'
-import { Label } from '@heroui/react/label'
 import { Spinner } from '@heroui/react/spinner'
 import {
   ArrowLeft,
   Coins,
-  ExternalLink,
   Info,
   Lock,
-  Plus,
   Target,
   Trash2,
   Unlock,
 } from 'lucide-react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useNinjaPrices } from '../../hooks/useNinjaPrices'
-import {
-  useFieldArray,
-  useForm,
-  useWatch,
-  Controller,
-  type Control,
-  type FieldErrors,
-  type SubmitHandler,
-} from 'react-hook-form'
+import { useForm, type SubmitHandler } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { Route } from '../../routes/dashboard/strategies/$strategyId'
 import {
   useStrategy,
@@ -56,9 +39,9 @@ import {
 import { useStrategyHourlyEstimates } from '../../hooks/useStrategyEconomy'
 import { useGroupWealthHistory, type GroupWealthDataPoint } from '../../hooks/useGroupWealthHistory'
 import { useGroupStore } from '../../store/group-store'
-import { useThreadData, type ThreadEntry } from '../../hooks/useThreadData'
+import { useThreadData } from '../../hooks/useThreadData'
 import { useCurrencyStore } from '../../store/currency-store'
-import { DIFFICULTY_OPTIONS, MAP_REQ_FIELDS as MAP_REQ_FIELDS_CONST } from '../../lib/constants'
+import { DIFFICULTY_OPTIONS } from '../../lib/constants'
 import { DetailPageSkeleton } from '../layout/Skeletons'
 import { QueryStatePanel } from '../ui/QueryStatePanel'
 import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
@@ -66,321 +49,17 @@ import { formatCurrencyAmount } from '../../lib/utils'
 import { getPoeGameShortLabel } from '../../lib/poe-game'
 import { StrategyLinkedSnapshotsModal } from './StrategyLinkedSnapshotsModal'
 import { StrategyInfoSection } from './StrategyInfoSection'
+import { StrategyAtlasField, StrategyBasicsFields, StrategyMapFields } from './StrategyFormFields'
+import { StrategyThreadFields } from './StrategyThreadFields'
 import {
-  FieldInput,
-  FieldTextArea,
-  ListBox,
-  NativeCheckbox,
-  SelectField,
-} from '../ui/heroui-native'
-
-const numericPct = z.preprocess(
-  (v) => (v === '' || v == null ? null : Number(v)),
-  z.number().min(0).nullable().optional(),
-)
-
-const threadAlternativeSchema = z.object({
-  name: z.string().trim().refine(isThreadName, 'Choose a Thread'),
-})
-
-const threadSchema = z.object({
-  name: z.string().trim().refine(isThreadName, 'Choose a Thread'),
-  quantity: z.preprocess((v) => Number(v), z.number().int().min(1).max(8)),
-  required: z.boolean(),
-  alternatives: z.array(threadAlternativeSchema),
-})
-
-const schema = z.object({
-  name: z.string().trim().min(1, 'Enter a strategy name').max(64),
-  description: z.string().max(1000).optional().nullable(),
-  difficulty: z.enum(['easy', 'normal', 'hard']),
-  map_trade_link: z.string().optional().nullable(),
-  atlas_tree_url: z.string().optional().nullable(),
-  map_cost: z.preprocess(
-    (v) => (v === '' || v == null ? null : Number(v)),
-    z.number().int().min(0).nullable().optional(),
-  ),
-  map_requirements: z.object({
-    atlas_drops: numericPct,
-    item_rarity: numericPct,
-    pack_size: numericPct,
-    more_threads: numericPct,
-    more_currency: numericPct,
-    more_unique: numericPct,
-  }),
-  threads: z.array(threadSchema).refine((rows) => rows.reduce((sum, row) => sum + row.quantity, 0) <= 8, 'Spend at most eight Threads per map'),
-})
-
-type FormInput = z.input<typeof schema>
-type FormValues = z.output<typeof schema>
-
-const DEFAULT_FORM_VALUES: FormInput = {
-  name: '',
-  description: '',
-  difficulty: 'normal',
-  map_trade_link: '',
-  atlas_tree_url: '',
-  map_cost: null,
-  map_requirements: {
-    atlas_drops: null,
-    item_rarity: null,
-    pack_size: null,
-    more_threads: null,
-    more_currency: null,
-    more_unique: null,
-  },
-  threads: [],
-}
-
-function buildDefaults(s: Strategy): FormValues {
-  return {
-    name: s.name,
-    description: s.description ?? '',
-    difficulty: s.difficulty ?? 'normal',
-    map_trade_link: s.map_trade_link ?? '',
-    atlas_tree_url: s.atlas_tree_url ?? '',
-    map_cost: s.map_cost ?? null,
-    map_requirements: {
-      atlas_drops: s.map_requirements?.atlas_drops ?? null,
-      item_rarity: s.map_requirements?.item_rarity ?? null,
-      pack_size: s.map_requirements?.pack_size ?? null,
-      more_threads: s.map_requirements?.more_threads ?? null,
-      more_currency: s.map_requirements?.more_currency ?? null,
-      more_unique: s.map_requirements?.more_unique ?? null,
-    },
-    threads: s.threads.map((sc) => ({
-      ...sc,
-      alternatives: sc.alternatives.map((alternative) => ({ ...alternative })),
-    })),
-  }
-}
-
-const MAP_REQ_FIELDS = MAP_REQ_FIELDS_CONST as {
-  key: keyof FormValues['map_requirements']
-  label: string
-}[]
-
-function formatChaosValue(chaos: number): string {
-  if (chaos > 0 && chaos < 1) return chaos.toFixed(1)
-  return Math.round(chaos).toLocaleString()
-}
-
-function toFieldStringValue(value: unknown): string {
-  return value == null ? '' : String(value)
-}
-
-function ThreadAutocompleteField({
-  value,
-  onChange,
-  isReadOnly,
-  isInvalid,
-  errorMessage,
-  threadData,
-  inputRef,
-  autoFocus,
-  className,
-}: {
-  value: string
-  onChange: (value: string) => void
-  isReadOnly: boolean
-  isInvalid?: boolean
-  errorMessage?: string
-  threadData: ThreadEntry[]
-  inputRef?: (node: HTMLInputElement | null) => void
-  autoFocus?: boolean
-  className?: string
-}) {
-  const selectedThread = threadData.find((thread) => thread.name === value)
-  const filteredThreads = threadData
-    .filter((thread) => thread.name.toLowerCase().includes(value.toLowerCase()))
-    .slice(0, 30)
-
-  return (
-    <ComboBox
-      allowsCustomValue
-      allowsEmptyCollection
-      aria-label="Thread name"
-      className={className}
-      inputValue={value}
-      isInvalid={isInvalid}
-      isReadOnly={isReadOnly}
-      selectedKey={selectedThread?.name ?? null}
-      onInputChange={isReadOnly ? undefined : onChange}
-      onSelectionChange={(key) => {
-        if (key != null && !isReadOnly) {
-          onChange(String(key))
-        }
-      }}
-    >
-      <ComboBox.InputGroup className="min-h-9">
-        <Input ref={inputRef} autoFocus={autoFocus} placeholder="Thread name" />
-        <ComboBox.Trigger />
-      </ComboBox.InputGroup>
-      <ComboBox.Popover className="!max-h-80 overflow-y-auto">
-        <ListBox>
-          {filteredThreads.map((thread) => (
-            <ListBox.Item key={thread.name} id={thread.name} textValue={thread.name}>
-              {thread.icon ? (
-                <img
-                  src={thread.icon}
-                  alt=""
-                  className="h-8 w-8 shrink-0 bg-transparent object-contain"
-                  loading="lazy"
-                />
-              ) : (
-                <div
-                  className="bg-default-100 h-8 w-8 shrink-0 rounded-small"
-                  aria-hidden="true"
-                />
-              )}
-              <div className="flex min-w-0 flex-col">
-                <Label>{thread.name}</Label>
-                <Description>{thread.chaosValue == null ? 'Price unavailable' : `${formatChaosValue(thread.chaosValue)}c`}</Description>
-              </div>
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-          ))}
-        </ListBox>
-      </ComboBox.Popover>
-      {isInvalid && errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
-    </ComboBox>
-  )
-}
-
-function ThreadAlternativesField({
-  control,
-  threadIndex,
-  canEditContent,
-  errors,
-  threadData,
-  threadIconMap,
-  threadPriceMap,
-}: {
-  control: Control<FormInput, unknown, FormValues>
-  threadIndex: number
-  canEditContent: boolean
-  errors: FieldErrors<FormInput>
-  threadData: ThreadEntry[]
-  threadIconMap: Map<string, string | null>
-  threadPriceMap: Map<string, number | null>
-}) {
-  const {
-    fields: alternativeFields,
-    append: appendAlternative,
-    remove: removeAlternative,
-  } = useFieldArray({
-    control,
-    name: `threads.${threadIndex}.alternatives` as const,
-  })
-  const watchedAlternatives =
-    useWatch({
-      control,
-      name: `threads.${threadIndex}.alternatives` as const,
-    }) ?? []
-  const quantity =
-    Number(
-      useWatch({
-        control,
-        name: `threads.${threadIndex}.quantity` as const,
-      }) ?? 1,
-    ) || 1
-
-  if (alternativeFields.length === 0 && !canEditContent) return null
-
-  return (
-    <div className="rounded-large border-divider bg-default-50/60 mt-3 ml-12 border border-dashed p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-default-500 text-xs font-medium tracking-wider uppercase">
-            Alternatives
-          </p>
-          <p className="text-default-400 text-xs">
-            Fallback threads for this slot. Alternatives use the same quantity.
-          </p>
-        </div>
-        {canEditContent ? (
-          <Button
-            size="sm"
-            variant="tertiary"
-            type="button"
-            onPress={() => appendAlternative({ name: '' })}
-          >
-            Add alternative
-          </Button>
-        ) : null}
-      </div>
-
-      {alternativeFields.length === 0 ? (
-        <p className="text-default-400 mt-3 text-xs">No alternatives added for this thread.</p>
-      ) : (
-        <div className="mt-3 flex flex-col gap-2">
-          {alternativeFields.map((field, alternativeIndex) => {
-            const alternativeName = watchedAlternatives?.[alternativeIndex]?.name ?? ''
-            const alternativeIcon = threadIconMap.get(alternativeName)
-            const unitPrice = threadPriceMap.get(alternativeName) ?? null
-            const rowTotal = unitPrice != null ? unitPrice * quantity : null
-            const error =
-              errors.threads?.[threadIndex]?.alternatives?.[alternativeIndex]?.name?.message
-
-            return (
-              <div key={field.id} className="flex items-center gap-2">
-                {alternativeIcon ? (
-                  <img
-                    src={alternativeIcon}
-                    alt={alternativeName}
-                    className="h-8 w-8 bg-transparent object-contain"
-                  />
-                ) : (
-                  <div className="h-8 w-8 bg-transparent" aria-hidden="true" />
-                )}
-                <Controller
-                  control={control}
-                  name={`threads.${threadIndex}.alternatives.${alternativeIndex}.name`}
-                  render={({ field: formField }) => (
-                    <ThreadAutocompleteField
-                      value={formField.value ?? ''}
-                      onChange={formField.onChange}
-                      isReadOnly={!canEditContent}
-                      isInvalid={!!error}
-                      errorMessage={typeof error === 'string' ? error : undefined}
-                      threadData={threadData}
-                      className="flex-1"
-                    />
-                  )}
-                />
-                <span className="min-w-20 shrink-0 px-2 text-right tabular-nums">
-                  {rowTotal != null ? (
-                    <>
-                      <span className="text-foreground text-sm font-semibold">
-                        ~ {formatChaosValue(rowTotal)}
-                      </span>
-                      <span className="text-foreground ml-0.5 text-sm font-semibold">c</span>
-                    </>
-                  ) : (
-                    <span className="text-default-300 text-xs">-</span>
-                  )}
-                </span>
-                {canEditContent ? (
-                  <Button
-                    isIconOnly
-                    size="sm"
-                    variant="tertiary"
-                    type="button"
-                    className="text-default-400 hover:text-danger shrink-0"
-                    aria-label="Remove alternative Thread"
-                      onPress={() => removeAlternative(alternativeIndex)}
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                ) : null}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
+  EMPTY_STRATEGY,
+  buildStrategyDefaults,
+  formatChaosValue,
+  strategyFormSchema,
+  threadLimitError,
+  type StrategyFormInput,
+  type StrategyFormValues,
+} from './strategy-form'
 
 export function StrategyDetailPage() {
   const { strategyId } = Route.useParams()
@@ -423,11 +102,12 @@ export function StrategyDetailPage() {
   const [visibilityPending, setVisibilityPending] = useState(false)
   const [adminLockPending, setAdminLockPending] = useState(false)
   const [currentStrategyPending, setCurrentStrategyPending] = useState(false)
-  const { data: threadData = [] } = useThreadData(activeLeague, game ?? 'poe1')
+  const threadMarket = useThreadData(activeLeague, game ?? 'poe1')
+  const { data: threadData } = threadMarket
   const threadPriceMap = new Map(threadData.map((s) => [s.name, s.chaosValue]))
   const threadIconMap = new Map(threadData.map((s) => [s.name, s.icon]))
   const display = useCurrencyStore((s) => s.display)
-  const { data: ninjaData } = useNinjaPrices(activeLeague, game ?? 'poe1')
+  const { data: ninjaData } = useNinjaPrices(game === 'poe2' ? activeLeague : threadMarket.marketLeague, game ?? 'poe1')
   const divinePrice = ninjaData?.divinePrice ?? null
 
   const memberByUser = Object.fromEntries((members ?? []).map((m) => [m.user.id, m.user]))
@@ -437,29 +117,16 @@ export function StrategyDetailPage() {
     control,
     watch,
     reset,
-    formState: { errors, isDirty },
-  } = useForm<FormInput, unknown, FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: DEFAULT_FORM_VALUES,
+    setError,
+    formState: { errors, isDirty, dirtyFields },
+  } = useForm<StrategyFormInput, unknown, StrategyFormValues>({
+    resolver: zodResolver(strategyFormSchema),
+    defaultValues: EMPTY_STRATEGY,
   })
   const isDirtyRef = useRef(isDirty)
-  const threadInputRefs = useRef<Array<HTMLInputElement | null>>([])
-  const pendingThreadFocusIndexRef = useRef<number | null>(null)
-  const [pendingThreadFocusIndex, setPendingThreadFocusIndex] = useState<number | null>(null)
-
-  const {
-    fields: threadFields,
-    append: appendThread,
-    remove: removeThread,
-  } = useFieldArray({ control, name: 'threads' })
-
-  const atlasUrl = watch('atlas_tree_url')
-  const mapTradeUrl = watch('map_trade_link')
   const watchedThreads = watch('threads')
   const watchedMapCost = watch('map_cost')
-  const hasThreadAlternatives = (watchedThreads ?? []).some(
-    (thread) => (thread.alternatives?.length ?? 0) > 0,
-  )
+  const hasThreadAlternatives = watchedThreads.some((thread) => thread.alternatives.length > 0)
   const fmt = (chaos: number): string => formatCurrencyAmount(chaos, divinePrice == null ? 'chaos' : display, divinePrice ?? 1)
   const isSubscribed = !!strategy?.source_strategy_id
   const displayVisibility = optimisticVisibility ?? strategy?.visibility ?? 'group_only'
@@ -486,7 +153,7 @@ export function StrategyDetailPage() {
   useEffect(() => {
     if (!strategy) return
 
-    reset(buildDefaults(strategy), isDirtyRef.current ? { keepDirtyValues: true } : undefined)
+    reset(buildStrategyDefaults(strategy), isDirtyRef.current ? { keepDirtyValues: true } : undefined)
   }, [strategy, reset])
 
   useEffect(() => {
@@ -507,24 +174,15 @@ export function StrategyDetailPage() {
     setOptimisticCurrentStrategyId(undefined)
   }, [currentStrategyId, activeGroupId])
 
-  useEffect(() => {
-    const pendingIndex = pendingThreadFocusIndexRef.current
-    if (pendingIndex == null) return
-    if (!threadFields[pendingIndex]) return
-
-    const frame = requestAnimationFrame(() => {
-      const input = threadInputRefs.current[pendingIndex]
-      input?.focus()
-      input?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
-      pendingThreadFocusIndexRef.current = null
-      setPendingThreadFocusIndex(null)
-    })
-
-    return () => cancelAnimationFrame(frame)
-  }, [threadFields])
-
-  const onSubmit: SubmitHandler<FormValues> = (values) => {
-    if (!strategy || !isEditing) return
+  const onSubmit: SubmitHandler<StrategyFormValues> = (values) => {
+    if (!strategy || !isEditing || savingForm) return
+    const threadsChanged = !!dirtyFields.threads &&
+      JSON.stringify(values.threads) !== JSON.stringify(strategy.threads)
+    const limitError = threadsChanged ? threadLimitError(values.threads) : undefined
+    if (limitError) {
+      setError('root.threadLimit', { type: 'validate', message: limitError })
+      return
+    }
     setSaveFeedback('saving')
     saveStrategy(
       {
@@ -534,15 +192,19 @@ export function StrategyDetailPage() {
         description: values.description?.trim() ? values.description.trim() : null,
         colour: strategy.colour,
         difficulty: values.difficulty,
-        map_trade_link: values.map_trade_link || null,
-        atlas_tree_url: values.atlas_tree_url || null,
-        map_cost: values.map_cost ?? null,
-        map_requirements: { ...strategy.map_requirements, ...values.map_requirements },
-        threads: values.threads,
+        ...(showsPoe1PlanningFields ? {
+          ...(dirtyFields.map_trade_link ? { map_trade_link: values.map_trade_link?.trim() || null } : {}),
+          ...(dirtyFields.atlas_tree_url ? { atlas_tree_url: values.atlas_tree_url?.trim() || null } : {}),
+          ...(dirtyFields.map_cost ? { map_cost: values.map_cost ?? null } : {}),
+          ...(dirtyFields.map_requirements ? {
+            map_requirements: { ...strategy.map_requirements, ...values.map_requirements },
+          } : {}),
+          ...(threadsChanged ? { threads: values.threads } : {}),
+        } : {}),
       },
       {
         onSuccess: (data) => {
-          reset(buildDefaults(data))
+          reset(buildStrategyDefaults(data))
           setSaveFeedback('saved')
         },
         onError: () => {
@@ -622,15 +284,6 @@ export function StrategyDetailPage() {
       {
         id: strategy.id,
         group_id: strategy.group_id,
-        name: strategy.name,
-        description: strategy.description,
-        colour: strategy.colour,
-        difficulty: strategy.difficulty,
-        map_trade_link: strategy.map_trade_link,
-        atlas_tree_url: strategy.atlas_tree_url,
-        map_cost: strategy.map_cost,
-        map_requirements: strategy.map_requirements,
-        threads: strategy.threads,
         ...overrides,
       },
       {
@@ -659,7 +312,7 @@ export function StrategyDetailPage() {
         onUnlink={unlinkLinkedSnapshot}
       />
 
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form noValidate onSubmit={handleSubmit(onSubmit)}>
         <DashboardPage className="wrap-anywhere">
           <DashboardPageHeader backLink={backLink} title={strategy.name} />
           <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
@@ -899,7 +552,6 @@ export function StrategyDetailPage() {
               ))}</ul>
             </Card.Content></Card>
           )}
-          {errors.threads?.root?.message && <p role="alert" className="text-danger text-sm">{errors.threads.root.message}</p>}
           {/* Total estimated cost summary */}
           {(() => {
             const threadTotal = (watchedThreads ?? []).reduce((sum, s) => {
@@ -1084,7 +736,7 @@ export function StrategyDetailPage() {
                     isDisabled={savingForm}
                     onPress={() => {
                       if (isDirty && !window.confirm('Discard your unsaved strategy edits?')) return
-                      reset(buildDefaults(strategy))
+                      reset(buildStrategyDefaults(strategy))
                       setSaveFeedback('idle')
                       setEditingStrategyId(null)
                       requestAnimationFrame(() => editButton.current?.focus())
@@ -1102,383 +754,38 @@ export function StrategyDetailPage() {
 
               <Card>
                 <Card.Content className="gap-4 p-5">
-                  <Controller
-                    control={control}
-                    name="name"
-                    render={({ field }) => (
-                      <FieldInput
-                        ref={field.ref}
-                        name={field.name}
-                        label="Name"
-                        size="sm"
-                        isReadOnly={!canEditContent}
-                        isInvalid={!!errors.name}
-                        errorMessage={errors.name?.message}
-                        value={toFieldStringValue(field.value)}
-                        onValueChange={field.onChange}
-                        onBlur={field.onBlur}
-                      />
-                    )}
-                  />
-                  <Controller
-                    control={control}
-                    name="description"
-                    render={({ field }) => (
-                      <FieldTextArea
-                        label="Description"
-                        placeholder="Describe the strategy, goals, and setup notes..."
-                        minRows={2}
-                        size="sm"
-                        isRequired={false}
-                        isReadOnly={!canEditContent}
-                        isInvalid={!!errors.description}
-                        errorMessage={errors.description?.message}
-                        value={field.value ?? ''}
-                        onValueChange={field.onChange}
-                        onBlur={field.onBlur}
-                      />
-                    )}
-                  />
-                  <Controller
-                    control={control}
-                    name="difficulty"
-                    render={({ field }) => (
-                      <SelectField
-                        label="Difficulty"
-                        isDisabled={!canEditContent}
-                        selectedKey={field.value}
-                        onSelectionChange={(key) => {
-                          if (key === 'easy' || key === 'normal' || key === 'hard') field.onChange(key)
-                        }}
-                      >
-                        {DIFFICULTY_OPTIONS.map((opt) => (
-                          <ListBox.Item key={opt.value} id={opt.value} textValue={opt.label}>
-                            {opt.label}
-                          </ListBox.Item>
-                        ))}
-                      </SelectField>
-                    )}
-                  />
+                  <StrategyBasicsFields control={control} errors={errors} />
                 </Card.Content>
               </Card>
 
-              {/* Atlas Tree & Threads — two sections in one card */}
-              <Card className={!showsPoe1PlanningFields ? 'hidden' : undefined}>
-                {/* Section: Atlas Tree */}
-                <Card.Header className="px-5 pt-5 pb-0">
-                  <h2 className="text-foreground text-sm font-semibold">Atlas Tree</h2>
-                </Card.Header>
-                <Card.Content className="px-5 pt-3 pb-5">
-                  <div className="flex items-center gap-2">
-                    <Controller
-                      control={control}
-                      name="atlas_tree_url"
-                      render={({ field }) => (
-                        <FieldInput
-                          ref={field.ref}
-                          name={field.name}
-                          label="Atlas tree URL"
-                          placeholder="https://www.pathofexile.com/fullscreen-atlas-skill-tree/…"
-                          size="sm"
-                          className="flex-1"
-                          isReadOnly={!canEditContent}
-                          value={toFieldStringValue(field.value)}
-                          onValueChange={field.onChange}
-                          onBlur={field.onBlur}
-                        />
-                      )}
-                    />
-                    <a
-                      href={
-                        atlasUrl?.trim() || 'https://www.pathofexile.com/fullscreen-atlas-skill-tree/'
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label="Open Atlas tree (new tab)"
-                      className="button button--sm button--tertiary button--icon-only shrink-0"
-                    >
-                      <ExternalLink size={14} aria-hidden="true" />
-                    </a>
-                  </div>
-                </Card.Content>
+              {showsPoe1PlanningFields && (
+                <>
+                  <Card>
+                    <Card.Header className="px-5 pt-5 pb-0">
+                      <h2 className="text-foreground text-sm font-semibold">Atlas Tree</h2>
+                    </Card.Header>
+                    <Card.Content className="px-5 pt-3 pb-5">
+                      <StrategyAtlasField control={control} />
+                    </Card.Content>
+                    <div className="border-divider mx-5 border-t" />
+                    <Card.Header className="px-5 pt-4 pb-0">
+                      <h2 className="text-foreground text-sm font-semibold">Threads</h2>
+                    </Card.Header>
+                    <Card.Content className="px-5 pt-3 pb-5">
+                      <StrategyThreadFields control={control} errors={errors} market={threadMarket} />
+                    </Card.Content>
+                  </Card>
 
-                {/* Divider */}
-                <div className="border-divider mx-5 border-t" />
-
-                {/* Section: Threads */}
-                <Card.Header className="px-5 pt-4 pb-0">
-                  <div className="flex w-full flex-wrap items-center justify-between gap-3">
-                    <h2 className="text-foreground text-sm font-semibold">Threads</h2>
-                    {canEditContent && (
-                      <Button
-                        size="sm"
-                        variant="tertiary"
-                        type="button"
-                        className="shrink-0"
-                        onPress={() => {
-                          pendingThreadFocusIndexRef.current = threadFields.length
-                          setPendingThreadFocusIndex(threadFields.length)
-                          appendThread(
-                            { name: '', quantity: 1, required: true, alternatives: [] },
-                            { shouldFocus: false },
-                          )
-                        }}
-                      >
-                        <Plus size={14} />
-                        Add thread
-                      </Button>
-                    )}
-                  </div>
-                </Card.Header>
-                <Card.Content className="px-5 pt-3 pb-5">
-                  {threadFields.length === 0 ? (
-                    <p className="text-default-400 text-sm">No Threads added yet. Spend up to eight per map; free Atlas Threads are additional.</p>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {threadFields.map((field, i) => {
-                        const threadName = watchedThreads?.[i]?.name ?? ''
-                        const threadIcon = threadIconMap.get(threadName)
-                        const qty = Number(watchedThreads?.[i]?.quantity) || 1
-                        const unitPrice = threadPriceMap.get(threadName) ?? null
-                        const rowTotal = unitPrice != null ? unitPrice * qty : null
-                        const alternativeCount = watchedThreads?.[i]?.alternatives?.length ?? 0
-
-                        return (
-                          <div
-                            key={field.id}
-                            className="rounded-large border-divider bg-default-50/40 border p-3"
-                          >
-                            <div className="flex flex-wrap items-center gap-2">
-                              {threadIcon ? (
-                                <img
-                                  src={threadIcon}
-                                  alt={threadName}
-                                  className="h-10 w-10 bg-transparent object-contain"
-                                />
-                              ) : (
-                                <div className="h-10 w-10 bg-transparent" aria-hidden="true" />
-                              )}
-                              <Controller
-                                control={control}
-                                name={`threads.${i}.name`}
-                                render={({ field: f }) => (
-                                  <ThreadAutocompleteField
-                                    inputRef={(node) => {
-                                      threadInputRefs.current[i] = node
-                                    }}
-                                    value={f.value ?? ''}
-                                    onChange={f.onChange}
-                                    isReadOnly={!canEditContent}
-                                    isInvalid={!!errors.threads?.[i]?.name}
-                                    errorMessage={errors.threads?.[i]?.name?.message}
-                                    threadData={threadData}
-                                    autoFocus={pendingThreadFocusIndex === i}
-                                    className="flex-1"
-                                  />
-                                )}
-                              />
-                              <Controller
-                                control={control}
-                                name={`threads.${i}.quantity`}
-                                render={({ field: quantityField }) => (
-                                  <FieldInput
-                                    ref={quantityField.ref}
-                                    name={quantityField.name}
-                                    placeholder="Qty"
-                                    aria-label="Thread quantity"
-                                    min={1}
-                                    max={8}
-                                    step={1}
-                                    type="number"
-                                    size="sm"
-                                    className="w-16 shrink-0"
-                                    isReadOnly={!canEditContent}
-                                    isInvalid={!!errors.threads?.[i]?.quantity}
-                                    value={toFieldStringValue(quantityField.value)}
-                                    onValueChange={quantityField.onChange}
-                                    onBlur={quantityField.onBlur}
-                                  />
-                                )}
-                              />
-                              <span className="shrink-0 px-2 text-right tabular-nums">
-                                {rowTotal != null ? (
-                                  <>
-                                    <span className="text-foreground text-sm font-semibold">
-                                      ~ {formatChaosValue(rowTotal)}
-                                    </span>
-                                    <span className="text-foreground ml-0.5 text-sm font-semibold">
-                                      c
-                                    </span>
-                                  </>
-                                ) : (
-                                  <span className="text-default-300 text-xs">—</span>
-                                )}
-                              </span>
-                              <Controller
-                                control={control}
-                                name={`threads.${i}.required`}
-                                render={({ field: f }) => (
-                                  <NativeCheckbox
-                                    id={`thread-${field.id}-required`}
-                                    isSelected={f.value}
-                                    onChange={canEditContent ? f.onChange : undefined}
-                                    isDisabled={!canEditContent}
-                                  >
-                                    Required
-                                  </NativeCheckbox>
-                                )}
-                              />
-                              {alternativeCount > 0 ? (
-                                <Chip size="sm" variant="soft">
-                                  {alternativeCount} alternative{alternativeCount === 1 ? '' : 's'}
-                                </Chip>
-                              ) : null}
-                              {canEditContent && (
-                                <Button
-                                  isIconOnly
-                                  size="sm"
-                                  variant="tertiary"
-                                  type="button"
-                                  className="text-default-400 hover:text-danger shrink-0"
-                                  aria-label="Remove Thread"
-                                  onPress={() => removeThread(i)}
-                                >
-                                  <Trash2 size={14} />
-                                </Button>
-                              )}
-                            </div>
-                            <ThreadAlternativesField
-                              control={control}
-                              threadIndex={i}
-                              canEditContent={canEditContent}
-                              errors={errors}
-                              threadData={threadData}
-                              threadIconMap={threadIconMap}
-                              threadPriceMap={threadPriceMap}
-                            />
-                          </div>
-                        )
-                      })}
-
-                      {/* Total */}
-                      {(() => {
-                        const total = (watchedThreads ?? []).reduce((sum, s) => {
-                          const p = threadPriceMap.get(s.name ?? '')
-                          return p != null ? sum + p * (Number(s.quantity) || 1) : sum
-                        }, 0)
-                        const knownCount = (watchedThreads ?? []).filter((s) =>
-                          threadPriceMap.get(s.name ?? '') != null,
-                        ).length
-                        if (knownCount === 0) return null
-                        return (
-                          <div className="border-divider border-t pt-2 text-right">
-                            <span className="text-default-500 text-xs">
-                              {hasThreadAlternatives
-                                ? 'Primary thread cost per map:'
-                                : 'Estimated cost per map:'}{' '}
-                              <span className="text-foreground font-medium">
-                                ~ {formatChaosValue(total)}
-                                <span className="text-default-500 ml-0.5 text-xs font-semibold">c</span>
-                              </span>
-                              {knownCount < (watchedThreads ?? []).length && (
-                                <span className="text-default-400"> (partial)</span>
-                              )}
-                              {hasThreadAlternatives && (
-                                <span className="text-default-400"> (alternatives excluded)</span>
-                              )}
-                            </span>
-                          </div>
-                        )
-                      })()}
-                    </div>
-                  )}
-                </Card.Content>
-              </Card>
-
-              {/* Map — trade link + requirements */}
-              <Card className={!showsPoe1PlanningFields ? 'hidden' : undefined}>
-                <Card.Header className="px-5 pt-5 pb-0">
-                  <h2 className="text-foreground text-sm font-semibold">Map</h2>
-                </Card.Header>
-                <Card.Content className="gap-4 px-5 pt-3 pb-5">
-                  <div className="flex items-center gap-2">
-                    <Controller
-                      control={control}
-                      name="map_trade_link"
-                      render={({ field }) => (
-                        <FieldInput
-                          ref={field.ref}
-                          name={field.name}
-                          label="Trade link"
-                          placeholder="https://www.pathofexile.com/trade/…"
-                          size="sm"
-                          className="flex-1"
-                          isReadOnly={!canEditContent}
-                          value={toFieldStringValue(field.value)}
-                          onValueChange={field.onChange}
-                          onBlur={field.onBlur}
-                        />
-                      )}
-                    />
-                    {mapTradeUrl && (
-                      <a
-                        href={mapTradeUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label="Open map trade search (new tab)"
-                        className="button button--sm button--tertiary button--icon-only shrink-0"
-                      >
-                        <ExternalLink size={14} aria-hidden="true" />
-                      </a>
-                    )}
-                  </div>
-                  <Controller
-                    control={control}
-                    name="map_cost"
-                    render={({ field }) => (
-                      <FieldInput
-                        ref={field.ref}
-                        name={field.name}
-                        label="Estimated map cost"
-                        placeholder="—"
-                        type="number"
-                        size="sm"
-                        className="max-w-50"
-                        isReadOnly={!canEditContent}
-                        endContent={<span className="text-default-600 text-sm font-semibold">c</span>}
-                        value={toFieldStringValue(field.value)}
-                        onValueChange={field.onChange}
-                        onBlur={field.onBlur}
-                      />
-                    )}
-                  />
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {MAP_REQ_FIELDS.map(({ key, label }) => (
-                      <Controller
-                        key={key}
-                        control={control}
-                        name={`map_requirements.${key}`}
-                        render={({ field }) => (
-                          <FieldInput
-                            ref={field.ref}
-                            name={field.name}
-                            label={label}
-                            placeholder="—"
-                            type="number"
-                            size="sm"
-                            isReadOnly={!canEditContent}
-                            endContent={<span className="text-default-400 text-xs">%</span>}
-                            value={toFieldStringValue(field.value)}
-                            onValueChange={field.onChange}
-                            onBlur={field.onBlur}
-                          />
-                        )}
-                      />
-                    ))}
-                  </div>
-                </Card.Content>
-              </Card>
-
+                  <Card>
+                    <Card.Header className="px-5 pt-5 pb-0">
+                      <h2 className="text-foreground text-sm font-semibold">Map</h2>
+                    </Card.Header>
+                    <Card.Content className="gap-4 px-5 pt-3 pb-5">
+                      <StrategyMapFields control={control} errors={errors} />
+                    </Card.Content>
+                  </Card>
+                </>
+              )}
             </div>
           )}
 

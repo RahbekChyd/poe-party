@@ -26,7 +26,7 @@ import {
   useSetCurrentStrategy,
 } from '../../hooks/useGroups'
 import { useStrategyHourlyEstimates } from '../../hooks/useStrategyEconomy'
-import { type ThreadEntry, useThreadData } from '../../hooks/useThreadData'
+import { type ThreadEntry, type ThreadMarket, useThreadData } from '../../hooks/useThreadData'
 import { useCurrencyStore } from '../../store/currency-store'
 import { CreateStrategyModal } from './CreateStrategyModal'
 import { DIFFICULTY_CHIP } from '../../lib/constants'
@@ -382,6 +382,31 @@ function PublicStrategyCard({
   )
 }
 
+function StrategyCreation({
+  groupId,
+  supportsMapSetup,
+  threadMarket,
+}: {
+  groupId: string
+  supportsMapSetup: boolean
+  threadMarket: ThreadMarket
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <>
+      <Button className="min-h-11" onPress={() => setIsOpen(true)}>Create strategy</Button>
+      <CreateStrategyModal
+        groupId={groupId}
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        supportsMapSetup={supportsMapSetup}
+        threadMarket={threadMarket}
+      />
+    </>
+  )
+}
+
 export function StrategiesPage() {
   const activeGroupId = useGroupStore((state) => state.activeGroupId)
   const strategiesQuery = useStrategies(activeGroupId)
@@ -395,7 +420,6 @@ export function StrategiesPage() {
   const currentStrategyId = useCurrentStrategyId(activeGroupId)
   const { mutate: setCurrentStrategy, isPending: settingCurrent, isError: setCurrentFailed } = useSetCurrentStrategy()
   const { data: strategyEconomy } = useStrategyHourlyEstimates(activeGroupId)
-  const [createOpen, setCreateOpen] = useState(false)
   const [stageFilter, setStageFilter] = useState<StageFilter>('all')
   const [librarySearch, setLibrarySearch] = useState('')
   const [publicSearch, setPublicSearch] = useState('')
@@ -414,8 +438,9 @@ export function StrategiesPage() {
   }
 
   const display = useCurrencyStore((state) => state.display)
-  const { data: threadData = [] } = useThreadData(activeLeague, game ?? 'poe1')
-  const { data: ninjaData } = useNinjaPrices(activeLeague, game ?? 'poe1')
+  const threadMarket = useThreadData(activeLeague, game ?? 'poe1')
+  const { data: threadData, marketLeague } = threadMarket
+  const { data: ninjaData } = useNinjaPrices(game === 'poe2' ? activeLeague : marketLeague, game ?? 'poe1')
   const divinePrice = ninjaData?.divinePrice ?? null
 
   const threadPriceMap = useMemo(
@@ -555,8 +580,13 @@ export function StrategiesPage() {
             <header className="strategy-library-toolbar">
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
                 <h2 id="strategy-library-heading" className="strategy-library-heading text-foreground">Strategy library</h2>
-                {activeGroupId && myRole !== 'viewer' ? (
-                  <Button className="min-h-11" onPress={() => setCreateOpen(true)}>Create strategy</Button>
+                {activeGroupId && capabilities && (myRole === 'admin' || myRole === 'editor') ? (
+                  <StrategyCreation
+                    key={activeGroupId}
+                    groupId={activeGroupId}
+                    supportsMapSetup={showsPoe1PlanningFields}
+                    threadMarket={threadMarket}
+                  />
                 ) : null}
               </div>
               {libraryStrategies.length > 0 ? <StrategySearch value={librarySearch} onChange={setLibrarySearch} /> : null}
@@ -624,8 +654,6 @@ export function StrategiesPage() {
           )))}
         </section>
       )}
-
-      <CreateStrategyModal isOpen={createOpen} onClose={() => setCreateOpen(false)} />
     </DashboardPage>
   )
 }

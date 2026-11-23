@@ -74,6 +74,11 @@ export interface PublicStrategy {
   live_subscription_id: string | null
 }
 
+type StrategyPlanningFields = Pick<
+  Strategy,
+  'atlas_tree_url' | 'map_trade_link' | 'map_requirements' | 'map_cost' | 'threads'
+>
+
 function normalizeStrategy(row: Record<string, unknown>): Strategy {
   const strategy = row as unknown as Strategy
   return {
@@ -218,7 +223,7 @@ export function useCreateStrategy() {
       description?: string | null
       colour: string
       difficulty: 'easy' | 'normal' | 'hard'
-    }) => {
+    } & Partial<StrategyPlanningFields>) => {
       const {
         data: { user },
       } = await supabase.auth.getUser()
@@ -231,7 +236,7 @@ export function useCreateStrategy() {
         .single()
 
       if (error) throw error
-      return data as Strategy
+      return normalizeStrategy(data)
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.strategies.all(data.group_id)] })
@@ -272,35 +277,25 @@ export function useUpdateStrategy() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (values: {
-      id: string
-      group_id: string
-      name: string
-      description?: string | null
-      colour: string
-      difficulty: 'easy' | 'normal' | 'hard'
-      atlas_tree_url?: string | null
-      scarabs?: Scarab[]
-      threads: Thread[]
-      map_trade_link?: string | null
-      map_requirements: MapRequirements
-      map_cost?: number | null
-      admin_locked?: boolean
-      visibility?: StrategyVisibility
-    }) => {
-      const fields = { ...values }
-      delete (fields as { id?: string }).id
-      delete (fields as { group_id?: string }).group_id
-
+    mutationFn: async ({
+      id,
+      group_id: groupId,
+      ...fields
+    }: Pick<Strategy, 'id' | 'group_id'> &
+      Partial<StrategyPlanningFields & Pick<
+        Strategy,
+        'name' | 'description' | 'colour' | 'difficulty' | 'scarabs' | 'admin_locked' | 'visibility'
+      >>) => {
       const { data, error } = await supabase
         .from('strategies')
         .update(fields)
-        .eq('id', values.id)
+        .eq('id', id)
+        .eq('group_id', groupId)
         .select()
         .single()
 
       if (error) throw error
-      return data as Strategy
+      return normalizeStrategy(data)
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.strategies.single(data.id)] })
