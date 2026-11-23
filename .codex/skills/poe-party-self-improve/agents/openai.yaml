@@ -1,4 +1,0 @@
-interface:
-  display_name: "PoE Party Self Improve"
-  short_description: "Keep project skills current after tasks"
-  default_prompt: "Use $poe-party-self-improve to finish a meaningful PoE Party task and update working memory."

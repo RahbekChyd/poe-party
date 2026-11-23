@@ -1,23 +1,9 @@
 # Codex Skills
 
-This repo tracks PoE Party project skills under `.codex/skills/`.
+Project skills are tracked under `.agents/skills/` and discovered when Codex runs in this repository or its subfolders. A clean clone needs no copy into a personal skills directory. Restart Codex if a changed skill does not appear.
 
-Codex discovers active local copies from the user skills directory. On Windows, that is normally:
+Edit the owning repository skill directly and validate it before committing. Keep reusable personal workflows in `~/.agents/skills`; do not copy or mirror PoE Party skills there.
 
-```powershell
-$env:USERPROFILE\.codex\skills
-```
+Public application guidance belongs in this repository. Private operational instructions and deployment handoffs belong in the separate private operations repository. Keep `PROJECT_MEMORY.md` optional, ignored and local-only in the public repository.
 
-## Restore From Repo
-
-If the machine or Codex profile is rebuilt, copy the tracked project skills back into the user skills directory:
-
-```powershell
-$skillsDir = Join-Path $env:USERPROFILE '.codex\skills'
-New-Item -ItemType Directory -Force $skillsDir | Out-Null
-Copy-Item -Path .codex\skills\poe-party-* -Destination $skillsDir -Recurse -Force
-```
-
-## Update Rule
-
-Treat `.codex/skills/` in this repo as the source-of-truth backup for PoE Party skills. After changing active local skills, mirror the same changes back into `.codex/skills/` before committing.
+After meaningful discoveries, update the smallest durable source. Keep skill instructions focused on the workflow and refer to current source or documentation for volatile implementation details.

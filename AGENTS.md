@@ -22,3 +22,9 @@ Use sub-agents when a task is broad enough to benefit from focused ownership. Ke
 - Use `qa-browser-verifier` after user-facing route changes, party/workspace flows, import/snapshot flows, optimizer workflows, and before public-release smoke tests.
 
 The main agent remains responsible for integrating sub-agent output, preserving repo rules, and avoiding unrelated rewrites.
+
+## Guidance maintenance
+
+After meaningful work, update the smallest relevant instruction or skill only when durable knowledge changed. Keep commands and architecture grounded in current source; avoid task logs and transient build-health claims. Repository skills in `.agents/skills` are authoritative; do not mirror them into user-level skills. Preserve this repository's existing PROJECT_MEMORY.md visibility and update policy.
+
+Validate changed authored skills with `python -X utf8 <codex-home>/skills/.system/skill-creator/scripts/quick_validate.py <skill-directory>`, then confirm discovery with Codex. Provider metadata can exceed that validator's supported fields; check actual Codex loading before treating that as a compatibility defect.
