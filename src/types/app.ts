@@ -152,6 +152,7 @@ export interface PobTreeSpecClusterJewelLayout {
 
 export interface PobTreeSpecLayout {
   id: string
+  legacyId?: string | null
   title: string
   url: string | null
   treeVersion: string | null
@@ -161,6 +162,7 @@ export interface PobTreeSpecLayout {
   hashes: number[]
   hashesEx: number[]
   masteryEffects: number[]
+  modifiedNodeIds?: number[]
   clusterJewels: PobTreeSpecClusterJewelLayout[]
 }
 
@@ -210,11 +212,14 @@ export interface PobImportMetadata {
   notes: string | null
   player_stats: AnalysisMetricSnapshot
   tree_specs: PobTreeSpecLayout[]
+  active_tree_spec_id: string | null
   skill_sets: PobSkillSetLayout[]
+  active_skill_set_id: string | null
   config_sets: PobConfigSetLayout[]
   active_config_set_id: string | null
   active_config_set_title: string | null
   item_sets: PobItemSetLayout[]
+  active_item_set_id: string | null
 }
 
 export interface BuildTarget {

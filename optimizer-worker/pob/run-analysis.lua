@@ -555,28 +555,25 @@ local function select_tree_spec(selection)
     return nil
   end
 
-  local wanted_title = trim(selection and selection.title)
-  if wanted_title then
-    local matched_id = find_tree_spec_id_by_title(wanted_title) or find_tree_spec_id_by_link(wanted_title)
-    if matched_id then
-      build.treeTab:SetActiveSpec(matched_id)
-      return matched_id
-    end
-  end
-
   local wanted_id = trim(selection and selection.id)
-  local numeric_id = wanted_id and tonumber(wanted_id) or nil
-  if numeric_id and build.treeTab.specList[numeric_id] then
-    build.treeTab:SetActiveSpec(numeric_id)
-    return numeric_id
-  end
-
-  if wanted_id then
-    local matched_id = find_tree_spec_id_by_title(wanted_id) or find_tree_spec_id_by_link(wanted_id)
-    if matched_id then
-      build.treeTab:SetActiveSpec(matched_id)
-      return matched_id
+  local wanted_title = trim(selection and selection.title)
+  local numeric_id = safe_number(selection and selection.id)
+  local matched_id
+  if wanted_id and wanted_id:match("^tree%-spec:") then
+    local position = tonumber(wanted_id:match("^tree%-spec:([1-9]%d*)$"))
+    if position and build.treeTab.specList[position] then
+      matched_id = position
     end
+  else
+    matched_id = find_tree_spec_id_by_title(wanted_title) or find_tree_spec_id_by_link(wanted_title)
+      or (numeric_id and build.treeTab.specList[numeric_id] and numeric_id)
+      or find_tree_spec_id_by_title(wanted_id) or find_tree_spec_id_by_link(wanted_id)
+  end
+  if matched_id then
+    build.treeTab:SetActiveSpec(matched_id)
+    return build.treeTab.activeSpec
+  end
+  if wanted_id or wanted_title or numeric_id then
     local available_titles = {}
     local display_list = build.treeTab.GetSpecList and build.treeTab:GetSpecList() or {}
     for index, spec in ipairs(build.treeTab.specList or {}) do
@@ -590,7 +587,124 @@ local function select_tree_spec(selection)
   return build.treeTab.activeSpec
 end
 
+function capture_passive_tree(spec, source_node_ids, source_cluster_ids)
+  local full_version = trim(spec and spec.treeVersion)
+  if not full_version or type(spec.allocNodes) ~= "table" or type(spec.tree) ~= "table" then
+    return nil
+  end
+  local tree_version, variant = full_version:match("^(%d+_%d+)_?(.*)$")
+  local snapshot = {
+    tree_version = tree_version or full_version,
+    variant = variant and variant ~= "" and variant or "standard",
+    class_id = spec.curClassId,
+    ascendancy_id = spec.curAscendClassId,
+    secondary_ascendancy_id = spec.curSecondaryAscendClassId,
+    allocation_ids = {},
+    mastery_effects = setmetatable({}, { __jsontype = "object" }),
+    cluster_sockets = {},
+    modified_nodes = {},
+    cluster_allocation_ids = {},
+    unresolved_node_ids = {},
+    unresolved_cluster_ids = {},
+  }
+
+  local cluster_nodes = {}
+  for _, graph in pairs(as_table(spec.subGraphs)) do
+    for _, node in ipairs(as_table(graph.nodes)) do
+      if node.id then cluster_nodes[node.id] = true end
+    end
+  end
+
+  local modified_nodes = {}
+  for node_id in pairs(as_table(spec.hashOverrides)) do
+    modified_nodes[node_id] = true
+  end
+  for node_id, node in pairs(spec.allocNodes) do
+    table.insert(snapshot.allocation_ids, node_id)
+    if cluster_nodes[node_id] then
+      table.insert(snapshot.cluster_allocation_ids, node_id)
+    end
+    if node.conqueredBy and node.type ~= "Socket" then
+      modified_nodes[node_id] = true
+    end
+  end
+  for node_id in pairs(modified_nodes) do
+    table.insert(snapshot.modified_nodes, node_id)
+  end
+  for node_id, effect_id in pairs(as_table(spec.masterySelections)) do
+    if spec.allocNodes[node_id] and safe_number(effect_id) then
+      snapshot.mastery_effects[tostring(node_id)] = tonumber(effect_id)
+    end
+  end
+
+  for node_id, item_id in pairs(as_table(spec.jewels)) do
+    local socket = as_table(spec.nodes)[node_id] or spec.tree.nodes[node_id]
+    local item = item_id > 0 and spec:GetJewel(item_id) or nil
+    if item_id > 0 and ((socket and socket.expansionJewel) or (item and item.clusterJewel)) then
+      table.insert(snapshot.cluster_sockets, {
+        node_id = node_id,
+        name = item and (trim(item.name) or trim(item.baseName)) or nil,
+      })
+    end
+  end
+
+  local unresolved = {}
+  for _, raw_id in ipairs(as_table(source_node_ids)) do
+    local node_id = safe_number(raw_id)
+    if node_id and not unresolved[node_id] and not as_table(spec.nodes)[node_id] then
+      unresolved[node_id] = true
+      local ids = node_id >= 65536 and snapshot.unresolved_cluster_ids or snapshot.unresolved_node_ids
+      table.insert(ids, node_id)
+    end
+  end
+  -- GGG's extended hashes use a different namespace from PoB's generated node IDs.
+  -- Preserve the number PoB could not map without guessing which IDs matched.
+  snapshot.unresolved_cluster_count = math.max(0, #as_table(source_cluster_ids) - #snapshot.cluster_allocation_ids)
+    + #snapshot.unresolved_cluster_ids
+
+  table.sort(snapshot.allocation_ids)
+  table.sort(snapshot.cluster_allocation_ids)
+  table.sort(snapshot.modified_nodes)
+  table.sort(snapshot.unresolved_node_ids)
+  table.sort(snapshot.unresolved_cluster_ids)
+  table.sort(snapshot.cluster_sockets, function(a, b) return a.node_id < b.node_id end)
+  return snapshot
+end
+
+function capture_target_passive_tree(target_build, position)
+  local spec_node
+  for _, section in ipairs(as_table(target_build.xmlSectionList)) do
+    if type(section) == "table" and section.elem == "Tree" then
+      local index = 0
+      for _, node in ipairs(section) do
+        if type(node) == "table" and node.elem == "Spec" then
+          index = index + 1
+          if index == position then
+            spec_node = node
+            break
+          end
+        end
+      end
+      break
+    elseif type(section) == "table" and section.elem == "Spec" and position == 1 then
+      spec_node = section
+      break
+    end
+  end
+  local ids = {}
+  local encoded_nodes = spec_node and spec_node.attrib.nodes or ""
+  for node_id in encoded_nodes:gmatch("%d+") do
+    table.insert(ids, tonumber(node_id))
+  end
+  return capture_passive_tree(target_build.spec, ids)
+end
+
 local function select_ordered_set(order_list, set_map, selection, active_id, setter, warning_label)
+  local numeric_id = safe_number(selection and selection.id)
+  if numeric_id and set_map[numeric_id] then
+    setter(numeric_id)
+    return numeric_id
+  end
   local wanted_title = normalize_key(selection and selection.title)
   if wanted_title then
     for _, set_id in ipairs(order_list or {}) do
@@ -604,12 +718,6 @@ local function select_ordered_set(order_list, set_map, selection, active_id, set
 
   local wanted_id = trim(selection and selection.id)
   if wanted_id then
-    local numeric_id = tonumber(wanted_id)
-    if numeric_id and set_map[numeric_id] then
-      setter(numeric_id)
-      return numeric_id
-    end
-
     local normalized_id = normalize_key(wanted_id)
     for _, set_id in ipairs(order_list or {}) do
       local set_value = set_map[set_id]
@@ -814,6 +922,10 @@ local function resolve_config_set(selection)
   end
 
   local function try_selection_config(selection_value, source_prefix)
+    local numeric_id = safe_number(selection_value and selection_value.id)
+    if numeric_id and set_map[numeric_id] then
+      return activate(numeric_id, source_prefix .. "_id")
+    end
     local wanted_title = trim(selection_value and selection_value.title)
     if wanted_title then
       local matched_id = find_config_set_id_by_title(order_list, set_map, wanted_title)
@@ -825,11 +937,6 @@ local function resolve_config_set(selection)
 
     local wanted_id = trim(selection_value and selection_value.id)
     if wanted_id then
-      local numeric_id = tonumber(wanted_id)
-      if numeric_id and set_map[numeric_id] then
-        return activate(numeric_id, source_prefix .. "_id")
-      end
-
       local matched_id = find_config_set_id_by_title(order_list, set_map, wanted_id)
         or find_config_set_id_by_link(order_list, set_map, wanted_id)
       if matched_id then
@@ -2296,7 +2403,7 @@ local function apply_precollected_party_buffs(collected)
   return apply_collected_party_buffs_to_tab(collected, build and build.partyTab, "Main build")
 end
 
-local function initialize_stage_context(build_target, target_stage, character_snapshot)
+local function initialize_stage_context(build_target, target_stage, character_snapshot, tree_comparison)
   local raw_xml = strip_party_section_from_xml(build_target.raw_xml)
   if not raw_xml then
     error("Build target raw_xml is required.")
@@ -2311,6 +2418,9 @@ local function initialize_stage_context(build_target, target_stage, character_sn
   local resolved_item_set_id = resolve_item_set(as_table(target_stage.item_set))
   local resolved_skill_set_id = resolve_skill_set(as_table(target_stage.skill_set))
   local resolved_config_set_id, resolved_config_set_source = resolve_config_set(as_table(target_stage.config_set))
+  if tree_comparison and not tree_comparison.target then
+    tree_comparison.target = capture_target_passive_tree(build, resolved_tree_spec_id)
+  end
   local equipped_overlay_count = apply_character_overlay(character_snapshot)
   -- Apply party buffs only after the selected tree/item/skill loadouts and live
   -- character overlay are in place, then force one rebuild so mainOutput reflects
@@ -2843,7 +2953,7 @@ function select_highest_dps_main_socket_group()
   return best_index
 end
 
-function initialize_current_compare_context(build_target, character_snapshot)
+function initialize_current_compare_context(build_target, character_snapshot, tree_comparison)
   local raw_xml = strip_party_section_from_xml(build_target.raw_xml)
   if not raw_xml then
     error("Build target raw_xml is required.")
@@ -2854,6 +2964,13 @@ function initialize_current_compare_context(build_target, character_snapshot)
   runCallback("OnFrame")
 
   local import_result = import_live_character_into_current_build(character_snapshot)
+  if tree_comparison and import_result.completeness.passives then
+    local passives = as_table(character_snapshot.current_import.character.passives)
+    tree_comparison.current = capture_passive_tree(build.spec, passives.hashes, passives.hashes_ex)
+    if tree_comparison.current then
+      tree_comparison.current.synced_at = trim(character_snapshot.last_synced_at)
+    end
+  end
   select_highest_dps_main_socket_group()
   ensure_main_skill_max_stages()
   local applied_party_count, party_effects = apply_precollected_party_buffs(precollected_party_buffs)
@@ -2890,10 +3007,6 @@ function select_target_sets_for_compare_entry(compare_entry, target_stage)
     return debug.traceback(err, 2)
   end)
   build = original_build
-
-  if compare_entry and compare_entry.Rebuild then
-    compare_entry:Rebuild()
-  end
 
   if not ok then
     return nil, result_or_error
@@ -3100,8 +3213,8 @@ function attach_secondary_compare_impacts(primary_report, secondary_report, seco
   end
 end
 
-function build_upstream_compare_power_report(build_target, target_stage, character_snapshot)
-  local current_context = initialize_current_compare_context(build_target, character_snapshot)
+function build_upstream_compare_power_report(build_target, target_stage, character_snapshot, tree_comparison)
+  local current_context = initialize_current_compare_context(build_target, character_snapshot, tree_comparison)
   local current_metrics = collect_metrics()
   local power_stat = build_compare_power_stat(target_stage and target_stage.primary_metric)
   local ok_classes = detect_compare_capability()
@@ -3115,6 +3228,10 @@ function build_upstream_compare_power_report(build_target, target_stage, charact
   if selection_error then
     return nil, current_context, current_metrics, selection_error
   end
+  if tree_comparison then
+    tree_comparison.target = capture_target_passive_tree(compare_entry, selection.resolved_tree_spec_id)
+  end
+  compare_entry:Rebuild()
 
   local compare_tab = new("CompareTab"):CompareTab(build)
   local primary_report = build_upstream_compare_report_from_tab(
@@ -6027,6 +6144,7 @@ local ok, runtime_error = xpcall(function()
   local build_target = as_table(payload.build_target)
   local target_stage = as_table(payload.target_stage)
   local character_snapshot = as_table(payload.character_snapshot)
+  local tree_comparison = as_table(payload.run).kind == "upgrade_analysis" and { version = 1 } or nil
   -- Collect party buff exports once upfront — this clobbers `build` for each party member,
   -- so it must happen before loading the main build.
   precollected_party_buffs = collect_all_party_buffs(payload.party_builds)
@@ -6036,7 +6154,7 @@ local ok, runtime_error = xpcall(function()
   local current_metrics = nil
   local compare_error = nil
   local compare_ok, report_or_error, context_or_nil, metrics_or_nil, error_or_nil, reports_or_nil = xpcall(function()
-    return build_upstream_compare_power_report(build_target, target_stage, character_snapshot)
+    return build_upstream_compare_power_report(build_target, target_stage, character_snapshot, tree_comparison)
   end, function(err)
     return debug.traceback(err, 2)
   end)
@@ -6053,7 +6171,10 @@ local ok, runtime_error = xpcall(function()
     stderr_print(tostring(compare_error))
     error("Current character import failed; exact comparison cannot proceed.")
   end
-  local baseline_context = initialize_stage_context(build_target, target_stage, character_snapshot)
+  local baseline_context = initialize_stage_context(build_target, target_stage, character_snapshot, tree_comparison)
+  if tree_comparison and not (tree_comparison.current and tree_comparison.target) then
+    tree_comparison = nil
+  end
   -- Ensure staged skills (e.g. Reave) use max stages if the user never set a value in PoB
   if ensure_main_skill_max_stages() then
     rebuild_current_build()
@@ -6243,6 +6364,7 @@ local ok, runtime_error = xpcall(function()
       baseline_metrics = metrics,
       compare_power_report = compare_power_report,
       compare_power_reports = compare_power_reports,
+      passive_tree_comparison = tree_comparison,
       recommendation_source = recommendation_source,
       compare_action_plan_count = #compare_action_plans,
       resolved_tree_spec_id = baseline_context.resolved_tree_spec_id,

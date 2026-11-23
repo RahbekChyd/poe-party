@@ -4,8 +4,7 @@ import { Chip } from '@heroui/react/chip'
 import { Dropdown } from '@heroui/react/dropdown'
 import { ToggleButton } from '@heroui/react/toggle-button'
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
-import { Link, useNavigate } from '@tanstack/react-router'
-import { FlaskConical } from 'lucide-react'
+import { useNavigate } from '@tanstack/react-router'
 import { supabase } from '../../lib/supabase'
 import { GroupSwitcher } from '../groups/GroupSwitcher'
 import { useGroupStore } from '../../store/group-store'
@@ -17,9 +16,9 @@ import { useSnapshotStore } from '../../store/snapshot-store'
 import { useCurrencyStore } from '../../store/currency-store'
 import { useCurrentUser, useMyProfile } from '../../hooks/useCurrentUser'
 import { useEarlyAccessNoticeStore } from '../../store/early-access-notice-store'
-import { useMyLatestAnalysisRuns } from '../../hooks/useGearOptimizer'
 import { hasActiveProAccess, isBillingAvailableForProfile } from '../../lib/billing'
 import { WorkspaceBrand } from './WorkspaceFrame'
+import { AnalysisNotificationsMenu } from './AnalysisNotificationsMenu'
 
 export function Navbar() {
   const navigate = useNavigate()
@@ -38,31 +37,6 @@ export function Navbar() {
   const currentUserId = user?.id ?? null
   const { data: profile } = useMyProfile()
   const openEarlyAccessNotice = useEarlyAccessNoticeStore((s) => s.open)
-
-  const { data: myLatestRuns } = useMyLatestAnalysisRuns(activeGroupId, currentUserId)
-
-  const liveRun = myLatestRuns?.find((r) => r.status === 'queued' || r.status === 'running') ?? null
-  const recentlyCompletedRun = !liveRun
-    ? (myLatestRuns?.find((r) => {
-        if (r.status !== 'completed' && r.status !== 'partial') return false
-        if (!r.completed_at) return false
-        return Date.now() - new Date(r.completed_at).getTime() < 30 * 60 * 1000
-      }) ?? null)
-    : null
-
-  const analysisChipLabel = liveRun
-    ? liveRun.status === 'queued'
-      ? 'Analysis queued'
-      : 'Analysis running'
-    : recentlyCompletedRun?.status === 'partial'
-      ? 'Partial analysis ready'
-      : recentlyCompletedRun
-        ? 'Analysis ready'
-        : null
-  const announcedAnalysis = liveRun ?? recentlyCompletedRun
-  const analysisSearch = announcedAnalysis
-    ? { runId: announcedAnalysis.id, buildTargetId: announcedAnalysis.build_target_id }
-    : undefined
 
   const mySnapshot = snapshots?.find((s) => s.user_id === currentUserId)
 
@@ -144,29 +118,8 @@ export function Navbar() {
             </ToggleButtonGroup>
           </div>
 
-          {analysisChipLabel ? (
-            <div className="hidden min-w-0 items-center lg:inline-flex">
-              <Link
-                to="/dashboard/analysis"
-                search={analysisSearch}
-                className="block max-w-44 rounded-lg hover:underline"
-                aria-label={analysisChipLabel}
-              >
-                <Chip
-                  className={`h-8 max-w-44 cursor-pointer justify-start px-3 ${liveRun ? 'bg-info-soft text-info' : ''}`}
-                  size="sm"
-                  variant="soft"
-                  color={liveRun ? 'default' : recentlyCompletedRun?.status === 'partial' ? 'warning' : 'success'}
-                >
-                  {liveRun ? (
-                    <span className="mr-1.5 size-2 shrink-0 rounded-full bg-info" aria-hidden="true" />
-                  ) : (
-                    <FlaskConical size={12} className="mr-1.5 shrink-0" aria-hidden="true" />
-                  )}
-                  <span className="truncate">{analysisChipLabel}</span>
-                </Chip>
-              </Link>
-            </div>
+          {capabilities?.supportsOptimizer ? (
+            <AnalysisNotificationsMenu groupId={activeGroupId} userId={currentUserId} />
           ) : null}
 
           {capabilities?.supportsStashSnapshots ? (
@@ -214,14 +167,6 @@ export function Navbar() {
                   <Dropdown.Item id="display-currency" onAction={toggleCurrency}>
                     Show amounts in {currencyDisplay === 'chaos' ? 'Divine Orbs' : 'Chaos Orbs'}
                   </Dropdown.Item>
-                  {analysisChipLabel ? (
-                    <Dropdown.Item
-                      id="analysis-status"
-                      onAction={() => navigate({ to: '/dashboard/analysis', search: analysisSearch })}
-                    >
-                      {analysisChipLabel}
-                    </Dropdown.Item>
-                  ) : null}
                   {capabilities?.supportsStashSnapshots ? (
                     <Dropdown.Item
                       id="snapshot-status"

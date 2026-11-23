@@ -1,462 +1,113 @@
-import {
-  getPassiveTreeMasterySelections,
-  type PassiveTreeComparable,
-  type PassiveTreeComparisonSummary,
-  type PassiveTreeMasterySelection,
-} from './passive-tree-links'
-import { sortUniqueNumbers } from './parse-helpers'
+import type { PassiveTreeSource } from './passive-tree-comparison'
+import { getPassiveTreeMasterySelections } from './passive-tree-links'
 import {
   filterComparablePassiveTreeNodeIds,
   type PassiveTreeRenderData,
+  type PassiveTreeRenderNode,
 } from './passive-tree-render-data'
-export type PassiveTreeDiffEntryKind =
-  | 'add'
-  | 'remove'
-  | 'mastery_change'
-  | 'cluster_review'
-  | 'version_unavailable'
-  | 'class_mismatch'
-  | 'ascendancy_mismatch'
+import { sortUniqueNumbers } from './parse-helpers'
 
-export interface PassiveTreeDiffEntry {
-  nodeId: number | null
-  kind: PassiveTreeDiffEntryKind
-  label: string
-  shortStatText: string | null
-  x: number | null
-  y: number | null
-  isNotable: boolean
-  isKeystone: boolean
-  isMastery: boolean
-  currentAllocated: boolean
-  targetAllocated: boolean
-  currentMasteryText: string | null
-  targetMasteryText: string | null
-  stats: string[]
+export const PASSIVE_TREE_DIFF_LABELS = {
+  target: 'In target',
+  current: 'In current tree',
+  mastery: 'Mastery changes',
+} as const
+
+export type PassiveTreeDiffKind = keyof typeof PASSIVE_TREE_DIFF_LABELS
+
+export const TREE_CHANGE_TONES: Record<PassiveTreeDiffKind, string> = {
+  current: 'text-currency',
+  target: 'text-info',
+  mastery: 'text-arcane',
 }
 
-export interface PassiveTreeClusterReviewSummary {
-  matchedShells: number
-  targetShells: number
-  currentShells: number
-  missingShells: number
-  extraShells: number
-  matchedExactNodes: number
-  targetExactNodes: number
-  missingExactNodes: number
-  extraExactNodes: number
+export type PassiveTreeDiffEntry = {
+  node: PassiveTreeRenderNode
+  kind: PassiveTreeDiffKind
+  currentEffect: number | null
+  targetEffect: number | null
 }
 
-export interface PassiveTreeDiffCounts {
-  add: number
-  remove: number
-  masteryChange: number
-  clusterReview: number
-}
-
-export interface PassiveTreeDiffViewModel {
-  counts: PassiveTreeDiffCounts
+export type PassiveTreeDiffViewModel = {
+  counts: Record<PassiveTreeDiffKind, number>
   entries: PassiveTreeDiffEntry[]
-  warningEntries: PassiveTreeDiffEntry[]
   currentNodeIds: number[]
   targetNodeIds: number[]
-  changedNodeIds: number[]
-}
-
-export interface BuildPassiveTreeDiffViewModelOptions {
-  comparisonSummary: PassiveTreeComparisonSummary | null
-  clusterReviewSummary: PassiveTreeClusterReviewSummary
-  renderData?: PassiveTreeRenderData | null
-  visualUnavailableDetail?: string | null
-}
-
-function getNodeLabel(nodeId: number, renderData?: PassiveTreeRenderData | null): string {
-  const renderNode = renderData?.nodes[nodeId]
-  return renderNode?.label?.trim() || renderNode?.shortStatText || `Node ${nodeId}`
-}
-
-function getNodeShortStat(
-  nodeId: number,
-  renderData?: PassiveTreeRenderData | null,
-): string | null {
-  return renderData?.nodes[nodeId]?.shortStatText ?? null
-}
-
-function getNodeStats(nodeId: number, renderData?: PassiveTreeRenderData | null): string[] {
-  return renderData?.nodes[nodeId]?.stats ?? []
-}
-
-function getNodePosition(
-  nodeId: number,
-  renderData?: PassiveTreeRenderData | null,
-): { x: number | null; y: number | null } {
-  const renderNode = renderData?.nodes[nodeId]
-  return {
-    x: renderNode?.x ?? null,
-    y: renderNode?.y ?? null,
-  }
-}
-
-function getNodeFlags(
-  nodeId: number,
-  renderData?: PassiveTreeRenderData | null,
-): {
-  isNotable: boolean
-  isKeystone: boolean
-  isMastery: boolean
-} {
-  const renderNode = renderData?.nodes[nodeId]
-  return {
-    isNotable: renderNode?.isNotable ?? false,
-    isKeystone: renderNode?.isKeystone ?? false,
-    isMastery: renderNode?.isMastery ?? false,
-  }
-}
-
-function getMasteryEffectText(
-  nodeId: number,
-  effectId: number | null,
-  renderData?: PassiveTreeRenderData | null,
-): string | null {
-  if (effectId == null) return null
-  const renderNode = renderData?.nodes[nodeId]
-  const effect = renderNode?.masteryEffects.find((entry) => entry.effectId === effectId)
-  return effect?.text ?? (effectId > 0 ? `Effect ${effectId}` : null)
-}
-
-function buildMasterySummaryText(
-  currentMasteryText: string | null,
-  targetMasteryText: string | null,
-): string | null {
-  const lines: string[] = []
-  if (currentMasteryText) {
-    lines.push(`Current: ${currentMasteryText}`)
-  }
-  if (targetMasteryText) {
-    lines.push(`Target: ${targetMasteryText}`)
-  }
-  return lines.length > 0 ? lines.join('\n') : null
-}
-
-function buildNodeEntry(
-  nodeId: number,
-  kind: Extract<PassiveTreeDiffEntryKind, 'add' | 'remove' | 'mastery_change'>,
-  currentAllocated: boolean,
-  targetAllocated: boolean,
-  currentMasteryText: string | null,
-  targetMasteryText: string | null,
-  renderData?: PassiveTreeRenderData | null,
-  overrides?: {
-    label?: string
-    shortStatText?: string | null
-  },
-): PassiveTreeDiffEntry {
-  const position = getNodePosition(nodeId, renderData)
-  const flags = getNodeFlags(nodeId, renderData)
-
-  return {
-    nodeId,
-    kind,
-    label: overrides?.label ?? getNodeLabel(nodeId, renderData),
-    shortStatText: overrides?.shortStatText ?? getNodeShortStat(nodeId, renderData),
-    x: position.x,
-    y: position.y,
-    isNotable: flags.isNotable,
-    isKeystone: flags.isKeystone,
-    isMastery: flags.isMastery,
-    currentAllocated,
-    targetAllocated,
-    currentMasteryText,
-    targetMasteryText,
-    stats: getNodeStats(nodeId, renderData),
-  }
-}
-
-function getMasteryTypeKey(
-  selection: PassiveTreeMasterySelection,
-  renderData?: PassiveTreeRenderData | null,
-): string {
-  return getNodeLabel(selection.nodeId, renderData).trim().toLowerCase()
-}
-
-function takeBestMatchingCurrentMastery(
-  target: PassiveTreeMasterySelection,
-  currentSelections: PassiveTreeMasterySelection[],
-  renderData?: PassiveTreeRenderData | null,
-): PassiveTreeMasterySelection | null {
-  if (currentSelections.length === 0) return null
-
-  const targetTypeKey = getMasteryTypeKey(target, renderData)
-  const sameNodeIndex = currentSelections.findIndex((entry) => entry.nodeId === target.nodeId)
-  if (sameNodeIndex >= 0) {
-    return currentSelections.splice(sameNodeIndex, 1)[0] ?? null
-  }
-
-  const sameTypeIndex = currentSelections.findIndex(
-    (entry) => getMasteryTypeKey(entry, renderData) === targetTypeKey,
-  )
-  if (sameTypeIndex >= 0) {
-    return currentSelections.splice(sameTypeIndex, 1)[0] ?? null
-  }
-
-  return currentSelections.shift() ?? null
-}
-
-function buildMasteryChangeEntry(
-  currentSelection: PassiveTreeMasterySelection | null,
-  targetSelection: PassiveTreeMasterySelection | null,
-  currentNodeSet: Set<number>,
-  targetNodeSet: Set<number>,
-  renderData?: PassiveTreeRenderData | null,
-): PassiveTreeDiffEntry | null {
-  const anchorNodeId = targetSelection?.nodeId ?? currentSelection?.nodeId ?? null
-  if (anchorNodeId == null) return null
-
-  const currentMasteryText = currentSelection
-    ? getMasteryEffectText(currentSelection.nodeId, currentSelection.effectId, renderData)
-    : null
-  const targetMasteryText = targetSelection
-    ? getMasteryEffectText(targetSelection.nodeId, targetSelection.effectId, renderData)
-    : null
-
-  return buildNodeEntry(
-    anchorNodeId,
-    'mastery_change',
-    currentSelection
-      ? currentNodeSet.has(currentSelection.nodeId)
-      : currentNodeSet.has(anchorNodeId),
-    targetSelection ? targetNodeSet.has(targetSelection.nodeId) : targetNodeSet.has(anchorNodeId),
-    currentMasteryText,
-    targetMasteryText,
-    renderData,
-    {
-      label: targetSelection
-        ? getNodeLabel(targetSelection.nodeId, renderData)
-        : getNodeLabel(anchorNodeId, renderData),
-      shortStatText: buildMasterySummaryText(currentMasteryText, targetMasteryText),
-    },
-  )
-}
-
-function getEntrySortWeight(entry: PassiveTreeDiffEntry): number {
-  switch (entry.kind) {
-    case 'add':
-      return 0
-    case 'remove':
-      return 1
-    case 'mastery_change':
-      return 2
-    case 'cluster_review':
-      return 3
-    default:
-      return 4
-  }
-}
-
-function getEntryPriority(entry: PassiveTreeDiffEntry): number {
-  if (entry.isKeystone) return 0
-  if (entry.isNotable) return 1
-  if (entry.isMastery) return 2
-  return 3
-}
-
-function sortEntries(entries: PassiveTreeDiffEntry[]): PassiveTreeDiffEntry[] {
-  return [...entries].sort((left, right) => {
-    const kindDelta = getEntrySortWeight(left) - getEntrySortWeight(right)
-    if (kindDelta !== 0) return kindDelta
-
-    const priorityDelta = getEntryPriority(left) - getEntryPriority(right)
-    if (priorityDelta !== 0) return priorityDelta
-
-    return left.label.localeCompare(right.label)
-  })
-}
-
-function buildWarningEntries(
-  summary: PassiveTreeComparisonSummary | null,
-  visualUnavailableDetail: string | null,
-): PassiveTreeDiffEntry[] {
-  const warnings: PassiveTreeDiffEntry[] = []
-
-  if (summary?.classMatches === false) {
-    warnings.push({
-      nodeId: null,
-      kind: 'class_mismatch',
-      label: 'Class mismatch',
-      shortStatText: 'The selected tree belongs to a different base class than the target.',
-      x: null,
-      y: null,
-      isNotable: false,
-      isKeystone: false,
-      isMastery: false,
-      currentAllocated: false,
-      targetAllocated: false,
-      currentMasteryText: null,
-      targetMasteryText: null,
-      stats: [],
-    })
-  }
-
-  if (summary?.ascendancyMatches === false) {
-    warnings.push({
-      nodeId: null,
-      kind: 'ascendancy_mismatch',
-      label: 'Ascendancy mismatch',
-      shortStatText: 'The selected tree uses a different ascendancy than the target.',
-      x: null,
-      y: null,
-      isNotable: false,
-      isKeystone: false,
-      isMastery: false,
-      currentAllocated: false,
-      targetAllocated: false,
-      currentMasteryText: null,
-      targetMasteryText: null,
-      stats: [],
-    })
-  }
-
-  if (visualUnavailableDetail) {
-    warnings.push({
-      nodeId: null,
-      kind: 'version_unavailable',
-      label: 'Visual diff unavailable',
-      shortStatText: visualUnavailableDetail,
-      x: null,
-      y: null,
-      isNotable: false,
-      isKeystone: false,
-      isMastery: false,
-      currentAllocated: false,
-      targetAllocated: false,
-      currentMasteryText: null,
-      targetMasteryText: null,
-      stats: [],
-    })
-  }
-
-  return warnings
-}
-
-function computeClusterReviewCount(summary: PassiveTreeClusterReviewSummary): number {
-  if (summary.targetShells <= 0 && summary.currentShells <= 0) return 0
-  if (summary.missingExactNodes <= 0 && summary.extraExactNodes <= 0) return 0
-  return Math.max(summary.targetShells, summary.currentShells, 1)
+  unknownNodeIds: number[]
+  unknownMasteryNodeIds: number[]
+  classMismatch: boolean
+  ascendancyMismatch: boolean
 }
 
 export function buildPassiveTreeDiffViewModel(
-  current: PassiveTreeComparable,
-  target: PassiveTreeComparable,
-  options: BuildPassiveTreeDiffViewModelOptions,
+  current: PassiveTreeSource,
+  target: PassiveTreeSource,
+  geometry: PassiveTreeRenderData,
 ): PassiveTreeDiffViewModel {
-  const currentNodeIds = filterComparablePassiveTreeNodeIds(current.hashes, options.renderData)
-  const targetNodeIds = filterComparablePassiveTreeNodeIds(target.hashes, options.renderData)
-  const currentNodeSet = new Set(currentNodeIds)
-  const targetNodeSet = new Set(targetNodeIds)
-
-  const addEntries = targetNodeIds
-    .filter((nodeId) => !currentNodeSet.has(nodeId))
-    .map((nodeId) => buildNodeEntry(nodeId, 'add', false, true, null, null, options.renderData))
-
-  const removeEntries = currentNodeIds
-    .filter((nodeId) => !targetNodeSet.has(nodeId))
-    .map((nodeId) => buildNodeEntry(nodeId, 'remove', true, false, null, null, options.renderData))
-
-  const currentMasteries = getPassiveTreeMasterySelections(
-    current.masteryEffects,
-    options.renderData,
-  )
-  const targetMasteries = getPassiveTreeMasterySelections(target.masteryEffects, options.renderData)
-  const currentMasteriesByEffect = new Map(
-    currentMasteries.map((entry) => [entry.effectKey, entry] as const),
-  )
-  const targetMasteriesByEffect = new Map(
-    targetMasteries.map((entry) => [entry.effectKey, entry] as const),
-  )
-
-  const unmatchedTargetMasteries = targetMasteries.filter(
-    (entry) => !currentMasteriesByEffect.has(entry.effectKey),
-  )
-  const unmatchedCurrentMasteries = currentMasteries.filter(
-    (entry) => !targetMasteriesByEffect.has(entry.effectKey),
-  )
-  const remainingCurrentMasteries = [...unmatchedCurrentMasteries]
-
-  const masteryChangeEntries = unmatchedTargetMasteries
-    .map((targetSelection) =>
-      buildMasteryChangeEntry(
-        takeBestMatchingCurrentMastery(
-          targetSelection,
-          remainingCurrentMasteries,
-          options.renderData,
-        ),
-        targetSelection,
-        currentNodeSet,
-        targetNodeSet,
-        options.renderData,
-      ),
+  function buildSide(source: PassiveTreeSource) {
+    const masteries = new Map(
+      getPassiveTreeMasterySelections(source.tree.masteryEffects)
+        .map(({ nodeId, effectId }) => [nodeId, effectId]),
     )
-    .concat(
-      remainingCurrentMasteries.map((currentSelection) =>
-        buildMasteryChangeEntry(
-          currentSelection,
-          null,
-          currentNodeSet,
-          targetNodeSet,
-          options.renderData,
-        ),
-      ),
+    const ids = filterComparablePassiveTreeNodeIds([
+      ...source.tree.hashes,
+      ...masteries.keys(),
+    ], geometry)
+    return {
+      masteries,
+      ids: new Set(ids.filter((id) => geometry.nodes[id])),
+      unknownIds: [...ids.filter((id) => !geometry.nodes[id]), ...source.unresolvedNodeIds],
+    }
+  }
+
+  const currentSide = buildSide(current)
+  const targetSide = buildSide(target)
+  const modifiedIds = new Set([...current.modifiedNodeIds, ...target.modifiedNodeIds])
+  const entries: PassiveTreeDiffEntry[] = []
+  const unknownMasteryNodeIds: number[] = []
+  const counts = { target: 0, current: 0, mastery: 0 }
+  const availableIds = new Set([...currentSide.ids, ...targetSide.ids])
+
+  for (const id of availableIds) {
+    if (modifiedIds.has(id)) continue
+    const node = geometry.nodes[id]
+    const currentEffect = currentSide.masteries.get(id) ?? null
+    const targetEffect = targetSide.masteries.get(id) ?? null
+    const currentHasNode = currentSide.ids.has(id)
+    const targetHasNode = targetSide.ids.has(id)
+    const missingMastery = node.isMastery &&
+      ((currentHasNode && currentEffect === null) || (targetHasNode && targetEffect === null))
+    const unknownMastery = [currentEffect, targetEffect].some((effect) =>
+      effect !== null && !node.masteryEffects.some((mastery) => mastery.effectId === effect),
     )
-    .filter((entry): entry is PassiveTreeDiffEntry => entry != null)
+    if (missingMastery || unknownMastery) unknownMasteryNodeIds.push(id)
 
-  const clusterReviewCount = computeClusterReviewCount(options.clusterReviewSummary)
-  const clusterReviewEntries =
-    clusterReviewCount > 0
-      ? [
-          {
-            nodeId: null,
-            kind: 'cluster_review',
-            label: 'Cluster jewel review needed',
-            shortStatText: `${options.clusterReviewSummary.matchedShells}/${options.clusterReviewSummary.targetShells} shells align, ${options.clusterReviewSummary.matchedExactNodes}/${options.clusterReviewSummary.targetExactNodes} exact cluster nodes align.`,
-            x: null,
-            y: null,
-            isNotable: false,
-            isKeystone: false,
-            isMastery: false,
-            currentAllocated: false,
-            targetAllocated: false,
-            currentMasteryText: null,
-            targetMasteryText: null,
-            stats: [],
-          } satisfies PassiveTreeDiffEntry,
-        ]
-      : []
+    let kind: PassiveTreeDiffKind
+    if (currentEffect !== targetEffect) kind = 'mastery'
+    else if (!node.isMastery && currentHasNode !== targetHasNode) kind = targetHasNode ? 'target' : 'current'
+    else continue
 
-  const warningEntries = buildWarningEntries(
-    options.comparisonSummary,
-    options.visualUnavailableDetail ?? null,
+    entries.push({ node, kind, currentEffect, targetEffect })
+    counts[kind] += 1
+  }
+
+  entries.sort((left, right) =>
+    Number(right.node.isKeystone) - Number(left.node.isKeystone) ||
+    Number(right.node.isNotable) - Number(left.node.isNotable) ||
+    left.node.label.localeCompare(right.node.label) ||
+    left.node.nodeId - right.node.nodeId,
   )
-
-  const entries = sortEntries([
-    ...addEntries,
-    ...removeEntries,
-    ...masteryChangeEntries,
-    ...clusterReviewEntries,
-  ])
 
   return {
-    counts: {
-      add: addEntries.length,
-      remove: removeEntries.length,
-      masteryChange: masteryChangeEntries.length,
-      clusterReview: clusterReviewCount,
-    },
+    counts,
     entries,
-    warningEntries,
-    currentNodeIds,
-    targetNodeIds,
-    changedNodeIds: sortUniqueNumbers(
-      entries.map((entry) => entry.nodeId).filter((entry): entry is number => entry != null),
-    ),
+    currentNodeIds: [...currentSide.ids],
+    targetNodeIds: [...targetSide.ids],
+    unknownNodeIds: sortUniqueNumbers([...currentSide.unknownIds, ...targetSide.unknownIds]),
+    unknownMasteryNodeIds: sortUniqueNumbers(unknownMasteryNodeIds),
+    classMismatch: current.tree.classId !== null && target.tree.classId !== null &&
+      current.tree.classId !== target.tree.classId,
+    ascendancyMismatch: current.tree.ascendancyId !== null && target.tree.ascendancyId !== null &&
+      current.tree.ascendancyId !== target.tree.ascendancyId,
   }
 }

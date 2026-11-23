@@ -1,5 +1,13 @@
 {
   "version": "5",
+  "specifiers": {
+    "npm:@xmldom/xmldom@0.9.12": "0.9.12"
+  },
+  "npm": {
+    "@xmldom/xmldom@0.9.12": {
+      "integrity": "sha512-5AXjrcMClTryPe9LgZrygpB1lj7s0S9E0+W+AHaVKAVyHanafK86iPSvG5xHVSp/jC+VH1UXu0TAEmY279xH7A=="
+    }
+  },
   "remote": {
     "https://esm.sh/@supabase/supabase-js@2.110.7": "271bd1acce2a284be1c9539bc960a705314a71a322a88705f0ffce88f9e7b97c"
   },

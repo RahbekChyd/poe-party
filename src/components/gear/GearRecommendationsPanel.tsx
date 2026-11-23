@@ -1,11 +1,6 @@
-import {
-  type Key,
-  type ReactNode,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { type Key, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, getRouteApi } from '@tanstack/react-router'
+import { z } from 'zod'
 import { useQuery } from '@tanstack/react-query'
 import { Accordion } from '@heroui/react/accordion'
 import { Button } from '@heroui/react/button'
@@ -16,16 +11,16 @@ import { Modal } from '@heroui/react/modal'
 import { Spinner } from '@heroui/react/spinner'
 import { ToggleButton } from '@heroui/react/toggle-button'
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
-import { ArrowRight, Check, ChevronDown, Circle, Info, Trash2 } from 'lucide-react'
-import { useGroupStore } from '../../store/group-store'
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Circle, Info, Trash2, X } from 'lucide-react'
 import { useCurrentUser } from '../../hooks/useCurrentUser'
-import { useGroupMembers, useMyGroupRole, useMyGroups } from '../../hooks/useGroups'
-import { useMyCharacters } from '../../hooks/useCharacters'
+import { useActiveGroupContext, useGroupMembers, useMyGroupRole } from '../../hooks/useGroups'
+import { useMyCharacters, type MyCharacter } from '../../hooks/useCharacters'
 import { useActiveCharacters } from '../../hooks/useSnapshots'
 import { useCharacterProfiles, useSyncCharacterProfile } from '../../hooks/useCharacterProfiles'
 import {
   type AnalysisRuntimeEstimate,
   useBuildTarget,
+  useMyAnalysisRun,
   useAnalysisRuntimeEstimate,
   useBuildTargetStages,
   useBuildTargets,
@@ -44,9 +39,16 @@ import {
 } from '../../hooks/useGearOptimizer'
 import {
   deriveStageRequirementsFromSelection,
-  filterMeaningfulStageRequirements,
+  findPobTreeSpec,
+  findResolvedPobTreeSpec,
   parsePobImport,
 } from '../../lib/pob'
+import {
+  findPobLayout,
+  getAnalysisPobLayoutLabels,
+  getAnalysisPobResultLayoutLabels,
+  resolveAnalysisPobSetup,
+} from '../../lib/analysis-pob-setup'
 import {
   deriveNormalizedUpgradeSearchConstraints,
   formatRareSearchTargetValue,
@@ -79,7 +81,7 @@ import {
   rankRecommendationPlans,
   shouldShowRecommendationScore,
 } from '../../lib/recommendation-score'
-import { formatRelativeTimestamp, type CharacterProfileSnapshot } from '../../lib/character-profile'
+import type { CharacterProfileSnapshot } from '../../lib/character-profile'
 import { formatCurrencyAmount } from '../../lib/utils'
 import { asRecord, readString } from '../../lib/parse-helpers'
 import { useCurrencyStore } from '../../store/currency-store'
@@ -98,7 +100,20 @@ import type {
 import { CardListSkeleton } from '../layout/Skeletons'
 import { RecommendationItemRow } from './RecommendationItemRow'
 import { RecommendationsInsightsRail } from '../analysis/RecommendationsInsightsRail'
-import '../analysis/analysis-run.css'
+import { AnalysisPobSetupFields } from '../analysis/AnalysisPobSetupFields'
+import { AnalysisPobImportFields } from '../analysis/AnalysisPobImportFields'
+import { AnalysisPobResultLayouts } from '../analysis/AnalysisPobResultLayouts'
+import { AnalysisWizard } from '../analysis/AnalysisWizard'
+import { AnalysisRunProgress } from '../analysis/AnalysisRunProgress'
+import { useCharacterSyncFlow } from '../../hooks/useCharacterSyncFlow'
+import { useMarkAnalysisOpened } from '../../hooks/useAnalysisNotifications'
+import {
+  formatCountdown,
+  formatElapsedSince,
+  getAnalysisPhaseLabel,
+  getRunPhaseTimeline,
+} from '../../lib/analysis-progress'
+import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 import {
   FieldInput,
   FieldTextArea,
@@ -180,18 +195,6 @@ function AccordionPanelItem({
   )
 }
 
-const RUN_STATUS_COLORS: Record<
-  'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'stale',
-  'default' | 'warning' | 'success' | 'danger'
-> = {
-  queued: 'default',
-  running: 'default',
-  completed: 'success',
-  partial: 'warning',
-  failed: 'danger',
-  stale: 'warning',
-}
-
 const DEFAULT_SETUP_LABEL = 'Current setup'
 const DEFAULT_SEARCH_CONSTRAINTS = normalizeUpgradeSearchConstraints({
   ignore_crafted_mods: true,
@@ -264,16 +267,6 @@ const RECOMMENDATION_SECTION_LABELS: Record<RecommendationSectionKey, string> = 
   best_single: 'Rare upgrades',
   uniques: 'Uniques',
   overview: 'Target PoB item scores',
-}
-
-const COMPATIBILITY_COLORS: Record<
-  'pending' | 'compatible' | 'partial' | 'unsupported',
-  'default' | 'success' | 'warning' | 'danger'
-> = {
-  pending: 'default',
-  compatible: 'success',
-  partial: 'warning',
-  unsupported: 'danger',
 }
 
 const ANALYSIS_MODE_OPTIONS: Array<{
@@ -501,15 +494,6 @@ function isRareGearRecommendationPlan(plan: UpgradeRecommendationPlan): boolean 
   return !isUniqueRecommendationPlan(plan)
 }
 
-function formatCountdown(ms: number): string {
-  const totalSeconds = Math.max(0, Math.ceil(ms / 1000))
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  if (minutes <= 0) return `${seconds}s`
-  if (seconds === 0) return `${minutes}m`
-  return `${minutes}m ${seconds}s`
-}
-
 function getLatestLiveRun(runs: UpgradeAnalysisRun[]): UpgradeAnalysisRun | null {
   return runs.find((run) => run.status === 'queued' || run.status === 'running') ?? null
 }
@@ -585,7 +569,9 @@ function buildLoadoutOptions(
     const key = normalizeLoadoutKey(entry.label)
     if (!key || seen.has(key)) continue
 
-    const existsEverywhere = activeGroups.every((group) => groupMaps[group.field].has(key))
+    const existsEverywhere = activeGroups.every(
+      (group) => group.entries.filter(({ label }) => normalizeLoadoutKey(label) === key).length === 1,
+    )
     if (!existsEverywhere) continue
 
     seen.add(key)
@@ -907,47 +893,6 @@ function stageMatchesSetup(
   )
 }
 
-function createDraftQueuedRun(args: {
-  groupId: string
-  buildTargetId: string
-  targetUserId: string
-  characterId: string | null
-  queuedBy: string
-  budgetChaos: number
-  analysisMode: UpgradeAnalysisMode
-  targetStageId: string | null
-  targetStageLabel: string | null
-  searchConstraints: UpgradeSearchConstraints
-}): UpgradeAnalysisRun {
-  const nowIso = new Date().toISOString()
-  return {
-    id: `draft-${nowIso}`,
-    group_id: args.groupId,
-    build_target_id: args.buildTargetId,
-    target_stage_id: args.targetStageId,
-    target_user_id: args.targetUserId,
-    character_id: args.characterId,
-    queued_by: args.queuedBy,
-    budget_chaos: args.budgetChaos,
-    analysis_mode: args.analysisMode,
-    search_constraints: args.searchConstraints,
-    party_config: [],
-    input_hash: '',
-    status: 'queued',
-    stale_reason: null,
-    partial_reason: null,
-    error_detail: null,
-    summary: {
-      queue_submission_pending: true,
-      target_stage_label: args.targetStageLabel,
-    },
-    started_at: null,
-    completed_at: null,
-    created_at: nowIso,
-    updated_at: nowIso,
-  }
-}
-
 function getSearchSlotOverrideSignature(
   value: UpgradeSearchSlotConstraint | null | undefined,
 ): string {
@@ -1057,99 +1002,6 @@ function getRareTradeSearchSummary(
     : null
 }
 
-type RunPhaseId =
-  | 'submitting'
-  | 'queued'
-  | 'loading_inputs'
-  | 'fetching_market_uniques'
-  | 'planning_live_rare_search'
-  | 'searching_live_rares'
-  | 'scoring_upgrades'
-  | 'persisting_results'
-
-const RUN_PHASE_ORDER_THOROUGH: RunPhaseId[] = [
-  'loading_inputs',
-  'fetching_market_uniques',
-  'planning_live_rare_search',
-  'searching_live_rares',
-  'scoring_upgrades',
-  'persisting_results',
-]
-
-const RUN_PHASE_ORDER_QUICK: RunPhaseId[] = [
-  'loading_inputs',
-  'fetching_market_uniques',
-  'scoring_upgrades',
-  'persisting_results',
-]
-
-const RUN_PHASE_LABELS: Record<RunPhaseId, string> = {
-  submitting: 'Submitting',
-  queued: 'Queued',
-  loading_inputs: 'Loading build and character inputs',
-  fetching_market_uniques: 'Fetching live unique prices',
-  planning_live_rare_search: 'Scoring rare templates and planning live search',
-  searching_live_rares: 'Searching live rare market for shortlisted slots',
-  scoring_upgrades: 'Scoring final upgrades in PoB runtime',
-  persisting_results: 'Saving recommendations',
-}
-
-function getCurrentRunPhaseId(
-  run: UpgradeAnalysisRun | null | undefined,
-): { id: RunPhaseId; startedAtMs: number | null } | null {
-  if (!run) return null
-  if (run.status === 'queued') {
-    return { id: 'queued', startedAtMs: null }
-  }
-  if (run.status !== 'running') return null
-
-  const rawPhase = run.summary?.current_phase
-  if (rawPhase && typeof rawPhase === 'object' && !Array.isArray(rawPhase)) {
-    const record = rawPhase as Record<string, unknown>
-    const id = typeof record.id === 'string' ? (record.id as RunPhaseId) : null
-    const startedAt = typeof record.started_at === 'string' ? Date.parse(record.started_at) : NaN
-    if (id) {
-      return {
-        id,
-        startedAtMs: Number.isFinite(startedAt) ? startedAt : null,
-      }
-    }
-  }
-  return null
-}
-
-function getRunPhaseTimeline(
-  run: UpgradeAnalysisRun,
-  currentPhaseId: RunPhaseId | null,
-): Array<{ id: RunPhaseId; label: string; status: 'done' | 'active' | 'pending' }> {
-  const order = run.analysis_mode === 'thorough' ? RUN_PHASE_ORDER_THOROUGH : RUN_PHASE_ORDER_QUICK
-  const activeIndex =
-    currentPhaseId && order.includes(currentPhaseId) ? order.indexOf(currentPhaseId) : -1
-  return order.map((phaseId, index) => {
-    let status: 'done' | 'active' | 'pending' = 'pending'
-    if (activeIndex === -1) {
-      status = 'pending'
-    } else if (index < activeIndex) {
-      status = 'done'
-    } else if (index === activeIndex) {
-      status = 'active'
-    }
-    return {
-      id: phaseId,
-      label: RUN_PHASE_LABELS[phaseId],
-      status,
-    }
-  })
-}
-
-function formatElapsedSince(startedAt: string | null | undefined, nowMs: number): string | null {
-  if (!startedAt) return null
-  const startedMs = Date.parse(startedAt)
-  if (!Number.isFinite(startedMs)) return null
-  const elapsedMs = Math.max(0, nowMs - startedMs)
-  return formatCountdown(elapsedMs)
-}
-
 function formatEstimatedDuration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return '—'
   if (seconds < 60) return `${Math.round(seconds)}s`
@@ -1200,15 +1052,6 @@ function formatRuntimeEstimateSummary(
   return `Estimated runtime: ≈ ${duration}${sourceLabel ? ` based on ${sourceLabel}` : ''}${activeRunsLabel}`
 }
 
-function formatRuntimeEstimateChipLabel(
-  estimate: AnalysisRuntimeEstimate | null | undefined,
-): string | null {
-  if (!estimate || estimate.source === 'none' || estimate.median_seconds === null) {
-    return null
-  }
-  return `Est. ${formatEstimatedDuration(estimate.median_seconds)}`
-}
-
 function planNeedsMarketSearch(plan: UpgradeRecommendationPlan): boolean {
   return plan.items.some((item) => {
     const payload =
@@ -1255,50 +1098,6 @@ function getTradeRateLimitWaitInfo(
   }
 }
 
-function getRunStatusCopy(run: UpgradeAnalysisRun, nowMs: number = Date.now()): string {
-  switch (run.status) {
-    case 'queued':
-      if (run.summary?.queue_submission_pending === true) {
-        return 'Submitting the run and preparing the worker handoff.'
-      }
-      return run.analysis_mode === 'thorough'
-        ? 'Queued for a deeper live market pass.'
-        : 'Queued and waiting for the worker to pick it up.'
-    case 'running': {
-      const waitInfo = getTradeRateLimitWaitInfo(run, nowMs)
-      if (waitInfo) {
-        return `Waiting for the trade API cooldown. The worker will resume automatically in about ${formatCountdown(waitInfo.remainingMs)}.`
-      }
-      const currentPhase = getCurrentRunPhaseId(run)
-      if (currentPhase && currentPhase.id !== 'queued' && currentPhase.id !== 'submitting') {
-        return `${RUN_PHASE_LABELS[currentPhase.id]}.`
-      }
-      if (run.analysis_mode === 'quick') {
-        return 'The worker is running a quick overview pass with exact baseline and fast rare guidance.'
-      }
-      return 'The worker is analyzing upgrades for the selected setup right now.'
-    }
-    case 'completed':
-      return 'This run matches the current inputs.'
-    case 'partial': {
-      if (usesRetiredAnalysisEngine(run)) {
-        return 'This run was created by an older analysis engine and should be rerun.'
-      }
-      const exactPlanCount = getSummaryNumber(run.summary, 'exact_plan_count') ?? 0
-      if (exactPlanCount > 0) {
-        return 'Recommendations are available. This run is using the current exact-scoring feature set.'
-      }
-      return 'Recommendations are available, but the worker reported partial confidence.'
-    }
-    case 'failed':
-      return 'This run failed before the recommendations could be stored.'
-    case 'stale':
-      return formatStaleReason(run.stale_reason)
-    default:
-      return 'Run status unknown.'
-  }
-}
-
 function getRecommendationItemCompareSlot(item: {
   slot: string | null
   item_payload: Record<string, unknown>
@@ -1312,18 +1111,6 @@ function getRecommendationItemCompareSlot(item: {
 
 function getAnalysisModeLabel(mode: UpgradeAnalysisMode): string {
   return mode === 'thorough' ? 'Live market' : 'Quick overview'
-}
-
-function getRunBudgetLabel(
-  run: Pick<UpgradeAnalysisRun, 'analysis_mode' | 'budget_chaos'>,
-  currencyDisplay: 'chaos' | 'divine',
-  divinePrice: number,
-): string {
-  if (run.analysis_mode === 'quick') {
-    return 'No budget cap'
-  }
-
-  return `Budget ${formatCurrencyAmount(run.budget_chaos, currencyDisplay, divinePrice)}`
 }
 
 function getDisplayedPartialReason(
@@ -1541,15 +1328,13 @@ function RareSearchItemEditor({
         </div>
       ) : null}
 
-      <div className="rounded-large border-divider bg-content1 text-foreground wrap-anywhere border px-3 py-2">
+      <div className="rounded-large border-divider bg-content1 text-foreground border px-3 py-2 wrap-anywhere">
         <div className="border-divider border-b pb-2 text-center">
           <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
             {option.title}
           </p>
           {option.subtitle ? (
-            <p className="text-default-500 mt-1 text-xs">
-              {option.subtitle}
-            </p>
+            <p className="text-default-500 mt-1 text-xs">{option.subtitle}</p>
           ) : null}
         </div>
 
@@ -1561,7 +1346,9 @@ function RareSearchItemEditor({
                 className="text-xs leading-5 tabular-nums"
               >
                 <span className="text-default-500">{property.name}:</span>{' '}
-                <span className="text-[color:var(--foreground-strong)]">{property.values.join(', ')}</span>
+                <span className="text-[color:var(--foreground-strong)]">
+                  {property.values.join(', ')}
+                </span>
               </p>
             ))}
           </div>
@@ -1589,9 +1376,7 @@ function RareSearchItemEditor({
                 className={`${sectionIndex > 0 ? 'border-divider border-t' : ''} py-2`}
               >
                 {section.title ? (
-                  <p className="text-default-500 mb-2 text-center text-xs">
-                    {section.title}
-                  </p>
+                  <p className="text-default-500 mb-2 text-center text-xs">{section.title}</p>
                 ) : null}
                 <div className="flex flex-col gap-2">
                   {section.lines.map((line) => {
@@ -1612,9 +1397,7 @@ function RareSearchItemEditor({
                       <div
                         key={`${option.slot}-${line.id}`}
                         className={`rounded-large border px-2 py-2 ${
-                          isDisabled
-                            ? 'border-divider bg-content1'
-                            : 'border-divider bg-content2'
+                          isDisabled ? 'border-divider bg-content1' : 'border-divider bg-content2'
                         }`}
                       >
                         <div className="flex items-start gap-2">
@@ -1631,7 +1414,9 @@ function RareSearchItemEditor({
                             </span>
                           </NativeCheckbox>
                           <div className="min-w-0 flex-1 text-center">
-                            <p className={`text-xs leading-5 tabular-nums ${line.lineClassName}`}>{line.text}</p>
+                            <p className={`text-xs leading-5 tabular-nums ${line.lineClassName}`}>
+                              {line.text}
+                            </p>
                             <p className="text-default-500 mt-1 text-xs">
                               {lineTarget.label}
                               {lineTarget.supportsValueOverride ? ' target' : ' filter'}
@@ -1684,7 +1469,9 @@ function RareSearchItemEditor({
             ))}
           </div>
         ) : (
-          <div className="text-default-500 py-3 text-center text-xs">No item details available.</div>
+          <div className="text-default-500 py-3 text-center text-xs">
+            No item details available.
+          </div>
         )}
 
         {option.footerLines.length > 0 ? (
@@ -1725,237 +1512,114 @@ function RecommendationMetricStrip({ plan }: { plan: UpgradeRecommendationPlan }
   )
 }
 
-function RunActivityStrip({
-  title,
-  detail,
-  waitLabel,
-  estimatedLabel,
-  onCancel,
-  cancelLoading,
-  timeline,
-  elapsedLabel,
-}: {
-  title: string
-  detail: string
-  waitLabel?: string | null
-  estimatedLabel?: string | null
-  onCancel?: () => void
-  cancelLoading?: boolean
-  timeline?: Array<{ id: string; label: string; status: 'done' | 'active' | 'pending' }>
-  elapsedLabel?: string | null
-}) {
+const newAnalysisRoute = getRouteApi('/dashboard/analysis/new')
+const analysisRunRoute = getRouteApi('/dashboard/analysis/runs/$runId')
+
+const wizardSteps = ['Character', 'PoB target', 'PoB setup', 'Analysis options', 'Review'] as const
+const wizardHeadings = [
+  'Choose a character',
+  'Choose a PoB target',
+  'Confirm PoB setup',
+  'Choose analysis options',
+  'Review analysis',
+] as const
+const wizardDescriptions = [
+  'Choose the character whose gear and passive tree you want to compare.',
+  'Choose a saved build or import the PoB you want to work toward.',
+  'Check which layouts from the target build the analysis should use.',
+  'Choose how the optimizer should look for upgrades.',
+  'Check the inputs before starting your run.',
+] as const
+
+function AnalysisBackLink() {
   return (
-    <div className="analysis-run-progress">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="mt-0.5 shrink-0" aria-hidden="true">
-            <Spinner size="sm" color={waitLabel ? 'warning' : 'current'} className={waitLabel ? 'text-warning' : 'text-info'} />
-          </div>
-          <div className="min-w-0 wrap-anywhere">
-            <p role="status" className="text-foreground text-sm font-semibold">{title}</p>
-            <p className="text-default-500 mt-1 text-sm">{detail}</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {elapsedLabel ? (
-            <Chip size="sm" variant="soft">
-              Elapsed {elapsedLabel}
-            </Chip>
-          ) : null}
-          {estimatedLabel ? (
-            <Chip size="sm" variant="soft">
-              {estimatedLabel}
-            </Chip>
-          ) : null}
-          {waitLabel ? (
-            <Chip size="sm" variant="soft" color="warning">
-              {waitLabel}
-            </Chip>
-          ) : null}
-          {onCancel ? (
-            <Button size="sm" variant="danger-soft" isPending={cancelLoading} onPress={onCancel}>
-              {({ isPending }) => (
-                <PendingButtonContent isPending={isPending}>Cancel</PendingButtonContent>
-              )}
-            </Button>
-          ) : null}
-        </div>
-      </div>
-      {timeline && timeline.length > 0 ? (
-        <details className="mt-3">
-          <summary className="cursor-pointer text-sm font-medium">Run progress</summary>
-          <ol className="mt-2 grid gap-x-4 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-3">
-            {timeline.map((step) => {
-              const active = step.status === 'active'
-              const StepIcon = step.status === 'done' ? Check : active ? ArrowRight : Circle
-              const iconClass = step.status === 'done' ? 'text-success' : active ? 'text-info' : 'text-default-400'
-              return (
-                <li key={step.id} aria-current={active ? 'step' : undefined} className="flex items-center gap-2 text-xs">
-                  <StepIcon size={12} className={`shrink-0 ${iconClass}`} aria-hidden="true" />
-                  <span className={active ? 'text-foreground font-semibold' : 'text-default-500'}>
-                    <span className="sr-only">{active ? 'In progress' : step.status === 'done' ? 'Completed' : 'Pending'}: </span>
-                    {step.label}
-                  </span>
-                </li>
-              )
-            })}
-          </ol>
-        </details>
-      ) : null}
-    </div>
+    <Link to="/dashboard/analysis" className="button button--sm button--tertiary">
+      <ArrowLeft size={15} aria-hidden="true" />
+      Run history
+    </Link>
   )
 }
 
-function LiveRecommendationsSkeleton() {
-  return (
-    <div className="flex flex-col gap-3">
-      <p role="status" className="text-default-500 text-sm">Loading recommendations…</p>
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} aria-hidden="true" className="rounded-large border-divider overflow-hidden border">
-          <div className="flex items-center gap-3 p-4">
-            <div
-              className="bg-default-100 h-11 w-11 shrink-0 animate-pulse rounded-lg"
-              style={{ animationDelay: `${i * 60}ms` }}
-            />
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <div
-                className="bg-default-100 h-3.5 animate-pulse rounded-full"
-                style={{ width: `${40 + i * 14}%`, animationDelay: `${i * 60}ms` }}
-              />
-              <div
-                className="bg-default-100 h-3 animate-pulse rounded-full"
-                style={{ width: `${58 + i * 8}%`, animationDelay: `${i * 60 + 50}ms` }}
-              />
-              <div className="mt-0.5 flex gap-2">
-                <div
-                  className="bg-default-100 h-5 w-14 animate-pulse rounded-full"
-                  style={{ animationDelay: `${i * 60 + 100}ms` }}
-                />
-                <div
-                  className="bg-default-100 h-5 w-10 animate-pulse rounded-full"
-                  style={{ animationDelay: `${i * 60 + 140}ms` }}
-                />
-              </div>
-            </div>
-            <div
-              className="bg-default-100 h-8 w-20 shrink-0 animate-pulse rounded-lg"
-              style={{ animationDelay: `${i * 60 + 50}ms` }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
+export function NewAnalysisPage() {
+  const { fromRun } = newAnalysisRoute.useSearch()
+  const { group, capabilities } = useActiveGroupContext()
+  const { data: user } = useCurrentUser()
+  const role = useMyGroupRole(group?.id ?? null)
+  const canQueue = role === 'admin' || role === 'editor'
+  const sourceRun = useMyAnalysisRun(
+    capabilities?.supportsOptimizer && canQueue ? (group?.id ?? null) : null,
+    user?.id ?? null,
+    fromRun ?? null,
   )
-}
-
-export function StageSummaryCard({
-  stage,
-  isSelected,
-  isDefault,
-  onSelect,
-  onDelete,
-}: {
-  stage: BuildTargetStage
-  isSelected: boolean
-  isDefault: boolean
-  onSelect: () => void
-  onDelete: () => void
-}) {
-  const visibleRequirements = filterMeaningfulStageRequirements(stage.hard_requirements)
-
   return (
-    <button
-      type="button"
-      className={`rounded-large w-full border p-3 text-left transition-colors ${
-        isSelected
-          ? 'border-highlight bg-selected'
-          : 'border-divider bg-content1 hover:bg-default-50'
-      }`}
-      onClick={onSelect}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <p className="text-foreground text-sm font-semibold">
-              {stage.order_index}. {stage.label}
+    <DashboardPage>
+      <DashboardPageHeader title="New analysis" backLink={<AnalysisBackLink />} />
+      {!group || !user || (capabilities?.supportsOptimizer && !role) ? (
+        <CardListSkeleton rows={1} />
+      ) : !capabilities?.supportsOptimizer ? (
+        <p className="text-default-600 text-sm">
+          Analysis is available in Path of Exile 1 workspaces.
+        </p>
+      ) : !canQueue ? (
+        <p className="text-default-600 text-sm">
+          Ask a workspace editor or admin to start a new analysis.
+        </p>
+      ) : fromRun && sourceRun.isLoading ? (
+        <CardListSkeleton rows={1} />
+      ) : fromRun && sourceRun.isError ? (
+        <QueryStatePanel
+          kind="error"
+          title="Could not load the previous run"
+          description="Try again to start from the saved inputs."
+          onRetry={sourceRun.refetch}
+        />
+      ) : (
+        <>
+          {fromRun && !sourceRun.data ? (
+            <p role="status" className="text-default-600 text-sm">
+              The previous run is unavailable. Choose the inputs for a new analysis.
             </p>
-            {isDefault ? (
-              <Chip size="sm" variant="soft">
-                Default
-              </Chip>
-            ) : null}
-          </div>
-          <p className="text-default-500 mt-1 text-xs">
-            {stage.tree_spec_title ?? 'No tree'} · {stage.item_set_title ?? 'No item set'} ·{' '}
-            {stage.skill_set_title ?? 'No skill set'}
-          </p>
-          {stage.notes ? <p className="text-default-600 mt-2 text-sm">{stage.notes}</p> : null}
-        </div>
-        <Button isIconOnly size="sm" variant="danger-soft" onPress={onDelete}>
-          <Trash2 size={14} />
-        </Button>
-      </div>
-      {visibleRequirements.length ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {visibleRequirements.slice(0, 4).map((requirement) => (
-            <Chip key={`${stage.id}-${requirement.label}`} size="sm" variant="soft">
-              {requirement.label}
-            </Chip>
-          ))}
-          {visibleRequirements.length > 4 ? (
-            <Chip size="sm" variant="soft">
-              +{visibleRequirements.length - 4} more
-            </Chip>
           ) : null}
-        </div>
-      ) : null}
-    </button>
+          <SignedInAnalysisWizard
+            key={group.id + ':' + user.id + ':' + (fromRun ?? 'new')}
+            sourceRun={sourceRun.data ?? null}
+          />
+        </>
+      )}
+    </DashboardPage>
   )
 }
 
-export function GearRecommendationsPanel({
-  requestedRunId,
-  requestedBuildTargetId,
-  onRunRequestHandled,
-}: {
-  requestedRunId?: string
-  requestedBuildTargetId?: string
-  onRunRequestHandled: () => void
-}) {
-  const activeGroupId = useGroupStore((state) => state.activeGroupId)
+function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun | null }) {
+  const navigate = newAnalysisRoute.useNavigate()
+  const { group } = useActiveGroupContext()
+  const activeGroupId = group?.id ?? null
+  const activeLeague = group?.league ?? null
   const { data: currentUser } = useCurrentUser()
+  const targetUserId = currentUser?.id ?? null
   const membersQuery = useGroupMembers(activeGroupId)
-  const { data: members, isLoading: membersLoading } = membersQuery
-  const { data: myGroups } = useMyGroups()
-  const myRole = useMyGroupRole(activeGroupId)
-  const { mutateAsync: createBuildTarget, isPending: importingTarget } = useCreateBuildTarget()
-  const { mutate: setSelectedBuildTargetMutation, isPending: selectingTarget } =
-    useSetSelectedBuildTarget()
+  const currentMember = membersQuery.data?.find((member) => member.user.id === targetUserId)
+  const { triggerSync, isBusy: syncingCharacters, canSync } = useCharacterSyncFlow(activeGroupId)
+  const { mutateAsync: createBuildTarget } = useCreateBuildTarget()
+  const { mutate: setSelectedBuildTargetMutation } = useSetSelectedBuildTarget()
   const { mutateAsync: updateBuildTarget } = useUpdateBuildTarget()
-  const { mutate: deleteBuildTarget } = useDeleteBuildTarget()
+  const { mutate: deleteBuildTarget, isPending: deletingTarget } = useDeleteBuildTarget()
   const { mutateAsync: createBuildTargetStage } = useCreateBuildTargetStage()
   const { mutateAsync: updateBuildTargetStage } = useUpdateBuildTargetStage()
   const { mutateAsync: queueUpgradeAnalysis } = useQueueUpgradeAnalysis()
   const { data: partyBuildTargets } = useGroupPartyBuildTargets(activeGroupId ?? null)
-  const { mutateAsync: cancelUpgradeAnalysis, isPending: cancellingAnalysis } =
-    useCancelUpgradeAnalysis()
   const { mutateAsync: syncCharacterProfile } = useSyncCharacterProfile()
-  const { mutateAsync: promoteRecommendation, isPending: promotingRecommendation } =
-    usePromoteUpgradeRecommendation()
   const currencyDisplay = useCurrencyStore((s) => s.display)
 
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null)
   const [hasManuallySelectedCharacter, setHasManuallySelectedCharacter] = useState(false)
   const [selectedBuildTargetId, setSelectedBuildTargetId] = useState<string | null>(null)
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null)
-  const [setupExpanded, setSetupExpanded] = useState(false)
-  const [historyExpanded, setHistoryExpanded] = useState(false)
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
-  const [pendingSelectedRunId, setPendingSelectedRunId] = useState<string | null>(null)
-  const [pendingRunPreview, setPendingRunPreview] = useState<UpgradeAnalysisRun | null>(null)
   const [importName, setImportName] = useState('')
   const [importPayload, setImportPayload] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
+  const [targetPath, setTargetPath] = useState<'saved' | 'import' | null>(null)
+  const lastImport = useRef<{ id: string; payload: string; name: string } | null>(null)
   const [budgetChaos, setBudgetChaos] = useState(DEFAULT_LIVE_MARKET_BUDGET_CHAOS)
   const [budgetCurrency, setBudgetCurrency] = useState<'chaos' | 'divine'>('divine')
   const [analysisMode, setAnalysisMode] = useState<UpgradeAnalysisMode>('quick')
@@ -1964,10 +1628,6 @@ export function GearRecommendationsPanel({
   const [stageSkillSetId, setStageSkillSetId] = useState<string | null>(null)
   const [stageConfigSetId, setStageConfigSetId] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
-  const [passiveTreeRefreshToken, setPassiveTreeRefreshToken] = useState(0)
-  const [nowMs, setNowMs] = useState(() => Date.now())
-  const [runTransitionLoading, setRunTransitionLoading] = useState(false)
-  const [preRunSelectedRunId, setPreRunSelectedRunId] = useState<string | null>(null)
   const [partyConfig, setPartyConfig] = useState<PartyBuildEntry[]>([])
   const [partyConfigHydratedKey, setPartyConfigHydratedKey] = useState<string | null>(null)
   const [selectedCharacterStorageHydratedKey, setSelectedCharacterStorageHydratedKey] = useState<
@@ -1980,30 +1640,30 @@ export function GearRecommendationsPanel({
   const [draftSearchConstraints, setDraftSearchConstraints] = useState<UpgradeSearchConstraints>(
     DEFAULT_SEARCH_CONSTRAINTS,
   )
-  const [partyBuffDetailOpen, setPartyBuffDetailOpen] = useState(false)
-  const [configInsightDetailOpen, setConfigInsightDetailOpen] = useState(false)
-  const [manualTuningDialogOpen, setManualTuningDialogOpen] = useState(false)
-  const [analysisSubmitFlowPending, setAnalysisSubmitFlowPending] = useState(false)
-  const submitFlowSequenceRef = useRef(0)
-  const activeSubmitFlowIdRef = useRef<number | null>(null)
-  const refreshedRunRequestRef = useRef<string | null>(null)
 
-  const activeLeague =
-    myGroups?.find((membership) => membership.group.id === activeGroupId)?.group.league ?? null
+  const [step, setStep] = useState(0)
+  const [submissionPhase, setSubmissionPhase] = useState<string | null>(null)
+  const [submissionError, setSubmissionError] = useState<string | null>(null)
+  const [removeTargetId, setRemoveTargetId] = useState<string | null>(null)
+  const removeTargetTrigger = useRef<HTMLButtonElement>(null)
+  const [importingTarget, setImportingTarget] = useState(false)
+  const submitGuard = useRef(false)
+  const importGuard = useRef(false)
+  const mounted = useRef(false)
+  const seededRunDefaults = useRef(false)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+
+  const analysisActionPending = submissionPhase !== null
   const { data: ninjaData } = useNinjaPrices(activeLeague)
-  const { data: ninjaGemIcons } = useQuery({
-    queryKey: queryKeys.ninja.gemIcons,
-    queryFn: () => fetchNinjaSkillGemIcons('poe1'),
-    staleTime: 1000 * 60 * 60,
-  })
-
   const divinePrice = ninjaData?.divinePrice ?? 0
-  const targetUserId = currentUser?.id ?? null
-  const currentMember = members?.find((member) => member.user.id === targetUserId) ?? null
   const { data: activeCharacters = [] } = useActiveCharacters(activeGroupId)
   const charactersQuery = useMyCharacters(activeGroupId, activeLeague)
   const { data: myCharacters = [], isLoading: myCharactersLoading } = charactersQuery
-  const { data: characterProfiles = [] } = useCharacterProfiles(activeGroupId)
   const membersPageSelectedCharacterId =
     activeCharacters.find((character) => character.user_id === targetUserId)?.id ?? null
   const selectedCharacterStorageKey = useMemo(
@@ -2021,14 +1681,15 @@ export function GearRecommendationsPanel({
       return
     }
 
-    const storedCharacterId = readStoredSelectedCharacterId(selectedCharacterStorageKey)
+    const storedCharacterId =
+      sourceRun?.character_id ?? readStoredSelectedCharacterId(selectedCharacterStorageKey)
     if (storedCharacterId) {
       setSelectedCharacterId(storedCharacterId)
       setHasManuallySelectedCharacter(true)
     }
 
     setSelectedCharacterStorageHydratedKey(selectedCharacterStorageKey)
-  }, [selectedCharacterStorageKey])
+  }, [selectedCharacterStorageKey, sourceRun?.character_id])
 
   useEffect(() => {
     if (myCharactersLoading) {
@@ -2095,21 +1756,8 @@ export function GearRecommendationsPanel({
     () => getAnalysisPrefsStorageKey(activeGroupId, targetUserId, selectedCharacterId),
     [activeGroupId, selectedCharacterId, targetUserId],
   )
-  const selectedCharacterProfile = useMemo(
-    () =>
-      characterProfiles.find(
-        (profile) =>
-          profile.user_id === targetUserId && profile.character_id === selectedCharacter?.id,
-      ) ?? null,
-    [characterProfiles, selectedCharacter?.id, targetUserId],
-  )
-  const gemVisualLookup = useMemo(
-    () => buildGemVisualLookup(selectedCharacterProfile, ninjaGemIcons ?? []),
-    [ninjaGemIcons, selectedCharacterProfile],
-  )
   const buildTargetsQuery = useBuildTargets(activeGroupId, targetUserId)
   const { data: buildTargets = [], isLoading: buildTargetsLoading } = buildTargetsQuery
-
   useEffect(() => {
     if (
       !selectedCharacterStorageKey ||
@@ -2129,11 +1777,15 @@ export function GearRecommendationsPanel({
       return
     }
 
-    const stored = readStoredPartyConfig(partyConfigStorageKey)
+    if (partyConfigHydratedKey === partyConfigStorageKey) return
+    const stored =
+      sourceRun && selectedCharacterId === sourceRun.character_id
+        ? sourceRun.party_config
+        : readStoredPartyConfig(partyConfigStorageKey)
     setPartyConfig(stored)
     setSelectedPartyTargetId('')
     setPartyConfigHydratedKey(partyConfigStorageKey)
-  }, [partyConfigStorageKey])
+  }, [partyConfigHydratedKey, partyConfigStorageKey, selectedCharacterId, sourceRun])
 
   useEffect(() => {
     if (!partyConfigStorageKey || partyConfigHydratedKey !== partyConfigStorageKey) {
@@ -2150,17 +1802,39 @@ export function GearRecommendationsPanel({
       return
     }
 
-    const stored = readStoredAnalysisPrefs(analysisPrefsStorageKey, currencyDisplay)
+    if (analysisPrefsHydratedKey === analysisPrefsStorageKey) return
+    const stored =
+      sourceRun && selectedCharacterId === sourceRun.character_id
+        ? {
+            analysisMode: sourceRun.analysis_mode,
+            budgetChaos: String(sourceRun.budget_chaos),
+            budgetCurrency: currencyDisplay,
+          }
+        : readStoredAnalysisPrefs(analysisPrefsStorageKey, currencyDisplay)
     if (stored) {
       setAnalysisMode(stored.analysisMode)
       setBudgetChaos(stored.budgetChaos)
       setBudgetCurrency(divinePrice > 0 ? stored.budgetCurrency : 'chaos')
     } else {
-      setBudgetChaos(String(divinePrice > 0 ? Math.round(DEFAULT_LIVE_MARKET_BUDGET_DIVINE * divinePrice) : DEFAULT_LIVE_MARKET_BUDGET_CHAOS))
+      setAnalysisMode('quick')
+      setBudgetChaos(
+        String(
+          divinePrice > 0
+            ? Math.round(DEFAULT_LIVE_MARKET_BUDGET_DIVINE * divinePrice)
+            : DEFAULT_LIVE_MARKET_BUDGET_CHAOS,
+        ),
+      )
       setBudgetCurrency(divinePrice > 0 ? 'divine' : 'chaos')
     }
     setAnalysisPrefsHydratedKey(analysisPrefsStorageKey)
-  }, [analysisPrefsStorageKey, currencyDisplay, divinePrice])
+  }, [
+    analysisPrefsHydratedKey,
+    analysisPrefsStorageKey,
+    currencyDisplay,
+    divinePrice,
+    selectedCharacterId,
+    sourceRun,
+  ])
 
   // Persist analysis prefs to session storage on change
   useEffect(() => {
@@ -2193,6 +1867,8 @@ export function GearRecommendationsPanel({
         }),
     [buildTargets, selectedCharacterId],
   )
+  const isImportPath =
+    targetPath === 'import' || (!buildTargetsLoading && visibleBuildTargets.length === 0)
 
   useEffect(() => {
     if (!visibleBuildTargets.length) {
@@ -2208,245 +1884,67 @@ export function GearRecommendationsPanel({
     }
 
     const defaultTarget =
-      visibleBuildTargets.find((target) => target.is_selected) ?? visibleBuildTargets[0]
+      visibleBuildTargets.find((target) => target.id === sourceRun?.build_target_id) ??
+      visibleBuildTargets.find((target) => target.is_selected) ??
+      visibleBuildTargets[0]
     setSelectedBuildTargetId(defaultTarget.id)
-  }, [selectedBuildTargetId, visibleBuildTargets])
+  }, [selectedBuildTargetId, sourceRun?.build_target_id, visibleBuildTargets])
 
   const selectedBuildTargetSummary =
     visibleBuildTargets.find((target) => target.id === selectedBuildTargetId) ?? null
-  const { data: selectedBuildTargetDetail } = useBuildTarget(selectedBuildTargetSummary?.id ?? null)
-  const selectedBuildTarget = selectedBuildTargetDetail ?? selectedBuildTargetSummary
-  const { data: buildTargetStages = [] } = useBuildTargetStages(selectedBuildTarget?.id ?? null)
+  const buildTargetQuery = useBuildTarget(selectedBuildTargetSummary?.id ?? null)
+  const selectedBuildTarget = buildTargetQuery.data ?? selectedBuildTargetSummary
 
+  const stagesQuery = useBuildTargetStages(selectedBuildTarget?.id ?? null)
+  const buildTargetStages = useMemo(() => stagesQuery.data ?? [], [stagesQuery.data])
+  const [hydratedSetupTargetId, setHydratedSetupTargetId] = useState<string | null>(null)
   useEffect(() => {
-    if (!selectedBuildTarget) {
-      setSelectedStageId(null)
-      return
-    }
-
-    if (selectedStageId && buildTargetStages.some((stage) => stage.id === selectedStageId)) {
-      return
-    }
-
-    setSelectedStageId(selectedBuildTarget.selected_stage_id ?? buildTargetStages[0]?.id ?? null)
-  }, [buildTargetStages, selectedBuildTarget, selectedStageId])
-
-  useEffect(() => {
-    if (!selectedBuildTarget) {
-      setStageTreeSpecId(null)
-      setStageItemSetId(null)
-      setStageSkillSetId(null)
-      setStageConfigSetId(null)
-      return
-    }
-
-    const loadedStage =
-      buildTargetStages.find((stage) => stage.id === selectedStageId) ??
-      buildTargetStages.find((stage) => stage.id === selectedBuildTarget.selected_stage_id) ??
-      buildTargetStages[0] ??
-      null
-    const metadata = selectedBuildTarget.import_metadata
-    setStageTreeSpecId(loadedStage?.tree_spec_id ?? metadata.tree_specs[0]?.id ?? null)
-    setStageItemSetId(loadedStage?.item_set_id ?? metadata.item_sets[0]?.id ?? null)
-    setStageSkillSetId(loadedStage?.skill_set_id ?? metadata.skill_sets[0]?.id ?? null)
-    setStageConfigSetId(
-      loadedStage?.config_set_id ??
-        metadata.active_config_set_id ??
-        metadata.config_sets[0]?.id ??
-        null,
+    if (
+      !selectedBuildTarget ||
+      buildTargetQuery.isPending ||
+      stagesQuery.isPending ||
+      stagesQuery.isError
     )
-  }, [buildTargetStages, selectedBuildTarget, selectedStageId])
+      return
+    if (hydratedSetupTargetId === selectedBuildTarget.id) return
 
-  const {
-    data: analysisRuns = [],
-    isLoading: runsLoading,
-    isFetching: runsFetching,
-    isError: runsFailed,
-    refetch: retryRuns,
-  } = useUpgradeAnalysisRuns(
+    const metadata = selectedBuildTarget.import_metadata
+    const rerun = sourceRun?.build_target_id === selectedBuildTarget.id ? sourceRun : null
+    const sourceStage = buildTargetStages.find((stage) => stage.id === rerun?.target_stage_id)
+    const savedStage =
+      buildTargetStages.find((stage) => stage.id === selectedBuildTarget.selected_stage_id) ??
+      buildTargetStages[0]
+    setSelectedStageId((sourceStage ?? savedStage)?.id ?? null)
+    const setup = resolveAnalysisPobSetup(metadata, rerun?.summary, sourceStage, savedStage)
+    setStageTreeSpecId(setup.treeSpecId)
+    setStageItemSetId(setup.itemSetId)
+    setStageSkillSetId(setup.skillSetId)
+    setStageConfigSetId(setup.configSetId)
+    setDraftSearchConstraints(rerun?.search_constraints ?? DEFAULT_SEARCH_CONSTRAINTS)
+    setHydratedSetupTargetId(selectedBuildTarget.id)
+    if (rerun && !seededRunDefaults.current) {
+      seededRunDefaults.current = true
+      setStep(2)
+    }
+  }, [
+    buildTargetStages,
+    buildTargetQuery.isPending,
+    hydratedSetupTargetId,
+    selectedBuildTarget,
+    sourceRun,
+    stagesQuery.isError,
+    stagesQuery.isPending,
+  ])
+
+  const targetRunsQuery = useUpgradeAnalysisRuns(
     activeGroupId,
     targetUserId,
     selectedBuildTarget?.id ?? null,
   )
-  const contextualPendingRunPreview = useMemo(() => {
-    if (!pendingRunPreview) {
-      return null
-    }
-
-    if (
-      pendingRunPreview.group_id !== activeGroupId ||
-      pendingRunPreview.target_user_id !== targetUserId ||
-      pendingRunPreview.build_target_id !== selectedBuildTarget?.id
-    ) {
-      return null
-    }
-
-    return pendingRunPreview
-  }, [activeGroupId, pendingRunPreview, selectedBuildTarget?.id, targetUserId])
-  const displayedAnalysisRuns = useMemo(() => {
-    if (!contextualPendingRunPreview) {
-      return analysisRuns
-    }
-
-    if (analysisRuns.some((run) => run.id === contextualPendingRunPreview.id)) {
-      return analysisRuns
-    }
-
-    return [contextualPendingRunPreview, ...analysisRuns]
-  }, [analysisRuns, contextualPendingRunPreview])
-  const latestLiveRun = useMemo(
-    () => getLatestLiveRun(displayedAnalysisRuns),
-    [displayedAnalysisRuns],
-  )
-  const latestCompletedRun = displayedAnalysisRuns.find((run) => run.status === 'completed')
-
-  useEffect(() => {
-    if (!displayedAnalysisRuns.length) {
-      setSelectedRunId(null)
-      setPendingSelectedRunId(null)
-      setPendingRunPreview(null)
-      return
-    }
-
-    const persistedPendingRun = contextualPendingRunPreview
-      ? (analysisRuns.find((run) => run.id === contextualPendingRunPreview.id) ?? null)
-      : null
-
-    if (
-      contextualPendingRunPreview &&
-      persistedPendingRun &&
-      persistedPendingRun.status !== 'queued' &&
-      persistedPendingRun.status !== 'running'
-    ) {
-      setPendingRunPreview(null)
-    }
-
-    if (selectedRunId && displayedAnalysisRuns.some((run) => run.id === selectedRunId)) {
-      if (pendingSelectedRunId === selectedRunId) {
-        setPendingSelectedRunId(null)
-      }
-      return
-    }
-
-    if (pendingSelectedRunId && selectedRunId === pendingSelectedRunId) {
-      return
-    }
-
-    setSelectedRunId(null)
-  }, [
-    analysisRuns,
-    contextualPendingRunPreview,
-    displayedAnalysisRuns,
-    pendingSelectedRunId,
-    selectedRunId,
-  ])
-
-  useEffect(() => {
-    if (!requestedRunId) {
-      refreshedRunRequestRef.current = null
-      return
-    }
-    if (
-      !activeGroupId || !targetUserId || myCharactersLoading || buildTargetsLoading ||
-      selectedCharacterStorageHydratedKey !== selectedCharacterStorageKey
-    ) return
-
-    const requestedTarget = buildTargets.find((target) => target.id === requestedBuildTargetId)
-    const requestedCharacter = myCharacters.find((character) => character.id === requestedTarget?.character_id)
-    if (requestedTarget && requestedCharacter) {
-      if (selectedCharacterId !== requestedCharacter.id || selectedBuildTargetId !== requestedTarget.id) {
-        setHasManuallySelectedCharacter(true)
-        setSelectedCharacterId(requestedCharacter.id)
-        setSelectedBuildTargetId(requestedTarget.id)
-        return
-      }
-
-      if (runsFetching) return
-      if (analysisRuns.some((run) => run.id === requestedRunId)) {
-        setSelectedRunId(requestedRunId)
-        setSetupExpanded(false)
-        setHistoryExpanded(false)
-        setActionMessage(null)
-        onRunRequestHandled()
-        return
-      }
-
-      // The top bar and history use separate queries, so history may have an older cache entry.
-      if (!runsFailed && refreshedRunRequestRef.current !== requestedRunId) {
-        refreshedRunRequestRef.current = requestedRunId
-        void retryRuns()
-        return
-      }
-    }
-
-    setSelectedRunId(null)
-    setActionMessage('Could not open this analysis run.')
-    onRunRequestHandled()
-  }, [
-    activeGroupId,
-    analysisRuns,
-    buildTargets,
-    buildTargetsLoading,
-    myCharacters,
-    myCharactersLoading,
-    onRunRequestHandled,
-    requestedBuildTargetId,
-    requestedRunId,
-    retryRuns,
-    runsFailed,
-    runsFetching,
-    selectedBuildTargetId,
-    selectedCharacterId,
-    selectedCharacterStorageHydratedKey,
-    selectedCharacterStorageKey,
-    targetUserId,
-  ])
-
-  const selectedRun = displayedAnalysisRuns.find((run) => run.id === selectedRunId) ?? null
-  const reservationAuditAnchorId = selectedRun ? `reservation-audit-${selectedRun.id}` : undefined
-  const selectedRunIsLive = selectedRun?.status === 'queued' || selectedRun?.status === 'running'
-  const runtimeEstimateMode = latestLiveRun?.analysis_mode ?? analysisMode
-  const { data: runtimeEstimate } = useAnalysisRuntimeEstimate(runtimeEstimateMode)
-  const {
-    data: recommendationPlans = [],
-    isLoading: recommendationsLoading,
-    isError: recommendationsFailed,
-    refetch: retryRecommendations,
-  } =
-    useUpgradeRecommendationPlans(
-      selectedRunIsLive ? null : (selectedRun?.id ?? null),
-      selectedRunIsLive ? null : (selectedRun?.status ?? null),
-      selectedRunIsLive ? null : (selectedRun?.completed_at ?? null),
-    )
-
-  const selectedStage = buildTargetStages.find((stage) => stage.id === selectedStageId) ?? null
-  const selectedStageTreeSpec = useMemo(
-    () =>
-      selectedBuildTarget?.import_metadata.tree_specs.find(
-        (spec) => spec.id === selectedStage?.tree_spec_id,
-      ) ?? null,
-    [selectedBuildTarget, selectedStage?.tree_spec_id],
-  )
-  const selectedStageSkillSet = useMemo(
-    () =>
-      selectedBuildTarget?.import_metadata.skill_sets.find(
-        (skillSet) => skillSet.id === selectedStage?.skill_set_id,
-      ) ?? null,
-    [selectedBuildTarget, selectedStage?.skill_set_id],
-  )
-  const draftStageTreeSpec = useMemo(
-    () =>
-      selectedBuildTarget?.import_metadata.tree_specs.find((spec) => spec.id === stageTreeSpecId) ??
-      null,
-    [selectedBuildTarget, stageTreeSpecId],
-  )
-  const draftStageSkillSet = useMemo(
-    () =>
-      selectedBuildTarget?.import_metadata.skill_sets.find(
-        (skillSet) => skillSet.id === stageSkillSetId,
-      ) ?? null,
-    [selectedBuildTarget, stageSkillSetId],
-  )
+  const latestLiveRun = getLatestLiveRun(targetRunsQuery.data ?? [])
+  const targetRunsUnavailable = targetRunsQuery.isError && targetRunsQuery.data === undefined
+  const { data: runtimeEstimate } = useAnalysisRuntimeEstimate(analysisMode)
+  const runtimeEstimateSummary = formatRuntimeEstimateSummary(runtimeEstimate)
   const currentSetup = useMemo(
     () => ({
       treeSpecId: stageTreeSpecId,
@@ -2471,23 +1969,19 @@ export function GearRecommendationsPanel({
       )?.key ?? null,
     [currentSetup, loadoutOptions],
   )
-  const selectedLoadoutLabel = useMemo(
-    () => loadoutOptions.find((option) => option.key === selectedLoadoutKey)?.label ?? null,
-    [loadoutOptions, selectedLoadoutKey],
-  )
-  const hasUnsavedSetupChanges = !stageMatchesSetup(selectedStage, currentSetup)
-  const inspectedTreeSpec = selectedStageTreeSpec ?? draftStageTreeSpec
-  const inspectedSkillSet = selectedStageSkillSet ?? draftStageSkillSet
-  const inspectedStageLabel = selectedLoadoutLabel ?? DEFAULT_SETUP_LABEL
-  const isDraftStageTree =
-    hasUnsavedSetupChanges && (!!draftStageTreeSpec || !!draftStageSkillSet || !!selectedStage)
   const draftRareSearchOptions = useMemo(
     () => getRareStageSearchOptions(selectedBuildTarget?.import_metadata, stageItemSetId),
     [selectedBuildTarget?.import_metadata, stageItemSetId],
   )
+
+  const { data: sourcePlans } = useUpgradeRecommendationPlans(
+    sourceRun?.status === 'completed' || sourceRun?.status === 'partial' ? sourceRun.id : null,
+    sourceRun?.status ?? null,
+    sourceRun?.completed_at,
+  )
   const recommendedRareSlotKeys = useMemo(() => {
     const keys = new Set<string>()
-    for (const plan of recommendationPlans) {
+    for (const plan of sourcePlans ?? []) {
       if (plan.section === 'overview') continue
       if (isUniqueRecommendationPlan(plan)) continue
       if (!isRareGearRecommendationPlan(plan)) continue
@@ -2500,13 +1994,18 @@ export function GearRecommendationsPanel({
       }
     }
     return keys
-  }, [recommendationPlans])
+  }, [sourcePlans])
   const recommendedDraftRareSearchOptions = useMemo(
     () =>
-      recommendedRareSlotKeys.size === 0
+      sourceRun?.build_target_id !== selectedBuildTarget?.id || recommendedRareSlotKeys.size === 0
         ? draftRareSearchOptions
         : draftRareSearchOptions.filter((option) => recommendedRareSlotKeys.has(option.slot)),
-    [draftRareSearchOptions, recommendedRareSlotKeys],
+    [
+      draftRareSearchOptions,
+      recommendedRareSlotKeys,
+      selectedBuildTarget?.id,
+      sourceRun?.build_target_id,
+    ],
   )
   const resolvedDraftRareSearchOptions = useMemo(
     () => resolveRareStageSearchOptions(recommendedDraftRareSearchOptions, draftSearchConstraints),
@@ -2525,108 +2024,10 @@ export function GearRecommendationsPanel({
     if (!Number.isFinite(value)) return 0
     return Math.max(0, Math.round(value))
   }, [budgetChaos])
-  const hasLiveRun = displayedAnalysisRuns.some(
-    (run) => run.status === 'queued' || run.status === 'running',
-  )
-
-  useEffect(() => {
-    if (!hasLiveRun) return
-    const timer = window.setInterval(() => setNowMs(Date.now()), 1000)
-    return () => window.clearInterval(timer)
-  }, [hasLiveRun])
-
-  useEffect(() => {
-    if (!selectedRunIsLive) {
-      setRunTransitionLoading(false)
-    }
-  }, [selectedRunIsLive])
-
-  useEffect(() => {
-    setDraftSearchConstraints(DEFAULT_SEARCH_CONSTRAINTS)
-  }, [selectedBuildTarget?.id])
-
-  const selectedRunStage =
-    buildTargetStages.find((stage) => stage.id === selectedRun?.target_stage_id) ?? null
-  const selectedRunStageTreeSpec = useMemo(
-    () =>
-      selectedBuildTarget?.import_metadata.tree_specs.find(
-        (spec) => spec.id === selectedRunStage?.tree_spec_id,
-      ) ?? null,
-    [selectedBuildTarget, selectedRunStage?.tree_spec_id],
-  )
-  const selectedRunStageSkillSet = useMemo(
-    () =>
-      selectedBuildTarget?.import_metadata.skill_sets.find(
-        (skillSet) => skillSet.id === selectedRunStage?.skill_set_id,
-      ) ?? null,
-    [selectedBuildTarget, selectedRunStage?.skill_set_id],
-  )
-  const selectedRunStageLabel = getSetupDisplayLabel(
-    selectedRunStage?.label ?? getSummaryText(selectedRun?.summary, 'target_stage_label'),
-  )
-  const recommendationStageLabel = selectedRun ? selectedRunStageLabel : inspectedStageLabel
-  const recommendationStageTreeSpec = selectedRun ? selectedRunStageTreeSpec : inspectedTreeSpec
-  const recommendationStageSkillSet = selectedRun ? selectedRunStageSkillSet : inspectedSkillSet
-  const recommendationStageIsDraft = !selectedRun && isDraftStageTree
-  const liveRunWaitInfo = getTradeRateLimitWaitInfo(latestLiveRun, nowMs)
-  const runtimeEstimateSummary = formatRuntimeEstimateSummary(runtimeEstimate)
-  const runtimeEstimateChipLabel =
-    latestLiveRun?.analysis_mode === 'thorough'
-      ? formatRuntimeEstimateChipLabel(runtimeEstimate)
-      : null
-  const selectedRunPlanCount = getSummaryNumber(selectedRun?.summary, 'generated_plan_count')
-  const selectedRunBlockers = getSummaryList(selectedRun?.summary, 'blockers')
-  const selectedRunAppliedPartyCount = getSummaryNumber(selectedRun?.summary, 'applied_party_count')
-  const selectedRunConfigurationInsights = getPobConfigurationInsights(selectedRun?.summary)
-  const selectedRunConfigSetTitle = getSummaryText(
-    selectedRun?.summary,
-    'resolved_config_set_title',
-  )
-  const selectedRunMainSkillName = getSummaryText(selectedRun?.summary, 'main_skill_name')
-  const selectedRunMainSkillVisual = useMemo(() => {
-    const key = normalizeGemNameForComparison(selectedRunMainSkillName)
-    return key ? (gemVisualLookup.get(key) ?? null) : null
-  }, [gemVisualLookup, selectedRunMainSkillName])
-  const selectedRunComparePowerReport = useMemo(
-    () => getComparePowerReport(selectedRun?.summary),
-    [selectedRun?.summary],
-  )
-  const comparePowerItemRowsBySlot = useMemo(() => {
-    const bySlot = new Map<string, ComparePowerRow>()
-    for (const row of selectedRunComparePowerReport?.rows ?? []) {
-      if (row.category !== 'item' && row.category !== 'jewel') continue
-      const slot = normalizeCompareSlot(row.slot)
-      if (!slot) continue
-      const current = bySlot.get(slot)
-      if (!current || Math.abs(row.impact) > Math.abs(current.impact)) {
-        bySlot.set(slot, row)
-      }
-    }
-    return bySlot
-  }, [selectedRunComparePowerReport])
-  const selectedRunHasConfigurationInsightButton =
-    !!selectedRunConfigurationInsights || !!selectedRunConfigSetTitle
-  const selectedRunEmptyPlansCopy = useMemo(
-    () => getUpgradeAnalysisEmptyPlansCopy(selectedRun),
-    [selectedRun],
-  )
   const draftSearchConstraintChips = useMemo(
     () => summarizeUpgradeSearchConstraints(normalizedDraftSearchConstraints),
     [normalizedDraftSearchConstraints],
   )
-  const selectedRunContextDetails = useMemo(() => {
-    if (!selectedRun) return []
-
-    const details: string[] = []
-    if (selectedRun.analysis_mode === 'thorough') {
-      details.push(getRunBudgetLabel(selectedRun, currencyDisplay, divinePrice))
-    }
-    if (selectedRunStageLabel !== DEFAULT_SETUP_LABEL) {
-      details.push(selectedRunStageLabel)
-    }
-    return details
-  }, [currencyDisplay, divinePrice, selectedRun, selectedRunStageLabel])
-  const analysisActionPending = analysisSubmitFlowPending
   const draftCraftedLineState = useMemo(() => {
     let total = 0
     let disabled = 0
@@ -2643,169 +2044,14 @@ export function GearRecommendationsPanel({
     return { total, disabled, allDisabled: total > 0 && disabled === total }
   }, [resolvedDraftRareSearchOptions])
   const hasManualTuningOverrides = draftSearchConstraintChips.length > 0
-  const allowTemplateRareFallbackInPrimary = selectedRun?.analysis_mode === 'thorough'
-
-  const setupNotePlans = useMemo(
-    () =>
-      recommendationPlans.filter(
-        (plan) =>
-          plan.section !== 'overview' &&
-          plan.kind === 'bundle' &&
-          !isUniqueRecommendationPlan(plan),
-      ),
-    [recommendationPlans],
-  )
-
-  const recommendationSections = useMemo<RecommendationSection[]>(() => {
-    const maxPrimaryRareRecommendations = 5
-    const liveRareSinglePlans = recommendationPlans.filter(
-      (plan) =>
-        plan.section !== 'overview' &&
-        plan.kind === 'single' &&
-        isRareGearRecommendationPlan(plan) &&
-        !isTargetStageRareRecommendationPlan(plan),
-    )
-    const templateRareFallbackPlans = recommendationPlans
-      .filter(
-        (plan) =>
-          plan.section !== 'overview' &&
-          plan.kind === 'single' &&
-          isRareGearRecommendationPlan(plan) &&
-          isTargetStageRareRecommendationPlan(plan) &&
-          typeof plan.score === 'number' &&
-          Number.isFinite(plan.score) &&
-          plan.score > 0,
-      )
-      .sort((left, right) => right.score - left.score)
-    const templateRareFallbackIds = new Set(liveRareSinglePlans.map((plan) => plan.id))
-    const supplementedRareSinglePlans =
-      allowTemplateRareFallbackInPrimary &&
-      liveRareSinglePlans.length < maxPrimaryRareRecommendations
-        ? [
-            ...liveRareSinglePlans,
-            ...templateRareFallbackPlans
-              .filter((plan) => !templateRareFallbackIds.has(plan.id))
-              .slice(0, Math.max(0, maxPrimaryRareRecommendations - liveRareSinglePlans.length)),
-          ]
-        : liveRareSinglePlans
-
-    const sections: RecommendationSection[] = [
-      {
-        key: 'best_single',
-        label: RECOMMENDATION_SECTION_LABELS.best_single,
-        plans: supplementedRareSinglePlans,
-        scoreRanks: {
-          overall: new Map(),
-          dps: new Map(),
-          ehp: new Map(),
-          reservation: new Map(),
-        },
-      },
-      {
-        key: 'uniques',
-        label: RECOMMENDATION_SECTION_LABELS.uniques,
-        plans: recommendationPlans.filter(
-          (plan) =>
-            plan.section !== 'overview' &&
-            isGearRecommendationPlan(plan) &&
-            isUniqueRecommendationPlan(plan),
-        ),
-        scoreRanks: {
-          overall: new Map(),
-          dps: new Map(),
-          ehp: new Map(),
-          reservation: new Map(),
-        },
-      },
-    ]
-
-    const overviewPlans = sortOverviewPlans(
-      recommendationPlans.filter((plan) => plan.section === 'overview'),
-    )
-    if (overviewPlans.length > 0) {
-      sections.push({
-        key: 'overview',
-        label: RECOMMENDATION_SECTION_LABELS.overview,
-        plans: overviewPlans,
-        scoreRanks: {
-          overall: new Map(),
-          dps: new Map(),
-          ehp: new Map(),
-          reservation: new Map(),
-        },
-      })
-    }
-
-    return sections
-      .map((section) => {
-        const scoreRanks = {
-          overall: rankRecommendationPlans(section.plans, 'overall'),
-          dps: rankRecommendationPlans(section.plans, 'dps'),
-          ehp: rankRecommendationPlans(section.plans, 'ehp'),
-          reservation: rankRecommendationPlans(section.plans, 'reservation'),
-        }
-
-        return {
-          ...section,
-          plans:
-            section.key === 'overview'
-              ? section.plans
-              : sortPlansByOverallRank(section.plans, scoreRanks.overall),
-          scoreRanks,
-        }
-      })
-      .filter((section) => section.key === 'best_single' || section.plans.length > 0)
-  }, [allowTemplateRareFallbackInPrimary, recommendationPlans])
-  const bestSingleTemplateFallbackSummary = useMemo(() => {
-    const bestSingleSection = recommendationSections.find(
-      (section) => section.key === 'best_single',
-    )
-    if (!bestSingleSection || bestSingleSection.plans.length === 0) {
-      return null
-    }
-
-    const templateCount = bestSingleSection.plans.filter((plan) =>
-      isTargetStageRareRecommendationPlan(plan),
-    ).length
-    if (!allowTemplateRareFallbackInPrimary || templateCount === 0) {
-      return null
-    }
-
-    return {
-      templateCount,
-      liveCount: bestSingleSection.plans.length - templateCount,
-    }
-  }, [allowTemplateRareFallbackInPrimary, recommendationSections])
-
-  const canQueueRun = myRole === 'admin' || myRole === 'editor'
-  const canPromote = canQueueRun
-
-  function startAnalysisSubmitFlow() {
-    const flowId = submitFlowSequenceRef.current + 1
-    submitFlowSequenceRef.current = flowId
-    activeSubmitFlowIdRef.current = flowId
-    setAnalysisSubmitFlowPending(true)
-    return flowId
-  }
-
-  function isAnalysisSubmitFlowActive(flowId: number) {
-    return activeSubmitFlowIdRef.current === flowId
-  }
-
-  function finishAnalysisSubmitFlow(flowId: number) {
-    if (!isAnalysisSubmitFlowActive(flowId)) return
-    activeSubmitFlowIdRef.current = null
-    setAnalysisSubmitFlowPending(false)
-  }
-
-  function cancelAnalysisSubmitFlow() {
-    activeSubmitFlowIdRef.current = null
-    setAnalysisSubmitFlowPending(false)
-  }
-
   function chooseBuildTarget(target: Pick<BuildTarget, 'id' | 'group_id' | 'user_id'>) {
     setSelectedBuildTargetId(target.id)
-    setSelectedBuildTargetMutation(target)
+    setSelectedBuildTargetMutation(target, {
+      onError: () =>
+        setActionMessage(
+          'Could not save this as your default target. You can still use it in this run.',
+        ),
+    })
   }
 
   function updatePartyConfigEntry(
@@ -2824,10 +2070,10 @@ export function GearRecommendationsPanel({
     }))
   }
 
-  async function handleImport(payloadOverride?: string, nameOverride?: string) {
-    if (!activeGroupId || !targetUserId || !selectedCharacter) return
+  async function handleImport() {
+    if (!activeGroupId || !targetUserId || !selectedCharacter || importGuard.current) return
 
-    const payload = (payloadOverride ?? importPayload).trim()
+    const payload = importPayload.trim()
     if (!payload) {
       setImportError('Paste a PoB share code or XML export first.')
       return
@@ -2835,19 +2081,34 @@ export function GearRecommendationsPanel({
 
     setImportError(null)
     setActionMessage(null)
+    const name = importName.trim() || `${selectedCharacter.name} target`
+    const previous = lastImport.current
+    const existing = previous?.payload === payload && previous.name === name
+      ? visibleBuildTargets.find((target) => target.id === previous.id)
+      : null
+    if (existing) {
+      if (selectedBuildTargetId !== existing.id) chooseBuildTarget(existing)
+      setStep(2)
+      return
+    }
+
+    importGuard.current = true
+    setImportingTarget(true)
 
     try {
       const parsed = await parsePobImport(payload)
+      if (!mounted.current) return
       const compatibility = summarizeCompatibility({
         treeCount: parsed.metadata.tree_specs.length,
         itemCount: parsed.metadata.item_sets.length,
         skillCount: parsed.metadata.skill_sets.length,
       })
+      if (compatibility.status === 'unsupported') throw new Error(compatibility.notes)
       const created = await createBuildTarget({
         group_id: activeGroupId,
         user_id: targetUserId,
         character_id: selectedCharacter.id,
-        name: nameOverride?.trim() || importName.trim() || `${selectedCharacter.name} target`,
+        name,
         source_kind: parsed.source_kind,
         raw_import: payload,
         raw_xml: parsed.raw_xml,
@@ -2856,15 +2117,17 @@ export function GearRecommendationsPanel({
         compatibility_notes: compatibility.notes,
       })
 
+      if (!mounted.current) return
+      lastImport.current = { id: created.id, payload, name }
       chooseBuildTarget({ id: created.id, group_id: created.group_id, user_id: created.user_id })
-      setImportPayload('')
-      setImportName('')
-      setActionMessage(
-        'PoB target imported. Choose the tree, item set, skill set, and config, then run analysis.',
-      )
+      setTargetPath('import')
+      setStep(2)
     } catch (error) {
       setImportError(error instanceof Error ? error.message : 'Failed to decode the PoB import.')
       setActionMessage(null)
+    } finally {
+      importGuard.current = false
+      if (mounted.current) setImportingTarget(false)
     }
   }
 
@@ -2874,7 +2137,7 @@ export function GearRecommendationsPanel({
     }
 
     const metadata = selectedBuildTarget.import_metadata
-    const treeSpec = metadata.tree_specs.find((entry) => entry.id === stageTreeSpecId) ?? null
+    const treeSpec = findPobTreeSpec(metadata.tree_specs, stageTreeSpecId)
     const itemSet = metadata.item_sets.find((entry) => entry.id === stageItemSetId) ?? null
     const skillSet = metadata.skill_sets.find((entry) => entry.id === stageSkillSetId) ?? null
     const configSet = metadata.config_sets.find((entry) => entry.id === stageConfigSetId) ?? null
@@ -3167,174 +2430,78 @@ export function GearRecommendationsPanel({
     )
   }
 
-  async function handleQueueAnalysis(options?: {
-    analysisModeOverride?: UpgradeAnalysisMode
-    attemptIncrementalRerun?: boolean
-  }) {
-    if (!activeGroupId || !selectedBuildTarget || !canQueueRun || latestLiveRun || activeSubmitFlowIdRef.current !== null) return
-    const submitFlowId = startAnalysisSubmitFlow()
-    const effectiveAnalysisMode = options?.analysisModeOverride ?? analysisMode
-    const effectiveBudgetChaos = effectiveAnalysisMode === 'thorough' ? normalizedBudgetChaos : 0
+  async function handleQueueAnalysis() {
+    if (
+      !activeGroupId ||
+      !selectedBuildTarget ||
+      !selectedCharacter ||
+      latestLiveRun ||
+      submitGuard.current
+    )
+      return
+    submitGuard.current = true
+    setSubmissionError(null)
+    setSubmissionPhase('Syncing character')
+    const effectiveBudgetChaos = analysisMode === 'thorough' ? normalizedBudgetChaos : 0
     const effectiveSearchConstraints =
-      effectiveAnalysisMode === 'thorough'
-        ? normalizedDraftSearchConstraints
-        : DEFAULT_SEARCH_CONSTRAINTS
-
-    setActionMessage(null)
-    setPassiveTreeRefreshToken((current) => current + 1)
-    setRunTransitionLoading(true)
-    setPreRunSelectedRunId(selectedRunId)
-    const previousRunId = selectedRunId
-
-    // Create a preliminary draft immediately so the UI transitions before any async work.
-    // This gives instant feedback — the config locks, the run strip appears, and
-    // recommendations switch to skeleton as soon as the button is pressed.
-    const prelimDraft = createDraftQueuedRun({
-      groupId: activeGroupId,
-      buildTargetId: selectedBuildTarget.id,
-      targetUserId: targetUserId ?? selectedBuildTarget.user_id,
-      characterId: selectedCharacter?.id ?? selectedBuildTarget.character_id ?? null,
-      queuedBy: targetUserId ?? selectedBuildTarget.user_id,
-      budgetChaos: effectiveBudgetChaos,
-      analysisMode: effectiveAnalysisMode,
-      targetStageId: selectedStageId,
-      targetStageLabel: inspectedStageLabel,
-      searchConstraints: effectiveSearchConstraints,
-    })
-    setPendingRunPreview(prelimDraft)
-    setSelectedRunId(prelimDraft.id)
-    let submittedDraftId = prelimDraft.id
+      analysisMode === 'thorough' ? normalizedDraftSearchConstraints : DEFAULT_SEARCH_CONSTRAINTS
 
     try {
-      const syncCharacterId = selectedCharacter?.id ?? selectedBuildTarget.character_id ?? null
       await syncCharacterProfile({
         groupId: activeGroupId,
-        characterId: syncCharacterId,
+        characterId: selectedCharacter.id,
       }).catch(() => {})
-      if (!isAnalysisSubmitFlowActive(submitFlowId)) return
+      if (!mounted.current) return
+      setSubmissionPhase('Saving PoB setup')
       const targetStage = await ensureAnalysisStage()
-      if (!isAnalysisSubmitFlowActive(submitFlowId)) return
-      const draftRun = createDraftQueuedRun({
-        groupId: activeGroupId,
-        buildTargetId: selectedBuildTarget.id,
-        targetUserId: targetUserId ?? selectedBuildTarget.user_id,
-        characterId: selectedCharacter?.id ?? selectedBuildTarget.character_id ?? null,
-        queuedBy: targetUserId ?? selectedBuildTarget.user_id,
-        budgetChaos: effectiveBudgetChaos,
-        analysisMode: effectiveAnalysisMode,
-        targetStageId: targetStage.id,
-        targetStageLabel: getSetupDisplayLabel(targetStage.label),
-        searchConstraints: effectiveSearchConstraints,
-      })
+      if (!mounted.current) return
 
-      setPendingSelectedRunId(draftRun.id)
-      setPendingRunPreview(draftRun)
-      setSelectedRunId((current) => current === prelimDraft.id ? draftRun.id : current)
-      submittedDraftId = draftRun.id
+      const changedSlots = sourceRun
+        ? getChangedSearchConstraintSlots(sourceRun.search_constraints, effectiveSearchConstraints)
+        : []
+      const rerunBaseRunId =
+        sourceRun &&
+        analysisMode === 'thorough' &&
+        (sourceRun.status === 'completed' || sourceRun.status === 'partial') &&
+        sourceRun.analysis_mode === 'thorough' &&
+        sourceRun.build_target_id === selectedBuildTarget.id &&
+        sourceRun.target_stage_id === targetStage.id &&
+        sourceRun.character_id === selectedCharacter.id &&
+        sourceRun.budget_chaos === effectiveBudgetChaos &&
+        changedSlots.length > 0 &&
+        arePartyConfigsEquivalent(sourceRun.party_config, partyConfig)
+          ? sourceRun.id
+          : undefined
 
-      const incrementalChangedSlots =
-        options?.attemptIncrementalRerun && selectedRun
-          ? getChangedSearchConstraintSlots(
-              selectedRun.search_constraints,
-              effectiveSearchConstraints,
-            )
-          : []
-      const currentCharacterId = selectedCharacter?.id ?? selectedBuildTarget.character_id ?? null
-      const canUseIncrementalRerunBase =
-        options?.attemptIncrementalRerun === true &&
-        !!selectedRun &&
-        incrementalChangedSlots.length > 0 &&
-        selectedRun.status !== 'queued' &&
-        selectedRun.status !== 'running' &&
-        selectedRun.status !== 'failed' &&
-        selectedRun.status !== 'stale' &&
-        selectedRun.analysis_mode === 'thorough' &&
-        selectedRun.build_target_id === selectedBuildTarget.id &&
-        selectedRun.target_stage_id === targetStage.id &&
-        selectedRun.character_id === currentCharacterId &&
-        selectedRun.budget_chaos === effectiveBudgetChaos &&
-        arePartyConfigsEquivalent(selectedRun.party_config, partyConfig)
-      const rerunBaseRunId = canUseIncrementalRerunBase ? selectedRun!.id : null
-
-      const result = await queueUpgradeAnalysis({
+      setSubmissionPhase('Starting analysis')
+      const { run } = await queueUpgradeAnalysis({
         group_id: activeGroupId,
         build_target_id: selectedBuildTarget.id,
-        character_id: currentCharacterId,
+        character_id: selectedCharacter.id,
         target_stage_id: targetStage.id,
         budget_chaos: effectiveBudgetChaos,
-        analysis_mode: effectiveAnalysisMode,
+        analysis_mode: analysisMode,
         search_constraints: effectiveSearchConstraints,
-        party_config: partyConfig.length > 0 ? partyConfig : undefined,
+        party_config: partyConfig.length ? partyConfig : undefined,
         rerun_base_run_id: rerunBaseRunId,
-        rerun_changed_slots: rerunBaseRunId ? incrementalChangedSlots : undefined,
+        rerun_changed_slots: rerunBaseRunId ? changedSlots : undefined,
       })
-
-      if (!isAnalysisSubmitFlowActive(submitFlowId)) {
-        if (!result.reused && (result.run.status === 'queued' || result.run.status === 'running')) {
-          try {
-            await cancelUpgradeAnalysis({
-              run_id: result.run.id,
-              group_id: activeGroupId,
-              target_user_id: targetUserId ?? selectedBuildTarget.user_id,
-              build_target_id: selectedBuildTarget.id,
-            })
-          } catch {
-            // Ignore late-cancel failures; the user already left this submit flow.
-          }
-        }
-        return
+      if (mounted.current) {
+        await navigate({
+          to: '/dashboard/analysis/runs/$runId',
+          params: { runId: run.id },
+          replace: true,
+        })
       }
-
-      setPendingSelectedRunId(result.run.id)
-      setPendingRunPreview(result.run)
-      setSelectedRunId((current) => current === draftRun.id ? result.run.id : current)
-      setActionMessage(
-        result.reused
-          ? `Reused the latest cached ${getAnalysisModeLabel(result.run.analysis_mode).toLowerCase()} for these exact inputs.`
-          : result.worker_notified
-            ? `${getAnalysisModeLabel(result.run.analysis_mode)} queued and the worker was notified.`
-            : `${getAnalysisModeLabel(result.run.analysis_mode)} queued.`,
-      )
     } catch (error) {
-      if (!isAnalysisSubmitFlowActive(submitFlowId)) return
-      setRunTransitionLoading(false)
-      setPendingSelectedRunId(null)
-      setPendingRunPreview(null)
-      setSelectedRunId((current) => current === submittedDraftId ? previousRunId : current)
-      setActionMessage(error instanceof Error ? error.message : 'Failed to queue analysis run.')
+      if (mounted.current) {
+        setSubmissionError(
+          error instanceof Error ? error.message : 'Could not start analysis. Try again.',
+        )
+      }
     } finally {
-      finishAnalysisSubmitFlow(submitFlowId)
-    }
-  }
-
-  async function handleCancelRun() {
-    setActionMessage(null)
-
-    // Still in the submit flow (pre-persistence) — abort and restore previous state
-    if (analysisActionPending || latestLiveRun?.summary?.queue_submission_pending === true) {
-      cancelAnalysisSubmitFlow()
-      setPendingRunPreview(null)
-      setPendingSelectedRunId(null)
-      setRunTransitionLoading(false)
-      setSelectedRunId((current) => current === latestLiveRun?.id ? preRunSelectedRunId : current)
-      return
-    }
-
-    if (!latestLiveRun || !activeGroupId || !selectedBuildTarget || !canQueueRun) return
-
-    try {
-      await cancelUpgradeAnalysis({
-        run_id: latestLiveRun.id,
-        group_id: activeGroupId,
-        target_user_id: targetUserId ?? selectedBuildTarget.user_id,
-        build_target_id: selectedBuildTarget.id,
-      })
-      setPendingRunPreview(null)
-      setPendingSelectedRunId(null)
-      setRunTransitionLoading(false)
-      setSelectedRunId((current) => current === latestLiveRun.id ? preRunSelectedRunId : current)
-    } catch (error) {
-      setActionMessage(error instanceof Error ? error.message : 'Failed to cancel the run.')
+      submitGuard.current = false
+      if (mounted.current) setSubmissionPhase(null)
     }
   }
 
@@ -3513,28 +2680,6 @@ export function GearRecommendationsPanel({
     setDraftSearchConstraints(DEFAULT_SEARCH_CONSTRAINTS)
   }
 
-  function handleOpenManualTuningDialog() {
-    setManualTuningDialogOpen(true)
-  }
-
-  function handleRerunWithManualTunings() {
-    setManualTuningDialogOpen(false)
-    setAnalysisMode('thorough')
-    void handleQueueAnalysis({
-      analysisModeOverride: 'thorough',
-      attemptIncrementalRerun: true,
-    })
-  }
-
-  async function handlePromote(planId: string) {
-    try {
-      const suggestion = await promoteRecommendation(planId)
-      setActionMessage(`Added recommendation to gear planning for group ${suggestion.group_id}.`)
-    } catch (error) {
-      setActionMessage(error instanceof Error ? error.message : 'Failed to promote recommendation.')
-    }
-  }
-
   const failedInputQuery = [membersQuery, charactersQuery].find(
     (query) => query.isError && query.data === undefined,
   )
@@ -3548,1079 +2693,1443 @@ export function GearRecommendationsPanel({
       />
     )
   }
-  if (membersLoading || myCharactersLoading) {
+  if (membersQuery.isLoading || myCharactersLoading) {
     return <CardListSkeleton rows={4} />
   }
 
-  const showSetup = setupExpanded || !selectedRun
+  const isReview = step === wizardSteps.length - 1
+  const setupReady =
+    !!selectedBuildTarget &&
+    hydratedSetupTargetId === selectedBuildTarget.id &&
+    !stagesQuery.isError
+  const mayContinue =
+    step === 0
+      ? !!selectedCharacter
+      : step === 1
+        ? isImportPath
+          ? !!selectedCharacter && !!importPayload.trim()
+          : !!selectedBuildTarget && selectedBuildTarget.compatibility_status !== 'unsupported'
+        : setupReady &&
+          (step < 3 ||
+            analysisMode === 'quick' ||
+            (budgetChaos.trim() !== '' &&
+              Number.isFinite(Number(budgetChaos)) &&
+              Number(budgetChaos) >= 0))
+  const reviewRows = [
+    { label: 'Character', value: selectedCharacter?.name },
+    { label: 'PoB target', value: selectedBuildTarget?.name },
+    ...(selectedBuildTarget ? getAnalysisPobLayoutLabels(selectedBuildTarget.import_metadata, currentSetup) : []),
+    {
+      label: 'Analysis options',
+      value: [
+        getAnalysisModeLabel(analysisMode),
+        analysisMode === 'thorough'
+          ? formatCurrencyAmount(normalizedBudgetChaos, budgetCurrency, divinePrice)
+          : null,
+        partyConfig.length
+          ? partyConfig.length + (partyConfig.length === 1 ? ' party build' : ' party builds')
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    },
+  ]
 
   return (
-    <div className="@container flex min-w-0 flex-col gap-5">
-      {displayedAnalysisRuns.length > 0 || runsLoading || runsFailed ? (
-        <section aria-labelledby="analysis-run-title" className="analysis-run-summary">
-          <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h2 id="analysis-run-title" className="text-foreground text-base font-semibold">Analysis run</h2>
-              <p className="text-default-500 mt-1 text-sm wrap-anywhere">
-                Setup: {[selectedCharacter?.name, selectedBuildTarget?.name, getAnalysisModeLabel(analysisMode),
-                  analysisMode === 'thorough'
-                    ? getRunBudgetLabel({ analysis_mode: analysisMode, budget_chaos: normalizedBudgetChaos }, currencyDisplay, divinePrice)
-                    : null,
-                ].filter(Boolean).join(' · ')}
-              </p>
-              {selectedRun ? (
-                <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                  {latestLiveRun?.id !== selectedRun.id ? (
-                    <Chip size="sm" color={RUN_STATUS_COLORS[selectedRun.status]} variant="soft" className="capitalize">
-                      {selectedRun.status}
-                    </Chip>
-                  ) : null}
-                  <p className="text-default-600 min-w-0 text-sm wrap-anywhere">
-                    {latestLiveRun && latestLiveRun.id !== selectedRun.id ? 'Viewing previous run · ' : ''}
-                    {getAnalysisModeLabel(selectedRun.analysis_mode)}
-                    {selectedRun.completed_at ? ' · ' + formatRelativeTimestamp(selectedRun.completed_at) : ''}
-                    {selectedRunContextDetails.length ? ' · ' + selectedRunContextDetails.join(' · ') : ''}
-                  </p>
-                </div>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="tertiary"
-                aria-controls="analysis-run-history"
-                aria-expanded={historyExpanded}
-                onPress={() => setHistoryExpanded((current) => !current)}
+    <AnalysisWizard
+      steps={wizardSteps}
+      activeStep={step}
+      focusOnMount
+      title={wizardHeadings[step]}
+      description={wizardDescriptions[step]}
+      backAction={
+        step > 0 ? (
+          <Button
+            variant="secondary"
+            isDisabled={analysisActionPending || importingTarget || deletingTarget}
+            onPress={() => setStep(step - 1)}
+          >
+            <ArrowLeft size={16} aria-hidden="true" />
+            Back
+          </Button>
+        ) : null
+      }
+      primaryAction={
+        <Button
+          isDisabled={
+            !mayContinue ||
+            deletingTarget ||
+            (isReview && (targetRunsQuery.isPending || targetRunsUnavailable || !!latestLiveRun))
+          }
+          isPending={analysisActionPending || (step === 1 && importingTarget)}
+          onPress={() => {
+            if (isReview) void handleQueueAnalysis()
+            else if (step === 1 && isImportPath) void handleImport()
+            else {
+              if (step === 0) setHasManuallySelectedCharacter(true)
+              setStep(step + 1)
+            }
+          }}
+        >
+          {({ isPending }) => (
+            <PendingButtonContent isPending={isPending}>
+              {isReview ? 'Start analysis' : step === 1 && isImportPath ? 'Read PoB and continue' : 'Continue'}
+              {!isPending && !isReview ? <ArrowRight size={16} aria-hidden="true" /> : null}
+            </PendingButtonContent>
+          )}
+        </Button>
+      }
+    >
+      {step === 0 ? (
+        myCharacters.length ? (
+          <SelectField
+            label="Character"
+            aria-label="Select character for optimization"
+            selectedKey={selectedCharacterId ?? null}
+            onSelectionChange={(key) => {
+              const value = toStringKey(key)
+              setHasManuallySelectedCharacter(true)
+              setSelectedCharacterId(value)
+              setImportName('')
+              setImportPayload('')
+              setImportError(null)
+              setTargetPath(null)
+              setRemoveTargetId(null)
+              setActionMessage(null)
+            }}
+          >
+            {myCharacters.map((character) => (
+              <ListBox.Item
+                id={character.id}
+                key={character.id}
+                textValue={`${character.name} lvl ${character.level}`}
               >
-                Run history
-                <ChevronDown size={14} aria-hidden="true" className={historyExpanded ? 'rotate-180' : undefined} />
-              </Button>
-              {selectedRun ? (
-                <Button
-                  size="sm"
-                  variant="tertiary"
-                  aria-controls="analysis-setup"
-                  aria-expanded={showSetup}
-                  onPress={() => setSetupExpanded((current) => !current)}
-                >
-                  {showSetup ? 'Hide setup' : latestLiveRun ? 'View setup' : 'Edit setup'}
-                </Button>
-              ) : null}
-            </div>
+                {character.name} lvl {character.level}
+              </ListBox.Item>
+            ))}
+          </SelectField>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-default-600 text-sm">Sync your PoE characters to get started.</p>
+            <Button
+              variant="secondary"
+              isPending={syncingCharacters}
+              isDisabled={!activeGroupId || !canSync}
+              onPress={() => {
+                if (activeGroupId) void triggerSync(activeGroupId)
+              }}
+            >
+              Sync characters
+            </Button>
           </div>
-          {latestLiveRun ? (
-            <RunActivityStrip
-              title={
-                latestLiveRun.summary?.queue_submission_pending === true
-                  ? 'Preparing your analysis'
-                  : liveRunWaitInfo
-                    ? 'Waiting for trade cooldown'
-                    : latestLiveRun.status === 'queued'
-                      ? 'Analysis queued'
-                      : 'Analysis running'
-              }
-              detail={getRunStatusCopy(latestLiveRun, nowMs)}
-              waitLabel={liveRunWaitInfo ? 'Resumes in ' + formatCountdown(liveRunWaitInfo.remainingMs) : null}
-              timeline={
-                latestLiveRun.status === 'running'
-                  ? getRunPhaseTimeline(latestLiveRun, getCurrentRunPhaseId(latestLiveRun)?.id ?? null)
-                  : undefined
-              }
-              elapsedLabel={latestLiveRun.status === 'running' && !liveRunWaitInfo ? formatElapsedSince(latestLiveRun.started_at, nowMs) : null}
-              estimatedLabel={runtimeEstimateChipLabel}
-              onCancel={canQueueRun ? () => void handleCancelRun() : undefined}
-              cancelLoading={cancellingAnalysis}
+        )
+      ) : null}
+      {step === 1 ? (
+        <div className="grid gap-4">
+          {buildTargetsQuery.isError && !buildTargetsQuery.data && targetPath !== 'import' ? (
+            <QueryStatePanel
+              kind="error"
+              title="Could not load saved targets"
+              description="Retry to see the PoB targets for this character."
+              onRetry={buildTargetsQuery.refetch}
             />
           ) : null}
-          <div id="analysis-run-history" hidden={!historyExpanded} className="analysis-run-progress">
-            {runsFailed ? (
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <p role="status" className="text-danger text-sm">Could not refresh run history.</p>
-                <Button size="sm" variant="tertiary" onPress={() => void retryRuns()}>Try again</Button>
-              </div>
-            ) : null}
-            {runsLoading ? (
-              <p className="text-default-500 text-sm">Loading runs...</p>
-            ) : displayedAnalysisRuns.length === 0 ? (
-              runsFailed ? null : <p className="text-default-500 text-sm">No runs queued yet.</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {displayedAnalysisRuns.map((run) => (
-                  <button
-                    key={run.id}
-                    type="button"
-                    aria-pressed={run.id === selectedRun?.id}
-                    className={`rounded-large border p-3 text-left transition-colors ${
-                      run.id === selectedRun?.id
-                        ? 'border-highlight bg-selected'
-                        : 'border-control bg-content1 hover:bg-content2'
-                    }`}
-                    onClick={() => setSelectedRunId(run.id)}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Chip
-                          size="sm"
-                          color={RUN_STATUS_COLORS[run.status]}
-                          variant="soft"
-                          className={run.status === 'running' ? 'bg-info-soft text-info' : undefined}
-                        >
-                          {run.status}
-                        </Chip>
-                        {latestCompletedRun?.id === run.id ? (
-                          <Chip size="sm" variant="soft" color="success">
-                            Latest completed
-                          </Chip>
-                        ) : null}
-                        <Chip
-                          size="sm"
-                          variant="soft"
-                        >
-                          {run.analysis_mode === 'thorough' ? 'Live' : 'Quick'}
-                        </Chip>
-                      </div>
-                      <span className="text-default-400 flex items-center gap-2 text-xs">
-                        {formatRelativeTimestamp(run.created_at)}
-                        {run.id === selectedRun?.id && <Check size={14} className="text-highlight" aria-hidden="true" />}
-                      </span>
-                    </div>
-                    <p className="text-foreground mt-2 text-sm font-medium">
-                      {getRunBudgetLabel(run, currencyDisplay, divinePrice)}
-                    </p>
-                    <p className="text-default-500 mt-1 text-xs">
-                      {getRunStatusCopy(run, nowMs)}
-                    </p>
-                    {getDisplayedPartialReason(run, nowMs) ? (
-                      <p className="text-default-500 mt-1 text-xs">
-                        {getDisplayedPartialReason(run, nowMs)}
-                      </p>
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-      ) : null}
-      {actionMessage ? <p role="status" className="text-default-600 text-sm wrap-anywhere">{actionMessage}</p> : null}
-      <div
-        id="analysis-setup"
-        className={showSetup
-          ? 'grid min-w-0 grid-cols-1 gap-5 @min-[48rem]:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]'
-          : 'hidden'}
-      >
-        <div className="flex min-w-0 flex-col gap-6">
-          <Card className="gap-0 p-0">
-            <Card.Header className="px-4 pt-4 pb-0">
-              <div>
-                <h2 className="text-foreground text-sm font-semibold">Import target PoB</h2>
-                <p className="text-default-500 mt-1 text-sm">
-                  Save a Path of Building target for this character.
-                </p>
-              </div>
-            </Card.Header>
-            <Card.Content className="gap-3 px-4 pt-3 pb-4">
-              <FieldInput
-                label="Target name"
-                placeholder="e.g. Deadeye progression"
-                value={importName}
-                onValueChange={setImportName}
-              />
-              <FieldTextArea
-                label="PoB share code or XML"
-                minRows={6}
-                placeholder="Paste a share code or exported XML"
+          {isImportPath ? (
+            <>
+              {visibleBuildTargets.length > 0 ? (
+                <Button
+                  size="sm"
+                  variant="tertiary"
+                  className="justify-self-start"
+                  onPress={() => setTargetPath('saved')}
+                  isDisabled={importingTarget}
+                >
+                  Use a saved target
+                </Button>
+              ) : null}
+              <AnalysisPobImportFields
                 value={importPayload}
-                onValueChange={setImportPayload}
-              />
-              {currentMember?.user.pob_code ? (
-                <Button
-                  variant="tertiary"
-                  size="sm"
-                  onPress={() =>
-                    void handleImport(
-                      currentMember.user.pob_code ?? '',
-                      `${selectedCharacter?.name ?? 'Selected character'} main target`,
-                    )
-                  }
-                >
-                  Use saved PoB
-                </Button>
-              ) : null}
-              {currentMember?.user.pob_support_code ? (
-                <Button
-                  variant="tertiary"
-                  size="sm"
-                  onPress={() =>
-                    void handleImport(
-                      currentMember.user.pob_support_code ?? '',
-                      `${selectedCharacter?.name ?? 'Selected character'} support target`,
-                    )
-                  }
-                >
-                  Use saved support PoB
-                </Button>
-              ) : null}
-              {importError ? <p className="text-danger text-sm">{importError}</p> : null}
-              <Button
+                onValueChange={(value) => {
+                  setImportPayload(value)
+                  setImportError(null)
+                }}
+                name={importName}
+                onNameChange={setImportName}
                 isPending={importingTarget}
-                isDisabled={!selectedCharacter}
-                onPress={() => void handleImport()}
-              >
-                {({ isPending }) => (
-                  <PendingButtonContent isPending={isPending}>
-                    Import build target
-                  </PendingButtonContent>
-                )}
-              </Button>
-            </Card.Content>
-          </Card>
-
-          <Card className="gap-0 p-0">
-            <Card.Header className="px-4 pt-4 pb-0">
-              <div>
-                <h2 className="text-foreground text-sm font-semibold">Imported targets</h2>
-              </div>
-            </Card.Header>
-            <Card.Content className="gap-3 px-4 pt-3 pb-4">
-              {buildTargetsQuery.isError && buildTargetsQuery.data ? (
-                <QueryFreshnessNotice
-                  refreshFailed
-                  isRefreshing={buildTargetsQuery.isFetching}
-                  onRetry={buildTargetsQuery.refetch}
-                />
-              ) : null}
-              {buildTargetsQuery.isError && !buildTargetsQuery.data ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <p role="alert" className="text-danger text-sm">Could not load build targets.</p>
-                  <Button size="sm" variant="tertiary" onPress={() => void buildTargetsQuery.refetch()}>
-                    Try again
-                  </Button>
-                </div>
-              ) : buildTargetsLoading ? (
-                <p className="text-default-500 text-sm">Loading build targets...</p>
-              ) : !selectedCharacter ? (
-                <p className="text-default-500 text-sm">
-                  Select one of your characters to load build targets.
-                </p>
-              ) : visibleBuildTargets.length === 0 ? (
-                <p className="text-default-500 wrap-anywhere text-sm">
-                  No build targets imported for {selectedCharacter.name} yet.
-                </p>
-              ) : (
-                visibleBuildTargets.map((target) => (
-                  <div
-                    key={target.id}
-                    className={`rounded-large border p-3 ${
-                      target.is_selected ? 'border-highlight bg-selected' : 'border-divider bg-content1'
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-foreground wrap-anywhere text-sm font-semibold">{target.name}</p>
-                          {target.is_selected ? (
-                            <Chip size="sm" variant="soft" className="text-highlight">
-                              Selected
-                            </Chip>
-                          ) : null}
-                        </div>
-                        <p className="text-default-500 mt-1 text-xs">
-                          {target.import_metadata.class_name ?? 'Unknown class'} ·{' '}
-                          {target.import_metadata.ascendancy_name ?? 'Unknown ascendancy'} · imported{' '}
-                          {formatRelativeTimestamp(target.created_at)}
-                        </p>
-                      </div>
-                      <Chip
-                        size="sm"
-                        color={COMPATIBILITY_COLORS[target.compatibility_status]}
-                        variant="soft"
-                      >
-                        {target.compatibility_status}
-                      </Chip>
-                    </div>
-                    {target.compatibility_notes ? (
-                      <p className="text-default-600 wrap-anywhere mt-2 text-sm">{target.compatibility_notes}</p>
-                    ) : null}
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Chip size="sm" variant="soft">
-                        {target.import_metadata.tree_specs.length} trees
-                      </Chip>
-                      <Chip size="sm" variant="soft">
-                        {target.import_metadata.item_sets.length} item sets
-                      </Chip>
-                      <Chip size="sm" variant="soft">
-                        {target.import_metadata.skill_sets.length} skill sets
-                      </Chip>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant="tertiary"
-                        onPress={() => setSelectedBuildTargetId(target.id)}
-                      >
-                        Inspect
-                      </Button>
-                      {!target.is_selected ? (
+                error={importError}
+                savedSources={
+                  currentMember?.user.pob_code || currentMember?.user.pob_support_code ? (
+                    <>
+                      {currentMember.user.pob_code ? (
                         <Button
                           size="sm"
                           variant="tertiary"
-                          isPending={selectingTarget && target.id === selectedBuildTargetId}
-                          onPress={() =>
-                            chooseBuildTarget({
-                              id: target.id,
-                              group_id: target.group_id,
-                              user_id: target.user_id,
-                            })
-                          }
+                          isDisabled={importingTarget}
+                          onPress={() => {
+                            setImportPayload(currentMember.user.pob_code ?? '')
+                            setImportName(`${selectedCharacter?.name ?? 'Character'} main target`)
+                            setImportError(null)
+                          }}
                         >
-                          {({ isPending }) => (
-                            <PendingButtonContent isPending={isPending}>
-                              Use target
-                            </PendingButtonContent>
-                          )}
+                          Use saved main PoB
                         </Button>
                       ) : null}
-                      <Button
-                        size="sm"
-                        variant="danger-soft"
-                        onPress={() =>
-                          deleteBuildTarget({
-                            id: target.id,
-                            group_id: target.group_id,
-                            user_id: target.user_id,
-                          })
-                        }
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </Card.Content>
-          </Card>
-        </div>
-
-        <div className="flex min-w-0 flex-col gap-6">
-          <Card className="gap-0 p-0">
-            <Card.Header className="px-4 pt-4 pb-0">
-              <div className="flex flex-1 flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-foreground text-sm font-semibold">Analysis setup</h2>
-                  <p className="text-default-500 mt-1 text-sm">
-                    Choose the PoB layouts to compare.
-                  </p>
-                </div>
-                {selectedBuildTarget ? (
-                  <Chip size="sm" variant="soft" className="h-auto max-w-full whitespace-normal">
-                    <span className="wrap-anywhere">{inspectedStageLabel}</span>
-                  </Chip>
-                ) : null}
-              </div>
-            </Card.Header>
-            <Card.Content className="gap-4 px-4 pt-3 pb-4">
-              {latestLiveRun ? (
-                <p className="text-default-600 text-sm">Settings are locked during the active run.</p>
-              ) : null}
-              <div inert={!!latestLiveRun} className={latestLiveRun ? 'opacity-60' : undefined}>
-                <div className="flex flex-col gap-4">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <SelectField
-                      label="Character"
-                      aria-label="Select character for optimization"
-                      selectedKey={selectedCharacterId ?? null}
-                      onSelectionChange={(key) => {
-                        const value = toStringKey(key)
-                        setHasManuallySelectedCharacter(true)
-                        setSelectedCharacterId(value)
-                        setActionMessage(null)
-                      }}
-                    >
-                      {myCharacters.map((character) => (
-                        <ListBox.Item
-                          id={character.id}
-                          key={character.id}
-                          textValue={`${character.name} lvl ${character.level}`}
-                        >
-                          {character.name} lvl {character.level}
-                        </ListBox.Item>
-                      ))}
-                    </SelectField>
-                    <SelectField
-                      label="Loadout"
-                      aria-label="Select loadout"
-                      selectedKey={selectedLoadoutKey ?? null}
-                      isDisabled={!selectedBuildTarget || loadoutOptions.length === 0}
-                      description={
-                        loadoutOptions.length > 0
-                          ? 'Selecting a loadout applies the matching tree, item set, skill set, and config.'
-                          : 'Only shared names that exist across the setup selectors appear here.'
-                      }
-                      onSelectionChange={(key) => {
-                        const value = toStringKey(key)
-                        const loadout =
-                          typeof value === 'string'
-                            ? (loadoutOptions.find((option) => option.key === value) ?? null)
-                            : null
-                        if (!loadout) return
-                        setStageTreeSpecId(loadout.treeSpecId)
-                        setStageItemSetId(loadout.itemSetId)
-                        setStageSkillSetId(loadout.skillSetId)
-                        setStageConfigSetId(loadout.configSetId)
-                        setActionMessage(null)
-                      }}
-                    >
-                      {loadoutOptions.map((loadout) => (
-                        <ListBox.Item id={loadout.key} key={loadout.key} textValue={loadout.label}>
-                          {loadout.label}
-                        </ListBox.Item>
-                      ))}
-                    </SelectField>
-                  </div>
-                  {!selectedBuildTarget ? (
-                    <p className="text-default-500 text-sm">
-                      Select or import a target for this character first.
-                    </p>
-                  ) : (
-                    <>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <SelectField
-                          label="Tree spec"
-                          selectedKey={stageTreeSpecId ?? null}
-                          onSelectionChange={(key) => {
-                            setStageTreeSpecId(toStringKey(key))
+                      {currentMember.user.pob_support_code ? (
+                        <Button
+                          size="sm"
+                          variant="tertiary"
+                          isDisabled={importingTarget}
+                          onPress={() => {
+                            setImportPayload(currentMember.user.pob_support_code ?? '')
+                            setImportName(`${selectedCharacter?.name ?? 'Character'} support target`)
+                            setImportError(null)
                           }}
                         >
-                          {selectedBuildTarget.import_metadata.tree_specs.map((spec) => (
-                            <ListBox.Item id={spec.id} key={spec.id} textValue={spec.title}>
-                              {spec.title}
-                            </ListBox.Item>
-                          ))}
-                        </SelectField>
-                        <SelectField
-                          label="Item set"
-                          selectedKey={stageItemSetId ?? null}
-                          onSelectionChange={(key) => {
-                            setStageItemSetId(toStringKey(key))
-                          }}
-                        >
-                          {selectedBuildTarget.import_metadata.item_sets.map((itemSet) => (
-                            <ListBox.Item
-                              id={itemSet.id}
-                              key={itemSet.id}
-                              textValue={itemSet.title}
-                            >
-                              {itemSet.title}
-                            </ListBox.Item>
-                          ))}
-                        </SelectField>
-                        <SelectField
-                          label="Skill set"
-                          selectedKey={stageSkillSetId ?? null}
-                          onSelectionChange={(key) => {
-                            setStageSkillSetId(toStringKey(key))
-                          }}
-                        >
-                          {selectedBuildTarget.import_metadata.skill_sets.map((skillSet) => (
-                            <ListBox.Item
-                              id={skillSet.id}
-                              key={skillSet.id}
-                              textValue={skillSet.title}
-                            >
-                              {skillSet.title}
-                            </ListBox.Item>
-                          ))}
-                        </SelectField>
-                        <SelectField
-                          label="PoB config"
-                          selectedKey={stageConfigSetId ?? null}
-                          onSelectionChange={(key) => {
-                            setStageConfigSetId(toStringKey(key))
-                          }}
-                        >
-                          {selectedBuildTarget.import_metadata.config_sets.map((configSet) => (
-                            <ListBox.Item
-                              id={configSet.id}
-                              key={configSet.id}
-                              textValue={configSet.title}
-                            >
-                              {configSet.title}
-                            </ListBox.Item>
-                          ))}
-                        </SelectField>
-                      </div>
-                      <ToggleButtonGroup
-                        isDetached
-                        fullWidth
-                        selectionMode="single"
-                        disallowEmptySelection
-                        selectedKeys={new Set([analysisMode])}
-                        onSelectionChange={(keys) => {
-                          const [value] = Array.from(keys)
-                          if (value === 'quick' || value === 'thorough') {
-                            setAnalysisMode(value)
-                          }
-                        }}
-                        aria-label="Analysis mode"
-                        className="!grid w-full min-w-0 grid-cols-1 gap-3 @min-[63rem]:grid-cols-2"
-                      >
-                        {ANALYSIS_MODE_OPTIONS.map((option) => (
-                          <ToggleButton
-                            key={option.key}
-                            id={option.key}
-                            className="rounded-large border-control data-[selected=true]:border-highlight h-auto min-w-0 w-full justify-start border p-3 text-left whitespace-normal [--toggle-button-bg:var(--surface)] [--toggle-button-bg-hover:var(--surface-secondary)]"
-                          >
-                            <span className="flex w-full min-w-0 flex-col gap-2">
-                              <span className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="text-foreground text-sm font-semibold">
-                                  {option.label}
-                                </span>
-                                <Chip size="sm" variant="soft">
-                                  {option.key === 'thorough' ? 'Minutes' : 'Fast'}
-                                </Chip>
-                              </span>
-                              <span className="text-default-500 text-sm wrap-anywhere">{option.description}</span>
-                            </span>
-                          </ToggleButton>
-                        ))}
-                      </ToggleButtonGroup>
-                      {analysisMode === 'thorough' ? renderBudgetInput('max-w-56') : null}
-                      {analysisMode === 'thorough' ? renderTradeSearchRelaxationControls() : null}
+                          Use saved support PoB
+                        </Button>
+                      ) : null}
                     </>
-                  )}
-                </div>
-              </div>
-
-              {selectedBuildTarget ? (
-                <div className="flex flex-col gap-2">
-                  <p className="text-default-500 text-xs font-semibold tracking-wide uppercase">
-                    Party configuration{' '}
-                    <span className="text-default-400 font-normal normal-case">(optional)</span>
-                  </p>
-                  <p className="text-default-400 text-xs">
-                    Saved per character on this browser so your usual support setup comes back when
-                    you switch characters.
-                  </p>
-                  {partyConfig.length > 0 && (
-                    <div className="flex flex-col gap-2">
-                      {partyConfig.map((entry, idx) => {
-                        const sourceLabel =
-                          entry.kind === 'group_member'
-                            ? (getGroupPartyBuildTargetLabel(
-                                (partyBuildTargets ?? []).find(
-                                  (target) => target.id === entry.build_target_id,
-                                ) ?? null,
-                              ) ?? `Build target ${entry.build_target_id}`)
-                            : 'Custom PoB support code'
-
-                        return (
-                          <div
-                            key={`${entry.kind}-${idx}`}
-                            className="rounded-large border-divider bg-content1 flex items-start gap-2 border p-3"
-                          >
-                            <div className="flex-1">
-                              <FieldInput
-                                size="sm"
-                                label={`Label ${idx + 1}`}
-                                value={getPartyConfigEntryLabel(entry, idx, partyBuildTargets)}
-                                onValueChange={(value) => setPartyConfigEntryLabel(idx, value)}
-                              />
-                              <p className="text-default-500 mt-2 text-xs">
-                                {entry.kind === 'group_member' ? 'Group member target' : 'PoB code'}
-                                {' · '}
-                                {sourceLabel}
-                              </p>
-                            </div>
-                            <Button
-                              isIconOnly
-                              size="sm"
-                              variant="danger-soft"
-                              aria-label={`Remove party configuration ${idx + 1}`}
-                              onPress={() =>
-                                setPartyConfig((prev) =>
-                                  prev.filter((_, entryIdx) => entryIdx !== idx),
-                                )
-                              }
-                            >
-                              <Trash2 size={16} />
-                            </Button>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                  {partyConfig.length < 5 && (
-                    <div className="flex flex-col gap-2">
-                      <ToggleButtonGroup
-                        selectionMode="single"
-                        disallowEmptySelection
-                        size="sm"
-                        className="w-fit"
-                        selectedKeys={new Set([partyAddMode])}
-                        onSelectionChange={(keys) => {
-                          const [value] = Array.from(keys)
-                          if (value === 'group_member') {
-                            setPartyAddMode('group_member')
-                            setPartyCodeInput('')
-                          } else if (value === 'pob_code') {
-                            setPartyAddMode('pob_code')
-                            setSelectedPartyTargetId('')
-                          }
-                        }}
+                  ) : null
+                }
+              />
+            </>
+          ) : (
+            <>
+              {buildTargetsLoading ? (
+                <p role="status" className="text-default-600 text-sm">Loading saved targets…</p>
+              ) : null}
+              {visibleBuildTargets.length ? (
+                <fieldset className="grid min-w-0 gap-2">
+                  <legend className="text-foreground mb-2 text-sm font-medium">Saved PoB targets</legend>
+                  {visibleBuildTargets.map((target) => {
+                    const confirmingRemoval = removeTargetId === target.id
+                    return (
+                      <div
+                        key={target.id}
+                        className="border-control has-checked:bg-selected min-w-0 rounded-lg border"
                       >
-                        <ToggleButton id="group_member">Group member</ToggleButton>
-                        <ToggleButton id="pob_code">
-                          <ToggleButtonGroup.Separator />
-                          Paste PoB code
-                        </ToggleButton>
-                      </ToggleButtonGroup>
-                      {partyAddMode === 'group_member' ? (
-                        (partyBuildTargets ?? []).length > 0 ? (
-                          <div className="flex items-center gap-2">
-                            <SelectField
-                              label="Add group member"
-                              selectedKey={selectedPartyTargetId || null}
-                              onSelectionChange={(key) => {
-                                setSelectedPartyTargetId(toStringKey(key) ?? '')
+                        <div className="flex items-center gap-1 pr-1">
+                          <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 py-2.5 pr-1 pl-3">
+                            <input
+                              className="mt-0.5 size-4 shrink-0 accent-accent"
+                              type="radio"
+                              name="saved-pob-target"
+                              value={target.id}
+                              checked={selectedBuildTargetId === target.id}
+                              disabled={deletingTarget}
+                              onChange={() => {
+                                setRemoveTargetId(null)
+                                chooseBuildTarget(target)
                               }}
-                              className="flex-1"
-                            >
-                              {(partyBuildTargets ?? [])
-                                .filter(
-                                  (bt) =>
-                                    !partyConfig.some(
-                                      (e) =>
-                                        e.kind === 'group_member' && e.build_target_id === bt.id,
-                                    ),
-                                )
-                                .map((bt) => (
-                                  <ListBox.Item
-                                    id={bt.id}
-                                    key={bt.id}
-                                    textValue={`${bt.display_name ?? bt.poe_account_name ?? 'Unknown'} - ${bt.name}`}
-                                  >
-                                    {bt.display_name ?? bt.poe_account_name ?? 'Unknown'} —{' '}
-                                    {bt.name}
-                                  </ListBox.Item>
-                                ))}
-                            </SelectField>
+                            />
+                            <span className="min-w-0 text-sm">
+                              <span className="text-foreground block font-medium wrap-anywhere">
+                                {target.name}
+                              </span>
+                              {target.compatibility_status !== 'compatible' ? (
+                                <span className="text-default-600 mt-1 block wrap-anywhere">
+                                  {target.compatibility_notes ?? target.compatibility_status}
+                                </span>
+                              ) : null}
+                            </span>
+                          </label>
+                          <Button
+                            ref={confirmingRemoval ? removeTargetTrigger : undefined}
+                            isIconOnly
+                            variant="ghost"
+                            className="text-default-500 size-11 shrink-0"
+                            aria-label={`Remove ${target.name}`}
+                            aria-expanded={confirmingRemoval}
+                            aria-controls={confirmingRemoval ? `confirm-remove-${target.id}` : undefined}
+                            isDisabled={deletingTarget}
+                            onPress={() => setRemoveTargetId(confirmingRemoval ? null : target.id)}
+                          >
+                            <X size={16} aria-hidden="true" />
+                          </Button>
+                        </div>
+                        {confirmingRemoval ? (
+                          <div
+                            id={`confirm-remove-${target.id}`}
+                            className="border-divider flex flex-wrap items-center gap-2 border-t px-3 py-2"
+                          >
+                            <p className="text-default-600 text-sm">
+                              Removing this target also removes its saved runs.
+                            </p>
                             <Button
                               size="sm"
                               variant="tertiary"
-                              isDisabled={!selectedPartyTargetId}
+                              isDisabled={deletingTarget}
                               onPress={() => {
-                                const bt = (partyBuildTargets ?? []).find(
-                                  (b) => b.id === selectedPartyTargetId,
-                                )
-                                if (!bt) return
-                                const label = getGroupPartyBuildTargetLabel(bt)
-                                setPartyConfig((prev) => [
-                                  ...prev,
-                                  { kind: 'group_member', build_target_id: bt.id, label },
-                                ])
-                                setSelectedPartyTargetId('')
+                                removeTargetTrigger.current?.focus()
+                                setRemoveTargetId(null)
                               }}
                             >
-                              Add
+                              Keep target
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="danger-soft"
+                              isPending={deletingTarget}
+                              onPress={() => {
+                                deleteBuildTarget(target, {
+                                  onSuccess: () => setRemoveTargetId(null),
+                                  onError: () =>
+                                    setActionMessage('Could not remove the target. Try again.'),
+                                })
+                              }}
+                            >
+                              Remove target
                             </Button>
                           </div>
-                        ) : (
-                          <p className="text-default-400 text-xs">
-                            No group members have saved a support PoB code yet. Ask them to add one
-                            on the Members page.
-                          </p>
-                        )
-                      ) : (
-                        <div className="flex items-end gap-2">
-                          <FieldTextArea
+                        ) : null}
+                      </div>
+                    )
+                  })}
+                </fieldset>
+              ) : null}
+              <Button
+                variant="secondary"
+                className="justify-self-start"
+                isDisabled={deletingTarget}
+                onPress={() => {
+                  setRemoveTargetId(null)
+                  setTargetPath('import')
+                }}
+              >
+                Import a PoB target
+              </Button>
+            </>
+          )}
+        </div>
+      ) : null}
+      {step === 2 ? (
+        stagesQuery.isError ? (
+          <QueryStatePanel
+            kind="error"
+            title="Could not load PoB setup"
+            description="Try again to load the saved layout selections."
+            onRetry={stagesQuery.refetch}
+          />
+        ) : selectedBuildTarget && setupReady ? (
+          <div className="grid gap-4">
+            <p className="text-foreground text-sm font-medium wrap-anywhere">
+              {selectedBuildTarget.name}
+            </p>
+            {loadoutOptions.length > 0 ? (
+              <SelectField
+                label="Loadout"
+                aria-label="Select loadout"
+                selectedKey={selectedLoadoutKey ?? null}
+                description="Apply the tree, item set, skill set, and configuration that share this name."
+                onSelectionChange={(key) => {
+                  const loadout = loadoutOptions.find((option) => option.key === toStringKey(key))
+                  if (!loadout) return
+                  setStageTreeSpecId(loadout.treeSpecId)
+                  setStageItemSetId(loadout.itemSetId)
+                  setStageSkillSetId(loadout.skillSetId)
+                  setStageConfigSetId(loadout.configSetId)
+                  setActionMessage(null)
+                }}
+              >
+                {loadoutOptions.map((loadout) => (
+                  <ListBox.Item id={loadout.key} key={loadout.key} textValue={loadout.label}>
+                    {loadout.label}
+                  </ListBox.Item>
+                ))}
+              </SelectField>
+            ) : null}
+            <AnalysisPobSetupFields
+              metadata={selectedBuildTarget.import_metadata}
+              selection={currentSetup}
+              onSelectionChange={(field, value) => {
+                const setSelection = {
+                  treeSpecId: setStageTreeSpecId,
+                  itemSetId: setStageItemSetId,
+                  skillSetId: setStageSkillSetId,
+                  configSetId: setStageConfigSetId,
+                }
+                setSelection[field](value)
+              }}
+            />
+          </div>
+        ) : (
+          <p role="status" className="text-default-600 text-sm">
+            Loading PoB setup…
+          </p>
+        )
+      ) : null}
+      {step === 3 ? (
+        <div className="grid gap-5">
+          <ToggleButtonGroup
+            isDetached
+            fullWidth
+            selectionMode="single"
+            disallowEmptySelection
+            selectedKeys={new Set([analysisMode])}
+            onSelectionChange={(keys) => {
+              const [value] = Array.from(keys)
+              if (value === 'quick' || value === 'thorough') {
+                setAnalysisMode(value)
+              }
+            }}
+            aria-label="Analysis mode"
+            className="!grid w-full min-w-0 grid-cols-1 gap-3 @min-[63rem]:grid-cols-2"
+          >
+            {ANALYSIS_MODE_OPTIONS.map((option) => (
+              <ToggleButton
+                key={option.key}
+                id={option.key}
+                className="rounded-large border-control data-[selected=true]:border-highlight h-auto w-full min-w-0 justify-start border p-3 text-left whitespace-normal [--toggle-button-bg-hover:var(--surface-secondary)] [--toggle-button-bg:var(--surface)]"
+              >
+                <span className="flex w-full min-w-0 flex-col gap-2">
+                  <span className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-foreground text-sm font-semibold">{option.label}</span>
+                    <Chip size="sm" variant="soft">
+                      {option.key === 'thorough' ? 'Minutes' : 'Fast'}
+                    </Chip>
+                  </span>
+                  <span className="text-default-500 text-sm wrap-anywhere">
+                    {option.description}
+                  </span>
+                </span>
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+
+          {analysisMode === 'thorough' ? (
+            <>
+              {renderBudgetInput('max-w-56')}
+              {renderTradeSearchRelaxationControls()}
+              <details className="border-divider rounded-xl border p-4">
+                <summary className="text-foreground cursor-pointer text-sm font-medium">
+                  Tune trade search by item slot
+                </summary>
+                <div className="mt-4">{renderManualTuningEditor()}</div>
+              </details>
+            </>
+          ) : null}
+          <div className="border-divider border-t pt-5">
+            <div className="flex flex-col gap-2">
+              <p className="text-default-500 text-xs font-semibold tracking-wide uppercase">
+                Party configuration{' '}
+                <span className="text-default-400 font-normal normal-case">(optional)</span>
+              </p>
+              <p className="text-default-400 text-xs">
+                Saved per character on this browser so your usual support setup comes back when you
+                switch characters.
+              </p>
+              {partyConfig.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {partyConfig.map((entry, idx) => {
+                    const sourceLabel =
+                      entry.kind === 'group_member'
+                        ? (getGroupPartyBuildTargetLabel(
+                            (partyBuildTargets ?? []).find(
+                              (target) => target.id === entry.build_target_id,
+                            ) ?? null,
+                          ) ?? `Build target ${entry.build_target_id}`)
+                        : 'Custom PoB support code'
+
+                    return (
+                      <div
+                        key={`${entry.kind}-${idx}`}
+                        className="rounded-large border-divider bg-content1 flex items-start gap-2 border p-3"
+                      >
+                        <div className="flex-1">
+                          <FieldInput
                             size="sm"
-                            label="Paste PoB support code"
-                            minRows={1}
-                            value={partyCodeInput}
-                            onValueChange={setPartyCodeInput}
-                            className="flex-1"
+                            label={`Label ${idx + 1}`}
+                            value={getPartyConfigEntryLabel(entry, idx, partyBuildTargets)}
+                            onValueChange={(value) => setPartyConfigEntryLabel(idx, value)}
                           />
-                          <Button
-                            size="sm"
-                            variant="tertiary"
-                            isDisabled={!partyCodeInput.trim()}
-                            onPress={() => {
-                              const code = partyCodeInput.trim()
-                              if (!code) return
-                              const n = partyConfig.filter((e) => e.kind === 'pob_code').length + 1
-                              setPartyConfig((prev) => [
-                                ...prev,
-                                { kind: 'pob_code', pob_code: code, label: `Custom code ${n}` },
-                              ])
-                              setPartyCodeInput('')
-                            }}
-                          >
-                            Add
-                          </Button>
+                          <p className="text-default-500 mt-2 text-xs">
+                            {entry.kind === 'group_member' ? 'Group member target' : 'PoB code'}
+                            {' · '}
+                            {sourceLabel}
+                          </p>
                         </div>
-                      )}
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="danger-soft"
+                          aria-label={`Remove party configuration ${idx + 1}`}
+                          onPress={() =>
+                            setPartyConfig((prev) => prev.filter((_, entryIdx) => entryIdx !== idx))
+                          }
+                        >
+                          <Trash2 size={16} />
+                        </Button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              {partyConfig.length < 5 && (
+                <div className="flex flex-col gap-2">
+                  <ToggleButtonGroup
+                    selectionMode="single"
+                    disallowEmptySelection
+                    size="sm"
+                    className="w-fit"
+                    selectedKeys={new Set([partyAddMode])}
+                    onSelectionChange={(keys) => {
+                      const [value] = Array.from(keys)
+                      if (value === 'group_member') {
+                        setPartyAddMode('group_member')
+                        setPartyCodeInput('')
+                      } else if (value === 'pob_code') {
+                        setPartyAddMode('pob_code')
+                        setSelectedPartyTargetId('')
+                      }
+                    }}
+                  >
+                    <ToggleButton id="group_member">Group member</ToggleButton>
+                    <ToggleButton id="pob_code">
+                      <ToggleButtonGroup.Separator />
+                      Paste PoB code
+                    </ToggleButton>
+                  </ToggleButtonGroup>
+                  {partyAddMode === 'group_member' ? (
+                    (partyBuildTargets ?? []).length > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <SelectField
+                          label="Add group member"
+                          selectedKey={selectedPartyTargetId || null}
+                          onSelectionChange={(key) => {
+                            setSelectedPartyTargetId(toStringKey(key) ?? '')
+                          }}
+                          className="flex-1"
+                        >
+                          {(partyBuildTargets ?? [])
+                            .filter(
+                              (bt) =>
+                                !partyConfig.some(
+                                  (e) => e.kind === 'group_member' && e.build_target_id === bt.id,
+                                ),
+                            )
+                            .map((bt) => (
+                              <ListBox.Item
+                                id={bt.id}
+                                key={bt.id}
+                                textValue={`${bt.display_name ?? bt.poe_account_name ?? 'Unknown'} - ${bt.name}`}
+                              >
+                                {bt.display_name ?? bt.poe_account_name ?? 'Unknown'} — {bt.name}
+                              </ListBox.Item>
+                            ))}
+                        </SelectField>
+                        <Button
+                          size="sm"
+                          variant="tertiary"
+                          isDisabled={!selectedPartyTargetId}
+                          onPress={() => {
+                            const bt = (partyBuildTargets ?? []).find(
+                              (b) => b.id === selectedPartyTargetId,
+                            )
+                            if (!bt) return
+                            const label = getGroupPartyBuildTargetLabel(bt)
+                            setPartyConfig((prev) => [
+                              ...prev,
+                              { kind: 'group_member', build_target_id: bt.id, label },
+                            ])
+                            setSelectedPartyTargetId('')
+                          }}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-default-400 text-xs">
+                        No group members have saved a support PoB code yet. Ask them to add one on
+                        the Members page.
+                      </p>
+                    )
+                  ) : (
+                    <div className="flex items-end gap-2">
+                      <FieldTextArea
+                        size="sm"
+                        label="Paste PoB support code"
+                        minRows={1}
+                        value={partyCodeInput}
+                        onValueChange={setPartyCodeInput}
+                        className="flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        variant="tertiary"
+                        isDisabled={!partyCodeInput.trim()}
+                        onPress={() => {
+                          const code = partyCodeInput.trim()
+                          if (!code) return
+                          const n = partyConfig.filter((e) => e.kind === 'pob_code').length + 1
+                          setPartyConfig((prev) => [
+                            ...prev,
+                            { kind: 'pob_code', pob_code: code, label: `Custom code ${n}` },
+                          ])
+                          setPartyCodeInput('')
+                        }}
+                      >
+                        Add
+                      </Button>
                     </div>
                   )}
                 </div>
-              ) : null}
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {isReview ? (
+        <div className="grid gap-4">
+          <dl className="border-divider divide-divider divide-y rounded-xl border px-4">
+            {reviewRows.map(({ label, value }, index) => (
+              <div
+                key={label}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-3"
+              >
+                <dt className="text-default-600 text-sm">{label}</dt>
+                <dd className="text-foreground col-start-1 text-sm font-medium wrap-anywhere">
+                  {value ?? 'Unavailable'}
+                </dd>
+                <dd className="col-start-2 row-span-2 row-start-1">
+                  <Button
+                    size="sm"
+                    variant="tertiary"
+                    aria-label={'Edit ' + label}
+                    isDisabled={analysisActionPending}
+                    onPress={() => setStep(index)}
+                  >
+                    Edit
+                  </Button>
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {runtimeEstimateSummary ? (
+            <p className="text-default-600 text-sm">{runtimeEstimateSummary}</p>
+          ) : null}
+          {latestLiveRun ? (
+            <p className="text-default-600 text-sm">
+              This target already has an active run.{' '}
+              <Link
+                to="/dashboard/analysis/runs/$runId"
+                params={{ runId: latestLiveRun.id }}
+                className="text-brand-readable hover:underline"
+              >
+                View active run
+              </Link>
+            </p>
+          ) : null}
+          {targetRunsQuery.isPending ? (
+            <p role="status" className="text-default-600 text-sm">
+              Checking for an active run…
+            </p>
+          ) : null}
+          {targetRunsUnavailable ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <p role="alert" className="text-danger text-sm">
+                Could not check for an active run.
+              </p>
+              <Button variant="tertiary" size="sm" onPress={() => void targetRunsQuery.refetch()}>
+                Try again
+              </Button>
+            </div>
+          ) : null}
+          {submissionPhase ? (
+            <p role="status" className="text-default-600 text-sm">
+              {submissionPhase}…
+            </p>
+          ) : null}
+          {submissionError ? (
+            <p role="alert" className="text-danger text-sm wrap-anywhere">
+              {submissionError}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {actionMessage ? (
+        <p role="status" className="text-default-600 mt-3 text-sm wrap-anywhere">
+          {actionMessage}
+        </p>
+      ) : null}
+    </AnalysisWizard>
+  )
+}
 
-              {selectedBuildTarget ? (
-                <div className="flex flex-col items-end gap-2">
-                  <div className="flex w-full justify-end">
-                    {!latestLiveRun ? (
+function statusLabel(run: UpgradeAnalysisRun) {
+  if (run.stale_reason === 'user-cancelled') return 'Cancelled'
+  if (run.status === 'stale') return 'Historical'
+  if (run.status === 'completed') return 'Completed'
+  if (run.status === 'partial') return 'Partial results'
+  return run.status === 'failed' ? 'Failed' : run.status === 'queued' ? 'Queued' : 'Running'
+}
+
+function RerunLink({ runId, children }: { runId: string; children: ReactNode }) {
+  return (
+    <Link
+      to="/dashboard/analysis/new"
+      search={{ fromRun: runId }}
+      className="button button--sm button--secondary"
+    >
+      {children}
+    </Link>
+  )
+}
+
+export function AnalysisRunPage() {
+  const { runId } = analysisRunRoute.useParams()
+  const { group, capabilities } = useActiveGroupContext()
+  const { data: user } = useCurrentUser()
+  const groupId = capabilities?.supportsOptimizer ? (group?.id ?? null) : null
+  const userId = user?.id ?? null
+  const runQuery = useMyAnalysisRun(
+    groupId,
+    userId,
+    z.guid().safeParse(runId).success ? runId : null,
+  )
+  const run = runQuery.data
+  const scopedGroupId = run ? groupId : null
+  const { data: characters } = useMyCharacters(scopedGroupId, group?.league)
+  const { data: targets } = useBuildTargets(scopedGroupId, userId)
+  const character = characters?.find((entry) => entry.id === run?.character_id) ?? null
+  const target = targets?.find((entry) => entry.id === run?.build_target_id) ?? null
+  const role = useMyGroupRole(groupId)
+  const canQueue = role === 'admin' || role === 'editor'
+  const headingRef = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    headingRef.current?.focus()
+  }, [runId])
+
+  return (
+    <DashboardPage>
+      <DashboardPageHeader
+        title={
+          <span ref={headingRef} tabIndex={-1} className="focus:outline-none">
+            Analysis run
+          </span>
+        }
+        backLink={<AnalysisBackLink />}
+        description={
+          run
+            ? [character?.name ?? 'Character', target?.name ?? 'PoB target'].join(' compared with ')
+            : undefined
+        }
+        metadata={
+          run ? (
+            <>
+              <Chip
+                size="sm"
+                variant="soft"
+                color={
+                  run.status === 'completed'
+                    ? 'success'
+                    : run.status === 'failed'
+                      ? 'danger'
+                      : run.status === 'partial' || run.status === 'stale'
+                        ? 'warning'
+                        : 'default'
+                }
+              >
+                {statusLabel(run)}
+              </Chip>
+              <span className="text-default-600 text-sm">
+                {getAnalysisModeLabel(run.analysis_mode)}
+              </span>
+            </>
+          ) : undefined
+        }
+      />
+      {!group || !user || runQuery.isLoading ? (
+        <CardListSkeleton rows={1} />
+      ) : runQuery.isError && !run ? (
+        <QueryStatePanel
+          kind="error"
+          title="Could not load analysis"
+          description="Try again to check this run’s status."
+          onRetry={runQuery.refetch}
+        />
+      ) : !run || !groupId || !userId ? (
+        <QueryStatePanel
+          kind="empty"
+          title="Analysis run unavailable"
+          description="This run is no longer available in the current workspace."
+        />
+      ) : (
+        <>
+          {runQuery.isError ? (
+            <QueryFreshnessNotice
+              refreshFailed
+              isRefreshing={runQuery.isFetching}
+              onRetry={runQuery.refetch}
+            />
+          ) : null}
+          {run.status === 'queued' || run.status === 'running' ? (
+            <SignedInRunProgress
+              key={run.id}
+              run={run}
+              canCancel={run.queued_by === userId}
+              refresh={runQuery.refetch}
+            />
+          ) : run.status === 'failed' ||
+            run.stale_reason === 'user-cancelled' ||
+            (run.status === 'stale' && !run.completed_at) ? (
+            <div className="border-divider bg-surface grid max-w-2xl justify-items-start gap-3 rounded-xl border p-5">
+              <div role={run.status === 'failed' ? 'alert' : undefined}>
+                <h2 className="text-foreground font-semibold">
+                  {run.status === 'failed'
+                    ? 'Analysis failed'
+                    : run.stale_reason === 'user-cancelled'
+                      ? 'Analysis cancelled'
+                      : 'Analysis ended before results were ready'}
+                </h2>
+                <p className="text-default-600 mt-1 text-sm">
+                  {run.status === 'failed'
+                    ? 'Recommendations could not be generated. Review your inputs and try again.'
+                    : run.stale_reason === 'user-cancelled'
+                      ? 'This run was cancelled before it finished.'
+                      : formatStaleReason(run.stale_reason)}
+                </p>
+              </div>
+              {canQueue ? <RerunLink runId={run.id}>Try again</RerunLink> : null}
+            </div>
+          ) : (
+            <AnalysisRunResults
+              key={run.id}
+              selectedRun={run}
+              target={target}
+              selectedCharacter={character}
+              league={group.league}
+              canPromote={canQueue}
+            />
+          )}
+        </>
+      )}
+    </DashboardPage>
+  )
+}
+
+function SignedInRunProgress({
+  run,
+  canCancel,
+  refresh,
+}: {
+  run: UpgradeAnalysisRun
+  canCancel: boolean
+  refresh: () => Promise<unknown>
+}) {
+  const [now, setNow] = useState(Date.now)
+  const [error, setError] = useState<string | null>(null)
+  const { mutateAsync: cancelRun, isPending: cancelling } = useCancelUpgradeAnalysis()
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+  const wait = getTradeRateLimitWaitInfo(run, now)
+  const timeline = getRunPhaseTimeline(run)
+  async function handleCancel() {
+    setError(null)
+    try {
+      await cancelRun({
+        run_id: run.id,
+        group_id: run.group_id,
+        target_user_id: run.target_user_id,
+        build_target_id: run.build_target_id,
+      })
+    } catch {
+      setError('Could not cancel this run. Check its current status and try again.')
+      void refresh()
+    }
+  }
+
+  return (
+    <div className="grid gap-3">
+      <AnalysisRunProgress
+        status={run.status === 'queued' ? 'queued' : 'running'}
+        phase={
+          wait ? 'Waiting for trade cooldown' : (getAnalysisPhaseLabel(run.summary) ?? undefined)
+        }
+        elapsed={formatElapsedSince(run.started_at ?? run.created_at, now) ?? undefined}
+        statusDetail={
+          wait
+            ? 'Resumes automatically in about ' + formatCountdown(wait.remainingMs) + '.'
+            : undefined
+        }
+        returnNote="You can leave this page. The top bar will let you know when your analysis is ready."
+        actions={
+          canCancel ? (
+            <Button
+              size="sm"
+              variant="danger-soft"
+              isPending={cancelling}
+              onPress={() => void handleCancel()}
+            >
+              Cancel run
+            </Button>
+          ) : undefined
+        }
+        timeline={
+          run.status === 'running' && timeline.some((entry) => entry.status !== 'pending') ? (
+            <details>
+              <summary className="text-default-600 cursor-pointer text-sm font-medium">
+                Run progress
+              </summary>
+              <ol className="mt-3 grid gap-2">
+                {timeline.map((entry) => {
+                  const Icon =
+                    entry.status === 'done'
+                      ? Check
+                      : entry.status === 'active'
+                        ? ArrowRight
+                        : Circle
+                  return (
+                    <li
+                      key={entry.id}
+                      aria-current={entry.status === 'active' ? 'step' : undefined}
+                      className="text-default-600 flex items-center gap-2 text-sm"
+                    >
+                      <Icon size={14} aria-hidden="true" />
+                      <span className="sr-only">
+                        {entry.status === 'done'
+                          ? 'Completed: '
+                          : entry.status === 'active'
+                            ? 'In progress: '
+                            : 'Pending: '}
+                      </span>
+                      {entry.label}
+                    </li>
+                  )
+                })}
+              </ol>
+            </details>
+          ) : undefined
+        }
+      />
+      {error ? (
+        <p role="alert" className="text-danger text-sm">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function AnalysisRunResults({
+  selectedRun,
+  target,
+  selectedCharacter,
+  league,
+  canPromote,
+}: {
+  selectedRun: UpgradeAnalysisRun
+  target: BuildTarget | null
+  selectedCharacter: MyCharacter | null
+  league: string | null
+  canPromote: boolean
+}) {
+  const [partyBuffDetailOpen, setPartyBuffDetailOpen] = useState(false)
+  const [configInsightDetailOpen, setConfigInsightDetailOpen] = useState(false)
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const currencyDisplay = useCurrencyStore((state) => state.display)
+  const { data: ninjaData } = useNinjaPrices(league)
+  const divinePrice = ninjaData?.divinePrice ?? 0
+  const { data: detailedTarget } = useBuildTarget(selectedRun.build_target_id)
+  const runTarget = detailedTarget ?? target
+  const { data: buildTargetStages } = useBuildTargetStages(selectedRun.build_target_id)
+  const { data: characterProfiles } = useCharacterProfiles(selectedRun.group_id)
+  const selectedCharacterProfile =
+    characterProfiles?.find(
+      (profile) =>
+        profile.user_id === selectedRun.target_user_id &&
+        profile.character_id === selectedRun.character_id,
+    ) ?? null
+  const { mutateAsync: promoteRecommendation, isPending: promotingRecommendation } =
+    usePromoteUpgradeRecommendation()
+  const plansQuery = useUpgradeRecommendationPlans(
+    selectedRun.id,
+    selectedRun.status,
+    selectedRun.completed_at,
+  )
+  const recommendationPlans = useMemo(() => plansQuery.data ?? [], [plansQuery.data])
+  const retryRecommendations = plansQuery.refetch
+  const recommendationsFailed = plansQuery.isError
+  const markOpened = useMarkAnalysisOpened(selectedRun.group_id, selectedRun.target_user_id)
+  const selectedRunPlanCount = getSummaryNumber(selectedRun.summary, 'generated_plan_count')
+  const selectedRunBlockers = getSummaryList(selectedRun.summary, 'blockers')
+  const selectedRunAppliedPartyCount = getSummaryNumber(selectedRun.summary, 'applied_party_count')
+  const completionTime = selectedRun.completed_at ? Date.parse(selectedRun.completed_at) : NaN
+  const [retryWindowEnded, setRetryWindowEnded] = useState(false)
+  const awaitingSavedPlans =
+    !recommendationsFailed &&
+    selectedRun.status !== 'stale' &&
+    selectedRunPlanCount !== 0 &&
+    recommendationPlans.length === 0 &&
+    Date.now() - completionTime < 30_000
+  useEffect(() => {
+    if (!awaitingSavedPlans) return
+    const timer = window.setTimeout(
+      () => setRetryWindowEnded(true),
+      Math.max(0, completionTime + 30_000 - Date.now()),
+    )
+    return () => window.clearTimeout(timer)
+  }, [awaitingSavedPlans, completionTime])
+  const pendingPlans = plansQuery.isPending || (awaitingSavedPlans && !retryWindowEnded)
+  useEffect(() => {
+    if (!pendingPlans && !recommendationsFailed) markOpened(selectedRun.id)
+  }, [markOpened, pendingPlans, recommendationsFailed, selectedRun.id])
+
+  const reservationAuditAnchorId = 'reservation-audit-' + selectedRun.id
+  const selectedRunStage = buildTargetStages?.find(
+    (stage) => stage.id === selectedRun.target_stage_id,
+  )
+  const runTrees = runTarget?.import_metadata.tree_specs ?? []
+  const recordedTreeSpec = findResolvedPobTreeSpec(runTrees, selectedRun.summary.resolved_tree_spec_id)
+  const savedStage =
+    selectedRunStage ?? buildTargetStages?.find((stage) => stage.id === runTarget?.selected_stage_id)
+  const recommendationStageTreeSpec =
+    recordedTreeSpec ??
+    findPobTreeSpec(runTrees, savedStage?.tree_spec_id) ??
+    findPobTreeSpec(runTrees, runTarget?.import_metadata.active_tree_spec_id) ??
+    runTrees[0] ??
+    null
+  const recommendationStageSkillSet = findPobLayout(
+    runTarget?.import_metadata.skill_sets ?? [],
+    selectedRun.summary.resolved_skill_set_id,
+    selectedRunStage?.skill_set_id,
+  )
+  const layoutRows = getAnalysisPobResultLayoutLabels(
+    runTarget?.import_metadata,
+    selectedRun.summary,
+    selectedRunStage,
+  )
+  const recommendationStageLabel = getSetupDisplayLabel(
+    getSummaryText(selectedRun.summary, 'target_stage_label') ?? selectedRunStage?.label,
+  )
+  const { data: ninjaGemIcons } = useQuery({
+    queryKey: queryKeys.ninja.gemIcons,
+    queryFn: () => fetchNinjaSkillGemIcons('poe1'),
+    staleTime: 1000 * 60 * 60,
+  })
+  const gemVisualLookup = useMemo(
+    () => buildGemVisualLookup(selectedCharacterProfile, ninjaGemIcons ?? []),
+    [ninjaGemIcons, selectedCharacterProfile],
+  )
+  const selectedRunConfigurationInsights = getPobConfigurationInsights(selectedRun?.summary)
+  const selectedRunConfigSetTitle = getSummaryText(
+    selectedRun?.summary,
+    'resolved_config_set_title',
+  )
+  const selectedRunMainSkillName = getSummaryText(selectedRun?.summary, 'main_skill_name')
+  const selectedRunMainSkillVisual = useMemo(() => {
+    const key = normalizeGemNameForComparison(selectedRunMainSkillName)
+    return key ? (gemVisualLookup.get(key) ?? null) : null
+  }, [gemVisualLookup, selectedRunMainSkillName])
+  const selectedRunComparePowerReport = useMemo(
+    () => getComparePowerReport(selectedRun?.summary),
+    [selectedRun?.summary],
+  )
+  const comparePowerItemRowsBySlot = useMemo(() => {
+    const bySlot = new Map<string, ComparePowerRow>()
+    for (const row of selectedRunComparePowerReport?.rows ?? []) {
+      if (row.category !== 'item' && row.category !== 'jewel') continue
+      const slot = normalizeCompareSlot(row.slot)
+      if (!slot) continue
+      const current = bySlot.get(slot)
+      if (!current || Math.abs(row.impact) > Math.abs(current.impact)) {
+        bySlot.set(slot, row)
+      }
+    }
+    return bySlot
+  }, [selectedRunComparePowerReport])
+  const selectedRunHasConfigurationInsightButton =
+    !!selectedRunConfigurationInsights || !!selectedRunConfigSetTitle
+  const selectedRunEmptyPlansCopy = useMemo(
+    () => getUpgradeAnalysisEmptyPlansCopy(selectedRun),
+    [selectedRun],
+  )
+  const allowTemplateRareFallbackInPrimary = selectedRun?.analysis_mode === 'thorough'
+
+  const setupNotePlans = useMemo(
+    () =>
+      recommendationPlans.filter(
+        (plan) =>
+          plan.section !== 'overview' &&
+          plan.kind === 'bundle' &&
+          !isUniqueRecommendationPlan(plan),
+      ),
+    [recommendationPlans],
+  )
+
+  const recommendationSections = useMemo<RecommendationSection[]>(() => {
+    const maxPrimaryRareRecommendations = 5
+    const liveRareSinglePlans = recommendationPlans.filter(
+      (plan) =>
+        plan.section !== 'overview' &&
+        plan.kind === 'single' &&
+        isRareGearRecommendationPlan(plan) &&
+        !isTargetStageRareRecommendationPlan(plan),
+    )
+    const templateRareFallbackPlans = recommendationPlans
+      .filter(
+        (plan) =>
+          plan.section !== 'overview' &&
+          plan.kind === 'single' &&
+          isRareGearRecommendationPlan(plan) &&
+          isTargetStageRareRecommendationPlan(plan) &&
+          typeof plan.score === 'number' &&
+          Number.isFinite(plan.score) &&
+          plan.score > 0,
+      )
+      .sort((left, right) => right.score - left.score)
+    const templateRareFallbackIds = new Set(liveRareSinglePlans.map((plan) => plan.id))
+    const supplementedRareSinglePlans =
+      allowTemplateRareFallbackInPrimary &&
+      liveRareSinglePlans.length < maxPrimaryRareRecommendations
+        ? [
+            ...liveRareSinglePlans,
+            ...templateRareFallbackPlans
+              .filter((plan) => !templateRareFallbackIds.has(plan.id))
+              .slice(0, Math.max(0, maxPrimaryRareRecommendations - liveRareSinglePlans.length)),
+          ]
+        : liveRareSinglePlans
+
+    const sections: RecommendationSection[] = [
+      {
+        key: 'best_single',
+        label: RECOMMENDATION_SECTION_LABELS.best_single,
+        plans: supplementedRareSinglePlans,
+        scoreRanks: {
+          overall: new Map(),
+          dps: new Map(),
+          ehp: new Map(),
+          reservation: new Map(),
+        },
+      },
+      {
+        key: 'uniques',
+        label: RECOMMENDATION_SECTION_LABELS.uniques,
+        plans: recommendationPlans.filter(
+          (plan) =>
+            plan.section !== 'overview' &&
+            isGearRecommendationPlan(plan) &&
+            isUniqueRecommendationPlan(plan),
+        ),
+        scoreRanks: {
+          overall: new Map(),
+          dps: new Map(),
+          ehp: new Map(),
+          reservation: new Map(),
+        },
+      },
+    ]
+
+    const overviewPlans = sortOverviewPlans(
+      recommendationPlans.filter((plan) => plan.section === 'overview'),
+    )
+    if (overviewPlans.length > 0) {
+      sections.push({
+        key: 'overview',
+        label: RECOMMENDATION_SECTION_LABELS.overview,
+        plans: overviewPlans,
+        scoreRanks: {
+          overall: new Map(),
+          dps: new Map(),
+          ehp: new Map(),
+          reservation: new Map(),
+        },
+      })
+    }
+
+    return sections
+      .map((section) => {
+        const scoreRanks = {
+          overall: rankRecommendationPlans(section.plans, 'overall'),
+          dps: rankRecommendationPlans(section.plans, 'dps'),
+          ehp: rankRecommendationPlans(section.plans, 'ehp'),
+          reservation: rankRecommendationPlans(section.plans, 'reservation'),
+        }
+
+        return {
+          ...section,
+          plans:
+            section.key === 'overview'
+              ? section.plans
+              : sortPlansByOverallRank(section.plans, scoreRanks.overall),
+          scoreRanks,
+        }
+      })
+      .filter((section) => section.key === 'best_single' || section.plans.length > 0)
+  }, [allowTemplateRareFallbackInPrimary, recommendationPlans])
+  const bestSingleTemplateFallbackSummary = useMemo(() => {
+    const bestSingleSection = recommendationSections.find(
+      (section) => section.key === 'best_single',
+    )
+    if (!bestSingleSection || bestSingleSection.plans.length === 0) {
+      return null
+    }
+
+    const templateCount = bestSingleSection.plans.filter((plan) =>
+      isTargetStageRareRecommendationPlan(plan),
+    ).length
+    if (!allowTemplateRareFallbackInPrimary || templateCount === 0) {
+      return null
+    }
+
+    return {
+      templateCount,
+      liveCount: bestSingleSection.plans.length - templateCount,
+    }
+  }, [allowTemplateRareFallbackInPrimary, recommendationSections])
+  async function handlePromote(planId: string) {
+    try {
+      await promoteRecommendation(planId)
+      setActionMessage('Recommendation added to Gear Planning.')
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : 'Failed to promote recommendation.')
+    }
+  }
+
+  if (pendingPlans) {
+    return <AnalysisRunProgress status="finalizing" />
+  }
+  if (recommendationsFailed && !recommendationPlans.length) {
+    return (
+      <QueryStatePanel
+        kind="error"
+        title="Could not load recommendations"
+        description="Try again to open the saved results."
+        onRetry={retryRecommendations}
+      />
+    )
+  }
+
+  return (
+    <div className="grid min-w-0 gap-4">
+      <p className="sr-only" role="status">
+        {selectedRun.status === 'partial' ? 'Partial analysis ready' : 'Analysis results ready'}
+      </p>
+      {actionMessage ? (
+        <p role="status" className="text-default-600 text-sm">
+          {actionMessage}
+        </p>
+      ) : null}
+      <Card role="region" aria-labelledby="analysis-recommendations" className="min-w-0 gap-0 p-0">
+        <Card.Header className="px-4 pt-4 pb-0">
+          <div className="flex flex-1 flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2
+                id="analysis-recommendations"
+                tabIndex={-1}
+                className="text-foreground text-base font-semibold"
+              >
+                Recommendations
+              </h2>
+              <p className="text-default-500 mt-1 text-sm">
+                Review upgrades and send useful picks to Gear Planning.
+              </p>
+            </div>
+            <div className="flex min-w-0 flex-wrap gap-2">
+              {canPromote &&
+              (selectedRun.analysis_mode === 'thorough' || selectedRun.status === 'stale') ? (
+                <RerunLink runId={selectedRun.id}>Rerun with adjustments</RerunLink>
+              ) : null}
+            </div>
+          </div>
+        </Card.Header>
+        <Card.Content className="@container/recommendations px-4 pt-3 pb-4">
+          {
+            <details className="border-divider mb-4 border-b pb-3">
+              <summary className="cursor-pointer text-sm font-medium">Run details</summary>
+              <div className="mt-4 flex flex-col gap-4">
+                <AnalysisPobResultLayouts rows={layoutRows} />
+                {selectedRunMainSkillName ? (
+                  <div className="inline-flex max-w-full min-w-0 flex-wrap items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+                    <span className="text-default-400 text-[11px] font-medium tracking-[0.14em] uppercase">
+                      Main skill
+                    </span>
+                    {selectedRunMainSkillVisual?.icon ? (
+                      <img
+                        src={selectedRunMainSkillVisual.icon}
+                        alt=""
+                        className="h-4 w-4 rounded-full object-contain"
+                      />
+                    ) : (
+                      <span className="bg-default-400/40 h-3 w-3 shrink-0 rounded-full" />
+                    )}
+                    <span
+                      className={`text-xs font-medium wrap-anywhere ${getSocketTextColorClass(selectedRunMainSkillVisual?.socketColor ?? null)}`}
+                    >
+                      {selectedRunMainSkillName}
+                    </span>
+                  </div>
+                ) : null}
+                {(selectedRun.party_config.length > 0 && selectedRunAppliedPartyCount !== null) ||
+                selectedRunHasConfigurationInsightButton ? (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedRun.party_config.length > 0 &&
+                    selectedRunAppliedPartyCount !== null ? (
                       <Button
-                        className="w-full md:w-auto"
-                        isDisabled={!canQueueRun}
-                        isPending={analysisActionPending}
-                        onPress={() => void handleQueueAnalysis()}
+                        size="sm"
+                        variant="tertiary"
+                        onPress={() => setPartyBuffDetailOpen(true)}
                       >
-                        {({ isPending }) => (
-                          <PendingButtonContent isPending={isPending}>
-                            Run analysis
-                          </PendingButtonContent>
-                        )}
+                        {selectedRunAppliedPartyCount > 0
+                          ? `Party buffs ${selectedRunAppliedPartyCount}/${selectedRun.party_config.length}`
+                          : 'Party buffs: none applied'}
+                      </Button>
+                    ) : null}
+                    {selectedRunHasConfigurationInsightButton ? (
+                      <Button
+                        size="sm"
+                        variant="tertiary"
+                        onPress={() => setConfigInsightDetailOpen(true)}
+                      >
+                        PoB configuration insights
                       </Button>
                     ) : null}
                   </div>
-                  {!selectedRunIsLive && runtimeEstimateSummary ? (
-                    <p className="text-default-400 text-right text-xs leading-snug">
-                      {runtimeEstimateSummary}
-                    </p>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  {selectedRunPlanCount != null ? (
+                    <Chip size="sm" variant="soft">
+                      {selectedRunPlanCount} plans
+                    </Chip>
+                  ) : null}
+                  {selectedRunBlockers.length ? (
+                    <Chip size="sm" variant="soft" color="warning">
+                      {selectedRunBlockers.length} blockers
+                    </Chip>
                   ) : null}
                 </div>
-              ) : null}
-              {!canQueueRun && selectedBuildTarget ? (
-                <p className="text-default-500 text-sm">
-                  Viewers can inspect results, but only editors or admins can queue new runs.
-                </p>
-              ) : null}
-            </Card.Content>
-          </Card>
-        </div>
-      </div>
-        <Card role="region" aria-labelledby="analysis-recommendations" className="min-w-0 gap-0 p-0">
-          <Card.Header className="px-4 pt-4 pb-0">
-            <div className="flex flex-1 flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 id="analysis-recommendations" tabIndex={-1} className="text-foreground text-base font-semibold">
-                  Recommendations
-                </h2>
-                <p className="text-default-500 mt-1 text-sm">
-                  Review upgrades and send useful picks to Gear Planning.
-                </p>
-              </div>
-              <div className="flex min-w-0 flex-wrap gap-2">
-                {canQueueRun && selectedRun && selectedRun.analysis_mode === 'thorough' ? (
-                  <Button
-                    size="sm"
-                    isDisabled={!selectedBuildTarget || !!latestLiveRun}
-                    isPending={analysisActionPending}
-                    onPress={handleOpenManualTuningDialog}
-                  >
-                    {({ isPending }) => (
-                      <PendingButtonContent isPending={isPending}>
-                        Rerun with adjustments
-                      </PendingButtonContent>
-                    )}
-                  </Button>
+                {selectedRunBlockers.length ? (
+                  <div className="rounded-large border-divider/70 bg-default-50/70 border p-3">
+                    <p className="text-default-500 text-xs font-semibold tracking-wide uppercase">
+                      Progress blockers
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedRunBlockers.slice(0, 4).map((blocker) => (
+                        <Chip key={blocker} size="sm" variant="soft" color="warning">
+                          {blocker}
+                        </Chip>
+                      ))}
+                      {selectedRunBlockers.length > 4 ? (
+                        <Chip size="sm" variant="soft">
+                          +{selectedRunBlockers.length - 4} more
+                        </Chip>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                {getDisplayedPartialReason(selectedRun) ? (
+                  <p className="text-warning text-sm">
+                    {(getSummaryNumber(selectedRun.summary, 'exact_plan_count') ?? 0) > 0
+                      ? `Current scope: ${getDisplayedPartialReason(selectedRun)}`
+                      : `Partial confidence: ${getDisplayedPartialReason(selectedRun)}`}
+                  </p>
                 ) : null}
               </div>
-            </div>
-          </Card.Header>
-          <Card.Content className="@container/recommendations px-4 pt-3 pb-4">
-            {selectedRun && selectedRun.status !== 'failed' ? (
-              <details className="border-divider mb-4 border-b pb-3">
-                <summary className="cursor-pointer text-sm font-medium">Run details</summary>
-                <div className="mt-4 flex flex-col gap-4">
-                  {selectedRunMainSkillName ? (
-                    <div className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
-                      <span className="text-default-400 text-[11px] font-medium tracking-[0.14em] uppercase">
-                        Main skill
-                      </span>
-                      {selectedRunMainSkillVisual?.icon ? (
-                        <img
-                          src={selectedRunMainSkillVisual.icon}
-                          alt=""
-                          className="h-4 w-4 rounded-full object-contain"
-                        />
-                      ) : (
-                        <span className="bg-default-400/40 h-3 w-3 shrink-0 rounded-full" />
-                      )}
-                      <span
-                        className={`wrap-anywhere text-xs font-medium ${getSocketTextColorClass(selectedRunMainSkillVisual?.socketColor ?? null)}`}
-                      >
-                        {selectedRunMainSkillName}
-                      </span>
-                    </div>
-                  ) : null}
-                  {(selectedRun.party_config.length > 0 &&
-                    selectedRunAppliedPartyCount !== null) ||
-                  selectedRunHasConfigurationInsightButton ? (
-                    <div className="flex flex-wrap gap-2">
-                      {selectedRun.party_config.length > 0 &&
-                      selectedRunAppliedPartyCount !== null ? (
-                        <Button
-                          size="sm"
-                          variant="tertiary"
-                          onPress={() => setPartyBuffDetailOpen(true)}
-                        >
-                          {selectedRunAppliedPartyCount > 0
-                            ? `Party buffs ${selectedRunAppliedPartyCount}/${selectedRun.party_config.length}`
-                            : 'Party buffs: none applied'}
-                        </Button>
-                      ) : null}
-                      {selectedRunHasConfigurationInsightButton ? (
-                        <Button
-                          size="sm"
-                          variant="tertiary"
-                          onPress={() => setConfigInsightDetailOpen(true)}
-                        >
-                          PoB configuration insights
-                        </Button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {selectedRun.status !== 'queued' && selectedRun.status !== 'running' ? (
-                    <p className="text-default-500 text-sm">
-                      {getRunStatusCopy(selectedRun, nowMs)}
+            </details>
+          }
+          <div className="grid grid-cols-1 items-start gap-5 @min-[52rem]/recommendations:grid-cols-[minmax(0,1fr)_19rem]">
+            <div className="flex min-w-0 flex-col gap-5">
+              {recommendationPlans.length === 0 ? (
+                <div className="rounded-large border-divider bg-default-50/60 border p-4">
+                  <p className="text-foreground text-sm font-semibold">
+                    {selectedRun.status === 'stale'
+                      ? 'Only stale results exist right now'
+                      : selectedRunEmptyPlansCopy.title}
+                  </p>
+                  <p className="text-default-600 mt-1 text-sm">
+                    {selectedRun.status === 'stale'
+                      ? `${formatStaleReason(selectedRun.stale_reason)} Run analysis again to generate updated recommendations.`
+                      : selectedRunEmptyPlansCopy.description}
+                  </p>
+                  {selectedRun.status !== 'stale' && selectedRunEmptyPlansCopy.warning ? (
+                    <p className="text-default-500 mt-2 text-xs">
+                      Run warning: {selectedRunEmptyPlansCopy.warning}
                     </p>
                   ) : null}
-                  <div className="flex flex-wrap gap-2">
-                    {selectedRunPlanCount != null ? (
-                      <Chip size="sm" variant="soft">
-                        {selectedRunPlanCount} plans
-                      </Chip>
-                    ) : null}
-                    {selectedRunBlockers.length ? (
-                      <Chip size="sm" variant="soft" color="warning">
-                        {selectedRunBlockers.length} blockers
-                      </Chip>
-                    ) : null}
-                  </div>
-                  {selectedRunBlockers.length ? (
-                    <div className="rounded-large border-divider/70 bg-default-50/70 border p-3">
-                      <p className="text-default-500 text-xs font-semibold tracking-wide uppercase">
-                        Progress blockers
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {selectedRunBlockers.slice(0, 4).map((blocker) => (
-                          <Chip key={blocker} size="sm" variant="soft" color="warning">
-                            {blocker}
-                          </Chip>
-                        ))}
-                        {selectedRunBlockers.length > 4 ? (
-                          <Chip size="sm" variant="soft">
-                            +{selectedRunBlockers.length - 4} more
-                          </Chip>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : null}
-                  {getDisplayedPartialReason(selectedRun, nowMs) ? (
-                    <p className="text-warning text-sm">
-                      {(getSummaryNumber(selectedRun.summary, 'exact_plan_count') ?? 0) > 0
-                        ? `Current scope: ${getDisplayedPartialReason(selectedRun, nowMs)}`
-                        : `Partial confidence: ${getDisplayedPartialReason(selectedRun, nowMs)}`}
-                    </p>
-                  ) : null}
+                  {canPromote ? <RerunLink runId={selectedRun.id}>Run again</RerunLink> : null}
                 </div>
-              </details>
-            ) : null}
-            <div className="grid grid-cols-1 items-start gap-5 @min-[52rem]/recommendations:grid-cols-[minmax(0,1fr)_19rem]">
-              <div className="flex min-w-0 flex-col gap-5">
-                {!selectedRun ? (
-                  <p className="text-default-500 text-sm">Run analysis or choose a run from history.</p>
-                ) : selectedRunIsLive ? (
-                  <LiveRecommendationsSkeleton />
-                ) : recommendationsLoading && selectedRun.status !== 'failed' ? (
-                  <LiveRecommendationsSkeleton />
-                ) : selectedRun.status === 'failed' ? (
-                  <div className="rounded-large border-danger/40 bg-danger-soft border p-4">
-                    <div role="alert">
-                      <p className="text-danger text-sm font-semibold">Exact analysis failed</p>
-                      <p className="text-default-600 mt-1 text-sm">
-                        Recommendations could not be generated. Try running the analysis again.
-                      </p>
-                    </div>
-                    {canQueueRun ? (
-                      <div className="mt-3">
-                        <Button
-                          size="sm"
-                          isDisabled={!selectedBuildTarget || !!latestLiveRun}
-                          isPending={analysisActionPending}
-                          onPress={() => void handleQueueAnalysis()}
-                        >
-                          {({ isPending }) => (
-                            <PendingButtonContent isPending={isPending}>
-                              Run analysis
-                            </PendingButtonContent>
-                          )}
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : recommendationsFailed && recommendationPlans.length === 0 ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p role="alert" className="text-danger text-sm">Could not load recommendations.</p>
-                    <Button size="sm" variant="tertiary" onPress={() => void retryRecommendations()}>
-                      Try again
-                    </Button>
-                  </div>
-                ) : recommendationPlans.length === 0 ? (
-                  <div className="rounded-large border-divider bg-default-50/60 border p-4">
-                    <p className="text-foreground text-sm font-semibold">
-                      {selectedRun.status === 'stale'
-                        ? 'Only stale results exist right now'
-                        : selectedRunEmptyPlansCopy.title}
-                    </p>
-                    <p className="text-default-600 mt-1 text-sm">
-                      {selectedRun.status === 'stale'
-                        ? `${formatStaleReason(selectedRun.stale_reason)} Run analysis again to generate updated recommendations.`
-                        : selectedRunEmptyPlansCopy.description}
-                    </p>
-                    {selectedRun.status !== 'stale' && selectedRunEmptyPlansCopy.warning ? (
-                      <p className="text-default-500 mt-2 text-xs">
-                        Run warning: {selectedRunEmptyPlansCopy.warning}
-                      </p>
-                    ) : null}
-                    {canQueueRun ? (
-                      <div className="mt-3">
-                        <Button
-                          size="sm"
-                          isPending={analysisActionPending}
-                          onPress={() => void handleQueueAnalysis()}
-                        >
-                          {({ isPending }) => (
-                            <PendingButtonContent isPending={isPending}>
-                              Run analysis
-                            </PendingButtonContent>
-                          )}
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <>
-                    <QueryFreshnessNotice
-                      refreshFailed={recommendationsFailed}
-                      isRefreshing={false}
-                      onRetry={retryRecommendations}
-                    />
-                    {selectedRun.status === 'stale' ? (
-                      <div className="rounded-large border-warning/40 bg-warning/10 border p-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="text-foreground text-sm font-semibold">
-                              You are inspecting stale recommendations
-                            </p>
-                            <p className="text-default-600 mt-1 text-sm">
-                              {formatStaleReason(selectedRun.stale_reason)} The plans below are
-                              still visible for reference.
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {latestCompletedRun && latestCompletedRun.id !== selectedRun.id ? (
-                              <Button
-                                size="sm"
-                                variant="tertiary"
-                                onPress={() => setSelectedRunId(latestCompletedRun.id)}
-                              >
-                                View latest completed run
-                              </Button>
-                            ) : null}
-                            {canQueueRun ? (
-                              <Button
-                                size="sm"
-                                isPending={analysisActionPending}
-                                onPress={() => void handleQueueAnalysis()}
-                              >
-                                {({ isPending }) => (
-                                  <PendingButtonContent isPending={isPending}>
-                                    Run analysis
-                                  </PendingButtonContent>
-                                )}
-                              </Button>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    ) : null}
-                    {recommendationSections.length > 0 ? (
-                      <details className="border-divider/70 rounded-lg border px-3 py-2">
-                        <summary className="text-foreground cursor-pointer text-sm font-medium">
-                          Scoring details
-                        </summary>
-                        <p className="text-default-600 mt-2 max-w-prose text-sm">
-                          Compare scores within this run’s section. DPS and effective hit pool
-                          show damage and defense per cost. Reservation shows how much an upgrade
-                          helps fit the target skills. Check the individual scores and notes for
-                          defensive or utility upgrades.
-                        </p>
-                      </details>
-                    ) : null}
-                    <div className="flex flex-col gap-5 sm:gap-6">
-                      {setupNotePlans.length > 0 ? (
-                        <div className="rounded-large border-info/40 bg-info-soft border p-4">
-                          <p className="text-foreground text-sm font-semibold">Setup notes</p>
-                          <p className="text-default-600 mt-1 text-sm">
-                            These are broader setup prerequisites, bundles, or support fixes, not
-                            the main item-by-item shopping lane.
+              ) : (
+                <>
+                  <QueryFreshnessNotice
+                    refreshFailed={recommendationsFailed}
+                    isRefreshing={false}
+                    onRetry={retryRecommendations}
+                  />
+                  {selectedRun.status === 'stale' ? (
+                    <div className="rounded-large border-warning/40 bg-warning/10 border p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-foreground text-sm font-semibold">
+                            Historical recommendations
                           </p>
-                          <div className="mt-3 flex flex-col gap-3">
-                            {setupNotePlans.map((plan) => (
-                              <div
-                                key={plan.id}
-                                className="rounded-large border-divider/70 bg-content1/70 border p-3"
-                              >
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Chip size="sm" variant="soft">
-                                    {plan.kind === 'bundle' ? 'Bundle' : 'Setup'}
-                                  </Chip>
-                                  {plan.breaks_requirements ? (
-                                    <Chip size="sm" variant="soft" color="danger">
-                                      breaks requirements
-                                    </Chip>
-                                  ) : null}
-                                </div>
-                                <p className="text-foreground mt-2 text-sm font-semibold">
-                                  {plan.title}
-                                </p>
-                                {plan.summary ? (
-                                  <p className="text-default-600 mt-1 text-sm">{plan.summary}</p>
-                                ) : null}
-                                {plan.explanation ? (
-                                  <p className="text-default-500 mt-1 text-sm">
-                                    {plan.explanation}
-                                  </p>
-                                ) : null}
-                              </div>
-                            ))}
-                          </div>
+                          <p className="text-default-600 mt-1 text-sm">
+                            {formatStaleReason(selectedRun.stale_reason)} The plans below are still
+                            visible for reference.
+                          </p>
                         </div>
-                      ) : null}
-                      {recommendationSections.map((section) => {
-                        const plans = section.plans
-
-                        return (
-                          <div key={section.key} className="flex flex-col gap-3">
-                            {section.key === 'overview' ? (
-                              <div className="border-divider mt-2 border-t pt-4">
-                                <div className="flex items-center justify-between gap-3">
-                                  <p className="text-foreground text-sm font-semibold">
-                                    {section.label}
-                                  </p>
-                                  <Chip size="sm" variant="soft">
-                                    {plans.reduce((count, plan) => count + plan.items.length, 0)}
+                      </div>
+                    </div>
+                  ) : null}
+                  {recommendationSections.length > 0 ? (
+                    <details className="border-divider/70 rounded-lg border px-3 py-2">
+                      <summary className="text-foreground cursor-pointer text-sm font-medium">
+                        Scoring details
+                      </summary>
+                      <p className="text-default-600 mt-2 max-w-prose text-sm">
+                        Compare scores within this run’s section. DPS and effective hit pool show
+                        damage and defense per cost. Reservation shows how much an upgrade helps fit
+                        the target skills. Check the individual scores and notes for defensive or
+                        utility upgrades.
+                      </p>
+                    </details>
+                  ) : null}
+                  <div className="flex flex-col gap-5 sm:gap-6">
+                    {setupNotePlans.length > 0 ? (
+                      <div className="rounded-large border-info/40 bg-info-soft border p-4">
+                        <p className="text-foreground text-sm font-semibold">Setup notes</p>
+                        <p className="text-default-600 mt-1 text-sm">
+                          These are broader setup prerequisites, bundles, or support fixes, not the
+                          main item-by-item shopping lane.
+                        </p>
+                        <div className="mt-3 flex flex-col gap-3">
+                          {setupNotePlans.map((plan) => (
+                            <div
+                              key={plan.id}
+                              className="rounded-large border-divider/70 bg-content1/70 border p-3"
+                            >
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Chip size="sm" variant="soft">
+                                  {plan.kind === 'bundle' ? 'Bundle' : 'Setup'}
+                                </Chip>
+                                {plan.breaks_requirements ? (
+                                  <Chip size="sm" variant="soft" color="danger">
+                                    breaks requirements
                                   </Chip>
-                                </div>
-                                <p className="text-default-500 mt-1 text-xs">
-                                  Every rare target item from the selected PoB is exact-scored
-                                  here in slot order. No relaxation has been applied to items in
-                                  this section.
-                                </p>
+                                ) : null}
                               </div>
-                            ) : (
+                              <p className="text-foreground mt-2 text-sm font-semibold">
+                                {plan.title}
+                              </p>
+                              {plan.summary ? (
+                                <p className="text-default-600 mt-1 text-sm">{plan.summary}</p>
+                              ) : null}
+                              {plan.explanation ? (
+                                <p className="text-default-500 mt-1 text-sm">{plan.explanation}</p>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    {recommendationSections.map((section) => {
+                      const plans = section.plans
+
+                      return (
+                        <div key={section.key} className="flex flex-col gap-3">
+                          {section.key === 'overview' ? (
+                            <div className="border-divider mt-2 border-t pt-4">
                               <div className="flex items-center justify-between gap-3">
                                 <p className="text-foreground text-sm font-semibold">
                                   {section.label}
@@ -4629,425 +4138,393 @@ export function GearRecommendationsPanel({
                                   {plans.reduce((count, plan) => count + plan.items.length, 0)}
                                 </Chip>
                               </div>
-                            )}
-                            {section.key === 'best_single' &&
-                            bestSingleTemplateFallbackSummary ? (
-                              <p className="text-default-500 text-xs">
-                                {bestSingleTemplateFallbackSummary.liveCount > 0
-                                  ? `Only ${bestSingleTemplateFallbackSummary.liveCount} live rare ${bestSingleTemplateFallbackSummary.liveCount === 1 ? 'listing survived' : 'listings survived'} the current constrained search, so the remaining ${bestSingleTemplateFallbackSummary.templateCount} ${bestSingleTemplateFallbackSummary.templateCount === 1 ? 'slot uses' : 'slots use'} top positive template swaps scored against your configured relaxation baseline. Use rerun to relax further.`
-                                  : 'No live rare listings survived the current constrained search, so this section falls back to the top positive template swaps scored against your configured relaxation baseline. Use rerun to relax further.'}
+                              <p className="text-default-500 mt-1 text-xs">
+                                Every rare target item from the selected PoB is exact-scored here in
+                                slot order. No relaxation has been applied to items in this section.
                               </p>
-                            ) : null}
-                            {section.key === 'best_single' && plans.length === 0 ? (
-                              <div className="rounded-large border-divider bg-default-50/60 border p-4">
-                                <p className="text-default-500 text-sm">
-                                  No rare upgrades found for this run. The search constraints may
-                                  be too narrow, or no listings on trade matched the target slots.
-                                  Try relaxing filters or rerunning analysis with a higher budget.
-                                </p>
-                              </div>
-                            ) : null}
-                            <div
-                              role="group"
-                              aria-label={section.label}
-                              className="grid min-w-0 grid-cols-[repeat(auto-fill,minmax(min(100%,14rem),1fr))] gap-3"
-                            >
-                              {plans.map((plan, index) => {
-                                const needsMarketSearch = planNeedsMarketSearch(plan)
-                                const scoreBreakdown = getRecommendationScoreBreakdown(plan)
-                                const overallRank =
-                                  section.scoreRanks.overall.get(plan.id) ?? index + 1
-                                const dpsRank = section.scoreRanks.dps.get(plan.id) ?? null
-                                const ehpRank = section.scoreRanks.ehp.get(plan.id) ?? null
-                                const reservationRank = shouldShowRecommendationScore(
-                                  'reservation',
-                                  scoreBreakdown.reservation,
-                                )
-                                  ? (section.scoreRanks.reservation.get(plan.id) ?? null)
-                                  : null
-                                const visibleReservationScore = shouldShowRecommendationScore(
-                                  'reservation',
-                                  scoreBreakdown.reservation,
-                                )
-                                  ? scoreBreakdown.reservation
-                                  : null
-                                const planPriceLabel = needsMarketSearch
-                                  ? 'Needs market search'
-                                  : formatCurrencyAmount(
-                                      plan.effective_cost_chaos,
-                                      currencyDisplay,
-                                      divinePrice,
-                                    )
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-foreground text-sm font-semibold">
+                                {section.label}
+                              </p>
+                              <Chip size="sm" variant="soft">
+                                {plans.reduce((count, plan) => count + plan.items.length, 0)}
+                              </Chip>
+                            </div>
+                          )}
+                          {section.key === 'best_single' && bestSingleTemplateFallbackSummary ? (
+                            <p className="text-default-500 text-xs">
+                              {bestSingleTemplateFallbackSummary.liveCount > 0
+                                ? `Only ${bestSingleTemplateFallbackSummary.liveCount} live rare ${bestSingleTemplateFallbackSummary.liveCount === 1 ? 'listing survived' : 'listings survived'} the current constrained search, so the remaining ${bestSingleTemplateFallbackSummary.templateCount} ${bestSingleTemplateFallbackSummary.templateCount === 1 ? 'slot uses' : 'slots use'} top positive template swaps scored against your configured relaxation baseline. Use rerun to relax further.`
+                                : 'No live rare listings survived the current constrained search, so this section falls back to the top positive template swaps scored against your configured relaxation baseline. Use rerun to relax further.'}
+                            </p>
+                          ) : null}
+                          {section.key === 'best_single' && plans.length === 0 ? (
+                            <div className="rounded-large border-divider bg-default-50/60 border p-4">
+                              <p className="text-default-500 text-sm">
+                                No rare upgrades found for this run. The search constraints may be
+                                too narrow, or no listings on trade matched the target slots. Try
+                                relaxing filters or rerunning analysis with a higher budget.
+                              </p>
+                            </div>
+                          ) : null}
+                          <div
+                            role="group"
+                            aria-label={section.label}
+                            className="grid min-w-0 grid-cols-[repeat(auto-fill,minmax(min(100%,14rem),1fr))] gap-3"
+                          >
+                            {plans.map((plan, index) => {
+                              const needsMarketSearch = planNeedsMarketSearch(plan)
+                              const scoreBreakdown = getRecommendationScoreBreakdown(plan)
+                              const overallRank =
+                                section.scoreRanks.overall.get(plan.id) ?? index + 1
+                              const dpsRank = section.scoreRanks.dps.get(plan.id) ?? null
+                              const ehpRank = section.scoreRanks.ehp.get(plan.id) ?? null
+                              const reservationRank = shouldShowRecommendationScore(
+                                'reservation',
+                                scoreBreakdown.reservation,
+                              )
+                                ? (section.scoreRanks.reservation.get(plan.id) ?? null)
+                                : null
+                              const visibleReservationScore = shouldShowRecommendationScore(
+                                'reservation',
+                                scoreBreakdown.reservation,
+                              )
+                                ? scoreBreakdown.reservation
+                                : null
+                              const planPriceLabel = needsMarketSearch
+                                ? 'Needs market search'
+                                : formatCurrencyAmount(
+                                    plan.effective_cost_chaos,
+                                    currencyDisplay,
+                                    divinePrice,
+                                  )
 
-                                return (
-                                  <div key={plan.id} className="contents">
-                                    <div className="hidden">
-                                      <div>
-                                        <div className="flex items-center gap-2">
-                                          <p className="text-foreground text-sm font-semibold">
-                                            {plan.title}
-                                          </p>
-                                          <Chip
-                                            size="sm"
-                                            variant="soft"
-                                          >
-                                            {plan.kind}
-                                          </Chip>
-                                          {needsMarketSearch ? (
-                                            <Chip size="sm" variant="soft" color="warning">
-                                              template rare
-                                            </Chip>
-                                          ) : null}
-                                          {plan.breaks_requirements ? (
-                                            <Chip size="sm" variant="soft" color="danger">
-                                              breaks requirements
-                                            </Chip>
-                                          ) : null}
-                                        </div>
-                                        {plan.summary ? (
-                                          <p className="text-default-600 mt-1 text-sm">
-                                            {plan.summary}
-                                          </p>
-                                        ) : null}
-                                        {plan.explanation ? (
-                                          <p className="text-default-500 mt-2 text-sm">
-                                            {plan.explanation}
-                                          </p>
-                                        ) : null}
-                                      </div>
-                                      <div className="text-right">
+                              return (
+                                <div key={plan.id} className="contents">
+                                  <div className="hidden">
+                                    <div>
+                                      <div className="flex items-center gap-2">
                                         <p className="text-foreground text-sm font-semibold">
-                                          {planPriceLabel}
+                                          {plan.title}
                                         </p>
-                                        <p className="text-default-500 text-xs">
-                                          optimizer {plan.score.toFixed(2)}
-                                          {scoreBreakdown.dps != null
-                                            ? ` | dps ${scoreBreakdown.dps.toFixed(2)}`
-                                            : ''}
-                                          {scoreBreakdown.ehp != null
-                                            ? ` | ehp ${scoreBreakdown.ehp.toFixed(2)}`
-                                            : ''}
-                                          {visibleReservationScore != null
-                                            ? ` | reservation ${visibleReservationScore.toFixed(2)}`
-                                            : ''}
-                                        </p>
-                                        <p className="text-default-400 text-xs">
-                                          optimizer rank {overallRank} of {plans.length}
-                                          {dpsRank != null ? ` | dps ${dpsRank}` : ''}
-                                          {ehpRank != null ? ` | ehp ${ehpRank}` : ''}
-                                          {reservationRank != null
-                                            ? ` | reservation ${reservationRank}`
-                                            : ''}
-                                        </p>
-                                        <p className="text-default-400 text-xs">
-                                          stage {plan.stage_progress_score.toFixed(2)}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="hidden">
-                                      <RecommendationMetricStrip plan={plan} />
-                                    </div>
-                                    <div className="contents">
-                                      {plan.items.map((item) => (
-                                        <RecommendationItemRow
-                                          key={item.id}
-                                          item={item}
-                                          plan={plan}
-                                          scoreContext={{
-                                            overallRank,
-                                            dpsRank,
-                                            ehpRank,
-                                            reservationRank,
-                                            total: plans.length,
-                                            sectionLabel: section.label,
-                                          }}
-                                          divinePrice={divinePrice}
-                                          analysisMode={selectedRun.analysis_mode}
-                                          runIsStale={selectedRun.status === 'stale'}
-                                          comparePowerRow={
-                                            comparePowerItemRowsBySlot.get(
-                                              getRecommendationItemCompareSlot(item) ?? '',
-                                            ) ?? null
-                                          }
-                                          reservationAuditAnchorId={reservationAuditAnchorId}
-                                          showRankBadge={section.key !== 'overview'}
-                                          canPromote={canPromote}
-                                          promotingRecommendation={promotingRecommendation}
-                                          onPromote={() => void handlePromote(plan.id)}
-                                        />
-                                      ))}
-                                    </div>
-                                    {canPromote ? (
-                                      <div className="hidden">
-                                        {canPromote ? (
-                                          <Button
-                                            size="sm"
-                                            isPending={promotingRecommendation}
-                                            onPress={() => void handlePromote(plan.id)}
-                                          >
-                                            {({ isPending }) => (
-                                              <PendingButtonContent isPending={isPending}>
-                                                Add to gear queue
-                                              </PendingButtonContent>
-                                            )}
-                                          </Button>
+                                        <Chip size="sm" variant="soft">
+                                          {plan.kind}
+                                        </Chip>
+                                        {needsMarketSearch ? (
+                                          <Chip size="sm" variant="soft" color="warning">
+                                            template rare
+                                          </Chip>
+                                        ) : null}
+                                        {plan.breaks_requirements ? (
+                                          <Chip size="sm" variant="soft" color="danger">
+                                            breaks requirements
+                                          </Chip>
                                         ) : null}
                                       </div>
-                                    ) : null}
+                                      {plan.summary ? (
+                                        <p className="text-default-600 mt-1 text-sm">
+                                          {plan.summary}
+                                        </p>
+                                      ) : null}
+                                      {plan.explanation ? (
+                                        <p className="text-default-500 mt-2 text-sm">
+                                          {plan.explanation}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-foreground text-sm font-semibold">
+                                        {planPriceLabel}
+                                      </p>
+                                      <p className="text-default-500 text-xs">
+                                        optimizer {plan.score.toFixed(2)}
+                                        {scoreBreakdown.dps != null
+                                          ? ` | dps ${scoreBreakdown.dps.toFixed(2)}`
+                                          : ''}
+                                        {scoreBreakdown.ehp != null
+                                          ? ` | ehp ${scoreBreakdown.ehp.toFixed(2)}`
+                                          : ''}
+                                        {visibleReservationScore != null
+                                          ? ` | reservation ${visibleReservationScore.toFixed(2)}`
+                                          : ''}
+                                      </p>
+                                      <p className="text-default-400 text-xs">
+                                        optimizer rank {overallRank} of {plans.length}
+                                        {dpsRank != null ? ` | dps ${dpsRank}` : ''}
+                                        {ehpRank != null ? ` | ehp ${ehpRank}` : ''}
+                                        {reservationRank != null
+                                          ? ` | reservation ${reservationRank}`
+                                          : ''}
+                                      </p>
+                                      <p className="text-default-400 text-xs">
+                                        stage {plan.stage_progress_score.toFixed(2)}
+                                      </p>
+                                    </div>
                                   </div>
-                                )
-                              })}
+                                  <div className="hidden">
+                                    <RecommendationMetricStrip plan={plan} />
+                                  </div>
+                                  <div className="contents">
+                                    {plan.items.map((item) => (
+                                      <RecommendationItemRow
+                                        key={item.id}
+                                        item={item}
+                                        plan={plan}
+                                        scoreContext={{
+                                          overallRank,
+                                          dpsRank,
+                                          ehpRank,
+                                          reservationRank,
+                                          total: plans.length,
+                                          sectionLabel: section.label,
+                                        }}
+                                        divinePrice={divinePrice}
+                                        analysisMode={selectedRun.analysis_mode}
+                                        runIsStale={selectedRun.status === 'stale'}
+                                        comparePowerRow={
+                                          comparePowerItemRowsBySlot.get(
+                                            getRecommendationItemCompareSlot(item) ?? '',
+                                          ) ?? null
+                                        }
+                                        reservationAuditAnchorId={reservationAuditAnchorId}
+                                        showRankBadge={section.key !== 'overview'}
+                                        canPromote={canPromote}
+                                        promotingRecommendation={promotingRecommendation}
+                                        onPromote={() => void handlePromote(plan.id)}
+                                      />
+                                    ))}
+                                  </div>
+                                  {canPromote ? (
+                                    <div className="hidden">
+                                      {canPromote ? (
+                                        <Button
+                                          size="sm"
+                                          isPending={promotingRecommendation}
+                                          onPress={() => void handlePromote(plan.id)}
+                                        >
+                                          {({ isPending }) => (
+                                            <PendingButtonContent isPending={isPending}>
+                                              Add to gear queue
+                                            </PendingButtonContent>
+                                          )}
+                                        </Button>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+            <aside aria-label="Build insights" className="min-w-0">
+              <RecommendationsInsightsRail
+                selectedCharacter={selectedCharacter}
+                selectedProfile={selectedCharacterProfile}
+                stageLabel={recommendationStageLabel}
+                stageTreeSpec={recommendationStageTreeSpec}
+                stageTreeSource={recordedTreeSpec ? 'recorded' : recommendationStageTreeSpec ? 'saved' : null}
+                stageSkillSet={recommendationStageSkillSet}
+                isDraftStage={false}
+                selectedRun={selectedRun}
+                selectedRunIsLive={false}
+                passiveTreeRefreshToken={0}
+                reservationAuditAnchorId={reservationAuditAnchorId}
+              />
+            </aside>
+          </div>
+        </Card.Content>
+      </Card>
+
+      <>
+        <>
+          <Modal.Backdrop
+            isOpen={partyBuffDetailOpen}
+            onOpenChange={(open) => {
+              if (!open) setPartyBuffDetailOpen(false)
+            }}
+          >
+            <Modal.Container>
+              <Modal.Dialog className="max-h-[calc(100dvh-2rem)]">
+                <Modal.Header>
+                  <Modal.Heading>Party buffs applied</Modal.Heading>
+                </Modal.Header>
+                <Modal.Body className="min-h-0 overflow-y-auto pb-5">
+                  {(() => {
+                    const effects = selectedRun.summary?.party_effects as
+                      | {
+                          auras?: Record<string, number>
+                          links?: Record<string, number>
+                          warcries?: Record<string, number>
+                          curses?: Record<string, number>
+                        }
+                      | null
+                      | undefined
+
+                    if (!effects) {
+                      return (
+                        <p className="text-default-500 text-sm">
+                          No party buff detail available for this run. Queue a new run to see buff
+                          effects.
+                        </p>
+                      )
+                    }
+
+                    const sections: Array<{ label: string; entries: Record<string, number> }> = [
+                      { label: 'Auras', entries: effects.auras ?? {} },
+                      { label: 'Links', entries: effects.links ?? {} },
+                      { label: 'Warcries', entries: effects.warcries ?? {} },
+                      { label: 'Curses', entries: effects.curses ?? {} },
+                    ].filter((s) => Object.keys(s.entries).length > 0)
+
+                    if (sections.length === 0) {
+                      return (
+                        <p className="text-default-500 text-sm">
+                          Party member was found but no buff effects were parsed. The support build
+                          may have no active auras or links.
+                        </p>
+                      )
+                    }
+
+                    return (
+                      <div className="flex flex-col gap-4">
+                        {sections.map((section) => (
+                          <div key={section.label}>
+                            <p className="text-default-500 mb-2 text-xs font-semibold tracking-wide uppercase">
+                              {section.label}
+                            </p>
+                            <div className="flex flex-col gap-1">
+                              {Object.entries(section.entries)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([name, pct]) => (
+                                  <div
+                                    key={name}
+                                    className="flex items-center justify-between gap-4"
+                                  >
+                                    <span className="text-foreground text-sm">{name}</span>
+                                    <span className="text-default-500 shrink-0 text-sm">
+                                      {pct}%
+                                    </span>
+                                  </div>
+                                ))}
                             </div>
                           </div>
-                        )
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
-              <aside aria-label="Build insights" className="min-w-0">
-                <RecommendationsInsightsRail
-                  selectedCharacter={selectedCharacter}
-                  selectedProfile={selectedCharacterProfile}
-                  stageLabel={recommendationStageLabel}
-                  stageTreeSpec={recommendationStageTreeSpec}
-                  stageSkillSet={recommendationStageSkillSet}
-                  isDraftStage={recommendationStageIsDraft}
-                  selectedRun={selectedRun}
-                  selectedRunIsLive={selectedRunIsLive}
-                  passiveTreeRefreshToken={passiveTreeRefreshToken}
-                  runTransitionLoading={runTransitionLoading}
-                  reservationAuditAnchorId={reservationAuditAnchorId}
-                />
-              </aside>
-            </div>
-          </Card.Content>
-        </Card>
+                        ))}
+                        <p className="text-default-400 text-xs">
+                          Effect percentages as computed by PoB for your build.
+                        </p>
+                      </div>
+                    )
+                  })()}
+                </Modal.Body>
+              </Modal.Dialog>
+            </Modal.Container>
+          </Modal.Backdrop>
+        </>
 
-      {selectedRun ? (
         <>
-          <>
-            <Modal.Backdrop
-              isOpen={partyBuffDetailOpen}
-              onOpenChange={(open) => {
-                if (!open) setPartyBuffDetailOpen(false)
-              }}
-            >
-              <Modal.Container>
-                <Modal.Dialog className="max-h-[calc(100dvh-2rem)]">
-                  <Modal.Header>
-                    <Modal.Heading>Party buffs applied</Modal.Heading>
-                  </Modal.Header>
-                  <Modal.Body className="min-h-0 overflow-y-auto pb-5">
-                    {(() => {
-                      const effects = selectedRun.summary?.party_effects as
-                        | {
-                            auras?: Record<string, number>
-                            links?: Record<string, number>
-                            warcries?: Record<string, number>
-                            curses?: Record<string, number>
-                          }
-                        | null
-                        | undefined
+          <Modal.Backdrop
+            isOpen={configInsightDetailOpen}
+            onOpenChange={(open) => {
+              if (!open) setConfigInsightDetailOpen(false)
+            }}
+          >
+            <Modal.Container>
+              <Modal.Dialog className="max-h-[calc(100dvh-2rem)]">
+                <Modal.Header>
+                  <Modal.Heading>PoB configuration insights</Modal.Heading>
+                </Modal.Header>
+                <Modal.Body className="min-h-0 overflow-y-auto pb-5">
+                  {(() => {
+                    const configInsights = getPobConfigurationInsights(selectedRun.summary)
+                    const configSetTitle =
+                      configInsights?.set_title ??
+                      getSummaryText(selectedRun.summary, 'resolved_config_set_title')
+                    const sections = configInsights?.sections ?? []
+                    const enabledCount =
+                      configInsights?.enabled_count ??
+                      sections.reduce((count, section) => count + section.entries.length, 0)
 
-                      if (!effects) {
-                        return (
-                          <p className="text-default-500 text-sm">
-                            No party buff detail available for this run. Queue a new run to see buff
-                            effects.
-                          </p>
-                        )
-                      }
-
-                      const sections: Array<{ label: string; entries: Record<string, number> }> = [
-                        { label: 'Auras', entries: effects.auras ?? {} },
-                        { label: 'Links', entries: effects.links ?? {} },
-                        { label: 'Warcries', entries: effects.warcries ?? {} },
-                        { label: 'Curses', entries: effects.curses ?? {} },
-                      ].filter((s) => Object.keys(s.entries).length > 0)
-
-                      if (sections.length === 0) {
-                        return (
-                          <p className="text-default-500 text-sm">
-                            Party member was found but no buff effects were parsed. The support
-                            build may have no active auras or links.
-                          </p>
-                        )
-                      }
-
+                    if (!configInsights && !configSetTitle) {
                       return (
-                        <div className="flex flex-col gap-4">
-                          {sections.map((section) => (
+                        <p className="text-default-500 text-sm">
+                          No configuration detail is available for this run yet. Queue a fresh run
+                          to capture PoB config toggles and values.
+                        </p>
+                      )
+                    }
+
+                    return (
+                      <div className="flex flex-col gap-4">
+                        <div className="rounded-large border-divider flex flex-col gap-1 border p-4">
+                          <p className="text-default-500 text-xs font-semibold tracking-wide uppercase">
+                            Active config set
+                          </p>
+                          <p className="text-foreground text-sm font-semibold">
+                            {configSetTitle ?? 'Unknown config set'}
+                          </p>
+                          <p className="text-default-500 text-sm">
+                            {enabledCount > 0
+                              ? `${enabledCount} non-default PoB configuration value${enabledCount === 1 ? '' : 's'} captured for this run.`
+                              : 'No non-default PoB configuration values were captured for this run.'}
+                          </p>
+                        </div>
+
+                        {sections.length === 0 ? (
+                          <p className="text-default-500 text-sm">
+                            This run predates detailed configuration insight capture, or the active
+                            config set matched PoB defaults.
+                          </p>
+                        ) : (
+                          sections.map((section) => (
                             <div key={section.label}>
                               <p className="text-default-500 mb-2 text-xs font-semibold tracking-wide uppercase">
                                 {section.label}
                               </p>
-                              <div className="flex flex-col gap-1">
-                                {Object.entries(section.entries)
-                                  .sort(([a], [b]) => a.localeCompare(b))
-                                  .map(([name, pct]) => (
-                                    <div
-                                      key={name}
-                                      className="flex items-center justify-between gap-4"
-                                    >
-                                      <span className="text-foreground text-sm">{name}</span>
-                                      <span className="text-default-500 shrink-0 text-sm">
-                                        {pct}%
-                                      </span>
-                                    </div>
-                                  ))}
+                              <div className="flex flex-col gap-2">
+                                {section.entries.map((entry) => (
+                                  <div
+                                    key={`${section.label}-${entry.var}-${entry.source}`}
+                                    className="rounded-large border-divider border p-3"
+                                  >
+                                    {entry.context_label ? (
+                                      <p className="text-default-400 text-xs font-semibold tracking-wide uppercase">
+                                        {entry.context_label}
+                                      </p>
+                                    ) : null}
+                                    <p className="text-foreground mt-1 text-sm font-medium">
+                                      {entry.label}
+                                    </p>
+                                    <p className="text-default-500 mt-1 text-sm break-words whitespace-pre-wrap">
+                                      {entry.value}
+                                    </p>
+                                    {entry.source === 'placeholder' ? (
+                                      <p className="text-default-400 mt-2 text-xs">
+                                        Using the placeholder value stored by PoB for this field.
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                ))}
                               </div>
                             </div>
-                          ))}
-                          <p className="text-default-400 text-xs">
-                            Effect percentages as computed by PoB for your build.
-                          </p>
-                        </div>
-                      )
-                    })()}
-                  </Modal.Body>
-                </Modal.Dialog>
-              </Modal.Container>
-            </Modal.Backdrop>
-          </>
-
-          <>
-            <Modal.Backdrop
-              isOpen={configInsightDetailOpen}
-              onOpenChange={(open) => {
-                if (!open) setConfigInsightDetailOpen(false)
-              }}
-            >
-              <Modal.Container>
-                <Modal.Dialog className="max-h-[calc(100dvh-2rem)]">
-                  <Modal.Header>
-                    <Modal.Heading>PoB configuration insights</Modal.Heading>
-                  </Modal.Header>
-                  <Modal.Body className="min-h-0 overflow-y-auto pb-5">
-                    {(() => {
-                      const configInsights = getPobConfigurationInsights(selectedRun.summary)
-                      const configSetTitle =
-                        configInsights?.set_title ??
-                        getSummaryText(selectedRun.summary, 'resolved_config_set_title')
-                      const sections = configInsights?.sections ?? []
-                      const enabledCount =
-                        configInsights?.enabled_count ??
-                        sections.reduce((count, section) => count + section.entries.length, 0)
-
-                      if (!configInsights && !configSetTitle) {
-                        return (
-                          <p className="text-default-500 text-sm">
-                            No configuration detail is available for this run yet. Queue a fresh run
-                            to capture PoB config toggles and values.
-                          </p>
-                        )
-                      }
-
-                      return (
-                        <div className="flex flex-col gap-4">
-                          <div className="rounded-large border-divider flex flex-col gap-1 border p-4">
-                            <p className="text-default-500 text-xs font-semibold tracking-wide uppercase">
-                              Active config set
-                            </p>
-                            <p className="text-foreground text-sm font-semibold">
-                              {configSetTitle ?? 'Unknown config set'}
-                            </p>
-                            <p className="text-default-500 text-sm">
-                              {enabledCount > 0
-                                ? `${enabledCount} non-default PoB configuration value${enabledCount === 1 ? '' : 's'} captured for this run.`
-                                : 'No non-default PoB configuration values were captured for this run.'}
-                            </p>
-                          </div>
-
-                          {sections.length === 0 ? (
-                            <p className="text-default-500 text-sm">
-                              This run predates detailed configuration insight capture, or the
-                              active config set matched PoB defaults.
-                            </p>
-                          ) : (
-                            sections.map((section) => (
-                              <div key={section.label}>
-                                <p className="text-default-500 mb-2 text-xs font-semibold tracking-wide uppercase">
-                                  {section.label}
-                                </p>
-                                <div className="flex flex-col gap-2">
-                                  {section.entries.map((entry) => (
-                                    <div
-                                      key={`${section.label}-${entry.var}-${entry.source}`}
-                                      className="rounded-large border-divider border p-3"
-                                    >
-                                      {entry.context_label ? (
-                                        <p className="text-default-400 text-xs font-semibold tracking-wide uppercase">
-                                          {entry.context_label}
-                                        </p>
-                                      ) : null}
-                                      <p className="text-foreground mt-1 text-sm font-medium">
-                                        {entry.label}
-                                      </p>
-                                      <p className="text-default-500 mt-1 text-sm break-words whitespace-pre-wrap">
-                                        {entry.value}
-                                      </p>
-                                      {entry.source === 'placeholder' ? (
-                                        <p className="text-default-400 mt-2 text-xs">
-                                          Using the placeholder value stored by PoB for this field.
-                                        </p>
-                                      ) : null}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      )
-                    })()}
-                  </Modal.Body>
-                </Modal.Dialog>
-              </Modal.Container>
-            </Modal.Backdrop>
-          </>
-
-          <>
-            <Modal.Backdrop
-              isOpen={manualTuningDialogOpen}
-              onOpenChange={(open) => {
-                if (!open) setManualTuningDialogOpen(false)
-              }}
-            >
-              <Modal.Container>
-                <Modal.Dialog className="max-h-[calc(100dvh-2rem)]">
-                  <Modal.Header className="flex flex-col gap-1">
-                    <Modal.Heading>Rerun analysis with manual tunings</Modal.Heading>
-                    <span className="text-default-500 text-sm font-normal">
-                      This launches a fresh live-market pass for {selectedRunStageLabel}.
-                    </span>
-                  </Modal.Header>
-                  <Modal.Body className="min-h-0 overflow-y-auto pb-2">
-                    {renderManualTuningEditor()}
-                  </Modal.Body>
-                  <Modal.Footer>
-                    <Button
-                      variant="tertiary"
-                      onPress={() => setManualTuningDialogOpen(false)}
-                      isDisabled={analysisActionPending}
-                    >
-                      Keep editing later
-                    </Button>
-                    <Button
-                      isPending={analysisActionPending}
-                      onPress={handleRerunWithManualTunings}
-                    >
-                      {({ isPending }) => (
-                        <PendingButtonContent isPending={isPending}>Rerun</PendingButtonContent>
-                      )}
-                    </Button>
-                  </Modal.Footer>
-                </Modal.Dialog>
-              </Modal.Container>
-            </Modal.Backdrop>
-          </>
+                          ))
+                        )}
+                      </div>
+                    )
+                  })()}
+                </Modal.Body>
+              </Modal.Dialog>
+            </Modal.Container>
+          </Modal.Backdrop>
         </>
-      ) : null}
+      </>
     </div>
   )
 }

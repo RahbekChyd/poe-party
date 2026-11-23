@@ -1,12 +1,24 @@
+import {
+  buildPassiveTreeArtwork,
+  type PassiveTreeArtwork,
+  type PassiveTreeArtGroupSource,
+  type PassiveTreeArtNodeSource,
+} from './passive-tree-game-art'
 
 const SUPPORTED_PASSIVE_TREE_RENDER_VERSION_FAMILY = '3_30'
 
-const ORBIT_ANGLE_TABLE: Record<number, number[]> = {
-  0: [0],
-  1: [0, 60, 120, 180, 240, 300],
-  2: [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330],
-  3: [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330],
+// PoB's pinned PassiveTree:CalcOrbitAngles uses the orbit size.
+const ORBIT_ANGLES_BY_SIZE: Record<number, number[]> = {
+  16: [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330],
+  40: [
+    0, 10, 20, 30, 40, 45, 50, 60, 70, 80, 90, 100, 110, 120, 130, 135, 140, 150, 160, 170,
+    180, 190, 200, 210, 220, 225, 230, 240, 250, 260, 270, 280, 290, 300, 310, 315, 320, 330, 340, 350,
+  ],
 }
+
+const DATASET_REVISION = '550fb34ae7fca9ec4d760a2ac845bb2ba1032ec3'
+export const PASSIVE_TREE_GEOMETRY_SOURCE_URL =
+  `https://github.com/grindinggear/skilltree-export/tree/${DATASET_REVISION}`
 
 const BRANCH_FILE_NAMES = {
   data: 'data.json',
@@ -17,9 +29,9 @@ const BRANCH_FILE_NAMES = {
 
 const BRANCH_LABELS = {
   data: 'Default',
-  alternate: 'Alternate ascendancy',
+  alternate: 'Event tree',
   ruthless: 'Ruthless',
-  'ruthless-alternate': 'Ruthless alternate ascendancy',
+  'ruthless-alternate': 'Ruthless event tree',
 } as const
 
 export type PassiveTreeRenderBranch = 'data' | 'alternate' | 'ruthless' | 'ruthless-alternate'
@@ -34,6 +46,9 @@ export interface PassiveTreeRenderNode {
   groupId: number
   x: number
   y: number
+  orbit: number
+  angle: number
+  radius: number
   label: string
   shortStatText: string | null
   stats: string[]
@@ -63,6 +78,23 @@ export interface PassiveTreeRenderConnector {
   id: string
   fromNodeId: number
   toNodeId: number
+  path: string
+}
+
+export interface PassiveTreeAscendancyClass {
+  id: string
+  name: string
+  classId: number | null
+  selectionId: number
+}
+
+export interface PassiveTreeAscendancyWheel {
+  id: string
+  name: string
+  isBloodline: boolean
+  x: number
+  y: number
+  labelY: number
 }
 
 export interface PassiveTreeRenderData {
@@ -78,12 +110,14 @@ export interface PassiveTreeRenderData {
   nodes: Record<number, PassiveTreeRenderNode>
   groups: Record<number, PassiveTreeRenderGroup>
   connectors: PassiveTreeRenderConnector[]
+  artwork?: PassiveTreeArtwork
+  ascendancyClasses?: PassiveTreeAscendancyClass[]
+  ascendancyWheels?: PassiveTreeAscendancyWheel[]
 }
 
 export interface PassiveTreeRenderRequest {
   gameVersion: string | null
-  hasAlternateAscendancy: boolean
-  isRuthless: boolean
+  branch: PassiveTreeRenderBranch
 }
 
 export interface PassiveTreeRenderResolution {
@@ -135,7 +169,7 @@ export function filterComparablePassiveTreeNodeIds(
   return filtered.sort((left, right) => left - right)
 }
 
-type RawPassiveTreeNode = {
+type RawPassiveTreeNode = PassiveTreeArtNodeSource & {
   skill?: number
   name?: string
   stats?: string[]
@@ -161,7 +195,7 @@ type RawPassiveTreeNode = {
   }>
 }
 
-type RawPassiveTreeGroup = {
+type RawPassiveTreeGroup = PassiveTreeArtGroupSource & {
   x?: number
   y?: number
   isProxy?: boolean
@@ -179,22 +213,36 @@ type RawPassiveTreeData = {
   max_y?: number
   nodes?: Record<string, RawPassiveTreeNode>
   groups?: Record<string, RawPassiveTreeGroup>
+  sprites?: unknown
+  classes?: Array<{ ascendancies?: RawPassiveTreeAscendancy[] }>
+  alternate_ascendancies?: RawPassiveTreeAscendancy[]
 }
+
+type RawPassiveTreeAscendancy = { id?: string; name?: string }
 
 const renderDataPromiseCache = new Map<PassiveTreeRenderBranch, Promise<PassiveTreeRenderData>>()
 
 function parseVersionFamily(value: string | null | undefined): string | null {
   if (!value) return null
-  const match = value.match(/(\d+)[._](\d+)/)
+  const match = value.match(/^(\d+)[._](\d+)(?:$|[._ -])/)
   if (!match) return null
   return `${match[1]}_${match[2]}`
 }
 
-function buildBranchKey(request: PassiveTreeRenderRequest): PassiveTreeRenderBranch {
-  if (request.isRuthless && request.hasAlternateAscendancy) return 'ruthless-alternate'
-  if (request.isRuthless) return 'ruthless'
-  if (request.hasAlternateAscendancy) return 'alternate'
-  return 'data'
+function hasUnsupportedPatch(value: string | null): boolean {
+  const patch = value?.match(/^\d+[._]\d+[._](\d+)/)?.[1]
+  return patch !== undefined && Number(patch) !== 0
+}
+
+export function getPassiveTreeRenderBranch(
+  version: string | null,
+  isRuthless = false,
+): PassiveTreeRenderBranch {
+  const label = version?.toLowerCase() ?? ''
+  const alternate = /(?:^|[._ -])(?:alt|alternate|event)(?:$|[._ -])/.test(label)
+  const ruthless = isRuthless || label.includes('ruthless')
+  if (ruthless) return alternate ? 'ruthless-alternate' : 'ruthless'
+  return alternate ? 'alternate' : 'data'
 }
 
 export function resolvePassiveTreeRenderResolution(
@@ -203,53 +251,40 @@ export function resolvePassiveTreeRenderResolution(
 ): PassiveTreeRenderResolution {
   const currentVersionFamily = parseVersionFamily(current.gameVersion)
   const targetVersionFamily = parseVersionFamily(target.gameVersion)
-  const resolvedVersionFamily = targetVersionFamily ?? currentVersionFamily
-  const currentBranch = buildBranchKey(current)
-  const targetBranch = buildBranchKey(target)
+  const unavailable = { supported: false, branch: null, versionFamily: null } as const
 
-  if (!resolvedVersionFamily) {
+  if (!currentVersionFamily || !targetVersionFamily) {
     return {
-      supported: true,
-      branch: targetBranch,
-      versionFamily: SUPPORTED_PASSIVE_TREE_RENDER_VERSION_FAMILY,
-      detail:
-        currentBranch === targetBranch
-          ? 'Using live passive-tree geometry inferred from unlabeled current and target trees.'
-          : 'Using live passive-tree geometry as best effort because the current and target trees use different passive-tree branches.',
+      ...unavailable,
+      detail: 'A tree source is missing its game version. Open the source or use a versioned tree link.',
     }
   }
-
-  if (currentVersionFamily && targetVersionFamily && currentVersionFamily !== targetVersionFamily) {
+  if (currentVersionFamily !== targetVersionFamily || current.branch !== target.branch) {
     return {
-      supported: true,
-      branch: targetBranch,
-      versionFamily: targetVersionFamily,
-      detail:
-        'Using live passive-tree geometry as best effort because the current and target trees carry different version labels.',
+      ...unavailable,
+      detail: `The current tree (${current.gameVersion}, ${BRANCH_LABELS[current.branch]}) and target (${target.gameVersion}, ${BRANCH_LABELS[target.branch]}) use incompatible tree versions or variants.`,
     }
   }
-
-  if (resolvedVersionFamily !== SUPPORTED_PASSIVE_TREE_RENDER_VERSION_FAMILY) {
+  if (currentVersionFamily !== SUPPORTED_PASSIVE_TREE_RENDER_VERSION_FAMILY) {
     return {
-      supported: true,
-      branch: targetBranch,
-      versionFamily: resolvedVersionFamily,
-      detail: `Using live passive-tree geometry as best effort for stored tree version ${resolvedVersionFamily.replace('_', '.')}.`,
+      ...unavailable,
+      detail: `Map geometry for version ${currentVersionFamily.replace('_', '.')} is unavailable.`,
     }
   }
-
+  const newerPatch = [current.gameVersion, target.gameVersion].find(hasUnsupportedPatch)
+  if (newerPatch) {
+    return { ...unavailable, detail: `Map geometry for version ${newerPatch} is unavailable.` }
+  }
   return {
     supported: true,
-    branch: targetBranch,
-    versionFamily: resolvedVersionFamily,
-    detail:
-      currentBranch === targetBranch
-        ? `Using official ${BRANCH_LABELS[targetBranch]} passive-tree geometry.`
-        : 'Using official target-branch passive-tree geometry as best effort because the current and target trees use different passive-tree branches.',
+    branch: target.branch,
+    versionFamily: currentVersionFamily,
+    detail: `Path of Exile ${currentVersionFamily.replace('_', '.')} · ${BRANCH_LABELS[target.branch]}`,
   }
 }
 
 function toFiniteNumber(value: unknown): number | null {
+  if (typeof value !== 'number' && (typeof value !== 'string' || !value.trim())) return null
   const parsed = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(parsed) ? parsed : null
 }
@@ -260,15 +295,9 @@ function toFiniteNumberArray(values: Array<number | string> | undefined): number
     .filter((entry): entry is number => entry != null)
 }
 
-function getOrbitAngle(orbit: number, orbitIndex: number, skillsPerOrbit: number[]): number {
-  const predefinedAngles = ORBIT_ANGLE_TABLE[orbit]
-  if (predefinedAngles && orbitIndex >= 0 && orbitIndex < predefinedAngles.length) {
-    return predefinedAngles[orbitIndex]
-  }
-
-  const orbitSize = skillsPerOrbit[orbit] ?? 0
-  if (orbitSize <= 0) return 0
-  return (360 / orbitSize) * orbitIndex
+function getOrbitAngle(orbitSize: number, orbitIndex: number): number {
+  const degrees = ORBIT_ANGLES_BY_SIZE[orbitSize]?.[orbitIndex] ?? (360 * orbitIndex) / orbitSize
+  return (degrees * Math.PI) / 180
 }
 
 function computeNodePosition(
@@ -276,21 +305,58 @@ function computeNodePosition(
   node: RawPassiveTreeNode,
   orbitRadii: number[],
   skillsPerOrbit: number[],
-): { x: number; y: number } | null {
+): Pick<PassiveTreeRenderNode, 'x' | 'y' | 'angle' | 'orbit' | 'radius'> | null {
   const groupX = toFiniteNumber(group?.x)
   const groupY = toFiniteNumber(group?.y)
   if (groupX == null || groupY == null) return null
 
   const orbit = toFiniteNumber(node.orbit) ?? 0
   const orbitIndex = toFiniteNumber(node.orbitIndex) ?? 0
-  const radius = orbitRadii[orbit] ?? 0
-  const angleDegrees = getOrbitAngle(orbit, orbitIndex, skillsPerOrbit)
-  const angleRadians = (angleDegrees * Math.PI) / 180
+  const radius = orbitRadii[orbit]
+  const orbitSize = skillsPerOrbit[orbit]
+  if (!Number.isFinite(radius) || !orbitSize || orbitIndex < 0 || orbitIndex >= orbitSize) return null
+  const angle = getOrbitAngle(orbitSize, orbitIndex)
 
   return {
-    x: groupX + Math.sin(angleRadians) * radius,
-    y: groupY - Math.cos(angleRadians) * radius,
+    x: groupX + Math.sin(angle) * radius,
+    y: groupY - Math.cos(angle) * radius,
+    orbit,
+    angle,
+    radius,
   }
+}
+
+// PoB draws the shortest arc for nodes sharing an orbit and a line for other edges.
+export function buildConnectorPath(from: PassiveTreeRenderNode, to: PassiveTreeRenderNode): string {
+  const start = `M ${from.x} ${from.y}`
+  const end = `${to.x} ${to.y}`
+  if (from.groupId !== to.groupId || from.orbit !== to.orbit || from.radius === 0) {
+    return `${start} L ${end}`
+  }
+  const turn = 2 * Math.PI
+  const clockwiseAngle = (to.angle - from.angle + turn) % turn
+  const sweep = clockwiseAngle < Math.PI || (clockwiseAngle === Math.PI && from.angle > to.angle) ? 1 : 0
+  return `${start} A ${from.radius} ${from.radius} 0 0 ${sweep} ${end}`
+}
+
+function normalizeAscendancyClasses(data: RawPassiveTreeData): PassiveTreeAscendancyClass[] {
+  const classes: PassiveTreeAscendancyClass[] = []
+
+  function append(entries: RawPassiveTreeAscendancy[] | undefined, classId: number | null) {
+    if (!Array.isArray(entries)) return
+    entries.forEach((entry, index) => {
+      const id = typeof entry?.id === 'string' ? entry.id.trim() : ''
+      if (!id) return
+      const name = typeof entry.name === 'string' ? entry.name.trim() : ''
+      classes.push({ id, name: name || id, classId, selectionId: index + 1 })
+    })
+  }
+
+  if (Array.isArray(data.classes)) {
+    data.classes.forEach((entry, classId) => append(entry?.ascendancies, classId))
+  }
+  append(data.alternate_ascendancies, null)
+  return classes
 }
 
 function getNodeLabel(nodeId: number, node: RawPassiveTreeNode): string {
@@ -313,12 +379,12 @@ function getNodeShortStat(node: RawPassiveTreeNode): string | null {
   return firstReminder?.trim() || null
 }
 
-function normalizePassiveTreeRenderData(
+export function normalizePassiveTreeRenderData(
   branch: PassiveTreeRenderBranch,
   rawData: RawPassiveTreeData,
 ): PassiveTreeRenderData {
-  const orbitRadii = rawData.constants?.orbitRadii ?? []
-  const skillsPerOrbit = rawData.constants?.skillsPerOrbit ?? []
+  const orbitRadii = rawData.constants?.orbitRadii ?? [0, 82, 162, 335, 493]
+  const skillsPerOrbit = rawData.constants?.skillsPerOrbit ?? [1, 6, 12, 12, 40]
   const groups = rawData.groups ?? {}
   const rawNodes = rawData.nodes ?? {}
   const nodes: Record<number, PassiveTreeRenderNode> = {}
@@ -345,23 +411,10 @@ function normalizePassiveTreeRenderData(
       (left, right) => left - right,
     )
 
-    for (const connectedNodeId of uniqueConnectedNodeIds) {
-      const connectorId =
-        connectedNodeId > nodeId ? `${nodeId}-${connectedNodeId}` : `${connectedNodeId}-${nodeId}`
-      if (!connectors.has(connectorId)) {
-        connectors.set(connectorId, {
-          id: connectorId,
-          fromNodeId: nodeId,
-          toNodeId: connectedNodeId,
-        })
-      }
-    }
-
     nodes[nodeId] = {
       nodeId,
       groupId,
-      x: position.x,
-      y: position.y,
+      ...position,
       label: getNodeLabel(nodeId, rawNode),
       shortStatText: getNodeShortStat(rawNode),
       stats: Array.isArray(rawNode.stats)
@@ -370,7 +423,7 @@ function normalizePassiveTreeRenderData(
       isNotable: rawNode.isNotable === true,
       isKeystone: rawNode.isKeystone === true,
       isMastery: rawNode.isMastery === true,
-      isProxy: rawNode.isProxy === true,
+      isProxy: rawNode.isProxy === true || groups[String(groupId)]?.isProxy === true,
       isAscendancyStart: rawNode.isAscendancyStart === true,
       isMultipleChoice: rawNode.isMultipleChoice === true,
       isMultipleChoiceOption: rawNode.isMultipleChoiceOption === true,
@@ -386,7 +439,7 @@ function normalizePassiveTreeRenderData(
             .map((entry) => {
               const effectId = toFiniteNumber(entry.effect)
               const text = Array.isArray(entry.stats)
-                ? entry.stats.map((value) => value.trim()).find((value) => value.length > 0)
+                ? entry.stats.map((value) => value.trim()).filter(Boolean).join('\n')
                 : null
               if (effectId == null || !text) return null
               return {
@@ -397,6 +450,32 @@ function normalizePassiveTreeRenderData(
             .filter((entry): entry is PassiveTreeRenderNodeMasteryEffect => entry != null)
         : [],
     }
+  }
+
+  for (const from of Object.values(nodes)) {
+    if (from.isProxy) continue
+    const fromAscendancy = from.ascendancyName !== null || from.isAscendancyStart
+    for (const toId of from.connectedNodeIds) {
+      const to = nodes[toId]
+      if (!to || to.isProxy || to.nodeId === from.nodeId) continue
+      const toAscendancy = to.ascendancyName !== null || to.isAscendancyStart
+      // Keep each ascendancy wheel visually separate while preserving the exported adjacency.
+      if (fromAscendancy !== toAscendancy || from.ascendancyName !== to.ascendancyName) continue
+
+      const id = `${Math.min(from.nodeId, to.nodeId)}-${Math.max(from.nodeId, to.nodeId)}`
+      if (!connectors.has(id)) {
+        connectors.set(id, {
+          id,
+          fromNodeId: from.nodeId,
+          toNodeId: to.nodeId,
+          path: buildConnectorPath(from, to),
+        })
+      }
+    }
+  }
+
+  if (Object.keys(nodes).length === 0) {
+    throw new Error('The official tree dataset did not contain usable geometry.')
   }
 
   const normalizedGroups: Record<number, PassiveTreeRenderGroup> = {}
@@ -415,6 +494,8 @@ function normalizePassiveTreeRenderData(
     }
   }
 
+  const artwork = buildPassiveTreeArtwork(rawData.sprites, nodes, normalizedGroups, rawNodes, groups)
+  const ascendancyClasses = normalizeAscendancyClasses(rawData)
   return {
     branch,
     branchLabel: BRANCH_LABELS[branch],
@@ -428,6 +509,8 @@ function normalizePassiveTreeRenderData(
     nodes,
     groups: normalizedGroups,
     connectors: [...connectors.values()],
+    ...(artwork ? { artwork } : {}),
+    ...(ascendancyClasses.length ? { ascendancyClasses } : {}),
   }
 }
 
@@ -438,7 +521,7 @@ export function loadPassiveTreeRenderData(
   if (existingPromise) return existingPromise
 
   const promise = fetch(
-    `https://raw.githubusercontent.com/grindinggear/skilltree-export/550fb34ae7fca9ec4d760a2ac845bb2ba1032ec3/${BRANCH_FILE_NAMES[branch]}`,
+    `https://raw.githubusercontent.com/grindinggear/skilltree-export/${DATASET_REVISION}/${BRANCH_FILE_NAMES[branch]}`,
   )
     .then(async (response) => {
       if (!response.ok) {
@@ -447,6 +530,10 @@ export function loadPassiveTreeRenderData(
       return (await response.json()) as RawPassiveTreeData
     })
     .then((rawData) => normalizePassiveTreeRenderData(branch, rawData))
+    .catch((error: unknown) => {
+      renderDataPromiseCache.delete(branch)
+      throw error
+    })
 
   renderDataPromiseCache.set(branch, promise)
   return promise

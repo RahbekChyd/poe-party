@@ -6,6 +6,7 @@ import {
   toPobTextFromStashItem,
   toStructuredStashMods,
 } from './pob-item-text.mjs'
+import { normalizeRunKind } from './run-lifecycle.mjs'
 
 function asArray(value) {
   return Array.isArray(value) ? value : []
@@ -174,6 +175,20 @@ export function collectOverlayImportItems(profile) {
   return [...deduped.values()]
 }
 
+function normalizeMasteryEffects(effects) {
+  if (!Array.isArray(effects)) return asRecord(effects)
+
+  // Normalized character snapshots store the node in the low 16 bits.
+  const byNode = {}
+  for (const pair of effects) {
+    if (!Number.isInteger(pair) || pair < 0 || pair > 0xffffffff) continue
+    const node = pair & 0xffff
+    const effect = pair >>> 16
+    if (node && effect) byNode[node] = effect
+  }
+  return byNode
+}
+
 /** Flatten OAuth and legacy character-window responses for PoB 2.68+. */
 export function buildCurrentImportPayload(profile) {
   const raw = asRecord(profile?.raw_character)
@@ -181,6 +196,10 @@ export function buildCurrentImportPayload(profile) {
   const identity = asRecord(raw.character)
   const items = asArray(raw.items)
   const legacyPassives = asRecord(raw.passives ?? raw.passive_tree ?? profile?.passive_tree)
+  const passiveHashes = legacyPassives.hashes ?? legacyPassives.passiveSkills ?? raw.hashes ?? raw.passiveSkills
+  const masteryEffects = legacyPassives.mastery_effects ?? legacyPassives.mastery_effect_pairs ??
+    legacyPassives.masteryEffectPairs ?? legacyPassives.masteryEffects ?? raw.mastery_effects ??
+    raw.mastery_effect_pairs ?? raw.masteryEffectPairs ?? raw.masteryEffects
   const isEquipped = (item) => OVERLAY_SLOT_IDS.has(item?.inventoryId)
   const wickerman = asArray(raw.wickerman).length ? asArray(raw.wickerman) : items.filter((item) => String(item?.inventoryId ?? '').startsWith('Viscera'))
   const character = {
@@ -195,11 +214,12 @@ export function buildCurrentImportPayload(profile) {
     jewels: Array.isArray(raw.jewels) ? raw.jewels : [...items, ...asArray(legacyPassives.items)].filter((item) => item?.inventoryId === 'PassiveJewels'),
     passives: {
       ...legacyPassives,
-      hashes: asArray(legacyPassives.hashes),
-      hashes_ex: asArray(legacyPassives.hashes_ex ?? legacyPassives.hashesEx),
-      mastery_effects: asRecord(legacyPassives.mastery_effects ?? legacyPassives.masteryEffects),
-      jewel_data: asRecord(legacyPassives.jewel_data ?? legacyPassives.jewelData),
-      skill_overrides: asRecord(legacyPassives.skill_overrides ?? legacyPassives.skillOverrides),
+      hashes: asArray(passiveHashes),
+      hashes_ex: asArray(legacyPassives.hashes_ex ?? legacyPassives.hashesEx ?? raw.hashes_ex ?? raw.hashesEx),
+      mastery_effects: normalizeMasteryEffects(masteryEffects),
+      jewel_data: asRecord(legacyPassives.jewel_data ?? legacyPassives.jewelData ?? raw.jewel_data ?? raw.jewelData),
+      skill_overrides: asRecord(legacyPassives.skill_overrides ?? legacyPassives.skillOverrides ?? raw.skill_overrides ?? raw.skillOverrides),
+      alternate_ascendancy: legacyPassives.alternate_ascendancy ?? legacyPassives.alternateAscendancy ?? raw.alternate_ascendancy ?? raw.alternateAscendancy,
     },
   }
   character.equipment = character.equipment.map(normalizePobApiItem)
@@ -209,7 +229,7 @@ export function buildCurrentImportPayload(profile) {
   const hasOAuthEquipment = Array.isArray(raw.equipment)
   const completeness = {
     equipment: hasOAuthEquipment || Array.isArray(raw.items),
-    passives: Object.keys(legacyPassives).length > 0,
+    passives: Array.isArray(passiveHashes),
     wickerman: hasOAuthEquipment || Array.isArray(raw.wickerman) || wickerman.length > 0,
   }
   const unsupportedFlags = [...character.equipment, ...character.wickerman, ...character.jewels].flatMap((item) => [...asArray(item.implicitMods), ...asArray(item.explicitMods)]).some((mod) => mod?.flags?.rareonly === true) ? ['rareonly'] : []
@@ -274,6 +294,7 @@ export function buildPobRuntimePayload({
     generated_at: new Date().toISOString(),
     run: {
       id: run.id,
+      kind: normalizeRunKind(run.__run_type),
       group_id: run.group_id,
       build_target_id: run.build_target_id,
       target_stage_id: run.target_stage_id ?? null,
@@ -303,7 +324,11 @@ export function buildPobRuntimePayload({
       primary_metric: targetContext.primaryMetric ?? 'totalDps',
       target_metrics: targetContext.targetMetrics ?? {},
       hard_requirements: targetContext.hardRequirements ?? [],
-      tree_spec: targetContext.selectedTreeSpec ?? null,
+      tree_spec:
+        targetContext.selectedTreeSpec ??
+        (targetStage?.tree_spec_id != null || targetStage?.tree_spec_title
+          ? { id: targetStage.tree_spec_id ?? null, title: targetStage.tree_spec_title ?? null }
+          : null),
       skill_set: targetContext.selectedSkillSet ?? null,
       config_set:
         targetContext.selectedConfigSet ??

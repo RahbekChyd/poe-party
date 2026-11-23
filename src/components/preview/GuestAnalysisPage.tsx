@@ -1,16 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
 import { ListBox } from '@heroui/react/list-box'
 import { Spinner } from '@heroui/react/spinner'
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock3,
-  Search,
-  Sparkles,
-} from 'lucide-react'
+import { Search } from 'lucide-react'
 import {
   guestPlanForRecommendationRow,
   useGuestCharacterLookup,
@@ -18,6 +12,13 @@ import {
   useQueueGuestUpgradeAnalysis,
 } from '../../hooks/useGuestAnalysis'
 import { useNinjaPrices } from '../../hooks/useNinjaPrices'
+import { formatElapsedSince, getAnalysisPhaseLabel } from '../../lib/analysis-progress'
+import {
+  getAnalysisPobLayoutLabels,
+  getAnalysisPobResultLayoutLabels,
+  resolveAnalysisPobSetup,
+  type AnalysisPobSetupSelection,
+} from '../../lib/analysis-pob-setup'
 import { parsePobImport } from '../../lib/pob'
 import { rankRecommendationPlans } from '../../lib/recommendation-score'
 import type {
@@ -27,8 +28,13 @@ import type {
   PobImportMetadata,
   UpgradeRecommendationPlan,
 } from '../../types/app'
+import { AnalysisPobSetupFields } from '../analysis/AnalysisPobSetupFields'
+import { AnalysisPobImportFields } from '../analysis/AnalysisPobImportFields'
+import { AnalysisPobResultLayouts } from '../analysis/AnalysisPobResultLayouts'
+import { AnalysisRunProgress } from '../analysis/AnalysisRunProgress'
+import { AnalysisWizard } from '../analysis/AnalysisWizard'
 import { RecommendationItemRow } from '../gear/RecommendationItemRow'
-import { FieldInput, FieldTextArea, SelectField } from '../ui/heroui-native'
+import { FieldInput, SelectField } from '../ui/heroui-native'
 import { PreviewPageIntro } from './PreviewShared'
 import { DashboardPage } from '../ui/dashboard'
 import '../analysis/analysis-run.css'
@@ -36,58 +42,58 @@ import '../analysis/analysis-run.css'
 const GUEST_RUN_TOKEN_STORAGE_KEY = 'poe-party:guest-analysis-run-token:v1'
 const ALL_GUEST_LEAGUES_KEY = '__all__'
 const UNKNOWN_GUEST_LEAGUE_KEY = '__unknown__'
+const DEFAULT_TARGET_NAME = 'Public target'
+const TARGET_NAME_LIMIT = 120
+const GUEST_ANALYSIS_STEPS = ['Character', 'PoB target', 'PoB setup', 'Review'] as const
+const GUEST_ANALYSIS_STEP_TITLES = [
+  'Find a character',
+  'Choose a PoB target',
+  'Confirm PoB setup',
+  'Review analysis',
+]
+const GUEST_ANALYSIS_STEP_DESCRIPTIONS = [
+  'Enter a public Path of Exile account name, including the number after #.',
+  'Paste a Path of Building share code or XML export for the build you want to compare against.',
+  'Choose the tree, item set, skill set, and configuration to compare.',
+  'Check your character and target before starting.',
+]
+const EMPTY_SETUP: AnalysisPobSetupSelection = {
+  treeSpecId: null,
+  itemSetId: null,
+  skillSetId: null,
+  configSetId: null,
+}
+const FINISHED_STATUS_BADGES = {
+  completed: { color: 'success', label: 'Completed' },
+  partial: { color: 'warning', label: 'Partial' },
+  failed: { color: 'danger', label: 'Failed' },
+  stale: { color: 'warning', label: 'Stale' },
+} as const
 
 function readStoredGuestRunToken(): string | null {
-  if (typeof window === 'undefined') return null
-  return window.localStorage.getItem(GUEST_RUN_TOKEN_STORAGE_KEY)
+  try {
+    return window.localStorage.getItem(GUEST_RUN_TOKEN_STORAGE_KEY)
+  } catch {
+    return null
+  }
 }
 
-function writeStoredGuestRunToken(token: string | null) {
-  if (typeof window === 'undefined') return
-  if (token) {
+function writeStoredGuestRunToken(token: string): boolean {
+  try {
     window.localStorage.setItem(GUEST_RUN_TOKEN_STORAGE_KEY, token)
-  } else {
-    window.localStorage.removeItem(GUEST_RUN_TOKEN_STORAGE_KEY)
+    return true
+  } catch {
+    return false
   }
 }
 
-function statusTone(status: GuestUpgradeAnalysisRun['status']): {
-  color: 'default' | 'warning' | 'success' | 'danger'
-  label: string
-  icon: typeof Clock3
-} {
-  switch (status) {
-    case 'queued':
-      return { color: 'default', label: 'Queued', icon: Clock3 }
-    case 'running':
-      return { color: 'default', label: 'Running', icon: Sparkles }
-    case 'completed':
-      return { color: 'success', label: 'Completed', icon: CheckCircle2 }
-    case 'partial':
-      return { color: 'warning', label: 'Partial', icon: AlertTriangle }
-    case 'failed':
-      return { color: 'danger', label: 'Failed', icon: AlertTriangle }
-    default:
-      return { color: 'warning', label: 'Stale', icon: AlertTriangle }
-  }
-}
-
-function getRunStatusDescription(run: GuestUpgradeAnalysisRun): string {
-  switch (run.status) {
-    case 'queued':
-      return 'The public run is queued for the optimizer worker.'
-    case 'running':
-      return 'The worker is scoring the public character against the target PoB.'
-    case 'completed':
-      return 'Recommendations are ready for this public character snapshot.'
-    case 'partial':
-      return run.partial_reason ?? 'Recommendations are ready with partial confidence.'
-    case 'failed':
-      return 'Recommendations could not be generated. Try running the analysis again.'
-    case 'stale':
-      return 'This public run is no longer current.'
-    default:
-      return 'Run status unknown.'
+function clearStoredGuestRunToken(token: string | null) {
+  try {
+    if (readStoredGuestRunToken() === token) {
+      window.localStorage.removeItem(GUEST_RUN_TOKEN_STORAGE_KEY)
+    }
+  } catch {
+    // Storage can be unavailable in browser privacy modes.
   }
 }
 
@@ -211,59 +217,16 @@ function GuestRecommendationSection({
 
 function GuestRecommendations({
   divinePrice,
-  isResultPending,
   plans,
   run,
 }: {
   divinePrice: number
-  isResultPending: boolean
   plans: GuestUpgradeRecommendationPlan[]
   run: GuestUpgradeAnalysisRun
 }) {
   const primaryPlans = useMemo(() => getPrimaryPlans(plans), [plans])
   const overviewPlans = useMemo(() => getOverviewPlans(plans), [plans])
   const hasPlans = primaryPlans.length > 0 || overviewPlans.length > 0
-
-  if (run.status === 'queued' || run.status === 'running') {
-    return (
-      <Card>
-        <Card.Content className="items-center gap-3 p-8 text-center">
-          <Spinner color="current" className="text-info" />
-          <div>
-            <p className="text-foreground text-sm font-semibold">Analysis in progress</p>
-            <p className="text-default-500 mt-1 text-sm">{getRunStatusDescription(run)}</p>
-          </div>
-        </Card.Content>
-      </Card>
-    )
-  }
-
-  if (isResultPending) {
-    return (
-      <Card>
-        <Card.Content className="items-center gap-3 p-8 text-center">
-          <Spinner />
-          <div>
-            <p className="text-foreground text-sm font-semibold">Finalizing recommendations</p>
-            <p className="text-default-500 mt-1 text-sm">
-              The run is complete. Result rows are still being loaded.
-            </p>
-          </div>
-        </Card.Content>
-      </Card>
-    )
-  }
-
-  if (run.status === 'failed') {
-    return (
-      <Card className="border-danger/40 bg-danger-soft border">
-        <Card.Content className="gap-2 p-5">
-          <p role="alert" className="text-danger text-sm font-semibold">Public analysis failed</p>
-          <p className="text-default-600 text-sm">{getRunStatusDescription(run)}</p>
-        </Card.Content>
-      </Card>
-    )
-  }
 
   if (!hasPlans) {
     return (
@@ -324,12 +287,10 @@ function GuestRecommendations({
 function CharacterPicker({
   characters,
   selectedCharacter,
-  isDisabled,
   onSelect,
 }: {
   characters: GuestCharacterSummary[]
   selectedCharacter: GuestCharacterSummary | null
-  isDisabled: boolean
   onSelect: (character: GuestCharacterSummary) => void
 }) {
   if (characters.length === 0) return null
@@ -344,7 +305,6 @@ function CharacterPicker({
             key={`${character.realm}-${character.name}`}
             type="button"
             aria-pressed={selected}
-            disabled={isDisabled}
             className={`rounded-large border p-3 text-left transition ${
               selected
                 ? 'border-highlight bg-selected'
@@ -375,6 +335,8 @@ function CharacterPicker({
 }
 
 export function GuestAnalysisPage() {
+  const [step, setStep] = useState(0)
+  const [isSettingUp, setIsSettingUp] = useState(false)
   const [accountName, setAccountName] = useState('')
   const [resolvedAccountName, setResolvedAccountName] = useState<string | null>(null)
   const [characterMessage, setCharacterMessage] = useState<{ text: string; error?: boolean } | null>(null)
@@ -383,34 +345,40 @@ export function GuestAnalysisPage() {
   const [leagueFilter, setLeagueFilter] = useState(ALL_GUEST_LEAGUES_KEY)
   const [selectedCharacter, setSelectedCharacter] = useState<GuestCharacterSummary | null>(null)
   const [rawImport, setRawImport] = useState('')
-  const [targetName, setTargetName] = useState('Public target')
+  const [targetName, setTargetName] = useState(DEFAULT_TARGET_NAME)
   const [parsedMetadata, setParsedMetadata] = useState<PobImportMetadata | null>(null)
-  const [treeSpecId, setTreeSpecId] = useState<string | null>(null)
-  const [itemSetId, setItemSetId] = useState<string | null>(null)
-  const [skillSetId, setSkillSetId] = useState<string | null>(null)
-  const [configSetId, setConfigSetId] = useState<string | null>(null)
+  const [setup, setSetup] = useState(EMPTY_SETUP)
   const [parseError, setParseError] = useState<string | null>(null)
   const [queueError, setQueueError] = useState<string | null>(null)
   const [targetAction, setTargetAction] = useState<'parse' | 'queue' | null>(null)
   const targetActionPending = useRef(false)
   const [runNotice, setRunNotice] = useState<string | null>(null)
   const [runToken, setRunToken] = useState<string | null>(() => readStoredGuestRunToken())
-  const runSummaryRef = useRef<HTMLElement>(null)
-  const focusQueuedRun = useRef(false)
+  const [runRemembered, setRunRemembered] = useState(!!runToken)
+  const currentRunHeading = useRef<HTMLHeadingElement>(null)
+  const focusRunHeading = useRef(false)
   const characterLookup = useGuestCharacterLookup()
   const queueGuestRun = useQueueGuestUpgradeAnalysis()
+  const showCurrentRun = !!runToken && !isSettingUp
   const {
     data: statusData,
     error: statusError,
     isLoading: statusLoading,
     isResultPending,
     retry: retryStatus,
-  } = useGuestUpgradeAnalysisStatus(runToken)
-  const activeRun = statusData?.run ?? null
+    runUnavailable,
+  } = useGuestUpgradeAnalysisStatus(showCurrentRun ? runToken : null)
+  const activeRun = runUnavailable ? null : statusData?.run ?? null
   const activePlans = statusData?.plans ?? []
-  const activeLeague = activeRun?.character_league ?? selectedCharacter?.league ?? null
-  const { data: ninjaData } = useNinjaPrices(activeLeague, 'poe1')
+  const showRecommendations =
+    (activeRun?.status === 'completed' || activeRun?.status === 'partial') &&
+    !isResultPending && (!statusError || activePlans.length > 0)
+  const { data: ninjaData } = useNinjaPrices(
+    showRecommendations ? activeRun?.character_league ?? null : null,
+    'poe1',
+  )
   const divinePrice = ninjaData?.divinePrice ?? 0
+  const normalizedTargetName = targetName.trim().slice(0, TARGET_NAME_LIMIT) || DEFAULT_TARGET_NAME
   const leagueFilterOptions = useMemo(() => {
     const leagueTitles = new Map<string, string>()
     for (const character of characters) {
@@ -436,19 +404,19 @@ export function GuestAnalysisPage() {
   )
 
   useEffect(() => {
-    writeStoredGuestRunToken(runToken)
-    if (runToken && focusQueuedRun.current) {
-      focusQueuedRun.current = false
-      runSummaryRef.current?.focus()
-    }
-  }, [runToken])
+    if (!showCurrentRun || !focusRunHeading.current) return
+    focusRunHeading.current = false
+    currentRunHeading.current?.focus()
+  }, [showCurrentRun, runToken])
 
   useEffect(() => {
-    if (statusError?.message.match(/^Public Analysis run not found(?: or expired)?\.?$/i)) {
-      setRunToken(null)
-      setRunNotice('This analysis is no longer available. Run a new analysis to get fresh results.')
-    }
-  }, [statusError])
+    if (!runUnavailable) return
+    clearStoredGuestRunToken(runToken)
+    setRunToken(null)
+    setStep(0)
+    setIsSettingUp(true)
+    setRunNotice('This analysis is no longer available. Start a new analysis to get fresh results.')
+  }, [runUnavailable, runToken])
 
   function clearCharacterLookup() {
     setResolvedAccountName(null)
@@ -512,59 +480,27 @@ export function GuestAnalysisPage() {
     }
   }
 
-  function applyParsedTargetMetadata(metadata: PobImportMetadata): {
-    config_set_id: string | null
-    item_set_id: string | null
-    skill_set_id: string | null
-    target_name: string
-    tree_spec_id: string | null
-  } {
-    const nextTreeSpecId = metadata.tree_specs[0]?.id ?? null
-    const nextItemSetId = metadata.item_sets[0]?.id ?? null
-    const nextSkillSetId = metadata.skill_sets[0]?.id ?? null
-    const nextConfigSetId = metadata.active_config_set_id ?? metadata.config_sets[0]?.id ?? null
-    const nextTargetName =
-      targetName.trim() === 'Public target'
-        ? (metadata.ascendancy_name ??
-          metadata.class_name ??
-          metadata.item_sets[0]?.title ??
-          'Public target')
-        : targetName
-
-    setParsedMetadata(metadata)
-    setTreeSpecId(nextTreeSpecId)
-    setItemSetId(nextItemSetId)
-    setSkillSetId(nextSkillSetId)
-    setConfigSetId(nextConfigSetId)
-    setTargetName(nextTargetName)
-
-    return {
-      config_set_id: nextConfigSetId,
-      item_set_id: nextItemSetId,
-      skill_set_id: nextSkillSetId,
-      target_name: nextTargetName,
-      tree_spec_id: nextTreeSpecId,
-    }
-  }
-
-  async function readTarget() {
-    setParseError(null)
-    setParsedMetadata(null)
-    try {
-      const parsed = await parsePobImport(rawImport)
-      return applyParsedTargetMetadata(parsed.metadata)
-    } catch (error) {
-      setParseError(error instanceof Error ? error.message : 'The PoB import could not be read.')
-      return null
-    }
-  }
-
-  async function handleParseTarget() {
+  async function handleReadTarget() {
     if (targetActionPending.current || !rawImport.trim()) return
+    if (parsedMetadata) {
+      setStep(2)
+      return
+    }
+
     targetActionPending.current = true
     setTargetAction('parse')
+    setParseError(null)
     try {
-      await readTarget()
+      const { metadata } = await parsePobImport(rawImport)
+      setParsedMetadata(metadata)
+      setSetup(resolveAnalysisPobSetup(metadata))
+      if (normalizedTargetName === DEFAULT_TARGET_NAME) {
+        const inferredName = metadata.ascendancy_name ?? metadata.class_name ?? metadata.item_sets[0]?.title
+        setTargetName(inferredName?.slice(0, TARGET_NAME_LIMIT) ?? DEFAULT_TARGET_NAME)
+      }
+      setStep(2)
+    } catch (error) {
+      setParseError(error instanceof Error ? error.message : 'The PoB import could not be read.')
     } finally {
       targetActionPending.current = false
       setTargetAction(null)
@@ -572,30 +508,28 @@ export function GuestAnalysisPage() {
   }
 
   async function handleQueueRun() {
-    if (targetActionPending.current || !selectedCharacter || !resolvedAccountName || !rawImport.trim()) return
+    if (targetActionPending.current || !selectedCharacter || !resolvedAccountName || !parsedMetadata) return
     targetActionPending.current = true
     setTargetAction('queue')
     setQueueError(null)
 
     try {
-      const selection = parsedMetadata ? {
-        target_name: targetName,
-        tree_spec_id: treeSpecId,
-        item_set_id: itemSetId,
-        skill_set_id: skillSetId,
-        config_set_id: configSetId,
-      } : await readTarget()
-      if (!selection) return
-
       const result = await queueGuestRun.mutateAsync({
         account_name: resolvedAccountName,
         character_name: selectedCharacter.name,
         raw_import: rawImport,
-        ...selection,
+        target_name: normalizedTargetName,
+        tree_spec_id: setup.treeSpecId,
+        item_set_id: setup.itemSetId,
+        skill_set_id: setup.skillSetId,
+        config_set_id: setup.configSetId,
       })
-      focusQueuedRun.current = true
+      setRunRemembered(writeStoredGuestRunToken(result.run_token))
+      focusRunHeading.current = true
       setRunToken(result.run_token)
-      setRunNotice('Quick analysis queued.')
+      setRunNotice(null)
+      setStep(0)
+      setIsSettingUp(false)
     } catch (error) {
       setQueueError(error instanceof Error ? error.message : 'Could not queue the analysis. Try again.')
     } finally {
@@ -604,132 +538,222 @@ export function GuestAnalysisPage() {
     }
   }
 
-  const runTone = activeRun ? statusTone(activeRun.status) : null
-  const RunIcon = runTone?.icon
+  if (showCurrentRun) {
+    const runStatus = activeRun?.status
+    const isLive = runStatus === 'queued' || runStatus === 'running'
+    const progressStatus = isLive ? runStatus : isResultPending && !statusError ? 'finalizing' : null
+    const statusBadge = runStatus && !isLive ? FINISHED_STATUS_BADGES[runStatus] : null
 
-  return (
-    <DashboardPage>
-      <PreviewPageIntro
-        title="Analysis"
-        description="Compare a public PoE1 character with a Path of Building target to find upgrades."
-      />
-
-      {runToken ? (
-        <section
-          id="current-public-run"
-          ref={runSummaryRef}
-          tabIndex={-1}
-          aria-labelledby="current-public-run-title"
-          className="analysis-run-summary scroll-mt-6"
-        >
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex min-w-0 items-start gap-3">
-              {RunIcon ? <RunIcon size={18} className="text-default-500 mt-0.5 shrink-0" aria-hidden="true" /> : null}
+    return (
+      <DashboardPage>
+        <GuestAnalysisIntro />
+        <section aria-labelledby="current-public-run-title" className="flex min-w-0 flex-col gap-4">
+          <header className="analysis-run-summary">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 id="current-public-run-title" className="text-foreground text-base font-semibold">Current public run</h2>
+                <h2
+                  id="current-public-run-title"
+                  ref={currentRunHeading}
+                  tabIndex={-1}
+                  className="text-foreground scroll-mt-6 text-base font-semibold focus:outline-none"
+                >
+                  Current public run
+                </h2>
                 {activeRun ? (
                   <p className="text-default-600 mt-1 text-sm wrap-anywhere">
                     {activeRun.character_name} compared with {activeRun.target_name}
                   </p>
                 ) : null}
               </div>
-            </div>
-            {activeRun ? (
               <div className="flex flex-wrap gap-2">
-                <a href="#public-character" className="button button--sm button--tertiary">Analysis setup</a>
+                <Button size="sm" variant="secondary" onPress={() => setIsSettingUp(true)}>
+                  New analysis
+                </Button>
                 <Button
                   size="sm"
                   variant="tertiary"
                   onPress={() => {
+                    clearStoredGuestRunToken(runToken)
                     setRunToken(null)
-                    setRunNotice(null)
+                    setRunNotice('Saved run cleared from this browser.')
+                    setStep(0)
+                    setIsSettingUp(true)
                   }}
                 >
                   Clear saved run
                 </Button>
               </div>
+            </div>
+            {activeRun ? (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {statusBadge ? (
+                    <Chip size="sm" color={statusBadge.color} variant="soft">{statusBadge.label}</Chip>
+                  ) : null}
+                  <Chip size="sm" variant="soft">Quick</Chip>
+                  {activeRun.character_league ? (
+                    <Chip size="sm" variant="soft">{activeRun.character_league}</Chip>
+                  ) : null}
+                </div>
+                <p className="text-default-500 text-sm">
+                  Queued {formatRelativeTime(activeRun.created_at) ?? activeRun.created_at}
+                </p>
+              </div>
             ) : null}
-          </div>
-
+          </header>
+          <p role="status" className="sr-only">
+            {showRecommendations ? 'Analysis results ready.' : ''}
+          </p>
           {statusLoading ? (
             <div role="status" className="text-default-600 flex items-center gap-2 text-sm">
               <Spinner size="sm" />
-              Loading your latest analysis…
+              Loading your current analysis…
             </div>
           ) : null}
-
-          {activeRun && runTone ? (
-            <div className="analysis-run-progress flex flex-wrap items-baseline gap-x-4 gap-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Chip
-                  size="sm"
-                  color={runTone.color}
-                  variant="soft"
-                  className={activeRun.status === 'running' ? 'bg-info-soft text-info' : undefined}
-                >
-                  {runTone.label}
-                </Chip>
-                <Chip size="sm" variant="soft">Quick</Chip>
-                {activeRun.character_league ? (
-                  <Chip size="sm" variant="soft">{activeRun.character_league}</Chip>
-                ) : null}
-              </div>
-              <p className="text-default-600 min-w-0 text-sm wrap-anywhere">{getRunStatusDescription(activeRun)}</p>
-              <p className="text-default-500 text-xs">
-                Queued {formatRelativeTime(activeRun.created_at) ?? activeRun.created_at}
-              </p>
-            </div>
-          ) : null}
-
-          {statusError ? (
+          {statusError && !runUnavailable ? (
             <div className="flex flex-wrap items-center gap-2">
-              <p role="alert" className="text-danger text-sm">Could not load the latest analysis results.</p>
+              <p role="alert" className="text-danger text-sm">Could not load the current analysis.</p>
               <Button size="sm" variant="tertiary" onPress={() => void retryStatus()}>
                 Try again
               </Button>
             </div>
           ) : null}
+          {activeRun && progressStatus ? (
+            <AnalysisRunProgress
+              status={progressStatus}
+              headingLevel={3}
+              phase={runStatus === 'running' ? getAnalysisPhaseLabel(activeRun.summary) : null}
+              elapsed={formatElapsedSince(activeRun.started_at, Date.now())}
+              returnNote={
+                runRemembered
+                  ? 'You can leave this page and return in the same browser to see your results.'
+                  : 'This browser could not save the run. Keep this page open to see your results.'
+              }
+            />
+          ) : null}
+          {activeRun?.status === 'failed' || activeRun?.status === 'stale' ? (
+            <div className="rounded-large border-divider bg-surface flex flex-col gap-1 border p-4">
+              <p role="alert" className="text-foreground text-sm font-semibold">
+                {activeRun.status === 'failed' ? 'Public analysis failed' : 'Public analysis is out of date'}
+              </p>
+              <p className="text-default-600 text-sm">
+                {activeRun.status === 'failed'
+                  ? 'Recommendations could not be generated. Try running the analysis again.'
+                  : 'Start a new analysis to get fresh recommendations.'}
+              </p>
+            </div>
+          ) : null}
+          {activeRun && showRecommendations ? (
+            <>
+              {activeRun.status === 'partial' ? (
+                <p role="status" className="text-warning text-sm">
+                  {activeRun.partial_reason ?? 'Recommendations are ready with partial confidence.'}
+                </p>
+              ) : null}
+              <AnalysisPobResultLayouts
+                rows={getAnalysisPobResultLayoutLabels(
+                  activeRun.import_metadata,
+                  activeRun.summary,
+                  activeRun.target_stage,
+                )}
+              />
+              <GuestRecommendations run={activeRun} plans={activePlans} divinePrice={divinePrice} />
+            </>
+          ) : null}
         </section>
-      ) : null}
+      </DashboardPage>
+    )
+  }
+
+  const canContinueFromCharacter = !!selectedCharacter && !!resolvedAccountName
+  const wizardAction = step === 0 ? (
+    <Button isDisabled={!canContinueFromCharacter} onPress={() => setStep(1)}>
+      Continue
+    </Button>
+  ) : step === 1 ? (
+    <Button
+      isDisabled={!rawImport.trim()}
+      isPending={targetAction === 'parse'}
+      onPress={() => void handleReadTarget()}
+    >
+      {({ isPending }) => isPending ? 'Reading PoB…' : 'Read PoB and continue'}
+    </Button>
+  ) : step === 2 ? (
+    <Button isDisabled={!parsedMetadata} onPress={() => setStep(3)}>
+      Continue
+    </Button>
+  ) : (
+    <Button
+      isPending={targetAction === 'queue'}
+      isDisabled={!canContinueFromCharacter || !parsedMetadata}
+      onPress={() => void handleQueueRun()}
+    >
+      {({ isPending }) => isPending ? 'Starting analysis…' : 'Run Quick analysis'}
+    </Button>
+  )
+
+  return (
+    <DashboardPage>
+      <GuestAnalysisIntro
+        aside={runToken ? (
+          <Button
+            variant="tertiary"
+            isDisabled={targetAction !== null}
+            onPress={() => {
+              focusRunHeading.current = true
+              setIsSettingUp(false)
+            }}
+          >
+            Resume current run
+          </Button>
+        ) : null}
+      />
       {runNotice ? <p role="status" className="text-default-600 text-sm">{runNotice}</p> : null}
-
-      {activeRun && (!statusError || activePlans.length > 0) ? (
-        <div id="public-recommendations" className="scroll-mt-6">
-          <GuestRecommendations
-            run={activeRun}
-            plans={activePlans}
-            divinePrice={divinePrice}
-            isResultPending={isResultPending && !statusError}
-          />
-        </div>
-      ) : null}
-
-      <div className="grid items-start gap-4 lg:grid-cols-2">
-        <Card id="public-character" className="min-w-0 scroll-mt-6 p-0">
-          <Card.Header className="flex-col items-start gap-1 px-4 pt-4 pb-0 sm:px-5 sm:pt-5">
-            <h2 className="text-foreground text-base font-semibold">Find a character</h2>
-            <p className="text-default-500 text-sm">Enter your account name, including the number after #.</p>
-          </Card.Header>
-          <Card.Content className="gap-4 p-4 sm:p-5">
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+      <AnalysisWizard
+        steps={GUEST_ANALYSIS_STEPS}
+        activeStep={step}
+        title={GUEST_ANALYSIS_STEP_TITLES[step]}
+        description={GUEST_ANALYSIS_STEP_DESCRIPTIONS[step]}
+        focusOnMount={isSettingUp}
+        backAction={step > 0 ? (
+          <Button
+            variant="tertiary"
+            isDisabled={targetAction !== null}
+            onPress={() => {
+              setQueueError(null)
+              setStep((current) => current - 1)
+            }}
+          >
+            Back
+          </Button>
+        ) : null}
+        primaryAction={wizardAction}
+      >
+        {step === 0 ? (
+          <>
+            <form
+              className="grid min-w-0 gap-3 min-[35rem]:grid-cols-[minmax(0,1fr)_auto] min-[35rem]:items-end"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void handleLookupCharacters()
+              }}
+            >
               <FieldInput
                 label="PoE account"
                 value={accountName}
                 onValueChange={handleAccountChange}
-                isDisabled={targetAction === 'queue'}
                 placeholder="AccountName#1234"
                 startContent={<Search size={16} />}
               />
               <Button
-                className="md:mb-[1px]"
-                variant={selectedCharacter ? 'tertiary' : 'primary'}
+                type="submit"
+                variant="secondary"
                 isPending={characterLookup.isPending}
-                isDisabled={!accountName.trim() || targetAction === 'queue'}
-                onPress={() => void handleLookupCharacters()}
+                isDisabled={!accountName.trim()}
               >
-                Find characters
+                {({ isPending }) => isPending ? 'Finding characters…' : 'Find characters'}
               </Button>
-            </div>
+            </form>
             {characterMessage ? (
               <p
                 role={characterMessage.error ? 'alert' : 'status'}
@@ -739,18 +763,17 @@ export function GuestAnalysisPage() {
               </p>
             ) : null}
             {characters.length > 0 ? (
-              <div className="grid gap-3 md:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] md:items-end">
+              <div className="grid gap-3 min-[35rem]:grid-cols-[minmax(9rem,15rem)_minmax(0,1fr)] min-[35rem]:items-end">
                 <SelectField
                   label="League"
                   selectedKey={leagueFilter}
-                  isDisabled={targetAction === 'queue'}
                   onSelectionChange={(key) =>
                     handleLeagueFilterChange(typeof key === 'string' ? key : null)
                   }
                 >
                   {toSelectItems(leagueFilterOptions)}
                 </SelectField>
-                <p className="text-default-500 text-sm md:pb-2">
+                <p className="text-default-500 text-sm min-[35rem]:pb-2">
                   Showing {filteredCharacters.length} of {characters.length} public character
                   {characters.length === 1 ? '' : 's'}.
                 </p>
@@ -759,127 +782,94 @@ export function GuestAnalysisPage() {
             <CharacterPicker
               characters={filteredCharacters}
               selectedCharacter={selectedCharacter}
-              isDisabled={targetAction === 'queue'}
               onSelect={setSelectedCharacter}
             />
-          </Card.Content>
-        </Card>
-
-        <Card id="target-pob" className="min-w-0 scroll-mt-6 p-0">
-          <Card.Header className="flex-col items-start gap-1 px-4 pt-4 pb-0 sm:px-5 sm:pt-5">
-            <h2 className="text-foreground text-base font-semibold">Choose a PoB target</h2>
-            <p className="text-default-500 text-sm">Paste a share code or XML export. Read the layouts to choose which ones to use.</p>
-          </Card.Header>
-          <Card.Content className="gap-4 p-4 sm:p-5">
-            <FieldInput
-              label="Target name"
-              value={targetName}
-              onValueChange={setTargetName}
-              isDisabled={targetAction !== null}
-              placeholder="Mapping starter target"
+          </>
+        ) : null}
+        {step === 1 ? (
+          <AnalysisPobImportFields
+            value={rawImport}
+            isPending={targetAction !== null}
+            onValueChange={(value) => {
+              setRawImport(value)
+              setParsedMetadata(null)
+              setSetup(EMPTY_SETUP)
+              setParseError(null)
+              setQueueError(null)
+            }}
+            name={targetName}
+            onNameChange={setTargetName}
+            error={parseError}
+          />
+        ) : null}
+        {step === 2 && parsedMetadata ? (
+          <>
+            <p className="text-foreground text-sm font-medium wrap-anywhere">{normalizedTargetName}</p>
+            <AnalysisPobSetupFields
+              metadata={parsedMetadata}
+              selection={setup}
+              onSelectionChange={(field, value) =>
+                setSetup((current) => ({ ...current, [field]: value }))
+              }
             />
-            <FieldTextArea
-              label="PoB import"
-              minRows={5}
-              value={rawImport}
-              isDisabled={targetAction !== null}
-              onValueChange={(value) => {
-                setRawImport(value)
-                setParsedMetadata(null)
-                setParseError(null)
-                setQueueError(null)
-              }}
-              placeholder="Paste PoB code or XML"
+          </>
+        ) : null}
+        {step === 3 && selectedCharacter && parsedMetadata ? (
+          <>
+            <GuestAnalysisReview
+              character={selectedCharacter}
+              targetName={normalizedTargetName}
+              metadata={parsedMetadata}
+              selection={setup}
             />
-            {parseError ? <p role="alert" className="text-danger wrap-anywhere text-sm">{parseError}</p> : null}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="tertiary"
-                isDisabled={!rawImport.trim() || targetAction === 'queue'}
-                isPending={targetAction === 'parse'}
-                onPress={() => void handleParseTarget()}
-              >
-                Read PoB layouts
-              </Button>
-              {parsedMetadata ? (
-                <Chip size="sm" color="success" variant="soft">
-                  {parsedMetadata.tree_specs.length} tree / {parsedMetadata.item_sets.length}{' '}
-                  item / {parsedMetadata.skill_sets.length} skill
-                </Chip>
-              ) : null}
-            </div>
-
-            {parsedMetadata ? (
-              <div className="grid gap-3 md:grid-cols-2">
-                <SelectField
-                  label="Tree"
-                  selectedKey={treeSpecId}
-                  isDisabled={targetAction === 'queue'}
-                  onSelectionChange={(key) =>
-                    setTreeSpecId(typeof key === 'string' ? key : null)
-                  }
-                >
-                  {toSelectItems(parsedMetadata.tree_specs)}
-                </SelectField>
-                <SelectField
-                  label="Item set"
-                  selectedKey={itemSetId}
-                  isDisabled={targetAction === 'queue'}
-                  onSelectionChange={(key) => setItemSetId(typeof key === 'string' ? key : null)}
-                >
-                  {toSelectItems(parsedMetadata.item_sets)}
-                </SelectField>
-                <SelectField
-                  label="Skill set"
-                  selectedKey={skillSetId}
-                  isDisabled={targetAction === 'queue'}
-                  onSelectionChange={(key) =>
-                    setSkillSetId(typeof key === 'string' ? key : null)
-                  }
-                >
-                  {toSelectItems(parsedMetadata.skill_sets)}
-                </SelectField>
-                <SelectField
-                  label="Configuration"
-                  selectedKey={configSetId}
-                  isDisabled={targetAction === 'queue'}
-                  onSelectionChange={(key) =>
-                    setConfigSetId(typeof key === 'string' ? key : null)
-                  }
-                >
-                  {toSelectItems(parsedMetadata.config_sets)}
-                </SelectField>
-              </div>
-            ) : null}
-
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-divider/70 pt-4">
-              <div className="min-w-0">
-                <p className="text-foreground text-sm font-medium">
-                  {!selectedCharacter
-                    ? 'Find and select a public character.'
-                    : !rawImport.trim()
-                      ? 'Paste a PoB share code or XML export.'
-                      : parseError
-                        ? 'Check the PoB import before running analysis.'
-                        : 'Ready for Quick analysis.'}
-                </p>
-                <p className="text-default-500 mt-1 text-xs">
-                  One Quick run per PoE account per UTC day. Failed validation does not count.
-                  This browser remembers your latest run.
-                </p>
-              </div>
-              <Button
-                isPending={targetAction === 'queue'}
-                isDisabled={!resolvedAccountName || !selectedCharacter || !rawImport.trim() || targetAction === 'parse'}
-                onPress={() => void handleQueueRun()}
-              >
-                Run Quick analysis
-              </Button>
-            </div>
+            <p className="text-default-500 text-sm">
+              One Quick run per Path of Exile account per UTC day.
+            </p>
             {queueError ? <p role="alert" className="text-danger wrap-anywhere text-sm">{queueError}</p> : null}
-          </Card.Content>
-        </Card>
-      </div>
+          </>
+        ) : null}
+      </AnalysisWizard>
     </DashboardPage>
+  )
+}
+
+function GuestAnalysisIntro({ aside }: { aside?: ReactNode }) {
+  return (
+    <PreviewPageIntro
+      title="Analysis"
+      description="Compare a public PoE1 character with a Path of Building target to find upgrades."
+      aside={aside}
+      asideClassName="w-auto"
+    />
+  )
+}
+
+function GuestAnalysisReview({
+  character,
+  targetName,
+  metadata,
+  selection,
+}: {
+  character: GuestCharacterSummary
+  targetName: string
+  metadata: PobImportMetadata
+  selection: AnalysisPobSetupSelection
+}) {
+  const rows = [
+    ['Character', [character.name, character.league].filter(Boolean).join(' · ')],
+    ['PoB target', targetName],
+    ...getAnalysisPobLayoutLabels(metadata, selection).map(({ label, value }) => [label, value]),
+    ['Analysis mode', 'Quick'],
+  ]
+
+  return (
+    <dl className="divide-divider divide-y text-sm">
+      {rows.map(([label, value]) => (
+        <div key={label} className="grid min-w-0 grid-cols-[minmax(5rem,1fr)_minmax(0,2fr)] gap-3 py-2.5">
+          <dt className="text-default-500 wrap-anywhere">{label}</dt>
+          <dd className="text-foreground font-medium wrap-anywhere">{value ?? 'Not included'}</dd>
+        </div>
+      ))}
+    </dl>
   )
 }

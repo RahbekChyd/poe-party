@@ -161,6 +161,20 @@ function normalizePassiveTreeJewelData(
   passiveTree: Record<string, unknown>,
   passives: Record<string, unknown>,
 ): CharacterProfilePassiveTree['jewelData'] {
+  if (Array.isArray(passiveTree.jewelData) && passiveTree.jewelData.length > 0) {
+    return passiveTree.jewelData.map((value: unknown) => {
+      const entry = asRecord(value)
+      return {
+        socketIndex: entry.socketIndex == null ? null : readNumber(entry, 'socketIndex'),
+        type: readString(entry, 'type'),
+        radius: entry.radius == null ? null : readNumber(entry, 'radius'),
+        radiusMin: entry.radiusMin == null ? null : readNumber(entry, 'radiusMin'),
+        radiusVisual: readString(entry, 'radiusVisual'),
+        subgraphNodeIds: sortNumberArray(readNumberArray(entry, 'subgraphNodeIds')),
+        subgraphGroupIds: sortNumberArray(readNumberArray(entry, 'subgraphGroupIds')),
+      }
+    })
+  }
   const topLevelSnake = asRecord(passiveTree.jewel_data)
   const topLevelCamel = asRecord(passiveTree.jewelData)
   const nestedSnake = asRecord(passives.jewel_data)

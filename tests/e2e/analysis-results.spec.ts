@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test'
+import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from './fixture'
-import { mockAnalysisRuns, recommendationIconPaths } from './ui-data'
+import { activeLayoutsPobXml, mockAnalysisRuns, recommendationIconPaths } from './ui-data'
 
 async function openAnalysisFromNavigation(page: Page, isMobile: boolean) {
   const nav = page.getByRole('navigation', { name: 'Primary dashboard', exact: true })
@@ -12,70 +13,322 @@ async function openAnalysisFromNavigation(page: Page, isMobile: boolean) {
   }
 }
 
-async function openAnalysisNotification(page: Page, label: string, isMobile: boolean) {
-  const header = page.getByRole('banner')
-  if (isMobile) {
-    await header.getByRole('button', { name: 'Account menu' }).tap()
-    await page.getByRole('menuitem', { name: label, exact: true }).tap()
-  } else {
-    await header.getByRole('link', { name: label, exact: true }).click()
-  }
+function runPath(runId: string) {
+  return `/dashboard/analysis/runs/${runId}`
 }
 
 for (const [status, label] of [
   ['completed', 'Analysis ready'],
   ['partial', 'Partial analysis ready'],
 ] as const) {
-  test(`${label} opens the announced run for a different character and build`, async ({ page }, testInfo) => {
-    await mockAnalysisRuns(page, { notification: status })
+  test(`${label} persists after leaving and opens the announced run`, async ({ page }, testInfo) => {
+    const multipleResults = status === 'completed'
+    const fixture = await mockAnalysisRuns(page, { notification: status, running: true, secondNotification: multipleResults })
     const isMobile = testInfo.project.name === 'chromium-mobile'
-    await page.goto('/dashboard')
+    await page.clock.install()
+    await page.goto(runPath(fixture.alternateReadyId))
+    await expect(page.getByRole('button', { name: 'Analysis running', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Analysis run', level: 1 })).toBeVisible()
+    expect(fixture.countRecommendationRequests()).toBe(0)
     await openAnalysisFromNavigation(page, isMobile)
+    const history = page.getByRole('region', { name: 'Run history' })
+    await expect(history.getByRole('link', { name: /Fixture Ranger.*Fixture Ranger build/ }).first()).toBeVisible()
+    await expect(history.getByRole('link', { name: /Fixture Witch.*Fixture build/ }).first()).toBeVisible()
+    const oldRun = history.locator(`a[href="${runPath(fixture.completedId)}"]`)
+    await expect(oldRun).toContainText('500,000')
+    await expect(oldRun).toContainText('42,000')
+    await expect(page.getByRole('link', { name: 'New analysis', exact: true })).toBeVisible()
+    if (status === 'completed') {
+      await expectPageContained(page)
+      await page.screenshot({ path: testInfo.outputPath('analysis-history.png'), animations: 'disabled' })
+      await expectNoSeriousAccessibilityViolations(page)
+    }
 
-    const setup = page.getByRole('heading', { name: 'Analysis setup', exact: true })
-    const run = page.getByRole('region', { name: 'Analysis run', exact: true })
+    fixture.finishAlternateRun()
+    if (multipleResults) fixture.finishSecondRun()
+    await page.clock.fastForward(31_000)
+    const notification = page.getByRole('banner').getByRole('button', { name: 'Analysis ready', exact: true })
+    await expect(notification).toBeVisible()
+    await page.reload()
+    await expect(notification).toBeVisible()
+    if (multipleResults) await expect(notification).toContainText('2')
+    await notification.click()
+    await expect(page.getByRole('menuitem', { name: /Analysis running/ })).toBeVisible()
+    if (status === 'completed') {
+      await page.screenshot({ path: testInfo.outputPath('analysis-notifications.png'), animations: 'disabled' })
+    }
+    await page.getByRole('menuitem', { name: new RegExp(`^${label}.*Fixture Ranger`, 'i') }).click()
     const recommendation = page.getByRole('button', { name: 'View Fixture Stormcoat', exact: true })
-    await expect(setup).toBeVisible()
-    await expect(run).toContainText('Fixture Witch · Fixture build')
-    await expect(recommendation).toHaveCount(0)
-
-    await openAnalysisNotification(page, label, isMobile)
     await expect(recommendation).toBeVisible()
-    await expect(setup).toBeHidden()
-    await expect(page).toHaveURL(/\/dashboard\/analysis\/?$/)
-    await expect(run).toContainText('Fixture Ranger · Fixture Ranger build')
-    await run.getByRole('button', { name: 'Run history', exact: true }).click()
-    await expect(run.getByRole('button', { name: new RegExp(`${status}.*quick`, 'i') }))
-      .toHaveAttribute('aria-pressed', 'true')
-    const failed = run.getByRole('button', { name: /failed.*quick/i })
-    await expect(failed).toHaveAttribute('aria-pressed', 'false')
-    await failed.click()
-    const failure = page.getByRole('alert').filter({ hasText: 'Exact analysis failed' })
-    await expect(failure).toBeVisible()
-    await openAnalysisNotification(page, label, isMobile)
-    await expect(recommendation).toBeVisible()
-    await expect(failure).toHaveCount(0)
-
-    await page.getByRole('navigation', { name: 'Primary dashboard', exact: true })
-      .getByRole('link', { name: 'Today', exact: true }).click()
-    await expect(page.getByRole('heading', { name: 'Today', level: 1 })).toBeVisible()
-    await openAnalysisFromNavigation(page, isMobile)
-    await expect(setup).toBeVisible()
-    await expect(recommendation).toHaveCount(0)
+    await expect(page).toHaveURL(new RegExp(`${runPath(fixture.alternateReadyId)}/?$`))
+    if (multipleResults) {
+      await expect(notification).toContainText('1')
+      if (isMobile) await page.setViewportSize({ width: 320, height: 720 })
+      await notification.click()
+      const otherUnread = page.getByRole('menuitem', { name: /^Partial analysis ready/ })
+      await expect(otherUnread).toBeVisible()
+      await expect(page.getByRole('menuitem', { name: /^Analysis ready.*Fixture Ranger/ })).toHaveCount(0)
+      if (isMobile) {
+        await expectPageContained(page)
+        const menu = await page.getByRole('menu').filter({ has: otherUnread }).boundingBox({ timeout: 4_000 })
+        expect(menu).not.toBeNull()
+        expect(menu!.x).toBeGreaterThanOrEqual(0)
+        expect(menu!.x + menu!.width).toBeLessThanOrEqual(320)
+      }
+    } else {
+      await expect(notification).toHaveCount(0)
+      await expect(page.getByRole('banner').getByRole('button', { name: 'Analysis running', exact: true })).toBeVisible()
+    }
   })
 }
 
-test('a run link with an unavailable build opens Analysis setup', async ({ page }) => {
-  const { alternateReadyId } = await mockAnalysisRuns(page, { notification: 'completed' })
+test('a legacy link opens the exact run and a workspace change hides it', async ({ page }) => {
+  const { completedId } = await mockAnalysisRuns(page)
   const search = new URLSearchParams({
-    runId: alternateReadyId,
+    runId: completedId,
     buildTargetId: '80000000-0000-0000-0000-000000000099',
   })
   await page.goto(`/dashboard/analysis?${search}`)
-  await expect(page.getByRole('status').filter({ hasText: 'Could not open this analysis run.' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Analysis setup', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'View Fixture Stormcoat', exact: true })).toHaveCount(0)
-  await expect(page).toHaveURL(/\/dashboard\/analysis\/?$/)
+  await expect(page).toHaveURL(new RegExp(`${runPath(completedId)}/?$`))
+  const result = page.getByRole('button', { name: 'View Fixture Ward', exact: true })
+  await expect(result).toBeVisible()
+  await page.getByRole('button', { name: /^Switch group/ }).click()
+  await page.getByRole('menuitemradio', { name: /Standard Fixture Party/ }).click()
+  await expect(result).toHaveCount(0)
+  await expect(page.getByText(/analysis run (is )?unavailable/i).first()).toBeVisible()
+})
+
+test('workspace viewers can open saved results while analysis creation is restricted', async ({ page }) => {
+  const { completedId, getSubmissionBody } = await mockAnalysisRuns(page, { membershipRole: 'viewer' })
+  await page.goto('/dashboard/analysis')
+
+  const savedRun = page.getByRole('region', { name: 'Run history' })
+    .getByRole('link', { name: /Fixture Witch.*Completed/ })
+  await expect(savedRun).toBeVisible()
+  await expect(page.getByRole('link', { name: 'New analysis', exact: true })).toHaveCount(0)
+  await savedRun.click()
+  await expect(page).toHaveURL(new RegExp(`${runPath(completedId)}/?$`))
+  await expect(page.getByRole('button', { name: 'View Fixture Ward', exact: true })).toBeVisible()
+
+  await page.goto('/dashboard/analysis/new')
+  await expect(page.getByText('Ask a workspace editor or admin to start a new analysis.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Continue', exact: true })).toHaveCount(0)
+  expect(getSubmissionBody()).toBeNull()
+})
+
+async function openWizardReview(page: Page) {
+  await page.goto('/dashboard/analysis')
+  await page.getByRole('link', { name: 'New analysis', exact: true }).click()
+  const next = page.getByRole('button', { name: 'Continue', exact: true })
+  const stepNames = ['Choose a character', 'Choose a PoB target', 'Confirm PoB setup', 'Choose analysis options', 'Review analysis']
+  const stepHeadings = stepNames.map((name) => page.getByRole('heading', { name, exact: true }))
+  for (const [index, heading] of stepHeadings.entries()) {
+    await expect(heading).toBeVisible()
+    if (index !== 0) await expect(heading).toBeFocused()
+    if (index < stepHeadings.length - 1) {
+      await expect(next).toBeEnabled()
+      await next.press('Enter')
+    }
+  }
+  const review = page.getByRole('heading', { name: 'Review analysis', exact: true })
+  await expect(review).toBeVisible()
+  return { review, next }
+}
+
+async function expectPageContained(page: Page) {
+  const overflow = await page.locator('main').evaluate((main) => main.scrollWidth - main.clientWidth)
+  expect(overflow).toBeLessThanOrEqual(1)
+}
+
+async function expectNoSeriousAccessibilityViolations(page: Page) {
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze()
+  expect(results.violations.filter((item) => item.impact === 'serious' || item.impact === 'critical')).toEqual([])
+}
+
+test('the signed-in wizard keeps choices, recovers a queue error, and reveals results after completion', async ({ page }, testInfo) => {
+  const fixture = await mockAnalysisRuns(page)
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  const { review, next } = await openWizardReview(page)
+  await page.getByRole('button', { name: 'Back', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Choose analysis options', exact: true })).toBeVisible()
+  await next.click()
+  await expect(review).toBeVisible()
+  await expectPageContained(page)
+  await page.screenshot({ path: testInfo.outputPath('analysis-review.png'), animations: 'disabled' })
+  await expectNoSeriousAccessibilityViolations(page)
+
+  fixture.failSubmission({ status: 429, error: 'Community analysis queue limit reached.' })
+  const start = page.getByRole('button', { name: 'Start analysis', exact: true })
+  await start.click()
+  await expect(page.getByRole('alert').filter({ hasText: 'Community analysis queue limit reached.' })).toBeVisible()
+  await expect(review).toBeVisible()
+  fixture.failSubmission(null)
+  await start.click()
+  await expect(page).toHaveURL(new RegExp(`${runPath(fixture.submittedId)}/?$`))
+  await expect(page.getByRole('status').filter({ hasText: 'Analysis queued' }).first()).toBeVisible()
+  await expect(page.getByText(/you can leave/i)).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Recommendations', exact: true })).toHaveCount(0)
+  expect(fixture.countRecommendationRequests()).toBe(0)
+  expect(fixture.getSubmissionBody()).toMatchObject({ analysis_mode: 'quick', budget_chaos: 0 })
+  await expectPageContained(page)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect.poll(() => page.locator('.analysis-progress-track').evaluate(
+    (track) => getComputedStyle(track, '::after').animationName,
+  )).toBe('none')
+  await page.screenshot({ path: testInfo.outputPath('analysis-queued.png'), animations: 'disabled' })
+
+  await page.bringToFront()
+  fixture.completeSubmittedRun()
+  await expect(page.getByRole('button', { name: 'View New Fixture Ward', exact: true })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('button', { name: 'Analysis ready', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'View Fixture Ward', exact: true })).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
+test('the wizard opens a reused result by the returned run ID', async ({ page }) => {
+  const fixture = await mockAnalysisRuns(page)
+  fixture.reuseExistingRun()
+  await openWizardReview(page)
+  await page.getByRole('button', { name: 'Start analysis', exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(`${runPath(fixture.completedId)}/?$`))
+  await expect(page.getByRole('button', { name: 'View Fixture Ward', exact: true })).toBeVisible()
+})
+
+test('the signed-in wizard preserves a rejected import and reviews the active exported layouts', async ({ page }) => {
+  const fixture = await mockAnalysisRuns(page, { noSavedTargets: true })
+  const malformedXml = '<PathOfBuilding><Build></PathOfBuilding>'
+  await page.goto('/dashboard/analysis/new')
+  const next = page.getByRole('button', { name: 'Continue', exact: true })
+  await next.click()
+  await expect(page.getByRole('heading', { name: 'Choose a PoB target', exact: true })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Saved PoB targets' })).toHaveCount(0)
+  const importInput = page.getByRole('textbox', { name: 'PoB import', exact: true })
+  const readPob = page.getByRole('button', { name: 'Read PoB and continue', exact: true })
+  await page.getByRole('textbox', { name: 'Target name', exact: true }).fill('Fireball progression')
+  await importInput.fill(malformedXml)
+  await readPob.click()
+  await expect(page.getByRole('alert')).toBeVisible()
+  await expect(importInput).toHaveValue(malformedXml)
+  expect(fixture.countTargetImports()).toBe(0)
+
+  await importInput.fill(activeLayoutsPobXml)
+  await readPob.click()
+  await expect(page.getByRole('heading', { name: 'Confirm PoB setup', exact: true })).toBeVisible()
+  expect(fixture.countTargetImports()).toBe(1)
+  await expect(page.getByRole('button', { name: /Progression \(Tree 2\).*Tree|Tree.*Progression \(Tree 2\)/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Mapping gear.*Item set|Item set.*Mapping gear/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Fireball links.*Skill set|Skill set.*Fireball links/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Maps.*Configuration|Configuration.*Maps/ })).toBeVisible()
+  await page.getByRole('button', { name: 'Back', exact: true }).click()
+  await expect(importInput).toHaveValue(activeLayoutsPobXml)
+  await expect(page.getByRole('textbox', { name: 'Target name', exact: true })).toHaveValue('Fireball progression')
+  await readPob.click()
+  await expect(page.getByRole('heading', { name: 'Confirm PoB setup', exact: true })).toBeVisible()
+  await next.click()
+  await next.click()
+  await expect(page.getByRole('heading', { name: 'Review analysis', exact: true })).toBeVisible()
+  for (const label of ['Progression (Tree 2)', 'Mapping gear', 'Fireball links', 'Maps']) {
+    await expect(page.getByText(label, { exact: true })).toBeVisible()
+  }
+  await expectPageContained(page)
+  await page.getByRole('button', { name: 'Start analysis', exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(`${runPath(fixture.submittedId)}/?$`))
+  expect(fixture.getSavedSetup()).toMatchObject({
+    tree_spec_id: 'tree-spec:2', item_set_id: '8', skill_set_id: '9', config_set_id: '6',
+  })
+  expect(fixture.getSubmissionBody()).toMatchObject({ target_stage_id: fixture.getSavedSetup()?.id })
+})
+
+test('a legacy saved setup takes precedence over the active export and numeric run results take precedence on rerun', async ({ page }, testInfo) => {
+  const fixture = await mockAnalysisRuns(page, {
+    completedMode: 'thorough',
+    extraSavedTarget: true,
+    targetXml: activeLayoutsPobXml,
+    targetMetadata: {
+      class_name: 'Witch', source_kind: 'pob_xml',
+      tree_specs: [{ id: 'Progression', title: 'Progression' }, { id: 'Progression', title: 'Progression' }],
+    },
+    savedStage: { tree_spec_id: 'Progression', item_set_id: '4', skill_set_id: '3', config_set_id: '2' },
+    completedSummary: { resolved_tree_spec_id: 2, resolved_item_set_id: 8, resolved_skill_set_id: 9, resolved_config_set_id: 6 },
+  })
+  const next = page.getByRole('button', { name: 'Continue', exact: true })
+  const treeField = (position: number) => page.getByRole('button', { name: new RegExp(`Tree.*Progression \\(Tree ${position}\\)|Progression \\(Tree ${position}\\).*Tree`) })
+  const expectedLayouts = ['Progression (Tree 2)', 'Mapping gear', 'Fireball links', 'Maps']
+  await page.goto('/dashboard/analysis/new')
+  await next.click()
+  const targets = page.getByRole('group', { name: 'Saved PoB targets' })
+  await expect(targets.getByRole('radio', { name: /Fixture build/ })).toBeChecked()
+  await expect(page.getByRole('button', { name: 'Import a PoB target', exact: true })).toBeVisible()
+  const remove = targets.getByRole('button', { name: 'Remove Fixture bossing build', exact: true })
+  await remove.press('Enter')
+  await expect(remove).toHaveAttribute('aria-expanded', 'true')
+  await expect(targets.getByRole('radio', { name: /Fixture build/ })).toBeChecked()
+  await expect(page.getByText('Removing this target also removes its saved runs.')).toBeVisible()
+  await page.getByRole('button', { name: 'Keep target', exact: true }).press('Enter')
+  await expect(remove).toBeFocused()
+  await expect(remove).toHaveAttribute('aria-expanded', 'false')
+  await page.screenshot({ path: testInfo.outputPath('saved-pob-targets.png'), animations: 'disabled' })
+  await next.click()
+  await expect(treeField(1)).toBeVisible()
+  await expect(page.getByRole('button', { name: /Early gear.*Item set|Item set.*Early gear/ })).toBeVisible()
+
+  await page.goto(runPath(fixture.completedId))
+  await page.getByText('Run details', { exact: true }).click()
+  for (const label of expectedLayouts) {
+    await expect(page.getByText(label, { exact: true })).toBeVisible()
+  }
+  await page.getByRole('link', { name: 'Rerun with adjustments', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Confirm PoB setup', exact: true })).toBeVisible()
+  await expect(treeField(2)).toBeVisible()
+  await expect(page.getByRole('button', { name: /Mapping gear.*Item set|Item set.*Mapping gear/ })).toBeVisible()
+  await next.click()
+  await next.click()
+  for (const label of expectedLayouts) {
+    await expect(page.getByText(label, { exact: true })).toBeVisible()
+  }
+})
+
+test('saved main and support PoBs populate the import, and empty layout groups show PoB defaults', async ({ page }) => {
+  const supportPob = '<PathOfBuilding><Build className="Witch" level="91" /><Tree><Spec title="Support tree" /></Tree></PathOfBuilding>'
+  await mockAnalysisRuns(page, {
+    savedMemberPobs: { pob_code: activeLayoutsPobXml, pob_support_code: supportPob },
+  })
+  await page.goto('/dashboard/analysis/new')
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await page.getByRole('button', { name: 'Import a PoB target', exact: true }).click()
+  const input = page.getByRole('textbox', { name: 'PoB import', exact: true })
+  await page.getByRole('button', { name: 'Use saved main PoB', exact: true }).click()
+  await expect(input).toHaveValue(activeLayoutsPobXml)
+  await page.getByRole('button', { name: 'Use saved support PoB', exact: true }).click()
+  await expect(input).toHaveValue(supportPob)
+  await page.getByRole('button', { name: 'Read PoB and continue', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Confirm PoB setup', exact: true })).toBeVisible()
+  await expect(page.getByText('PoB default', { exact: true })).toHaveCount(3)
+})
+
+test('a failed saved run shows safe recovery without fetching recommendations', async ({ page }) => {
+  const fixture = await mockAnalysisRuns(page, { failed: true })
+  await page.goto(runPath(fixture.failedId))
+  await expect(page.getByRole('alert').filter({ hasText: 'Analysis failed' })).toBeVisible()
+  await expect(page.getByText(/Modules\/Common\.lua|stack traceback|\/app\/pob/)).toHaveCount(0)
+  expect(fixture.countRecommendationRequests()).toBe(0)
+})
+
+test('cancelling a running analysis clears the top bar and preserves its history entry', async ({ page }) => {
+  const fixture = await mockAnalysisRuns(page, { running: true })
+  await page.goto(runPath(fixture.runningId))
+  await expect(page.getByRole('heading', { name: 'Analysis in progress', exact: true })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: /scoring/i })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Analysis running', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel run', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Analysis cancelled', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Analysis running', exact: true })).toHaveCount(0)
+  await page.getByRole('link', { name: 'Run history', exact: true }).click()
+  await expect(page.locator(`a[href="${runPath(fixture.runningId)}"]`)).toContainText('Cancelled')
+  expect(fixture.countRecommendationRequests()).toBe(0)
 })
 
 async function expectDecodedImage(image: Locator, source: string) {
@@ -114,8 +367,8 @@ async function mockArtworkFallback(
 
 async function openSavedRecommendations(page: Page) {
   await page.goto('/dashboard/analysis')
-  await page.getByRole('button', { name: 'Run history', exact: true }).click()
-  await page.getByRole('button', { name: /completed.*quick/i }).click()
+  await page.getByRole('region', { name: 'Run history' })
+    .getByRole('link', { name: /Fixture Witch.*Completed/i }).click()
   return page.getByRole('region', { name: 'Recommendations', exact: true })
 }
 

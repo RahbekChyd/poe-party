@@ -12,7 +12,12 @@ import {
   getItemDisplayName,
   type CharacterProfileSnapshot,
 } from '../../lib/character-profile'
-import { getPobTreeSpecUrl } from '../../lib/pob'
+import {
+  getProfilePassiveTree,
+  getTargetPassiveTree,
+  readPassiveTreeRunSnapshot,
+  type PassiveTreeTargetSource,
+} from '../../lib/passive-tree-comparison'
 import gemColorLookup from '../../assets/poe_gem_color_lookup.json'
 import { fetchNinjaSkillGemIcons } from '../../lib/poe-ninja-client'
 import { queryKeys } from '../../lib/queryKeys'
@@ -32,6 +37,7 @@ type RecommendationsInsightsRailProps = {
   selectedProfile: CharacterProfileSnapshot | null
   stageLabel: string | null
   stageTreeSpec: PobTreeSpecLayout | null
+  stageTreeSource?: PassiveTreeTargetSource
   stageSkillSet: PobSkillSetLayout | null
   isDraftStage: boolean
   selectedRun: UpgradeAnalysisRun | null
@@ -655,6 +661,7 @@ export function RecommendationsInsightsRail({
   selectedProfile,
   stageLabel,
   stageTreeSpec,
+  stageTreeSource = 'saved',
   stageSkillSet,
   isDraftStage,
   selectedRun,
@@ -691,7 +698,14 @@ export function RecommendationsInsightsRail({
   const reservationTone = getReservationTone(reservationAudit?.status ?? 'unknown')
   const displayedSkillSetTitle =
     reservationAudit?.target_skill_set_title ?? stageSkillSet?.title ?? stageLabel ?? null
-  const targetTreeUrl = getPobTreeSpecUrl(stageTreeSpec)
+  const treeSources = useMemo(
+    () => readPassiveTreeRunSnapshot(selectedRun?.summary) ?? {
+      current: getProfilePassiveTree(selectedProfile),
+      target: getTargetPassiveTree(stageTreeSpec, stageTreeSource),
+    },
+    [selectedRun?.summary, selectedProfile, stageTreeSpec, stageTreeSource],
+  )
+  const targetTreeUrl = treeSources.target?.link
   const comparePowerReport = useMemo(
     () => getComparePowerReport(selectedRun?.summary),
     [selectedRun?.summary],
@@ -737,62 +751,60 @@ export function RecommendationsInsightsRail({
             </div>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
-            <SkillTreeSummaryPanel
-              key={`tree-summary-${passiveTreeRefreshToken}`}
-              selectedCharacter={selectedCharacter}
-              selectedProfile={selectedProfile}
-              stageLabel={stageLabel}
-              stageTreeSpec={stageTreeSpec}
-              isDraftStage={isDraftStage}
-            />
-            <div className="flex justify-end">
-              <Button size="sm" variant="tertiary" onPress={() => setTreeDetailsOpen(true)}>
-                View tree details
-              </Button>
+          <Modal isOpen={treeDetailsOpen} onOpenChange={setTreeDetailsOpen}>
+            <div className="flex flex-col gap-3">
+              <SkillTreeSummaryPanel
+                key={`tree-summary-${passiveTreeRefreshToken}`}
+                {...treeSources}
+              />
+              {passiveCompareRows.length ? (
+                <details className="border-divider border-t pt-2">
+                  <summary className="text-default-600 cursor-pointer text-xs font-medium">
+                    PoB scores from this run
+                  </summary>
+                  <div className="mt-2 max-h-64 space-y-2 overflow-y-auto">
+                    {passiveCompareRows.map((row, index) => (
+                      <ComparePowerRowItem
+                        key={`${row.nodeId ?? row.name}-${index}`}
+                        row={row}
+                        metricLabel={comparePowerReport?.metricLabel ?? 'Impact'}
+                      />
+                    ))}
+                  </div>
+                </details>
+              ) : null}
+              <div className="flex justify-end">
+                <Modal.Trigger<'button'>
+                  render={(props) => <button {...props} type="button" />}
+                  className="button button--sm button--tertiary"
+                >
+                  View tree details
+                </Modal.Trigger>
+              </div>
             </div>
-          </div>
+            <Modal.Backdrop>
+              <Modal.Container>
+                <Modal.Dialog className="w-[calc(100vw-2rem)] max-w-[88rem] max-h-[calc(100dvh-2rem)] overflow-hidden sm:w-[calc(100vw-4rem)]">
+                  <Modal.Header>
+                    <Modal.Heading>Passive tree details</Modal.Heading>
+                  </Modal.Header>
+                  <Modal.Body className="min-h-0 gap-4 overflow-y-auto">
+                    <SkillTreeAnalysisPanel
+                      key={`tree-details-${passiveTreeRefreshToken}`}
+                      {...treeSources}
+                    />
+                  </Modal.Body>
+                  <Modal.Footer>
+                    <Button size="sm" variant="tertiary" slot="close">
+                      Close
+                    </Button>
+                  </Modal.Footer>
+                </Modal.Dialog>
+              </Modal.Container>
+            </Modal.Backdrop>
+          </Modal>
         )}
       </Section>
-
-      <>
-        <Modal.Backdrop
-          isOpen={treeDetailsOpen}
-          onOpenChange={(open) => {
-            if (!open) setTreeDetailsOpen(false)
-          }}
-        >
-          <Modal.Container>
-            <Modal.Dialog className="w-[calc(100vw-2rem)] max-w-[96rem] max-h-[calc(100dvh-2rem)] overflow-hidden sm:w-[calc(100vw-4rem)]">
-              <Modal.Header className="flex flex-col gap-2">
-                <div>
-                  <Modal.Heading>Passive tree details</Modal.Heading>
-                  <p className="text-default-500 mt-1 text-sm">
-                    Compare allocated nodes and adjust the tree used for analysis.
-                  </p>
-                </div>
-              </Modal.Header>
-              <Modal.Body className="min-h-0 gap-4 overflow-y-auto">
-                <SkillTreeAnalysisPanel
-                  key={`tree-details-${passiveTreeRefreshToken}`}
-                  selectedCharacter={selectedCharacter}
-                  selectedProfile={selectedProfile}
-                  stageLabel={stageLabel}
-                  stageTreeSpec={stageTreeSpec}
-                  isDraftStage={isDraftStage}
-                  passiveImpactRows={passiveCompareRows}
-                  passiveImpactMetricLabel={comparePowerReport?.metricLabel ?? null}
-                />
-              </Modal.Body>
-              <Modal.Footer>
-                <Button size="sm" variant="tertiary" onPress={() => setTreeDetailsOpen(false)}>
-                  Close
-                </Button>
-              </Modal.Footer>
-            </Modal.Dialog>
-          </Modal.Container>
-        </Modal.Backdrop>
-      </>
 
       <Section title="Skill gems">
         {runTransitionLoading ? (

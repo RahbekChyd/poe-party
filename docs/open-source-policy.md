@@ -11,6 +11,10 @@ The public repo includes:
 - the optimizer worker, analyser contracts, scoring, and recommendation explanation logic;
 - local development scripts, validation workflows, and self-hosting docs.
 
+The passive-tree **Game art** view loads sprites from the official Path of Exile export when
+selected. Grinding Gear Games retains the rights to that artwork. The Apache-2.0 repository
+license covers the PoE Party source code. [Passive tree data exports](https://www.pathofexile.com/developer/docs/data)
+
 ## Private Operations
 
 The public repo must not include:

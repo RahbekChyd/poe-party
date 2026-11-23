@@ -62,11 +62,14 @@ function asImportMetadata(value: unknown): PobImportMetadata {
     tree_specs: Array.isArray(record.tree_specs)
       ? record.tree_specs.map((spec, index) => normalizePobTreeSpec(spec, index))
       : [],
+    active_tree_spec_id: readString(record.active_tree_spec_id),
     skill_sets: asSkillSets(record.skill_sets),
+    active_skill_set_id: readString(record.active_skill_set_id),
     config_sets: asConfigSets(record.config_sets),
     active_config_set_id: readString(record.active_config_set_id),
     active_config_set_title: readString(record.active_config_set_title),
     item_sets: asItemSets(record.item_sets),
+    active_item_set_id: readString(record.active_item_set_id),
   }
 }
 
@@ -174,17 +177,40 @@ function toGuestRecommendationPlan(row: Record<string, unknown>): GuestUpgradeRe
   }
 }
 
-async function readFunctionError(error: unknown): Promise<string> {
+class GuestAnalysisFunctionError extends Error {
+  constructor(message: string, readonly code?: string) {
+    super(message)
+  }
+}
+
+async function readFunctionError(error: unknown): Promise<Error> {
   const context = (error as { context?: unknown })?.context
   if (context instanceof Response) {
     try {
       const body = await context.json()
-      if (typeof body?.error === 'string') return body.error
+      if (typeof body?.error === 'string') {
+        return new GuestAnalysisFunctionError(
+          body.error,
+          typeof body.code === 'string' ? body.code : undefined,
+        )
+      }
     } catch {
       // fall through
     }
   }
-  return error instanceof Error ? error.message : 'Request failed'
+  return error instanceof Error ? error : new Error('Request failed')
+}
+
+function isRunUnavailable(error: unknown): boolean {
+  return error instanceof GuestAnalysisFunctionError && (
+    error.code === 'guest_run_not_found' ||
+    error.code === 'missing_run_token' ||
+    /^Public Analysis run not found(?: or expired)?\.?$/i.test(error.message)
+  )
+}
+
+function retryGuestStatus(failureCount: number, error: Error): boolean {
+  return !isRunUnavailable(error) && failureCount < 3
 }
 
 function isLiveStatus(status: GuestUpgradeAnalysisRun['status'] | null | undefined): boolean {
@@ -239,7 +265,7 @@ async function fetchGuestAnalysisStatus(
     body: { run_token: runToken, include_results: includeResults },
   })
 
-  if (error) throw new Error(await readFunctionError(error))
+  if (error) throw await readFunctionError(error)
   if (!data?.run) throw new Error('Public Analysis run not found')
   return {
     run: toGuestRun(data.run),
@@ -270,7 +296,7 @@ export function useGuestCharacterLookup() {
         body: { account_name: accountName },
       })
 
-      if (error) throw new Error(await readFunctionError(error))
+      if (error) throw await readFunctionError(error)
       const characters = Array.isArray(data?.characters) ? data.characters : []
       queryClient.setQueryData(
         queryKeys.preview.guestAnalysisCharacters(accountName.trim()),
@@ -303,7 +329,7 @@ export function useQueueGuestUpgradeAnalysis() {
         body: values,
       })
 
-      if (error) throw new Error(await readFunctionError(error))
+      if (error) throw await readFunctionError(error)
       if (!data?.run_token || !data.run) throw new Error('No Public Analysis run was returned')
       return {
         run_token: data.run_token,
@@ -325,6 +351,7 @@ export function useGuestUpgradeAnalysisStatus(runToken: string | null) {
     queryKey: queryKeys.preview.guestAnalysisStatus(runToken),
     enabled: !!runToken,
     queryFn: async () => fetchGuestAnalysisStatus(runToken!, false),
+    retry: retryGuestStatus,
     refetchInterval: (query) => {
       const run = query.state.data?.run
       if (isLiveStatus(run?.status)) return getLiveAnalysisPollInterval(run)
@@ -339,6 +366,7 @@ export function useGuestUpgradeAnalysisStatus(runToken: string | null) {
     queryKey: queryKeys.preview.guestAnalysisResults(runToken),
     enabled: !!runToken && shouldLoadResults,
     queryFn: async () => fetchGuestAnalysisStatus(runToken!, true),
+    retry: retryGuestStatus,
     refetchInterval: (query) => {
       const data = query.state.data
       return shouldRetryMissingPlans(data?.run ?? run, data?.plans ?? [])
@@ -348,7 +376,7 @@ export function useGuestUpgradeAnalysisStatus(runToken: string | null) {
     refetchIntervalInBackground: false,
   })
 
-  const data = resultsQuery.data ?? statusQuery.data
+  const data = (shouldLoadResults ? resultsQuery.data : null) ?? statusQuery.data
   const error = statusQuery.error ?? resultsQuery.error
   const isResultPending =
     shouldLoadResults &&
@@ -358,6 +386,7 @@ export function useGuestUpgradeAnalysisStatus(runToken: string | null) {
     ...statusQuery,
     data,
     error,
+    runUnavailable: isRunUnavailable(error),
     isError: !!error,
     isFetching: statusQuery.isFetching || resultsQuery.isFetching,
     isLoading: statusQuery.isLoading || (resultsQuery.isLoading && !data),

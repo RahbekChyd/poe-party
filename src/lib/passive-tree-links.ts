@@ -1,8 +1,5 @@
 import { sortUniqueNumbers } from './parse-helpers'
-import {
-  filterComparablePassiveTreeNodeIds,
-  type PassiveTreeRenderData,
-} from './passive-tree-render-data'
+
 export interface DecodedPassiveTreeUrl {
   url: string
   treeVersionLabel: string | null
@@ -28,31 +25,6 @@ export interface PassiveTreeMasterySelection {
   nodeId: number
   effectId: number
   effectKey: string
-}
-
-export interface PassiveTreeComparisonSummary {
-  classMatches: boolean | null
-  ascendancyMatches: boolean | null
-  matchedHashes: number
-  missingHashes: number
-  extraHashes: number
-  matchedHashesEx: number
-  missingHashesEx: number
-  extraHashesEx: number
-  matchedMasteries: number
-  missingMasteries: number
-  extraMasteries: number
-  matchedTotal: number
-  missingTotal: number
-  extraTotal: number
-  targetTotal: number
-  currentTotal: number
-  coverage: number | null
-  exactMatch: boolean
-}
-
-export interface ComparePassiveTreesOptions {
-  renderData?: PassiveTreeRenderData | null
 }
 
 const UINT16_MAX = 0xffff
@@ -119,58 +91,16 @@ function unpackMasterySelection(value: number): { nodeId: number; effectId: numb
   }
 }
 
-function unpackSwappedMasterySelection(value: number): { nodeId: number; effectId: number } | null {
-  if (!Number.isFinite(value) || value < 0) return null
-  return {
-    nodeId: (value >>> 16) & UINT16_MAX,
-    effectId: value & UINT16_MAX,
-  }
-}
-
-function scoreMasterySelectionCandidate(
-  candidate: { nodeId: number; effectId: number } | null,
-  renderData?: PassiveTreeRenderData | null,
-): number {
-  if (!candidate || candidate.nodeId <= 0 || candidate.effectId <= 0) return -1
-  if (!renderData) return 0
-
-  const renderNode = renderData.nodes[candidate.nodeId]
-  if (!renderNode) return 0
-
-  let score = renderNode.isMastery ? 2 : -1
-  if (renderNode.masteryEffects.some((entry) => entry.effectId === candidate.effectId)) {
-    score += 4
-  }
-  return score
-}
-
-function resolveMasterySelection(
-  value: number,
-  renderData?: PassiveTreeRenderData | null,
-): { nodeId: number; effectId: number } | null {
-  const direct = unpackMasterySelection(value)
-  const swapped = unpackSwappedMasterySelection(value)
-  const directScore = scoreMasterySelectionCandidate(direct, renderData)
-  const swappedScore = scoreMasterySelectionCandidate(swapped, renderData)
-
-  if (swappedScore > directScore) {
-    return swapped
-  }
-
-  return direct
-}
-
 export function getPassiveTreeMasterySelections(
   values: number[],
-  renderData?: PassiveTreeRenderData | null,
 ): PassiveTreeMasterySelection[] {
   const selectionsByKey = new Map<string, PassiveTreeMasterySelection>()
 
   for (const value of normalizeMasteryPairs(values)) {
-    const selection = resolveMasterySelection(value, renderData)
-    if (!selection || selection.effectId <= 0) continue
+    const selection = unpackMasterySelection(value)
+    if (!selection || selection.nodeId <= 0 || selection.effectId <= 0) continue
 
-    const effectKey = `effect:${selection.effectId}`
+    const effectKey = `${selection.nodeId}:${selection.effectId}`
     if (selectionsByKey.has(effectKey)) continue
 
     selectionsByKey.set(effectKey, {
@@ -199,7 +129,7 @@ function extractTreePayload(url: string): {
     throw new Error('Paste a full official Path of Exile passive tree link.')
   }
 
-  if (!parsedUrl.hostname.includes('pathofexile.com')) {
+  if (parsedUrl.protocol !== 'https:' || !/(^|\.)pathofexile\.com$/.test(parsedUrl.hostname)) {
     throw new Error('Only official Path of Exile passive tree links are supported here.')
   }
 
@@ -252,21 +182,26 @@ export function decodePassiveTreeUrl(url: string): DecodedPassiveTreeUrl {
   const mainNodeCount =
     payloadVersion >= 5 ? (bytes[6] ?? 0) : Math.floor((bytes.length - nodesStart) / 2)
   const nodesEnd = nodesStart + mainNodeCount * 2
+  if (nodesEnd > bytes.length) throw new Error('This passive tree link is missing node data.')
   const hashes = decodeNodePairs(bytes.slice(nodesStart, nodesEnd))
 
   let hashesEx: number[] = []
   let masteryEffects: number[] = []
 
-  if (payloadVersion >= 5 && bytes.length > nodesEnd) {
+  if (payloadVersion >= 5) {
+    if (bytes.length <= nodesEnd) throw new Error('This passive tree link is missing cluster jewel data.')
     const clusterCount = bytes[nodesEnd] ?? 0
     const clusterStart = nodesEnd + 1
     const clusterEnd = clusterStart + clusterCount * 2
+    if (clusterEnd > bytes.length) throw new Error('This passive tree link is missing cluster node data.')
     hashesEx = normalizeClusterNodeIds(decodeNodePairs(bytes.slice(clusterStart, clusterEnd)))
 
-    if (payloadVersion >= 6 && bytes.length > clusterEnd) {
+    if (payloadVersion >= 6) {
+      if (bytes.length <= clusterEnd) throw new Error('This passive tree link is missing mastery data.')
       const masteryCount = bytes[clusterEnd] ?? 0
       const masteryStart = clusterEnd + 1
       const masteryEnd = masteryStart + masteryCount * 4
+      if (masteryEnd > bytes.length) throw new Error('This passive tree link is missing mastery data.')
       masteryEffects = decodeMasteryPairs(bytes.slice(masteryStart, masteryEnd))
     }
   }
@@ -293,88 +228,5 @@ export function tryDecodePassiveTreeUrl(
     return decodePassiveTreeUrl(url)
   } catch {
     return null
-  }
-}
-
-function countSharedValues<T extends number | string>(left: T[], right: T[]): number {
-  const rightSet = new Set(right)
-  return left.reduce((count, value) => count + Number(rightSet.has(value)), 0)
-}
-
-export function comparePassiveTrees(
-  current: PassiveTreeComparable,
-  target: PassiveTreeComparable,
-  options: ComparePassiveTreesOptions = {},
-): PassiveTreeComparisonSummary {
-  const currentHashes = filterComparablePassiveTreeNodeIds(current.hashes, options.renderData)
-  const targetHashes = filterComparablePassiveTreeNodeIds(target.hashes, options.renderData)
-  const currentHashesEx = normalizeClusterNodeIds(current.hashesEx)
-  const targetHashesEx = normalizeClusterNodeIds(target.hashesEx)
-  const currentMasteries = getPassiveTreeMasterySelections(
-    current.masteryEffects,
-    options.renderData,
-  )
-  const targetMasteries = getPassiveTreeMasterySelections(target.masteryEffects, options.renderData)
-  const currentMasteryKeys = currentMasteries.map((entry) => entry.effectKey)
-  const targetMasteryKeys = targetMasteries.map((entry) => entry.effectKey)
-
-  const matchedHashes = countSharedValues(targetHashes, currentHashes)
-  const matchedHashesEx = countSharedValues(targetHashesEx, currentHashesEx)
-  const matchedMasteries = countSharedValues(targetMasteryKeys, currentMasteryKeys)
-
-  const missingHashes = Math.max(0, targetHashes.length - matchedHashes)
-  const missingHashesEx = Math.max(0, targetHashesEx.length - matchedHashesEx)
-  const missingMasteries = Math.max(0, targetMasteryKeys.length - matchedMasteries)
-
-  const extraHashes = Math.max(
-    0,
-    currentHashes.length - countSharedValues(currentHashes, targetHashes),
-  )
-  const extraHashesEx = Math.max(
-    0,
-    currentHashesEx.length - countSharedValues(currentHashesEx, targetHashesEx),
-  )
-  const extraMasteries = Math.max(
-    0,
-    currentMasteryKeys.length - countSharedValues(currentMasteryKeys, targetMasteryKeys),
-  )
-
-  const matchedTotal = matchedHashes + matchedHashesEx + matchedMasteries
-  const missingTotal = missingHashes + missingHashesEx + missingMasteries
-  const extraTotal = extraHashes + extraHashesEx + extraMasteries
-  const targetTotal = targetHashes.length + targetHashesEx.length + targetMasteryKeys.length
-  const currentTotal = currentHashes.length + currentHashesEx.length + currentMasteryKeys.length
-  const coverage = targetTotal > 0 ? matchedTotal / targetTotal : null
-
-  const classMatches =
-    current.classId == null || target.classId == null ? null : current.classId === target.classId
-  const ascendancyMatches =
-    current.ascendancyId == null || target.ascendancyId == null
-      ? null
-      : current.ascendancyId === target.ascendancyId
-
-  return {
-    classMatches,
-    ascendancyMatches,
-    matchedHashes,
-    missingHashes,
-    extraHashes,
-    matchedHashesEx,
-    missingHashesEx,
-    extraHashesEx,
-    matchedMasteries,
-    missingMasteries,
-    extraMasteries,
-    matchedTotal,
-    missingTotal,
-    extraTotal,
-    targetTotal,
-    currentTotal,
-    coverage,
-    exactMatch:
-      missingTotal === 0 &&
-      extraTotal === 0 &&
-      classMatches !== false &&
-      ascendancyMatches !== false,
   }
 }

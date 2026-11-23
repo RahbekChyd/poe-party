@@ -83,6 +83,9 @@ jobs:
       - name: Test OAuth token encryption helpers
         run: deno test supabase/functions/_shared/poe-token-crypto.test.ts
 
+      - name: Test guest PoB imports and layout selection
+        run: deno test --node-modules-dir=none supabase/functions/_shared/guest-pob-import.test.ts
+
       - name: Reject floating Supabase Edge imports
         shell: bash
         run: |
