@@ -368,13 +368,14 @@ export function SimplePagination({
   const current = Math.min(max, Math.max(1, Number(page ?? 1)))
   const visiblePages = getVisiblePaginationPages(current, max)
   return (
-    <div className={cn('@container/pager min-w-0', className)}>
-      <Pagination aria-label="Snapshot pages">
-        <Pagination.Content className="flex-wrap justify-center">
+    <div className={cn('@container/pager flex w-full min-w-0 flex-wrap items-center justify-center gap-x-4 gap-y-2', className)}>
+      <Pagination aria-label="Snapshot pages" className="justify-center @min-[48rem]/pager:w-auto">
+        <Pagination.Content className="flex-wrap justify-center self-center">
           <Pagination.Item>
             <Pagination.Previous
               isDisabled={current <= 1}
               aria-label="Previous page"
+              className="@max-[36rem]/pager:min-h-11 @max-[36rem]/pager:min-w-11"
               onPress={() => onChange?.(Math.max(1, current - 1))}
             >
               <Pagination.PreviousIcon>
@@ -384,7 +385,7 @@ export function SimplePagination({
             </Pagination.Previous>
           </Pagination.Item>
           <Pagination.Item className="@min-[36rem]/pager:hidden">
-            <span className="text-default-600 px-2 text-sm tabular-nums" role="status">
+            <span className="text-default-600 px-2 text-sm whitespace-nowrap tabular-nums" role="status">
               Page {current} of {max}
             </span>
           </Pagination.Item>
@@ -409,6 +410,7 @@ export function SimplePagination({
             <Pagination.Next
               isDisabled={current >= max}
               aria-label="Next page"
+              className="@max-[36rem]/pager:min-h-11 @max-[36rem]/pager:min-w-11"
               onPress={() => onChange?.(Math.min(max, current + 1))}
             >
               <span className="hidden @min-[36rem]/pager:inline">Next</span>
@@ -421,7 +423,7 @@ export function SimplePagination({
       </Pagination>
       {onChange && max > 1 && (
         <form
-          className="mt-2 flex flex-wrap items-center justify-center gap-2 @min-[36rem]/pager:hidden"
+          className="flex flex-wrap items-center justify-center gap-2"
           aria-label="Jump to snapshot page"
           onSubmit={(event) => {
             event.preventDefault()
@@ -431,11 +433,11 @@ export function SimplePagination({
             event.currentTarget.reset()
           }}
         >
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm whitespace-nowrap">
             Go to page
-            <input name="page" type="number" inputMode="numeric" min={1} max={max} required className="input min-h-9 w-20 tabular-nums" />
+            <input name="page" type="number" inputMode="numeric" min={1} max={max} required className="input min-h-9 w-16 tabular-nums @max-[36rem]/pager:min-h-11" />
           </label>
-          <Button type="submit" size="sm" variant="tertiary">Go</Button>
+          <Button type="submit" size="sm" variant="tertiary" className="min-h-9 min-w-11 @max-[36rem]/pager:min-h-11">Go</Button>
         </form>
       )}
     </div>
