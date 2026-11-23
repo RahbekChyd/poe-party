@@ -53,7 +53,7 @@ export function GuestStrategiesPage() {
     selectedGame,
     selectedLeague,
   )
-  const { data: threadData = [] } = useThreadData(selectedLeague, selectedGame)
+  const { data: threadData } = useThreadData(selectedLeague, selectedGame)
   const threadPriceMap = useMemo(
     () => new Map(threadData.map((thread) => [thread.name, thread.chaosValue])),
     [threadData],

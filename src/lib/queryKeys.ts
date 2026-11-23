@@ -136,6 +136,7 @@ export const queryKeys = {
   },
 
   ninja: {
+    economyLeagues: (game: PoeGame) => ['ninja-economy-leagues', game] as const,
     prices: (game: PoeGame | null, league: string | null) => ['ninja-divine', game, league] as const,
     threads: (game: PoeGame | null, league: string | null) =>
       ['ninja-threads', game, league] as const,

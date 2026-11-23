@@ -6,9 +6,12 @@ The update follows [GGG's patch notes](https://www.pathofexile.com/forum/view-th
 
 ## Behavior
 
-- Strategies use the ten map-device Threads and enforce eight spent Threads.
-  Saved Scarabs remain a legacy reference; new Thread selections start empty.
-  New requirements use Atlas Drops and Threads without rewriting old requirements.
+- Strategies support up to eight paid Threads per type and up to three types per map.
+  Older saved setups with additional types can be used as saved and follow the new
+  limits when their Thread selections change. Saved Scarabs remain a legacy
+  reference. New requirements use Atlas Drops and Threads.
+- Thread icons load independently of prices. Estimates use the workspace's
+  poe.ninja economy league, so leagues without quotes still have the full picker.
 - Future snapshots receive server-owned estimates for supported exchange items,
   uniques, gems, maps, Viscera and other supported special items. Ambiguous items
   remain unpriced. Member/group views use stored estimates and expose coverage.
@@ -49,6 +52,10 @@ not establish numerical parity for every complex desktop build.
    must remain explicitly incomplete.
 5. Production promotion requires explicit target confirmation and accepted staging
    evidence. Hosted changes and production smoke tests were not performed locally.
+
+For the Strategy wizard and revised Thread limits, apply migration 0094 before
+releasing the frontend. On staging, create a strategy with three types at eight
+each and check the picker in a trade league and in a league without quotes.
 
 Rollback must preserve recorded prices, legacy references and the server-owned
 valuation boundary. Do not restore broad client pricing grants to roll back a UI.

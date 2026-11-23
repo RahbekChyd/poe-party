@@ -86,6 +86,19 @@ function normalizeNinjaImageUrl(value: string | null | undefined): string | null
   return value
 }
 
+export async function fetchNinjaEconomyLeagueIds(game: PoeGame): Promise<string[]> {
+  const response = await ninjaGet<unknown>(buildNinjaPath(game, '/api/economy/leagues'))
+  if (!Array.isArray(response)) throw new Error('Invalid poe.ninja economy leagues')
+
+  return response.map((league: unknown) => {
+    if (league === null || typeof league !== 'object' || !('id' in league) ||
+        typeof league.id !== 'string' || !league.id) {
+      throw new Error('Invalid poe.ninja economy league ID')
+    }
+    return league.id
+  })
+}
+
 export async function fetchNinjaExchangeEntries(
   league: string,
   type: NinjaExchangeType,

@@ -5,6 +5,11 @@ export const THREAD_NAMES = [
   'Expedition Thread', 'Incursion Thread', 'Legion Thread', 'Ritual Thread', 'Ultimatum Thread',
 ] as const
 
+export const THREAD_CATALOG = THREAD_NAMES.map((name) => ({
+  name,
+  icon: `https://web.poecdn.com/image/Art/2DItems/Currency/Threads/${name.replace(' ', '')}.png`,
+}))
+
 export type Thread = Scarab
 
 /** Saved Scarabs are deliberately never converted into Threads. */

@@ -11,6 +11,7 @@ import { usePublicStrategy, useSubscribeToStrategy } from '../../hooks/useStrate
 import { useActiveGroupContext, useMyGroupRole } from '../../hooks/useGroups'
 import { useCurrencyStore } from '../../store/currency-store'
 import { useNinjaPrices } from '../../hooks/useNinjaPrices'
+import { useNinjaEconomyLeague } from '../../hooks/useThreadData'
 import { DIFFICULTY_CHIP, MAP_REQ_LABELS } from '../../lib/constants'
 import { formatCurrencyAmount } from '../../lib/utils'
 import { DetailPageSkeleton } from '../layout/Skeletons'
@@ -26,7 +27,8 @@ export function PublicStrategyDetailPage() {
   const myRole = useMyGroupRole(activeGroupId)
   const navigate = useNavigate()
   const display = useCurrencyStore((state) => state.display)
-  const { data: ninjaData } = useNinjaPrices(activeLeague, game ?? 'poe1')
+  const { marketLeague } = useNinjaEconomyLeague(game === 'poe1' ? activeLeague : null, 'poe1')
+  const { data: ninjaData } = useNinjaPrices(game === 'poe2' ? activeLeague : marketLeague, game ?? 'poe1')
   const divinePrice = ninjaData?.divinePrice ?? null
 
   const reqChips = useMemo(
