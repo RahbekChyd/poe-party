@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Button } from '@heroui/react/button'
+import { useState } from 'react'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
 import { ArrowLeft } from 'lucide-react'
@@ -21,6 +20,8 @@ import { getPoeGameShortLabel } from '../../lib/poe-game'
 import { DetailPageSkeleton } from '../layout/Skeletons'
 import { MemberCharacterDetails } from '../members/MemberCharacterDetails'
 import { AscendancyArt } from '../shared/AscendancyArt'
+import { QueryStatePanel } from '../ui/QueryStatePanel'
+
 export function PublicGroupDetailPage() {
   const { groupId } = Route.useParams()
   return <PublicGroupDetailView groupId={groupId} variant="dashboard" />
@@ -35,48 +36,33 @@ export function PublicGroupDetailView({
 }) {
   const activeGroupId = useGroupStore((state) => state.activeGroupId)
   const isPreview = variant === 'preview'
-  const { data: dashboardGroupDetail, isLoading: dashboardGroupLoading } = usePublicGroupDetail(
+  const dashboardGroupQuery = usePublicGroupDetail(
     isPreview ? null : activeGroupId,
     groupId,
   )
-  const { data: previewGroupDetail, isLoading: previewGroupLoading } = useGuestPublicGroupDetail(
+  const previewGroupQuery = useGuestPublicGroupDetail(
     isPreview ? groupId : null,
   )
-  const { data: dashboardPublicCharacters = [], isLoading: dashboardCharactersLoading } =
+  const dashboardCharactersQuery =
     usePublicGroupCharacters(isPreview ? null : activeGroupId, groupId)
-  const { data: previewPublicCharacters = [], isLoading: previewCharactersLoading } =
+  const previewCharactersQuery =
     useGuestPublicGroupCharacters(isPreview ? groupId : null)
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
-  const { data: dashboardSelectedProfile, isLoading: dashboardSelectedLoading } =
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null)
+  const groupQuery = isPreview ? previewGroupQuery : dashboardGroupQuery
+  const charactersQuery = isPreview ? previewCharactersQuery : dashboardCharactersQuery
+  const groupDetail = groupQuery.data
+  const publicCharacters = charactersQuery.data ?? []
+  const selectedSummary = publicCharacters.find((character) => character.profile_id === selectedCharacterId)
+    ?? publicCharacters[0]
+  const selectedProfileId = selectedSummary?.profile_id ?? null
+  const dashboardSelectedQuery =
     usePublicCharacterDetail(isPreview ? null : activeGroupId, selectedProfileId)
-  const { data: previewSelectedProfile, isLoading: previewSelectedLoading } =
+  const previewSelectedQuery =
     useGuestPublicCharacterDetail(isPreview ? selectedProfileId : null)
-  const groupDetail = isPreview ? previewGroupDetail : dashboardGroupDetail
-  const groupLoading = isPreview ? previewGroupLoading : dashboardGroupLoading
-  const publicCharacters = isPreview ? previewPublicCharacters : dashboardPublicCharacters
-  const charactersLoading = isPreview ? previewCharactersLoading : dashboardCharactersLoading
-  const selectedProfile = isPreview ? previewSelectedProfile : dashboardSelectedProfile
-  const selectedLoading = isPreview ? previewSelectedLoading : dashboardSelectedLoading
-
-  useEffect(() => {
-    if (!publicCharacters.length) {
-      setSelectedProfileId(null)
-      return
-    }
-    if (
-      selectedProfileId &&
-      publicCharacters.some((character) => character.profile_id === selectedProfileId)
-    ) {
-      return
-    }
-    setSelectedProfileId(publicCharacters[0].profile_id)
-  }, [publicCharacters, selectedProfileId])
+  const selectedQuery = isPreview ? previewSelectedQuery : dashboardSelectedQuery
+  const selectedProfile = selectedQuery.data
 
   const groupGame = groupDetail?.game ?? 'poe1'
-  const selectedSummary = useMemo(
-    () => publicCharacters.find((character) => character.profile_id === selectedProfileId) ?? null,
-    [publicCharacters, selectedProfileId],
-  )
   const selectedAscendancy = selectedProfile
     ? getAscendancyLabel(selectedProfile.class, selectedProfile.ascendancy_class, groupGame)
     : selectedSummary
@@ -84,73 +70,55 @@ export function PublicGroupDetailView({
       : null
   useRecordPublicDirectoryView('group', groupId, !!groupDetail)
 
-  if (groupLoading) {
+  if (groupQuery.isLoading) {
     return <DetailPageSkeleton />
   }
 
+  const backLink = isPreview ? (
+    <Link to="/preview/search" className="button button--sm button--tertiary">
+      <ArrowLeft size={14} aria-hidden="true" /> Back to directory
+    </Link>
+  ) : (
+    <Link to="/dashboard/search" search={{ tab: 'groups' }} className="button button--sm button--tertiary">
+      <ArrowLeft size={14} aria-hidden="true" /> Back to directory
+    </Link>
+  )
+
   if (!groupDetail) {
     return (
-      <div className="flex flex-col gap-4">
-        {isPreview ? (
-          <Link to="/preview/search" className="self-start">
-            <Button variant="tertiary" size="sm">
-              <ArrowLeft size={14} />
-              Back to Directory
-            </Button>
-          </Link>
+      <DashboardPage>
+        <DashboardPageHeader backLink={backLink} title={groupQuery.isError ? 'Group unavailable' : 'Group not found'} />
+        {groupQuery.isError ? (
+          <QueryStatePanel kind="error" title="Could not load group" description="Try again to open the public group." onRetry={groupQuery.refetch} />
         ) : (
-          <Link to="/dashboard/search" className="self-start">
-            <Button variant="tertiary" size="sm">
-              <ArrowLeft size={14} />
-              Back to Directory
-            </Button>
-          </Link>
+          <p className="text-default-500 text-sm">This group may have been removed or no longer has public characters.</p>
         )}
-        <p className="text-default-400 text-sm">Public group not found.</p>
-      </div>
+      </DashboardPage>
     )
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          {isPreview ? (
-            <Link to="/preview/search" className="self-start">
-              <Button variant="tertiary" size="sm" className="-ml-2">
-                <ArrowLeft size={14} />
-                Back to Directory
-              </Button>
-            </Link>
-          ) : (
-            <Link to="/dashboard/search" className="self-start">
-              <Button variant="tertiary" size="sm" className="-ml-2">
-                <ArrowLeft size={14} />
-                Back to Directory
-              </Button>
-            </Link>
-          )}
-          <h1 className="text-foreground mt-3 text-2xl font-semibold">{groupDetail.group_name}</h1>
-          <p className="text-default-400 mt-1 text-sm">
-            Public group directory for {getPoeGameShortLabel(groupGame)} {groupDetail.league}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <DashboardPage className="wrap-anywhere">
+      <DashboardPageHeader
+        backLink={backLink}
+        title={groupDetail.group_name}
+        description={`${getPoeGameShortLabel(groupGame)} · ${groupDetail.league}`}
+        metadata={
           <Chip size="sm" variant="soft">
             {groupDetail.public_character_count} public character
             {groupDetail.public_character_count === 1 ? '' : 's'}
           </Chip>
-          <Chip size="sm" variant="soft">
-            {getPoeGameShortLabel(groupGame)}
-          </Chip>
-          <Chip size="sm" variant="soft">
-            {groupDetail.league}
-          </Chip>
-        </div>
-      </div>
+        }
+      />
 
-      {charactersLoading ? (
+      {charactersQuery.isLoading ? (
         <DetailPageSkeleton />
+      ) : !publicCharacters.length ? (
+        charactersQuery.isError ? (
+          <QueryStatePanel kind="error" title="Could not load characters" description="Try again to see this group’s public profiles." onRetry={charactersQuery.refetch} />
+        ) : (
+          <QueryStatePanel kind="empty" title="No public characters" description="This group has no shared profiles to view." />
+        )
       ) : (
         <div className="flex flex-col gap-4">
           <div className="-mx-1 overflow-x-auto pb-2">
@@ -174,25 +142,25 @@ export function PublicGroupDetailView({
                 return (
                   <Card
                     key={character.profile_id}
-                    className={`w-[18.5rem] shrink-0 border transition-all ${
+                    className={`w-[18.5rem] max-w-[calc(100vw-2rem)] shrink-0 border transition-colors ${
                       isSelected
-                        ? 'border-primary/60 bg-primary/5-lg-primary/10'
+                        ? 'border-highlight bg-selected'
                         : 'border-transparent'
                     }`}
                   >
                     <Card.Content className="gap-4 p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-foreground truncate text-sm font-medium">
+                          <p className="text-foreground text-sm font-medium">
                             {character.owner_name}
                           </p>
-                          <p className="text-default-400 truncate text-xs">
+                          <p className="text-default-500 text-xs">
                             {character.character_name}
                             {character.level != null ? ` - Level ${character.level}` : ''}
                           </p>
                         </div>
                         {isSelected ? (
-                          <Chip size="sm" color="accent" variant="soft">
+                          <Chip size="sm" variant="soft" className="text-highlight">
                             Selected
                           </Chip>
                         ) : null}
@@ -200,8 +168,10 @@ export function PublicGroupDetailView({
 
                       <button
                         type="button"
-                        className="flex w-full flex-col gap-3 text-left"
-                        onClick={() => setSelectedProfileId(character.profile_id)}
+                        aria-label={`View ${character.character_name}`}
+                        aria-pressed={isSelected}
+                        className="flex w-full flex-col gap-3 rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                        onClick={() => setSelectedCharacterId(character.profile_id)}
                       >
                         <AscendancyArt
                           ascendancy={ascendancy}
@@ -244,47 +214,29 @@ export function PublicGroupDetailView({
             <Card>
               <Card.Header className="flex flex-wrap items-start justify-between gap-4 px-5 pt-5 pb-0">
                 <div className="min-w-0">
-                  <h2 className="text-foreground truncate text-lg font-semibold">
+                  <h2 className="text-foreground text-lg font-semibold">
                     {selectedSummary.owner_name}
                   </h2>
-                  <p className="text-default-500 mt-1 truncate text-sm">
+                  <p className="text-default-500 mt-1 text-sm">
                     {selectedSummary.character_name}
                     {selectedSummary.class ? ` - ${selectedSummary.class}` : ''}
                     {selectedSummary.level != null ? ` - Level ${selectedSummary.level}` : ''}
                   </p>
                 </div>
 
-                <div className="ml-4 flex min-w-0 flex-1 flex-wrap items-start justify-end gap-2">
-                  {isPreview ? (
-                    <Link
-                      to="/preview/search/characters/$profileId"
-                      params={{ profileId: selectedSummary.profile_id }}
-                    >
-                      <Button size="sm" variant="tertiary">
-                        Open full history
-                      </Button>
-                    </Link>
-                  ) : (
-                    <Link
-                      to="/dashboard/search/characters/$profileId"
-                      params={{ profileId: selectedSummary.profile_id }}
-                    >
-                      <Button size="sm" variant="tertiary">
-                        Open full history
-                      </Button>
-                    </Link>
-                  )}
+                <div className="flex min-w-0 flex-wrap items-start gap-2">
+                  <Link
+                    to={isPreview ? '/preview/search/characters/$profileId' : '/dashboard/search/characters/$profileId'}
+                    params={{ profileId: selectedSummary.profile_id }}
+                    className="button button--sm button--tertiary"
+                  >
+                    View profile history
+                  </Link>
                   {selectedProfile?.last_synced_at ? (
-                    <Chip size="sm" color="accent" variant="soft">
+                    <Chip size="sm" variant="soft">
                       Last synced {formatRelativeTimestamp(selectedProfile.last_synced_at)}
                     </Chip>
                   ) : null}
-                  <Chip size="sm" variant="soft">
-                    {groupDetail.group_name}
-                  </Chip>
-                  <Chip size="sm" variant="soft">
-                    {getPoeGameShortLabel(groupGame)}
-                  </Chip>
                   {(selectedProfile?.class ?? selectedSummary.class) ? (
                     <Chip size="sm" variant="soft">
                       {selectedProfile?.class ?? selectedSummary.class}
@@ -299,17 +251,22 @@ export function PublicGroupDetailView({
               </Card.Header>
 
               <Card.Content className="gap-4 p-0">
-                <MemberCharacterDetails
-                  profile={selectedProfile ?? null}
-                  isPending={selectedLoading}
-                  isMe={false}
-                  canSync={false}
-                />
+                {selectedQuery.isError && !selectedProfile ? (
+                  <QueryStatePanel kind="error" title="Could not load profile" description="Try again or choose another character." onRetry={selectedQuery.refetch} />
+                ) : (
+                  <MemberCharacterDetails
+                    profile={selectedProfile ?? null}
+                    isPending={selectedQuery.isLoading}
+                    isMe={false}
+                    canSync={false}
+                  />
+                )}
               </Card.Content>
             </Card>
           ) : null}
         </div>
       )}
-    </div>
+    </DashboardPage>
   )
 }
+import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'

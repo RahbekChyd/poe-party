@@ -24,11 +24,11 @@ export function EarlyAccessNoticeModal() {
   return (
     <section
       aria-labelledby="early-access-notice-title"
-      className="border-warning/25 bg-warning/8 mx-4 mt-4 rounded-2xl border px-4 py-3 md:mx-6"
+      className="border-divider bg-info-soft mx-4 mt-4 rounded-2xl border px-4 py-3 md:mx-6"
     >
       <div className="flex items-start gap-3">
-        <div className="bg-warning/15 mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
-          <FlaskConical size={17} className="text-warning" aria-hidden="true" />
+        <div className="bg-content1 mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
+          <FlaskConical size={17} className="text-info" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -46,7 +46,7 @@ export function EarlyAccessNoticeModal() {
               href={DISCORD_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary inline-flex min-h-8 items-center gap-1.5 font-medium hover:underline"
+              className="text-brand-readable inline-flex min-h-8 items-center gap-1.5 font-medium hover:underline"
             >
               <MessageSquare size={14} aria-hidden="true" />
               Share feedback

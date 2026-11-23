@@ -15,18 +15,13 @@ import { DIFFICULTY_CHIP, MAP_REQ_LABELS } from '../../lib/constants'
 import { formatCurrencyAmount } from '../../lib/utils'
 import { DetailPageSkeleton } from '../layout/Skeletons'
 import { StrategyMetadataBadges, StrategySourceLinks } from './StrategyMetadataBadges'
-type NativeChipColor = 'default' | 'accent' | 'success' | 'warning' | 'danger'
-
-function toNativeChipColor(color: string): NativeChipColor {
-  if (color === 'primary' || color === 'secondary') return 'accent'
-  return color as NativeChipColor
-}
-
+import { QueryStatePanel } from '../ui/QueryStatePanel'
+import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
 export function PublicStrategyDetailPage() {
   const { strategyId } = Route.useParams()
   const activeGroupId = useGroupStore((state) => state.activeGroupId)
-  const { data: strategy, isLoading } = usePublicStrategy(activeGroupId, strategyId)
-  const { mutateAsync: subscribeToStrategy, isPending: subscribePending } = useSubscribeToStrategy()
+  const { data: strategy, isLoading, isError, refetch } = usePublicStrategy(activeGroupId, strategyId)
+  const { mutate: subscribeToStrategy, isPending: subscribePending, isError: subscribeFailed } = useSubscribeToStrategy()
   const { game, league: activeLeague, capabilities } = useActiveGroupContext()
   const myRole = useMyGroupRole(activeGroupId)
   const navigate = useNavigate()
@@ -47,56 +42,63 @@ export function PublicStrategyDetailPage() {
     return <DetailPageSkeleton />
   }
 
+  const backLink = (
+    <Link to="/dashboard/strategies" search={{ tab: 'public' }} className="button button--sm button--tertiary">
+      <ArrowLeft size={14} aria-hidden="true" /> Back to strategies
+    </Link>
+  )
+
   if (!strategy) {
     return (
-      <div className="flex flex-col gap-4">
-        <Link to="/dashboard/strategies" className="button button--sm button--tertiary self-start">
-          <ArrowLeft size={14} />
-          Back to Strategies
-        </Link>
-        <p className="text-default-400 text-sm">Public strategy not found.</p>
-      </div>
+      <DashboardPage>
+        <DashboardPageHeader backLink={backLink} title={isError ? 'Strategy unavailable' : 'Strategy not found'} />
+        {isError ? (
+          <QueryStatePanel kind="error" title="Could not load strategy" description="Try again to open the public setup." onRetry={refetch} />
+        ) : (
+          <p className="text-default-500 text-sm">This strategy may have been removed or made private.</p>
+        )}
+      </DashboardPage>
     )
   }
 
   const diffChip = DIFFICULTY_CHIP[strategy.difficulty] ?? DIFFICULTY_CHIP.normal
+  const hasAtlas = capabilities?.supportsAtlasTree && !!strategy.atlas_tree_url
+  const hasMapSetup = capabilities?.supportsAtlasTree &&
+    (!!strategy.map_trade_link || strategy.map_cost != null || reqChips.length > 0)
+  const showsThreadSetup = capabilities?.supportsMapInvestmentPlanning &&
+    (strategy.threads.length > 0 || strategy.scarabs.length > 0)
+  const hasSetup = hasAtlas || hasMapSetup || showsThreadSetup || !!strategy.content_metadata?.source_refs.length
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link to="/dashboard/strategies" className="button button--sm button--tertiary -ml-2">
-            <ArrowLeft size={14} />
-            Back to Strategies
-          </Link>
-          <h1 className="text-foreground mt-3 text-2xl font-semibold">{strategy.name}</h1>
-          <p className="text-default-400 mt-1 text-sm">
-            Public strategy published by {strategy.group_name} in {strategy.group_league}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {strategy.live_subscription_id ? (
+    <DashboardPage className="wrap-anywhere">
+      <DashboardPageHeader
+        backLink={backLink}
+        title={strategy.name}
+        description={`Published by ${strategy.group_name} · ${strategy.group_league}`}
+        actions={
+          strategy.live_subscription_id ? (
             <Link
               to="/dashboard/strategies/$strategyId"
               params={{ strategyId: strategy.live_subscription_id }}
-              className="button button--sm"
+              className="button button--sm button--primary"
             >
-              Open Subscription
+              View subscription
             </Link>
           ) : myRole !== 'viewer' ? (
             <Button
               size="sm"
               isPending={subscribePending}
-              onPress={async () => {
+              onPress={() => {
                 if (!activeGroupId) return
-                const subscribedId = await subscribeToStrategy({
-                  groupId: activeGroupId,
-                  sourceStrategyId: strategy.id,
-                })
-                navigate({
-                  to: '/dashboard/strategies/$strategyId',
-                  params: { strategyId: subscribedId },
-                })
+                subscribeToStrategy(
+                  { groupId: activeGroupId, sourceStrategyId: strategy.id },
+                  {
+                    onSuccess: (subscribedId) => navigate({
+                      to: '/dashboard/strategies/$strategyId',
+                      params: { strategyId: subscribedId },
+                    }),
+                  },
+                )
               }}
             >
               {({ isPending }) => (
@@ -106,73 +108,55 @@ export function PublicStrategyDetailPage() {
                 </>
               )}
             </Button>
-          ) : null}
-        </div>
-      </div>
+          ) : null
+        }
+      />
+
+      {subscribeFailed ? (
+        <p className="text-danger text-sm" role="alert">Could not subscribe to this strategy. Try again.</p>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Chip size="sm" variant="soft" color={toNativeChipColor(diffChip.color)}>
+        <Chip size="sm" variant="soft">
           {diffChip.label}
         </Chip>
-        <Chip size="sm" variant="soft" color="warning">
-          Locked after subscribe
-        </Chip>
-        <Chip size="sm" variant="soft" color="accent">
-          Public
-        </Chip>
         <Chip size="sm" variant="soft">
-          {strategy.group_name}
+          Public
         </Chip>
         <Chip size="sm" variant="soft">
           {strategy.benchmark_chaos_per_hour == null
             ? 'No benchmark yet'
             : `${fmt(strategy.benchmark_chaos_per_hour)}/hr`}
         </Chip>
-        <Chip size="sm" variant="soft">
-          {strategy.benchmark_sample_count} benchmark sample
-          {strategy.benchmark_sample_count === 1 ? '' : 's'}
-        </Chip>
+        {strategy.benchmark_sample_count > 0 ? (
+          <Chip size="sm" variant="soft">
+            {strategy.benchmark_sample_count} benchmark sample
+            {strategy.benchmark_sample_count === 1 ? '' : 's'}
+          </Chip>
+        ) : null}
         <StrategyMetadataBadges metadata={strategy.content_metadata} />
       </div>
 
-      <Card>
-        <Card.Content className="gap-3 p-5 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0 flex-1">
-            <p className="text-foreground text-sm font-medium">Publisher-managed subscription</p>
-            <p className="text-default-500 mt-1 text-sm leading-relaxed">
-              Subscribing creates a local copy in your own strategy list. Your group can set it
-              active for snapshot tracking, but the strategy content itself stays locked and follows
-              updates from {strategy.group_name} while the publisher keeps it public.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 md:justify-end">
-            <Chip size="sm" variant="soft" color="warning">
-              Read-only content
-            </Chip>
-            <Chip size="sm" variant="soft">
-              Auto-updates while public
-            </Chip>
-          </div>
-        </Card.Content>
-      </Card>
+      <p className="text-default-500 text-sm">
+        Subscriptions add a read-only copy that follows the publisher’s updates while public.
+      </p>
 
       {strategy.description ? (
         <Card>
-          <Card.Content className="p-5">
-            <p className="text-default-600 text-sm leading-relaxed">{strategy.description}</p>
+          <Card.Content>
+            <p className="text-default-600 text-sm leading-relaxed whitespace-pre-wrap">{strategy.description}</p>
           </Card.Content>
         </Card>
       ) : null}
 
-      <Card>
-        <Card.Content className="gap-4 p-5">
+      {hasSetup ? (
+        <section aria-label="Strategy setup" className="flex min-w-0 flex-col gap-3">
           <StrategySourceLinks metadata={strategy.content_metadata} />
 
-          {capabilities?.supportsAtlasTree && strategy.atlas_tree_url ? (
-            <div className="rounded-large border-divider bg-default-50/60 flex items-center justify-between gap-3 border p-4">
+          {hasAtlas && strategy.atlas_tree_url ? (
+            <div className="rounded-large border-divider bg-default-50/60 flex flex-wrap items-center justify-between gap-3 border p-4">
               <div>
                 <p className="text-foreground text-sm font-medium">Atlas tree</p>
-                <p className="text-default-500 text-sm">Open the publisher's atlas setup.</p>
               </div>
               <a
                 href={strategy.atlas_tree_url}
@@ -180,14 +164,14 @@ export function PublicStrategyDetailPage() {
                 rel="noopener noreferrer"
                 className="button button--sm button--tertiary"
               >
-                Open Atlas Tree
+                Open Atlas tree
                 <ExternalLink size={14} aria-hidden />
               </a>
             </div>
           ) : null}
 
           {capabilities?.supportsMapInvestmentPlanning && strategy.scarabs.length > 0 && (
-            <details className="text-default-400 text-sm">
+            <details className="text-default-400 wrap-anywhere text-sm">
               <summary className="cursor-pointer">Legacy Scarab reference (removed in 3.30)</summary>
               <ul className="mt-2">{strategy.scarabs.map((scarab, index) => (
                 <li key={index}>{scarab.quantity} × {scarab.name}</li>
@@ -203,9 +187,9 @@ export function PublicStrategyDetailPage() {
                     key={`${thread.name}-${index}`}
                     className="flex flex-wrap items-center gap-2"
                   >
-                    <Chip size="sm" variant="soft">
+                    <Chip size="sm" variant="soft" className="h-auto max-w-full px-2 py-1 whitespace-normal wrap-anywhere">
                       {thread.name}
-                      {thread.quantity > 1 ? ` x${thread.quantity}` : ''}
+                      {thread.quantity > 1 ? ` ×${thread.quantity}` : ''}
                       {!thread.required ? ' · optional' : ''}
                     </Chip>
                     {thread.alternatives.map((alternative, alternativeIndex) => (
@@ -213,10 +197,10 @@ export function PublicStrategyDetailPage() {
                         key={`${thread.name}-${index}-alt-${alternative.name}-${alternativeIndex}`}
                         size="sm"
                         variant="secondary"
-                        className="border-dashed"
+                        className="h-auto max-w-full border-dashed px-2 py-1 whitespace-normal wrap-anywhere"
                       >
-                        Alt: {alternative.name}
-                        {thread.quantity > 1 ? ` x${thread.quantity}` : ''}
+                        Alternative · {alternative.name}
+                        {thread.quantity > 1 ? ` ×${thread.quantity}` : ''}
                       </Chip>
                     ))}
                   </div>
@@ -230,14 +214,13 @@ export function PublicStrategyDetailPage() {
             </div>
           ) : null}
 
-          {capabilities?.supportsAtlasTree &&
-          (strategy.map_trade_link || strategy.map_cost != null || reqChips.length > 0) ? (
+          {hasMapSetup ? (
             <div className="rounded-large border-divider bg-default-50/60 border p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-foreground text-sm font-medium">Map setup</p>
                 {strategy.map_cost != null ? (
                   <Chip size="sm" variant="soft">
-                    ~= {fmt(strategy.map_cost)}/map
+                    ~{fmt(strategy.map_cost)}/map
                   </Chip>
                 ) : null}
               </div>
@@ -258,23 +241,14 @@ export function PublicStrategyDetailPage() {
                     rel="noopener noreferrer"
                     className="button button--sm button--tertiary"
                   >
-                    Open Trade Link
+                    Open trade link
                   </a>
                 </div>
               ) : null}
             </div>
           ) : null}
-          {!capabilities?.supportsAtlasTree ? (
-            <div className="rounded-large border-divider bg-default-50/60 border p-4">
-              <p className="text-foreground text-sm font-medium">PoE2 public strategy view</p>
-              <p className="text-default-500 mt-1 text-sm">
-                This preview stays focused on shared planning data. Atlas, thread, and map setup
-                fields remain hidden for PoE2 workspaces.
-              </p>
-            </div>
-          ) : null}
-        </Card.Content>
-      </Card>
-    </div>
+        </section>
+      ) : null}
+    </DashboardPage>
   )
 }

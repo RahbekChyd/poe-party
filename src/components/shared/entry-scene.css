@@ -1,0 +1,447 @@
+@layer components {
+  .entry-wrap {
+    width: min(calc(100% - clamp(2rem, 8vw, 8rem)), 80rem);
+    margin-inline: auto;
+  }
+
+  .entry-display {
+    color: var(--heading);
+    font-family: var(--font-display);
+    font-weight: 500;
+    line-height: 1.12;
+  }
+
+  .entry-ink {
+    color: var(--foreground);
+    background-color: var(--background);
+  }
+
+  .entry-home-header,
+  .entry-login-header {
+    position: relative;
+    z-index: 2;
+    border-bottom: 1px solid var(--separator);
+    background: var(--surface);
+  }
+
+  .entry-wordmark {
+    color: var(--foreground-strong);
+    font-family: var(--font-display);
+    font-weight: 500;
+  }
+
+  .entry-nav-link {
+    color: var(--muted-text);
+  }
+
+  .entry-nav-link:hover {
+    color: var(--accent-readable);
+    text-decoration: underline;
+    text-underline-offset: 0.3em;
+  }
+
+  .entry-home-menu {
+    border: 1px solid var(--separator);
+    background: var(--overlay);
+  }
+
+  .entry-ink .button,
+  .entry-home-band .button,
+  .entry-login-panel .button {
+    border-radius: 0.375rem;
+  }
+
+  .entry-scene {
+    position: absolute;
+    inset: 0;
+    display: block;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .entry-scene img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 34%;
+  }
+
+  :root[data-league-theme='covens'] .entry-scene {
+    --entry-frame-width: 2px;
+  }
+
+  :root[data-league-theme='covens'] .entry-scene::before {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    border: 1px solid var(--covens-frame-edge);
+    box-shadow:
+      inset 0 0 0 var(--entry-frame-width) var(--covens-frame-wood),
+      inset 0 0 0 calc(var(--entry-frame-width) + 1px) var(--navigation);
+    content: '';
+  }
+
+  @media (min-width: 48rem) and (forced-colors: none) {
+    :root[data-league-theme='covens'] .entry-scene {
+      --entry-frame-width: 4px;
+      --entry-corner-width: clamp(5rem, 8.5vw, 8rem);
+    }
+
+    :root[data-league-theme='covens'] .entry-scene::after {
+      position: absolute;
+      z-index: 2;
+      inset: 0;
+      background-image: var(--covens-corner-start, none), var(--covens-corner-end, none);
+      background-position: left top, right top;
+      background-repeat: no-repeat;
+      background-size: var(--entry-corner-width) auto;
+      content: '';
+    }
+  }
+
+  .entry-hero-stage {
+    display: grid;
+    grid-template: 'copy art' minmax(0, 1fr) 'sample sample' auto / minmax(0, 0.96fr) minmax(0, 1fr);
+    min-height: min(39rem, calc(100svh - 4rem));
+    column-gap: clamp(1rem, 4vw, 4rem);
+  }
+
+  .entry-hero-copy {
+    grid-area: copy;
+    align-self: center;
+    padding-block: clamp(2rem, 6vw, 5rem);
+  }
+
+  .entry-hero-art {
+    display: grid;
+    grid-area: art;
+    grid-template-rows: minmax(0, 1fr) auto;
+    margin-block: 0.875rem 0;
+  }
+
+  .entry-hero-image {
+    position: relative;
+    min-height: 12rem;
+    border: 1px solid var(--separator);
+    background: var(--navigation);
+  }
+
+  .entry-hero-image img {
+    object-position: 80% center;
+  }
+
+  .entry-hero-art figcaption {
+    width: fit-content;
+    max-width: 100%;
+    margin: 0.5rem 0 0.625rem auto;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.125rem;
+    background:
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--palette-parchment-ink) 17%, transparent),
+        transparent 14% 86%,
+        color-mix(in srgb, var(--palette-parchment-ink) 17%, transparent)
+      ),
+      var(--palette-parchment);
+    box-shadow:
+      inset 0 1px color-mix(in srgb, var(--foreground-strong) 36%, transparent),
+      inset 0 -1px color-mix(in srgb, var(--palette-parchment-ink) 14%, transparent);
+    color: var(--palette-parchment-ink);
+    font-family: Georgia, serif;
+    font-size: 0.75rem;
+    overflow-wrap: anywhere;
+  }
+
+  .entry-hero-title {
+    color: var(--foreground-strong);
+    font-size: clamp(2.5rem, 4.15vw, 4rem);
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
+
+  .entry-hero-title span {
+    display: block;
+  }
+
+  .entry-hero-summary {
+    max-width: 33ch;
+    margin-top: 1.35rem;
+    color: var(--muted-text);
+    font-size: clamp(1rem, 1.5vw, 1.125rem);
+    line-height: 1.65;
+  }
+
+  .entry-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.625rem;
+    margin-top: 1.625rem;
+  }
+
+  .entry-sample {
+    display: grid;
+    grid-area: sample;
+    grid-template: 'label details link' / minmax(9rem, 0.8fr) minmax(0, 2fr) auto;
+    align-items: center;
+    gap: 1.25rem;
+    padding-block: 0.9rem;
+    border-top: 1px solid var(--separator);
+  }
+
+  .entry-sample h2 {
+    grid-area: label;
+    color: var(--foreground);
+    font-size: 0.9375rem;
+    font-weight: 650;
+  }
+
+  .entry-sample dl {
+    display: grid;
+    grid-area: details;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem 1.25rem;
+  }
+
+  .entry-sample dt {
+    color: var(--muted-text);
+    font-size: 0.75rem;
+  }
+
+  .entry-sample dd {
+    margin-top: 0.1875rem;
+    color: var(--foreground);
+    font-size: 0.875rem;
+    font-weight: 650;
+  }
+
+  .entry-sample-link {
+    grid-area: link;
+    color: var(--accent-readable);
+    font-size: 0.875rem;
+    font-weight: 650;
+    text-decoration: underline;
+    text-underline-offset: 0.24em;
+  }
+
+  .entry-sample-link:hover {
+    color: var(--foreground);
+  }
+
+  .entry-home-band {
+    border-top: 1px solid var(--separator);
+    padding-block: clamp(2.5rem, 5vw, 4.75rem);
+  }
+
+  .entry-home-band--raised {
+    background: var(--surface);
+  }
+
+  .entry-section-title {
+    font-size: clamp(1.75rem, 3vw, 2.5rem);
+    letter-spacing: -0.025em;
+  }
+
+  .entry-workflow,
+  .entry-game-support {
+    display: grid;
+    gap: 0 clamp(1.25rem, 4vw, 3.5rem);
+  }
+
+  .entry-workflow {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-top: 1.5rem;
+  }
+
+  .entry-game-support {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .entry-workflow > div,
+  .entry-game-support > div {
+    position: relative;
+    padding-block: 1rem;
+    border-top: 1px solid var(--separator);
+  }
+
+  .entry-workflow > div::before,
+  .entry-game-support > div::before {
+    position: absolute;
+    top: -1px;
+    left: 0;
+    width: 1.5rem;
+    height: 1px;
+    background: var(--accent-readable);
+    content: '';
+  }
+
+  .entry-home > footer {
+    padding-inline: max(clamp(1rem, 4vw, 4rem), calc((100% - 80rem) / 2));
+  }
+
+  .entry-login-main {
+    display: grid;
+    min-height: calc(100svh - 4rem - 1px);
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+  }
+
+  .entry-login-art {
+    position: relative;
+    isolation: isolate;
+    overflow: clip;
+    border-right: 1px solid var(--separator);
+    background: var(--navigation);
+  }
+
+  .entry-login-art::after {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(0deg, var(--background), transparent 26%);
+    content: '';
+  }
+
+  .entry-login-art img {
+    object-position: center;
+  }
+
+  .entry-login-column {
+    align-self: center;
+    width: min(34rem, 100% - clamp(2rem, 8vw, 9rem));
+    margin-inline: auto;
+    padding-block: 2rem;
+  }
+
+  .entry-login-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: clamp(1.125rem, 3vw, 2.5rem);
+    border: 1px solid var(--separator);
+    border-top-color: var(--accent-readable);
+    border-radius: 0.375rem;
+    background: var(--surface);
+    box-shadow: var(--overlay-shadow);
+  }
+
+  .entry-login-title {
+    font-size: clamp(1.875rem, 3.3vw, 2.5rem);
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
+
+  .entry-login-access {
+    padding-block: 0.95rem;
+    border-block: 1px solid var(--separator);
+  }
+
+  @media (max-width: 63.99rem) {
+    .entry-workflow {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 47.99rem) {
+    .entry-hero-stage {
+      min-height: auto;
+      grid-template: 'art' auto 'copy' auto 'sample' auto / minmax(0, 1fr);
+    }
+
+    .entry-hero-image {
+      min-height: clamp(9rem, 37vw, 15rem);
+    }
+
+    .entry-hero-image img {
+      object-position: center 26%;
+    }
+
+    .entry-hero-copy {
+      padding-block: 0.75rem 1.75rem;
+    }
+
+    .entry-hero-title {
+      font-size: clamp(2rem, 1rem + 5.5vw, 3.5rem);
+    }
+
+    .entry-hero-summary {
+      max-width: 38ch;
+      margin-top: 0.875rem;
+    }
+
+    .entry-hero-actions {
+      margin-top: 1.125rem;
+    }
+
+    .entry-sample {
+      grid-template: 'label link' 'details details' / minmax(0, 1fr) auto;
+      gap: 0.35rem 0.75rem;
+      padding-block: 0.25rem 1rem;
+    }
+
+    .entry-login-main {
+      min-height: auto;
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .entry-login-art {
+      height: clamp(8.75rem, 40vw, 14rem);
+      border-right: 0;
+      border-bottom: 1px solid var(--separator);
+    }
+
+    .entry-login-art img {
+      object-position: center 26%;
+    }
+
+    .entry-login-column {
+      position: relative;
+      z-index: 1;
+      margin-top: -1.25rem;
+      padding-block: 0 1.5rem;
+    }
+  }
+
+  @media (max-width: 30rem) {
+    .entry-hero-actions .button {
+      flex: 1 0 100%;
+    }
+
+    .entry-game-support {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 22.5rem) {
+    .entry-login-art {
+      height: 6rem;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .entry-hero-art,
+    .entry-login-art {
+      display: none;
+    }
+
+    .entry-hero-stage {
+      min-height: auto;
+      grid-template: 'copy' auto 'sample' auto / minmax(0, 1fr);
+    }
+
+    .entry-login-main {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .entry-login-column {
+      margin-top: 0;
+      padding-block: 2rem;
+    }
+
+    .entry-ink .button,
+    .entry-login-panel .button {
+      border: 1px solid ButtonText;
+    }
+  }
+}

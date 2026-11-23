@@ -1,9 +1,10 @@
 import { SnapshotPricingNotice } from './SnapshotPricingNotice'
+import { SnapshotEmptyState } from './SnapshotEmptyState'
+import './economy-data.css'
 import { storedSnapshotPrice } from '../../lib/snapshot-pricing'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
-import { Chip } from '@heroui/react/chip'
 import { Dropdown } from '@heroui/react/dropdown'
 import { useNinjaPrices } from '../../hooks/useNinjaPrices'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
@@ -11,7 +12,6 @@ import {
   TrendingUp,
   Archive,
   Trophy,
-  Package,
   Check,
   ChevronUp,
   ChevronDown,
@@ -26,6 +26,7 @@ import { contrastColor, getAvatarColor } from '../../lib/utils'
 import { useCurrencyStore } from '../../store/currency-store'
 import { useGroupStore } from '../../store/group-store'
 import { KpiCardsSkeleton, ItemTableSkeleton } from '../layout/Skeletons'
+import { QueryStatePanel } from '../ui/QueryStatePanel'
 import { DropdownCaret, FieldInput, SimplePagination, UserAvatar } from '../ui/heroui-native'
 type SortKey = 'display_name' | 'stack_size' | 'unit_price' | 'price_chaos' | 'tab_name' | 'member'
 
@@ -55,13 +56,14 @@ const PAGE_SIZE = 25
 
 export function GroupSnapshotPage() {
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
-  const { data: rawItems, isLoading } = useGroupSnapshotItems(activeGroupId)
+  const { data: rawItems, isLoading, isError, refetch } = useGroupSnapshotItems(activeGroupId)
   const { data: snapshots } = useLatestSnapshots(activeGroupId)
   const { data: members } = useGroupMembers(activeGroupId)
   const { data: myGroups } = useMyGroups()
   const display = useCurrencyStore((s) => s.display)
 
-  const activeLeague = myGroups?.find((g) => g.group.id === activeGroupId)?.group.league ?? null
+  const activeGroup = myGroups?.find((g) => g.group.id === activeGroupId)?.group
+  const activeLeague = activeGroup?.league ?? null
 
   const { data: ninjaData } = useNinjaPrices(activeLeague)
   const divinePrice = ninjaData?.divinePrice ?? null
@@ -80,6 +82,7 @@ export function GroupSnapshotPage() {
 
   const [minValueChaos, setMinValueChaos] = useState(0)
   const [search, setSearch] = useState('')
+  const searchInput = useRef<HTMLInputElement>(null)
   const debouncedSearch = useDebouncedValue(search)
   const [tabFilters, setTabFilters] = useState<string[]>([])
   const [memberFilter, setMemberFilter] = useState('')
@@ -112,6 +115,11 @@ export function GroupSnapshotPage() {
 
   // KPIs
   const valuationUnavailable = snapshots?.some((snapshot) => snapshot.pricing_summary?.status === 'unavailable') ?? false
+  const valuationPartial = snapshots?.some((snapshot) => snapshot.pricing_summary?.status === 'partial') ?? false
+  const latestCapture = snapshots?.reduce<string | null>(
+    (latest, snapshot) => snapshot.completed_at && (!latest || snapshot.completed_at > latest) ? snapshot.completed_at : latest,
+    null,
+  )
   const totalChaos = includedItems.reduce((s, i) => s + i.price_chaos, 0)
 
   const topItem = includedItems.reduce<PricedItem | null>(
@@ -233,11 +241,11 @@ export function GroupSnapshotPage() {
   }
 
   const sortIcon = (col: SortKey) => {
-    if (sortKey !== col) return <ChevronsUpDown size={12} className="text-default-300" />
+    if (sortKey !== col) return <ChevronsUpDown size={12} className="text-default-400" aria-hidden="true" />
     return sortDir === 'asc' ? (
-      <ChevronUp size={12} className="text-primary" />
+      <ChevronUp size={12} className="text-highlight" aria-hidden="true" />
     ) : (
-      <ChevronDown size={12} className="text-primary" />
+      <ChevronDown size={12} className="text-highlight" aria-hidden="true" />
     )
   }
 
@@ -259,70 +267,76 @@ export function GroupSnapshotPage() {
     : 'All members'
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <Link to="/dashboard/economy">
-            <Button variant="tertiary" size="sm" className="mb-2 -ml-2">
-              Economy
-            </Button>
+    <DashboardPage>
+      <DashboardPageHeader
+        backLink={
+          <Link to="/dashboard/economy" className="button button--sm button--tertiary">
+            Back to Economy
           </Link>
-          <h1 className="text-foreground text-2xl font-semibold">Group Snapshot</h1>
-          <p className="text-default-400 mt-1 text-sm">
-            {activeLeague ?? '…'} · {items.length.toLocaleString()} items across{' '}
-            {uniqueMembers.length} member{uniqueMembers.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-      </div>
+        }
+        title="Group snapshot"
+        description={
+          <>
+            {activeLeague ?? '…'}
+            {rawItems && ` · ${items.length.toLocaleString()} items across ${uniqueMembers.length} member${uniqueMembers.length !== 1 ? 's' : ''}`}
+          </>
+        }
+      />
 
-      <SnapshotPricingNotice summaries={(snapshots ?? []).map((snapshot) => snapshot.pricing_summary)}
-        priced={items.filter((item) => item.has_price).length} unknown={items.filter((item) => !item.has_price).length} />
+      {snapshots?.length && !isLoading ? (
+        <SnapshotPricingNotice summaries={snapshots.map((snapshot) => snapshot.pricing_summary)}
+          priced={items.filter((item) => item.has_price).length} unknown={items.filter((item) => !item.has_price).length} />
+      ) : null}
 
       {isLoading ? (
         <>
+          <p role="status" className="text-default-500 text-sm">Loading stash items…</p>
           <KpiCardsSkeleton />
           <ItemTableSkeleton />
         </>
+      ) : isError && !rawItems ? (
+        <QueryStatePanel kind="error" title="Couldn’t load the group snapshot" description="Try again to view stash items." onRetry={refetch} />
       ) : !items.length ? (
-        <Card>
-          <Card.Content className="flex flex-col items-center gap-3 p-12 text-center">
-            <Package size={32} className="text-default-300" />
-            <p className="text-default-400 text-sm">
-              No items found. Snapshot stashes from the Economy page first.
-            </p>
-          </Card.Content>
-        </Card>
+        <SnapshotEmptyState
+          game={activeGroup?.game ?? null}
+          league={activeLeague}
+          message="No stash items yet."
+        />
       ) : (
         <>
           {/* KPI cards */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <Card>
+            <Card className="p-0">
               <Card.Content className="flex flex-row items-center gap-3 p-4">
-                <div className="bg-success/15 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                  <TrendingUp size={18} className="text-success" />
+                <div className="bg-wealth-series/15 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+                  <TrendingUp size={18} className="text-wealth-series" aria-hidden="true" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-default-400 text-xs">Total Group Wealth</p>
-                  <p className="text-foreground truncate text-lg font-bold">{valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}</p>
+                  <p className="text-default-400 text-xs">{valuationPartial && !valuationUnavailable ? 'Priced subtotal' : 'Total Group Wealth'}</p>
+                  <p className="text-foreground text-lg font-bold wrap-anywhere tabular-nums">{valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}</p>
                   <p className="text-default-400 text-xs">{divinePrice == null ? 'Divine conversion unavailable' : `1 div = ${divinePrice.toFixed(0)}c`}</p>
+                  {latestCapture && (
+                    <p className="text-default-500 mt-1 text-xs">
+                      Latest capture <time dateTime={latestCapture}>{new Date(latestCapture).toLocaleString()}</time>
+                    </p>
+                  )}
                 </div>
               </Card.Content>
             </Card>
 
-            <Card className={topTabActive ? 'ring-primary ring-2' : ''}>
-              <button type="button" className="w-full text-left" onClick={handleTopTabClick}>
+            <Card className={topTabActive ? 'border-highlight bg-selected p-0' : 'p-0'}>
+              <button type="button" aria-pressed={topTabActive} disabled={!topTab} className="w-full rounded-large text-left" onClick={handleTopTabClick}>
                 <Card.Content className="flex flex-row items-center gap-3 p-4">
-                  <div className="bg-primary/15 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                    <Archive size={18} className="text-primary" />
+                  <div className="bg-content2 text-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+                    <Archive size={18} aria-hidden="true" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-default-400 text-xs">
-                      Top Tab {topTabActive && <span className="text-primary">· filtered</span>}
+                      Top Tab {topTabActive && <span className="text-highlight font-semibold">· filtered</span>}
                     </p>
                     {topTab ? (
                       <>
-                        <p className="text-foreground truncate text-sm font-bold">
+                        <p className="text-foreground text-sm font-bold wrap-anywhere">
                           {topTab.tab_name}
                         </p>
                         <p className="text-default-400 text-xs">{fmt(topTab.value)}</p>
@@ -335,19 +349,19 @@ export function GroupSnapshotPage() {
               </button>
             </Card>
 
-            <Card className={topItemActive ? 'ring-warning ring-2' : ''}>
-              <button type="button" className="w-full text-left" onClick={handleTopItemClick}>
+            <Card className={topItemActive ? 'border-highlight bg-selected p-0' : 'p-0'}>
+              <button type="button" aria-pressed={topItemActive} disabled={!topItem} className="w-full rounded-large text-left" onClick={handleTopItemClick}>
                 <Card.Content className="flex flex-row items-center gap-3 p-4">
-                  <div className="bg-warning/15 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                    <Trophy size={18} className="text-warning" />
+                  <div className="bg-content2 text-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+                    <Trophy size={18} aria-hidden="true" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-default-400 text-xs">
-                      Top Item {topItemActive && <span className="text-warning">· filtered</span>}
+                      Top Item {topItemActive && <span className="text-highlight font-semibold">· filtered</span>}
                     </p>
                     {topItem ? (
                       <>
-                        <p className="text-foreground truncate text-sm font-bold">
+                        <p className="text-foreground text-sm font-bold wrap-anywhere">
                           {topItem.display_name}
                         </p>
                         <p className="text-default-400 text-xs">{fmt(topItem.price_chaos)}</p>
@@ -362,9 +376,10 @@ export function GroupSnapshotPage() {
           </div>
 
           {/* Filters */}
-          <Card>
+          <Card className="p-0">
             <Card.Content className="flex flex-row flex-wrap items-center gap-3 p-3">
               <FieldInput
+                ref={searchInput}
                 size="sm"
                 aria-label="Search items"
                 placeholder="Search items…"
@@ -397,7 +412,7 @@ export function GroupSnapshotPage() {
                 min={0}
               />
               <Dropdown>
-                <Dropdown.Trigger className="select__trigger min-h-10 min-w-40 items-center">
+                <Dropdown.Trigger className="select__trigger min-h-10 min-w-0 max-w-full items-center sm:min-w-40">
                   <span className="select__value min-w-0">
                     {tabFilters.length === 0 ? (
                       <span className="truncate">All tabs</span>
@@ -408,7 +423,7 @@ export function GroupSnapshotPage() {
                           return col ? (
                             <span
                               key={tab}
-                              className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium"
+                              className="inline-flex min-w-0 max-w-full items-center rounded px-1.5 py-0.5 text-xs font-medium wrap-anywhere"
                               style={{
                                 backgroundColor: `rgb(${col.r},${col.g},${col.b})`,
                                 color: contrastColor(col.r, col.g, col.b),
@@ -419,7 +434,7 @@ export function GroupSnapshotPage() {
                           ) : (
                             <span
                               key={tab}
-                              className="bg-default-200 inline-flex items-center rounded px-1.5 py-0.5 text-xs"
+                              className="bg-default-200 min-w-0 rounded px-1.5 py-0.5 text-xs wrap-anywhere"
                             >
                               {tab}
                             </span>
@@ -432,7 +447,7 @@ export function GroupSnapshotPage() {
                   </span>
                   <DropdownCaret className="select__indicator" />
                 </Dropdown.Trigger>
-                <Dropdown.Popover className="max-h-64 overflow-y-auto">
+                <Dropdown.Popover className="max-h-64 max-w-[calc(100dvw-2rem)] overflow-y-auto">
                   <Dropdown.Menu
                     aria-label="Filter by tab"
                     selectionMode="multiple"
@@ -450,12 +465,12 @@ export function GroupSnapshotPage() {
                           key={tab}
                           id={tab}
                           textValue={tab}
-                          className={isSelected ? 'bg-accent-soft/70' : undefined}
+                          className={isSelected ? 'bg-selected' : undefined}
                         >
                           <span className="flex w-full min-w-0 items-center gap-3">
                             {col ? (
                               <span
-                                className="inline-flex min-w-0 items-center truncate rounded px-1.5 py-0.5 text-xs font-medium"
+                                className="min-w-0 rounded px-1.5 py-0.5 text-xs font-medium wrap-anywhere"
                                 style={{
                                   backgroundColor: `rgb(${col.r},${col.g},${col.b})`,
                                   color: contrastColor(col.r, col.g, col.b),
@@ -464,13 +479,13 @@ export function GroupSnapshotPage() {
                                 {tab}
                               </span>
                             ) : (
-                              <span className="min-w-0 truncate">{tab}</span>
+                              <span className="min-w-0 wrap-anywhere">{tab}</span>
                             )}
                             <span
                               aria-hidden="true"
                               className={`ml-auto inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-all duration-150 ${
                                 isSelected
-                                  ? 'bg-accent text-accent-foreground ring-accent/20 shadow-sm ring-1'
+                                  ? 'text-highlight border border-current'
                                   : 'scale-90 opacity-0'
                               }`}
                             >
@@ -488,7 +503,7 @@ export function GroupSnapshotPage() {
                   <span className="select__value min-w-0 truncate">{activeMemberLabel}</span>
                   <DropdownCaret className="select__indicator" />
                 </Dropdown.Trigger>
-                <Dropdown.Popover className="max-h-64 overflow-y-auto">
+                <Dropdown.Popover className="max-h-64 max-w-[calc(100dvw-2rem)] overflow-y-auto">
                   <Dropdown.Menu
                     aria-label="Filter by member"
                     selectionMode="single"
@@ -501,13 +516,13 @@ export function GroupSnapshotPage() {
                     {memberDropdownItems.map(({ key, label }) => (
                       <Dropdown.Item key={key} id={key} textValue={label}>
                         <Dropdown.ItemIndicator />
-                        {label}
+                        <span className="min-w-0 wrap-anywhere">{label}</span>
                       </Dropdown.Item>
                     ))}
                   </Dropdown.Menu>
                 </Dropdown.Popover>
               </Dropdown>
-              <span className="text-default-400 ml-auto text-xs">
+              <span role="status" className="text-default-400 ml-auto text-xs tabular-nums">
                 {filtered.length.toLocaleString()} item{filtered.length !== 1 ? 's' : ''}
                 {filtered.length !== items.length && ` of ${items.length.toLocaleString()}`}
               </span>
@@ -515,14 +530,25 @@ export function GroupSnapshotPage() {
           </Card>
 
           {/* Table */}
-          <Card>
+          <Card className="overflow-visible p-0">
             <Card.Content className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-divider border-b">
-                      <th className="w-10 px-4 py-3" />
-                      <th className="text-default-400 px-4 py-3 text-left text-xs font-medium tracking-wider uppercase">
+              <div className="economy-data" role="region" aria-label="Group stash items">
+                <table className="economy-stash" role="table">
+                  <thead role="rowgroup">
+                    <tr role="row" className="border-divider border-b">
+                      <th scope="col" role="columnheader" className="w-12 px-4 py-3" />
+                      <th
+                        scope="col"
+                        role="columnheader"
+                        aria-sort={
+                          sortKey === 'display_name'
+                            ? sortDir === 'asc'
+                              ? 'ascending'
+                              : 'descending'
+                            : undefined
+                        }
+                        className="text-default-400 px-4 py-3 text-left text-xs font-medium tracking-wider uppercase"
+                      >
                         <button
                           className="hover:text-foreground flex items-center gap-1"
                           onClick={() => handleSort('display_name')}
@@ -530,7 +556,18 @@ export function GroupSnapshotPage() {
                           Item {sortIcon('display_name')}
                         </button>
                       </th>
-                      <th className="text-default-400 px-4 py-3 text-left text-xs font-medium tracking-wider uppercase">
+                      <th
+                        scope="col"
+                        role="columnheader"
+                        aria-sort={
+                          sortKey === 'member'
+                            ? sortDir === 'asc'
+                              ? 'ascending'
+                              : 'descending'
+                            : undefined
+                        }
+                        className="w-[17%] text-default-400 px-4 py-3 text-left text-xs font-medium tracking-wider uppercase"
+                      >
                         <button
                           className="hover:text-foreground flex items-center gap-1"
                           onClick={() => handleSort('member')}
@@ -538,7 +575,18 @@ export function GroupSnapshotPage() {
                           Member {sortIcon('member')}
                         </button>
                       </th>
-                      <th className="text-default-400 hidden px-4 py-3 text-left text-xs font-medium tracking-wider uppercase md:table-cell">
+                      <th
+                        scope="col"
+                        role="columnheader"
+                        aria-sort={
+                          sortKey === 'tab_name'
+                            ? sortDir === 'asc'
+                              ? 'ascending'
+                              : 'descending'
+                            : undefined
+                        }
+                        className="w-[16%] text-default-400 px-4 py-3 text-left text-xs font-medium tracking-wider uppercase"
+                      >
                         <button
                           className="hover:text-foreground flex items-center gap-1"
                           onClick={() => handleSort('tab_name')}
@@ -546,7 +594,18 @@ export function GroupSnapshotPage() {
                           Tab {sortIcon('tab_name')}
                         </button>
                       </th>
-                      <th className="text-default-400 px-4 py-3 text-right text-xs font-medium tracking-wider uppercase">
+                      <th
+                        scope="col"
+                        role="columnheader"
+                        aria-sort={
+                          sortKey === 'stack_size'
+                            ? sortDir === 'asc'
+                              ? 'ascending'
+                              : 'descending'
+                            : undefined
+                        }
+                        className="w-18 text-default-400 px-4 py-3 text-right text-xs font-medium tracking-wider uppercase"
+                      >
                         <button
                           className="hover:text-foreground ml-auto flex items-center gap-1"
                           onClick={() => handleSort('stack_size')}
@@ -554,7 +613,18 @@ export function GroupSnapshotPage() {
                           Stack {sortIcon('stack_size')}
                         </button>
                       </th>
-                      <th className="text-default-400 hidden px-4 py-3 text-right text-xs font-medium tracking-wider uppercase md:table-cell">
+                      <th
+                        scope="col"
+                        role="columnheader"
+                        aria-sort={
+                          sortKey === 'unit_price'
+                            ? sortDir === 'asc'
+                              ? 'ascending'
+                              : 'descending'
+                            : undefined
+                        }
+                        className="w-30 text-default-400 px-2 py-3 text-right text-xs font-medium tracking-wider uppercase"
+                      >
                         <button
                           className="hover:text-foreground ml-auto flex items-center gap-1"
                           onClick={() => handleSort('unit_price')}
@@ -562,7 +632,18 @@ export function GroupSnapshotPage() {
                           Unit {sortIcon('unit_price')}
                         </button>
                       </th>
-                      <th className="text-default-400 px-4 py-3 text-right text-xs font-medium tracking-wider uppercase">
+                      <th
+                        scope="col"
+                        role="columnheader"
+                        aria-sort={
+                          sortKey === 'price_chaos'
+                            ? sortDir === 'asc'
+                              ? 'ascending'
+                              : 'descending'
+                            : undefined
+                        }
+                        className="w-32 text-default-400 px-3 py-3 text-right text-xs font-medium tracking-wider uppercase"
+                      >
                         <button
                           className="hover:text-foreground ml-auto flex items-center gap-1"
                           onClick={() => handleSort('price_chaos')}
@@ -572,20 +653,28 @@ export function GroupSnapshotPage() {
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody role="rowgroup">
                     {paginated.map((item, i) => {
                       const user = memberByUserId[item.user_id]
                       const showUnit = item.unit_price > 0
+                      const tabStyle =
+                        item.colour_r != null
+                          ? {
+                              backgroundColor: `rgb(${item.colour_r},${item.colour_g},${item.colour_b})`,
+                              color: contrastColor(item.colour_r, item.colour_g!, item.colour_b!),
+                            }
+                          : undefined
                       return (
                         <tr
+                          role="row"
                           key={item.id}
                           className={i < paginated.length - 1 ? 'border-divider border-b' : ''}
                         >
-                          <td className="p-2">
+                          <td role="cell" data-cell="icon" className="p-2">
                             {item.icon_url ? (
                               <img
                                 src={item.icon_url}
-                                alt={item.display_name}
+                                alt=""
                                 className="h-8 w-8 object-contain"
                                 loading="lazy"
                               />
@@ -593,16 +682,24 @@ export function GroupSnapshotPage() {
                               <div className="bg-default-100 h-6 w-6 rounded" />
                             )}
                           </td>
-                          <td className="px-4 py-2">
-                            <p className={`text-sm ${item.is_excluded ? 'text-default-400 line-through' : 'text-foreground'}`}>{item.display_name}</p>
-                            {item.is_excluded && <p className="text-default-500 text-xs">Excluded from totals</p>}
+                          <td role="cell" data-cell="item" className="px-4 py-2">
+                            <p
+                              className={`text-sm ${item.is_excluded ? 'text-default-400 line-through' : 'text-foreground'}`}
+                            >
+                              {item.display_name}
+                            </p>
+                            {item.is_excluded && (
+                              <p className="text-default-500 text-xs">Excluded from totals</p>
+                            )}
                             {item.base_type && item.base_type !== item.display_name && (
                               <p className="text-default-400 text-xs">{item.base_type}</p>
                             )}
                           </td>
-                          <td className="px-4 py-2">
+                          <td role="cell" data-cell="member" className="px-4 py-2">
                             <button
-                              className="flex items-center gap-1.5 hover:opacity-80"
+                              className="flex min-w-0 items-center gap-1.5 rounded-sm text-left hover:underline aria-pressed:underline"
+                              type="button"
+                              aria-pressed={memberFilter === item.user_id}
                               onClick={() => {
                                 setMemberFilter((prev) =>
                                   prev === item.user_id ? '' : item.user_id,
@@ -614,7 +711,7 @@ export function GroupSnapshotPage() {
                                 src={user?.avatar_url ?? undefined}
                                 name={user?.display_name ?? user?.poe_account_name ?? '?'}
                                 size="sm"
-                                className="text-tiny h-5 w-5 shrink-0"
+                                className="text-tiny size-5 shrink-0"
                                 style={
                                   user
                                     ? {
@@ -628,61 +725,50 @@ export function GroupSnapshotPage() {
                               </span>
                             </button>
                           </td>
-                          <td className="hidden px-4 py-2 md:table-cell">
-                            {item.colour_r != null ? (
-                              <span
-                                className="inline-flex cursor-pointer items-center rounded px-2 py-0.5 text-xs font-medium"
-                                style={{
-                                  backgroundColor: `rgb(${item.colour_r},${item.colour_g},${item.colour_b})`,
-                                  color: contrastColor(
-                                    item.colour_r,
-                                    item.colour_g!,
-                                    item.colour_b!,
-                                  ),
-                                }}
-                                onClick={() => {
-                                  setTabFilters((prev) =>
-                                    prev.includes(item.tab_name)
-                                      ? prev.filter((t) => t !== item.tab_name)
-                                      : [...prev, item.tab_name],
-                                  )
-                                  setPage(1)
-                                }}
-                              >
-                                {item.tab_name}
-                              </span>
-                            ) : (
-                              <Chip
-                                size="sm"
-                                variant="soft"
-                                color="default"
-                                className="cursor-pointer"
-                                onClick={() => {
-                                  setTabFilters((prev) =>
-                                    prev.includes(item.tab_name)
-                                      ? prev.filter((t) => t !== item.tab_name)
-                                      : [...prev, item.tab_name],
-                                  )
-                                  setPage(1)
-                                }}
-                              >
-                                {item.tab_name}
-                              </Chip>
-                            )}
+                          <td role="cell" data-cell="tab" className="px-4 py-2">
+                            <button
+                              type="button"
+                              aria-pressed={tabFilters.includes(item.tab_name)}
+                              className="bg-default-100 text-default-700 max-w-full cursor-pointer rounded px-2 py-0.5 text-left text-xs font-medium wrap-anywhere hover:underline aria-pressed:underline"
+                              style={tabStyle}
+                              onClick={() => {
+                                setTabFilters((prev) =>
+                                  prev.includes(item.tab_name)
+                                    ? prev.filter((t) => t !== item.tab_name)
+                                    : [...prev, item.tab_name],
+                                )
+                                setPage(1)
+                              }}
+                            >
+                              {item.tab_name}
+                            </button>
                           </td>
-                          <td className="px-4 py-2 text-right">
+                        <td role="cell" data-cell="quantity" className="px-4 py-2 text-right tabular-nums">
+                            <span className="economy-data-label" aria-hidden="true">
+                              Stack
+                            </span>
                             <span className="text-foreground text-sm">
                               {item.stack_size.toLocaleString()}
                             </span>
                           </td>
-                          <td className="hidden px-4 py-2 text-right md:table-cell">
+                          <td
+                            role="cell"
+                            data-cell="unit"
+                            className="px-2 py-2 text-right tabular-nums"
+                          >
+                            <span className="economy-data-label" aria-hidden="true">
+                              Unit
+                            </span>
                             <span className="text-default-400 text-sm">
                               {showUnit ? fmtUnit(item.unit_price) : '—'}
                             </span>
                           </td>
-                          <td className="px-4 py-2 text-right">
+                          <td role="cell" data-cell="value" className="px-3 py-2 text-right">
+                            <span className="economy-data-label" aria-hidden="true">
+                              Total
+                            </span>
                             <span
-                              className={`text-sm font-semibold ${item.price_chaos > 0 ? 'text-foreground' : 'text-default-300'}`}
+                              className={`text-sm font-semibold tabular-nums ${item.price_chaos > 0 ? 'text-foreground' : 'text-default-500'}`}
                             >
                               {item.has_price ? fmt(item.price_chaos) : 'Unknown'}
                             </span>
@@ -691,15 +777,37 @@ export function GroupSnapshotPage() {
                       )
                     })}
                     {paginated.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="text-default-400 py-12 text-center text-sm">
-                          No items match the current filters.
+                      <tr role="row">
+                        <td
+                          role="cell"
+                          colSpan={7}
+                          className="economy-empty-cell"
+                        >
+                          <div className="economy-empty-results">
+                            <p>No results match these filters.</p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="min-h-11"
+                              onPress={() => {
+                                searchInput.current?.focus()
+                                setSearch('')
+                                setMinValueChaos(0)
+                                setTabFilters([])
+                                setMemberFilter('')
+                                setPage(1)
+                              }}
+                            >
+                              Clear filters
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
               </div>
+
             </Card.Content>
           </Card>
 
@@ -710,6 +818,7 @@ export function GroupSnapshotPage() {
           )}
         </>
       )}
-    </div>
+    </DashboardPage>
   )
 }
+import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'

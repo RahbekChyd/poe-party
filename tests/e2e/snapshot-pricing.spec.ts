@@ -1,8 +1,6 @@
-import { expect, test, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { expect, groupId, seedSignedIn, test, user, userId } from './fixture'
 
-const userId = '10000000-0000-0000-0000-000000000001'
-const groupId = '20000000-0000-0000-0000-000000000001'
-const user = { id: userId, aud: 'authenticated', role: 'authenticated', email: 'fixture@example.invalid', app_metadata: {}, user_metadata: {}, created_at: '2026-11-18T00:00:00Z' }
 const summary = { status: 'complete', version: 1, source: 'poe.ninja', priced_at: '2026-11-18T00:00:00Z', divine_price: null, priced_item_count: 1000, unpriced_item_count: 1, failed_categories: [] as string[] }
 const items = Array.from({ length: 1001 }, (_, i) => ({ id: `item-${String(i).padStart(4, '0')}`, user_id: userId, name: i === 1000 ? 'Unpriced keepsake' : 'Chaos Orb', type_line: 'Chaos Orb', base_type: null, frame_type: 5, ilvl: 1, icon_url: null, stack_size: 2, tab_name: 'Currency', tab_type: 'CurrencyStash', colour_r: 100, colour_g: 100, colour_b: 100, price_chaos: i === 1000 ? null : 6, is_excluded: false, excluded_reason: null }))
 const exclusionItems = [
@@ -21,12 +19,8 @@ async function mockCapture(page: Page, status: PricingStatus = 'complete', rows:
     unpriced_item_count: captureItems.filter((item) => item.price_chaos === null).length,
     failed_categories: status === 'complete' ? [] : ['Currency'],
   }
-  await page.addInitScript(({ user, groupId }) => {
-    sessionStorage.setItem('sb-127-auth-token', JSON.stringify({ access_token: 'fixture-access', refresh_token: 'fixture-refresh', expires_at: Math.floor(Date.now() / 1000) + 3600, expires_in: 3600, token_type: 'bearer', user }))
-    localStorage.setItem('poe-group-tool:active-group', JSON.stringify({ state: { activeGroupId: groupId }, version: 0 }))
-  }, { user, groupId })
+  await seedSignedIn(page)
   await page.route('**/api/ninja/**', (route) => route.fulfill({ status: 503, body: '{}' }))
-  await page.route('**/auth/v1/**', (route) => route.fulfill({ json: user }))
   await page.route('**/rest/v1/**', async (route) => {
     const url = new URL(route.request().url())
     const table = url.pathname.split('/').at(-1)
@@ -65,12 +59,31 @@ for (const route of ['/dashboard/economy/group', `/dashboard/economy/${userId}`]
         await expect(page.getByText('Pricing unavailable', { exact: true }).first()).toBeVisible()
         await expect(page.getByText(/0 priced items; 3 unpriced/)).toBeVisible()
       } else {
+        await expect(page.getByText('Priced subtotal', { exact: true })).toBeVisible()
         await expect(page.getByText('6c', { exact: true }).first()).toBeVisible()
       }
       await page.screenshot({ path: testInfo.outputPath(`${status}-snapshot.png`), fullPage: true })
     })
   }
 }
+
+test('large unfiltered stash pagination fits a compact viewport and reaches the last item', async ({ page }) => {
+  await mockCapture(page)
+  await page.setViewportSize({ width: 320, height: 740 })
+  await page.goto('/dashboard/economy/group')
+  const pager = page.getByRole('navigation', { name: 'Snapshot pages' })
+  const next = pager.getByRole('button', { name: 'Next page' })
+  await expect(next).toBeVisible()
+  await expect(pager.getByRole('status')).toHaveText('Page 1 of 41')
+  await expect.poll(() => page.getByRole('main').evaluate((main) => main.scrollWidth - main.clientWidth)).toBeLessThanOrEqual(1)
+  await next.click()
+  await expect(pager.getByRole('status')).toHaveText('Page 2 of 41')
+  await page.getByRole('spinbutton', { name: 'Go to page' }).fill('41')
+  await page.getByRole('button', { name: 'Go', exact: true }).click()
+  await expect(pager.getByRole('status')).toHaveText('Page 41 of 41')
+  await expect(next).toBeDisabled()
+  await expect(page.getByText('Unpriced keepsake', { exact: true })).toBeVisible()
+})
 
 test('group KPIs and rows consistently exclude an expensive item from totals', async ({ page }, testInfo) => {
   await mockCapture(page, 'complete', exclusionItems)
@@ -81,6 +94,189 @@ test('group KPIs and rows consistently exclude an expensive item from totals', a
   await expect(page.getByRole('button', { name: /Top Tab/ })).not.toContainText('Excluded stash')
   await expect(page.getByText('Excluded from totals', { exact: true })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('excluded-snapshot.png'), fullPage: true })
+})
+
+test('member stash filters preserve exclusion meaning and recover from no matches', async ({ page }, testInfo) => {
+  await mockCapture(page, 'partial', exclusionItems)
+  const date = new Date()
+  await page.route('**/rest/v1/snapshot_value_history?*', (route) => route.fulfill({
+    json: [
+      { id: 'earlier-capture', snapshot_id: null, completed_at: new Date(date.getTime() - 86_400_000).toISOString(), included_chaos_total: 12, excluded_chaos_total: 0, pricing_summary: summary },
+      { id: 'current-capture', snapshot_id: 'snapshot', completed_at: date.toISOString(), included_chaos_total: 6, excluded_chaos_total: 100_000, pricing_summary: summary },
+    ],
+  }))
+  const isMobile = testInfo.project.name === 'chromium-mobile'
+  await page.setViewportSize(isMobile ? { width: 390, height: 844 } : { width: 1440, height: 900 })
+  await page.goto(`/dashboard/economy/${userId}`)
+
+  const table = page.getByRole('region', { name: 'Snapshot stash items' }).getByRole('table')
+  const excluded = table.getByRole('row', { name: /Excluded trophy/ })
+  const included = table.getByRole('row', { name: /Included currency/ })
+  const excludedTab = excluded.getByRole('button', { name: 'Excluded stash', exact: true })
+  await expect(excluded).toBeVisible()
+  await expect(excluded).toHaveCSS('opacity', '1')
+  await expect(excluded.getByRole('button', { name: 'Include item', exact: true })).toBeVisible()
+  await expect(included.getByRole('button', { name: 'Exclude item', exact: true })).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+  await page.screenshot({ path: testInfo.outputPath('member-stash-overview.png'), animations: 'disabled' })
+
+  if (isMobile) await excludedTab.tap()
+  else await excludedTab.press('Enter')
+  await expect(excludedTab).toHaveAttribute('aria-pressed', 'true')
+  await expect(excluded.getByRole('button', { name: 'Include item', exact: true })).toBeVisible()
+  await expect(included).toHaveCount(0)
+  await page.screenshot({ path: testInfo.outputPath('member-stash-selected.png'), animations: 'disabled' })
+
+  const search = page.getByRole('textbox', { name: 'Search items', exact: true })
+  await search.fill('nothing matches this')
+  const empty = table.getByText('No results match these filters.')
+  await expect(empty).toBeVisible()
+  await page.getByRole('button', { name: 'Clear', exact: true }).click()
+  await expect(search).toBeEmpty()
+  await expect(search).toBeFocused()
+  await expect(excludedTab).toHaveAttribute('aria-pressed', 'true')
+  await search.fill('nothing matches this')
+  await expect(empty).toBeVisible()
+  const clearFilters = table.getByRole('button', { name: 'Clear filters' })
+  await clearFilters.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: testInfo.outputPath('member-stash-no-results.png'), animations: 'disabled' })
+  await clearFilters.click()
+  await expect(search).toBeEmpty()
+  await expect(search).toBeFocused()
+  await expect(excludedTab).toHaveAttribute('aria-pressed', 'false')
+  await expect(included).toBeVisible()
+})
+
+test('member stash distinguishes pending, failed, and empty captures', async ({ page }, testInfo) => {
+  await mockCapture(page, 'complete', [])
+  let allowFirstResponse: () => void = () => {}
+  const firstResponse = new Promise<void>((resolve) => { allowFirstResponse = resolve })
+  let showError = true
+  await page.route('**/rest/v1/latest_stash_items?*', async (route) => {
+    await firstResponse
+    if (showError) return route.fulfill({ status: 500, json: { message: 'Fixture snapshot unavailable' } })
+    return route.fulfill({ json: [] })
+  })
+
+  const isMobile = testInfo.project.name === 'chromium-mobile'
+  await page.setViewportSize(isMobile ? { width: 390, height: 844 } : { width: 1440, height: 900 })
+  try {
+    await page.goto(`/dashboard/economy/${userId}`)
+    await expect(page.getByRole('status').filter({ hasText: 'Loading stash items' })).toBeAttached()
+    await page.evaluate(() => document.fonts.ready)
+    await page.screenshot({ path: testInfo.outputPath('member-stash-loading.png'), animations: 'disabled' })
+  } finally {
+    allowFirstResponse()
+  }
+
+  const alert = page.getByRole('alert').filter({ hasText: 'Couldn’t load the snapshot' })
+  await expect(alert).toBeVisible()
+  await alert.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: testInfo.outputPath('member-stash-error.png'), animations: 'disabled' })
+  showError = false
+  await alert.getByRole('button', { name: 'Try again', exact: true }).press('Enter')
+  await expect(alert).toHaveCount(0)
+  await expect(page.getByText(/no stash items/i)).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Snapshot stash items' })).toHaveCount(0)
+})
+
+test('stash tables retain readable item and total cells when columns reflow', async ({ page }) => {
+  await mockCapture(page, 'complete', exclusionItems)
+  for (const [url, regionName] of [
+    ['/dashboard/economy/group', 'Group stash items'],
+    [`/dashboard/economy/${userId}`, 'Snapshot stash items'],
+  ]) {
+    await page.setViewportSize({ width: 1366, height: 768 })
+    await page.goto(url)
+    const region = page.getByRole('region', { name: regionName, exact: true })
+    const table = region.getByRole('table')
+    const row = table.getByRole('row', { name: /Included currency/ })
+    const total = row.getByRole('cell', { name: /^(Total )?6c$/ })
+    await expect(total).toBeVisible()
+    const sortTotal = table.getByRole('columnheader', { name: 'Total', exact: true })
+    await expect(sortTotal).toHaveAttribute('aria-sort', 'descending')
+    await sortTotal.getByRole('button', { name: 'Total', exact: true }).click()
+    await expect(sortTotal).toHaveAttribute('aria-sort', 'ascending')
+
+    for (const width of [760, 390, 320]) {
+      await page.setViewportSize({ width, height: 700 })
+      await expect(row.getByText('Included currency', { exact: true })).toBeVisible()
+      await expect(total).toBeVisible()
+      await expect.poll(() => region.evaluate((node) => node.scrollWidth - node.clientWidth))
+        .toBeLessThanOrEqual(1)
+    }
+  }
+})
+
+test('wealth history values and retained summaries support keyboard and pointer input', async ({ page }, testInfo) => {
+  await mockCapture(page, 'complete', exclusionItems)
+  await page.route('**/rest/v1/snapshot_value_history?*', (route) => route.fulfill({
+    json: [
+      {
+        id: 'older-history',
+        snapshot_id: null,
+        completed_at: '2026-11-17T12:00:00Z',
+        included_chaos_total: 4_200,
+        excluded_chaos_total: 0,
+        pricing_summary: summary,
+      },
+      {
+        id: 'latest-history',
+        snapshot_id: 'snapshot',
+        completed_at: '2026-11-18T00:00:00Z',
+        included_chaos_total: 6,
+        excluded_chaos_total: 0,
+        pricing_summary: summary,
+      },
+    ],
+  }))
+  await page.goto(`/dashboard/economy/${userId}`)
+
+  const chart = page.getByRole('application', { name: 'Stash wealth in chaos orbs' })
+  await chart.focus()
+  const tooltip = page.locator('.recharts-tooltip-wrapper').getByRole('status')
+  await expect(tooltip).toContainText('4,200c')
+  await chart.press('ArrowRight')
+  await expect(tooltip).toContainText('6c')
+
+  await page.getByRole('button', { name: 'Select snapshot: Latest snapshot', exact: true }).press('Enter')
+  const historical = page.getByRole('menuitemradio').filter({ hasText: 'summary only' })
+  await historical.press('Enter')
+  await expect(page).toHaveURL(/historyId=older-history/)
+  await expect(page.getByText(/Summary value and strategy link are still preserved/)).toBeVisible()
+
+  await page.getByRole('button', { name: 'Back to latest' }).press('Enter')
+  await expect(page).not.toHaveURL(/historyId=/)
+  const point = chart.locator('.recharts-area-dots g[aria-hidden="true"]').first()
+  if (testInfo.project.name === 'chromium-mobile') await point.tap()
+  else await point.click()
+  await expect(page).toHaveURL(/historyId=older-history/)
+})
+
+test('Economy keeps the value intact and restores snapshot schedule focus', async ({ page }) => {
+  await mockCapture(page, 'complete', [{ ...items[0], price_chaos: 123_456_789 }])
+  await page.goto('/dashboard/economy')
+  const amount = page.getByRole('region', { name: 'Member breakdown', exact: true })
+    .getByRole('row', { name: /Fixture/ }).getByText('123,456,789c', { exact: true }).first()
+  for (const width of [1440, 1024, 320]) {
+    await page.setViewportSize({ width, height: 720 })
+    await expect(amount).toBeVisible()
+    await expect.poll(() => amount.evaluate((node) => {
+      const range = document.createRange()
+      range.selectNodeContents(node)
+      const rects = range.getClientRects()
+      const cell = node.closest('td')?.getBoundingClientRect()
+      return rects.length === 1 && !!cell && rects[0].right <= cell.right + 1
+    })).toBe(true)
+  }
+  const trigger = page.getByRole('button', { name: 'Snapshot schedule', exact: true })
+  await trigger.press('Enter')
+  const dialog = page.getByRole('dialog', { name: 'Snapshot schedule', exact: true })
+  await expect(dialog.getByRole('button', { name: 'Manual only', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(dialog.getByRole('button', { name: 'Mix', exact: true })).toBeDisabled()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(trigger).toBeFocused()
 })
 
 for (const route of ['/dashboard/economy', '/dashboard']) {

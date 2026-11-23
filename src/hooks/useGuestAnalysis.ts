@@ -362,6 +362,7 @@ export function useGuestUpgradeAnalysisStatus(runToken: string | null) {
     isFetching: statusQuery.isFetching || resultsQuery.isFetching,
     isLoading: statusQuery.isLoading || (resultsQuery.isLoading && !data),
     isResultPending,
+    retry: statusQuery.error || !shouldLoadResults ? statusQuery.refetch : resultsQuery.refetch,
   }
 }
 

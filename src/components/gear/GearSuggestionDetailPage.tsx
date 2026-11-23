@@ -10,20 +10,15 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Route } from '../../routes/dashboard/gear/$suggestionId'
 import { useGearSuggestion, useDeleteGearSuggestion, useUpdateGearSuggestion, type GearImportance, type GearStatus, type GearSuggestion } from '../../hooks/useGear'
-import { useGroupStore } from '../../store/group-store'
+import { useCurrentUser } from '../../hooks/useCurrentUser'
 import { useMyGroupRole } from '../../hooks/useGroups'
 import { DetailPageSkeleton } from '../layout/Skeletons'
 import { IMPORTANCE_CHIP, IMPORTANCE_OPTIONS } from '../../lib/constants'
 import { getAvatarColor } from '../../lib/utils'
 import { ItemSearchAutocomplete, type SelectedItem } from '../shared/ItemSearchAutocomplete'
 import { FieldInput, FieldTextArea, ListBox, SelectField, UserAvatar } from '../ui/heroui-native'
-type NativeChipColor = 'default' | 'accent' | 'success' | 'warning' | 'danger'
-
-function toNativeChipColor(color: string): NativeChipColor {
-  if (color === 'primary' || color === 'secondary') return 'accent'
-  return color as NativeChipColor
-}
-
+import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
+import { QueryStatePanel } from '../ui/QueryStatePanel'
 const STATUS_OPTIONS: { key: GearStatus; label: string }[] = [
   { key: 'open', label: 'Open' },
   { key: 'acknowledged', label: 'Acknowledged' },
@@ -72,21 +67,27 @@ function buildDefaults(s: GearSuggestion): FormValues {
 
 export function GearSuggestionDetailPage() {
   const { suggestionId } = Route.useParams()
-  const navigate = useNavigate()
-  const activeGroupId = useGroupStore((s) => s.activeGroupId)
-  const myRole = useMyGroupRole(activeGroupId)
-  const canEdit = myRole === 'admin' || myRole === 'editor'
-  const isAdmin = myRole === 'admin'
+  return <GearSuggestionDetails key={suggestionId} suggestionId={suggestionId} />
+}
 
-  const { data: suggestion, isLoading } = useGearSuggestion(suggestionId)
-  const { mutate: update, isPending: saving, error: saveError } = useUpdateGearSuggestion()
-  const { mutate: deleteSuggestion, isPending: deleting } = useDeleteGearSuggestion()
+function GearSuggestionDetails({ suggestionId }: { suggestionId: string }) {
+  const navigate = useNavigate()
+  const { data: suggestion, isLoading, isError, refetch } = useGearSuggestion(suggestionId)
+  const { data: currentUser } = useCurrentUser()
+  const myRole = useMyGroupRole(suggestion?.group_id ?? null)
+  const isAdmin = myRole === 'admin'
+  const canEdit = isAdmin || (
+    myRole === 'editor' && !!suggestion && !suggestion.admin_locked &&
+    (suggestion.target_user_id === currentUser?.id || suggestion.suggested_by === currentUser?.id)
+  )
+
+  const { mutate: update, isPending: saving, isError: saveError } = useUpdateGearSuggestion()
+  const { mutate: deleteSuggestion, isPending: deleting, isError: deleteError, reset: resetDelete } = useDeleteGearSuggestion()
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [saveFeedback, setSaveFeedback] = useState<'idle' | 'saving' | 'saved'>('idle')
 
   const {
-    register,
     handleSubmit,
     control,
     watch,
@@ -117,14 +118,16 @@ export function GearSuggestionDetailPage() {
   }, [isDirty, saveFeedback])
 
   function onSubmit(values: FormValues) {
-    if (!suggestion) return
-    const iconUrl = selectedItem?.icon ?? suggestion.item_data?.icon_url
+    if (!suggestion || !canEdit || saving || deleting) return
+    const itemName = values.item_name || null
     setSaveFeedback('saving')
     update({
       id: suggestion.id,
       group_id: suggestion.group_id,
-      item_name: values.item_name || null,
-      item_data: iconUrl ? { icon_url: iconUrl } : null,
+      item_name: itemName,
+      ...(selectedItem
+        ? { item_data: { icon_url: selectedItem.icon } }
+        : itemName !== suggestion.item_name ? { item_data: null } : {}),
       item_trade_link: values.item_trade_link || null,
       notes: values.notes || null,
       importance: values.importance,
@@ -146,62 +149,60 @@ export function GearSuggestionDetailPage() {
     return <DetailPageSkeleton />
   }
 
+  const backLink = (
+    <Link to="/dashboard/gear" className="button button--sm button--tertiary">
+      <ArrowLeft size={14} aria-hidden="true" />
+      Back to Gear Planning
+    </Link>
+  )
+
   if (!suggestion) {
     return (
-      <div className="flex flex-col gap-4">
-        <Link to="/dashboard/gear" className="self-start">
-          <Button variant="tertiary" size="sm">
-            <ArrowLeft size={14} />
-            Back to Gear
-          </Button>
-        </Link>
-        <p className="text-default-400 text-sm">Suggestion not found.</p>
-      </div>
+      <DashboardPage>
+        <DashboardPageHeader backLink={backLink} title="Gear suggestion" />
+        {isError ? (
+          <QueryStatePanel kind="error" title="Couldn’t load the suggestion" description="Try again to view the upgrade." onRetry={refetch} />
+        ) : (
+          <QueryStatePanel kind="empty" title="Suggestion unavailable" description="It may have been removed or belong to a workspace you can’t access." />
+        )}
+      </DashboardPage>
     )
   }
 
   const importanceChip = IMPORTANCE_CHIP[suggestion.importance] ?? IMPORTANCE_CHIP.medium
+  const isReadOnly = !canEdit || saving || deleting
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
-          <Link to="/dashboard/gear">
-            <Button
-              variant="tertiary"
-              size="sm"
-              className="-ml-2"
-              type="button"
-              onPress={() => setConfirmingDelete(false)}
-            >
-              <ArrowLeft size={14} />
-              Back to Gear
-            </Button>
-          </Link>
-          <div className="flex items-center gap-3">
-            <Chip size="sm" variant="soft" color={toNativeChipColor(importanceChip.color)}>
-              {importanceChip.label} Importance
-            </Chip>
-            <Chip size="sm" variant="soft" color="accent">
-              {getActionLabel(suggestion.action_type)}
-            </Chip>
+      <DashboardPage>
+        <DashboardPageHeader
+          backLink={backLink}
+          title={suggestion.item_name || 'Gear suggestion'}
+          metadata={
+            <>
+              <Chip size="sm" variant="soft">
+                {importanceChip.label} Importance
+              </Chip>
+              <Chip size="sm" variant="soft">
+                {getActionLabel(suggestion.action_type)}
+              </Chip>
+            </>
+          }
+        />
+        {canEdit && (
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             {isAdmin && (
               <Button
                 isIconOnly
                 size="sm"
                 variant="tertiary"
                 type="button"
+                isDisabled={saving || deleting}
                 aria-label={suggestion.admin_locked ? 'Unlock suggestion' : 'Lock suggestion (admin only)'}
                 onPress={() =>
                   update({
                     id: suggestion.id,
                     group_id: suggestion.group_id,
-                    item_name: suggestion.item_name,
-                    item_trade_link: suggestion.item_trade_link,
-                    notes: suggestion.notes,
-                    importance: suggestion.importance,
-                    status: suggestion.status,
-                    status_note: suggestion.status_note,
                     admin_locked: !suggestion.admin_locked,
                   })
                 }
@@ -209,18 +210,19 @@ export function GearSuggestionDetailPage() {
                 {suggestion.admin_locked ? <Unlock size={14} /> : <Lock size={14} />}
               </Button>
             )}
-            {canEdit && saveError && (
-              <p className="text-danger text-xs">
-                Failed to save: {(saveError as Error).message}
+            {saveError && (
+              <p role="alert" className="text-danger text-xs">
+                Couldn’t save the suggestion. Try again.
               </p>
             )}
-            {canEdit && (confirmingDelete ? (
+            {confirmingDelete ? (
               <>
                 <span className="text-default-500 text-xs">Delete this gear suggestion?</span>
                 <Button
                   size="sm"
                   type="button"
                   isPending={deleting}
+                  isDisabled={saving}
                   onPress={() =>
                     deleteSuggestion(
                       { id: suggestion.id, group_id: suggestion.group_id },
@@ -239,10 +241,15 @@ export function GearSuggestionDetailPage() {
                   size="sm"
                   variant="tertiary"
                   type="button"
-                  onPress={() => setConfirmingDelete(false)}
+                  isDisabled={deleting}
+                  onPress={() => {
+                    setConfirmingDelete(false)
+                    resetDelete()
+                  }}
                 >
                   Cancel
                 </Button>
+                {deleteError && <p role="alert" className="text-danger text-xs">Couldn’t delete the suggestion. Try again.</p>}
               </>
             ) : (
               <>
@@ -251,6 +258,7 @@ export function GearSuggestionDetailPage() {
                   variant="danger-soft"
                   type="button"
                   className="opacity-95 hover:opacity-100"
+                  isDisabled={saving}
                   onPress={() => setConfirmingDelete(true)}
                 >
                   <Trash2 size={14} />
@@ -271,47 +279,49 @@ export function GearSuggestionDetailPage() {
                           Saving...
                         </>
                       ) : (
-                        'Save Changes'
+                        'Save changes'
                       )
                     )}
                   </Button>
                 ) : saveFeedback === 'saved' ? (
                   <div
-                    aria-label="Saved"
+                    role="status"
                     className="flex min-w-32 items-center justify-center rounded-md border border-success/40 bg-success/10 px-3 py-2 text-success transition-all duration-200"
                   >
                     <Check
                       size={14}
+                      aria-hidden="true"
                       className="animate-in zoom-in-50 fade-in duration-200"
                     />
+                    <span className="sr-only">Suggestion saved</span>
                   </div>
                 ) : null}
               </>
-            ))}
+            )}
           </div>
-        </div>
+        )}
 
         <Card>
           <Card.Header className="px-5 pb-0 pt-5">
             <h2 className="text-foreground text-sm font-semibold">Suggestion Details</h2>
           </Card.Header>
           <Card.Content className="gap-4 px-5 pb-5 pt-3">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <UserAvatar
                 src={suggestion.target_user.avatar_url ?? undefined}
                 name={suggestion.target_user.display_name ?? suggestion.target_user.poe_account_name}
                 size="sm"
                 style={{ backgroundColor: getAvatarColor(suggestion.target_user.id, suggestion.target_user.avatar_color) }}
               />
-              <div>
+              <div className="min-w-0">
                 <p className="text-default-400 text-xs">For</p>
-                <p className="text-foreground text-sm font-medium">
+                <p className="text-foreground text-sm font-medium wrap-anywhere">
                   {suggestion.target_user.display_name ?? suggestion.target_user.poe_account_name}
                 </p>
               </div>
-              <div className="ml-6">
+              <div className="min-w-0 sm:ml-6">
                 <p className="text-default-400 text-xs">Suggested by</p>
-                <p className="text-foreground text-sm font-medium">
+                <p className="text-foreground text-sm font-medium wrap-anywhere">
                   {suggestion.suggester.display_name ?? suggestion.suggester.poe_account_name}
                 </p>
               </div>
@@ -325,59 +335,71 @@ export function GearSuggestionDetailPage() {
                   className="h-14 w-14 shrink-0 object-contain bg-transparent"
                 />
               )}
-              <Controller
-                control={control}
-                name="item_name"
-                render={({ field }) => (
-                  <ItemSearchAutocomplete
-                    label="Item name"
-                    size="sm"
-                    value={field.value ?? ''}
-                    onValueChange={field.onChange}
-                    onItemSelect={setSelectedItem}
-                    isReadOnly={!canEdit}
-                    isInvalid={!!errors.item_name}
-                    errorMessage={errors.item_name?.message}
-                  />
-                )}
-              />
+              <div className="min-w-0 flex-1">
+                <Controller
+                  control={control}
+                  name="item_name"
+                  render={({ field }) => (
+                    <ItemSearchAutocomplete
+                      label="Item name"
+                      size="sm"
+                      value={field.value ?? ''}
+                      onValueChange={field.onChange}
+                      onItemSelect={setSelectedItem}
+                      isReadOnly={isReadOnly}
+                      isInvalid={!!errors.item_name}
+                      errorMessage={errors.item_name?.message}
+                    />
+                  )}
+                />
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <FieldInput
-                label="Trade link"
-                placeholder="https://www.pathofexile.com/trade/..."
-                size="sm"
-                className="w-full max-w-xs"
-                isReadOnly={!canEdit}
-                isInvalid={!!errors.item_trade_link}
-                errorMessage={errors.item_trade_link?.message}
-                {...register('item_trade_link')}
+            <div className="flex flex-wrap items-end gap-2">
+              <Controller
+                control={control}
+                name="item_trade_link"
+                render={({ field }) => (
+                  <FieldInput
+                    label="Trade link"
+                    placeholder="https://www.pathofexile.com/trade/..."
+                    size="sm"
+                    className="min-w-0 flex-1"
+                    isReadOnly={isReadOnly}
+                    isInvalid={!!errors.item_trade_link}
+                    errorMessage={errors.item_trade_link?.message}
+                    {...field}
+                    value={field.value ?? ''}
+                  />
+                )}
               />
               {tradeLink && (
                 <a
                   href={tradeLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  tabIndex={-1}
-                  className="shrink-0 self-end"
+                  className="button button--sm button--tertiary shrink-0"
                 >
-                  <Button size="sm" variant="tertiary" type="button">
-                    Open
-                  </Button>
+                  Open trade link
                 </a>
               )}
             </div>
 
-            <FieldTextArea
-              label="Notes"
-              placeholder="Why this upgrade? What slot? Any context..."
-              minRows={2}
-              size="sm"
-              isReadOnly={!canEdit}
-              isInvalid={!!errors.notes}
-              errorMessage={errors.notes?.message}
-              {...register('notes')}
+            <Controller
+              control={control}
+              name="notes"
+              render={({ field }) => (
+                <FieldTextArea
+                  label="Notes"
+                  placeholder="What improves with this upgrade?"
+                  minRows={2}
+                  isReadOnly={isReadOnly}
+                  isInvalid={!!errors.notes}
+                  errorMessage={errors.notes?.message}
+                  {...field}
+                  value={field.value ?? ''}
+                />
+              )}
             />
           </Card.Content>
         </Card>
@@ -393,7 +415,7 @@ export function GearSuggestionDetailPage() {
               render={({ field }) => (
                 <SelectField
                   label="Importance"
-                  isDisabled={!canEdit}
+                  isDisabled={isReadOnly}
                   selectedKey={field.value}
                   onSelectionChange={(key) => field.onChange(key as GearImportance)}
                   isInvalid={!!errors.importance}
@@ -413,7 +435,7 @@ export function GearSuggestionDetailPage() {
               render={({ field }) => (
                 <SelectField
                   label="Status"
-                  isDisabled={!canEdit}
+                  isDisabled={isReadOnly}
                   selectedKey={field.value}
                   onSelectionChange={(key) => field.onChange(key as GearStatus)}
                   isInvalid={!!errors.status}
@@ -427,17 +449,25 @@ export function GearSuggestionDetailPage() {
                 </SelectField>
               )}
             />
-            <FieldTextArea
-              label="Status note"
-              placeholder="Optional - add context about the status change..."
-              minRows={2}
-              size="sm"
-              isReadOnly={!canEdit}
-              {...register('status_note')}
+            <Controller
+              control={control}
+              name="status_note"
+              render={({ field }) => (
+                <FieldTextArea
+                  label="Status note"
+                  placeholder="Add context for the status change"
+                  minRows={2}
+                  isReadOnly={isReadOnly}
+                  isInvalid={!!errors.status_note}
+                  errorMessage={errors.status_note?.message}
+                  {...field}
+                  value={field.value ?? ''}
+                />
+              )}
             />
           </Card.Content>
         </Card>
-      </div>
+      </DashboardPage>
     </form>
   )
 }

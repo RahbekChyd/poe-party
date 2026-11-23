@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright'
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixture'
 
 const callbackPath = '/auth/callback?code=synthetic-code&state=synthetic-state'
 

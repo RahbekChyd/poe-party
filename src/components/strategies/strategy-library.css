@@ -1,0 +1,53 @@
+@layer components {
+  .strategy-active-stop {
+    --strategy-route-line: color-mix(in oklab, var(--accent-readable) 57%, var(--separator));
+    border: 1px solid var(--strategy-route-line);
+    border-radius: var(--radius-medium);
+    background: var(--surface-secondary);
+    box-shadow: none;
+  }
+
+  .strategy-active-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .strategy-active-heading::before {
+    flex: 0 0 0.5rem;
+    block-size: 0.5rem;
+    border: 1px solid var(--accent-readable);
+    border-radius: 50%;
+    content: '';
+  }
+
+  .strategy-active-heading::after {
+    flex: 1;
+    border-block-start: 1px solid var(--separator);
+    content: '';
+  }
+
+  .strategy-active-stop .strategy-name {
+    font-family: var(--font-display);
+    font-size: clamp(1.375rem, 3vw, 1.875rem);
+    font-weight: 500;
+    line-height: 1.15;
+  }
+
+  .strategy-library-toolbar {
+    display: grid;
+    min-inline-size: 0;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    border-block-end: 1px solid var(--separator);
+    background: var(--surface);
+  }
+
+  .strategy-library-heading {
+    font-size: 1.125rem;
+    font-weight: 650;
+    line-height: 1.3;
+  }
+}

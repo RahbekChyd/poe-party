@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright'
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixture'
 
 const publicRoutes = [
   '/',
@@ -77,5 +77,32 @@ test.describe('public application shell', () => {
     expect(storage.legacyLocal).toBeNull()
     expect(storage.selection).toContain('currency-tab')
     expect(storage.selection).not.toContain('must-be-removed')
+  })
+
+  test('login can retry the account handoff and keep the return destination', async ({ page }) => {
+    await page.addInitScript(() => {
+      const digest = SubtleCrypto.prototype.digest
+      SubtleCrypto.prototype.digest = async function (...args) {
+        SubtleCrypto.prototype.digest = digest
+        if (args[0] === 'SHA-256') throw new Error('Simulated first PKCE failure')
+        return digest.apply(this, args)
+      }
+    })
+    await page.route('https://www.pathofexile.com/oauth/authorize?**', (route) => route.fulfill({
+      contentType: 'text/html',
+      body: '<h1>Mock Path of Exile sign-in</h1>',
+    }))
+    await page.goto('/auth/login?next=%2Fpreview%2Feconomy')
+
+    const connect = page.getByRole('button', { name: 'Connect with PoE Account' })
+    await connect.click()
+    await expect(page.getByRole('alert')).toContainText(/could not open path of exile sign-in/i)
+    await expect(connect).toBeEnabled()
+    await expect.poll(() => page.evaluate(() => sessionStorage.getItem('poe-party:post-login-redirect')))
+      .toBe('/dashboard/economy')
+
+    await connect.click()
+    await expect(page.getByRole('heading', { name: 'Mock Path of Exile sign-in' })).toBeVisible()
+    expect(new URL(page.url()).searchParams.get('code_challenge_method')).toBe('S256')
   })
 })

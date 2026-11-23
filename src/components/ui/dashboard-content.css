@@ -1,0 +1,39 @@
+@layer components {
+  .dashboard-page-header {
+    padding-block-end: 0.875rem;
+    border-block-end: 1px solid var(--separator);
+  }
+
+  .dashboard-page-title {
+    color: var(--heading);
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 500;
+    line-height: 1.15;
+  }
+
+  @media (min-width: 48rem) {
+    .dashboard-page-header {
+      padding-block-end: 1rem;
+    }
+
+    .dashboard-page-title {
+      font-size: 2.5rem;
+    }
+  }
+
+  .workspace-lead-amount {
+    color: var(--foreground);
+    font-size: 1.875rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 650;
+    line-height: 1.12;
+    overflow-wrap: anywhere;
+  }
+
+  @container (min-width: 35rem) {
+    .workspace-lead-amount {
+      font-size: 2.25rem;
+    }
+  }
+}

@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Button } from '@heroui/react/button'
+import { useState } from 'react'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
 import { ArrowLeft } from 'lucide-react'
@@ -21,6 +20,10 @@ import { formatRelativeTimestamp } from '../../lib/character-profile'
 import { DetailPageSkeleton } from '../layout/Skeletons'
 import { MemberCharacterDetails } from '../members/MemberCharacterDetails'
 import { ListBox, SelectField } from '../ui/heroui-native'
+import { QueryStatePanel } from '../ui/QueryStatePanel'
+
+const latestProfileKey = 'latest'
+
 function formatSnapshotDateUtc(snapshotDate: string): string {
   return `${snapshotDate} UTC`
 }
@@ -40,157 +43,119 @@ export function PublicCharacterDetailView({
   const activeGroupId = useGroupStore((state) => state.activeGroupId)
   const { game } = useActiveGroupContext()
   const isPreview = variant === 'preview'
-  const { data: dashboardDetail, isLoading: dashboardLoading } = usePublicCharacterDetail(
+  const dashboardQuery = usePublicCharacterDetail(
     isPreview ? null : activeGroupId,
     profileId,
   )
-  const { data: previewDetail, isLoading: previewLoading } = useGuestPublicCharacterDetail(
+  const previewQuery = useGuestPublicCharacterDetail(
     isPreview ? profileId : null,
   )
-  const { data: dashboardDailySummaries = [], isLoading: dashboardSummariesLoading } =
+  const dashboardSummariesQuery =
     usePublicCharacterDailySnapshotSummaries(isPreview ? null : activeGroupId, profileId)
-  const { data: previewDailySummaries = [], isLoading: previewSummariesLoading } =
+  const previewSummariesQuery =
     useGuestPublicCharacterDailySnapshotSummaries(isPreview ? profileId : null)
   const [selectedDailySnapshotId, setSelectedDailySnapshotId] = useState<string | null>(null)
-  const { data: dashboardDailyDetail, isLoading: dashboardDailyDetailLoading } =
+  const summariesQuery = isPreview ? previewSummariesQuery : dashboardSummariesQuery
+  const dailySummaries = summariesQuery.data ?? []
+  const selectedSummary = dailySummaries.find((entry) => entry.id === selectedDailySnapshotId)
+  const snapshotId = selectedSummary?.id ?? null
+  const dashboardDailyQuery =
     usePublicCharacterDailySnapshotDetail(
       isPreview ? null : activeGroupId,
       profileId,
-      selectedDailySnapshotId,
+      snapshotId,
     )
-  const { data: previewDailyDetail, isLoading: previewDailyDetailLoading } =
+  const previewDailyQuery =
     useGuestPublicCharacterDailySnapshotDetail(
       isPreview ? profileId : null,
-      selectedDailySnapshotId,
+      snapshotId,
     )
-  const detail = isPreview ? previewDetail : dashboardDetail
-  const isLoading = isPreview ? previewLoading : dashboardLoading
-  const dailySummaries = isPreview ? previewDailySummaries : dashboardDailySummaries
-  const summariesLoading = isPreview ? previewSummariesLoading : dashboardSummariesLoading
-  const dailyDetail = isPreview ? previewDailyDetail : dashboardDailyDetail
-  const dailyDetailLoading = isPreview ? previewDailyDetailLoading : dashboardDailyDetailLoading
-
-  useEffect(() => {
-    if (!dailySummaries.length) {
-      setSelectedDailySnapshotId(null)
-      return
-    }
-
-    if (
-      selectedDailySnapshotId &&
-      dailySummaries.some((entry) => entry.id === selectedDailySnapshotId)
-    ) {
-      return
-    }
-
-    setSelectedDailySnapshotId(dailySummaries[0].id)
-  }, [dailySummaries, selectedDailySnapshotId])
-
-  const selectedSummary = useMemo(
-    () => dailySummaries.find((entry) => entry.id === selectedDailySnapshotId) ?? null,
-    [dailySummaries, selectedDailySnapshotId],
-  )
-  const selectedProfile = selectedDailySnapshotId ? dailyDetail : detail
-  const profileIsLoading = !!selectedDailySnapshotId && dailyDetailLoading && !dailyDetail
+  const detailQuery = isPreview ? previewQuery : dashboardQuery
+  const dailyQuery = isPreview ? previewDailyQuery : dashboardDailyQuery
+  const detail = detailQuery.data
+  const selectedProfile = snapshotId ? dailyQuery.data : detail
+  const profileIsLoading = !!snapshotId && dailyQuery.isLoading
   const displayGame = detail?.group_game ?? game
   useRecordPublicDirectoryView('character', profileId, !!detail)
 
-  if (isLoading) {
+  if (detailQuery.isLoading) {
     return <DetailPageSkeleton />
   }
 
+  const backLink = (
+    <Link
+      to={isPreview ? '/preview/search' : '/dashboard/search'}
+      className="button button--sm button--tertiary self-start"
+    >
+      <ArrowLeft size={14} aria-hidden="true" /> Back to directory
+    </Link>
+  )
+
   if (!detail) {
     return (
-      <div className="flex flex-col gap-4">
-        {isPreview ? (
-          <Link to="/preview/search" className="self-start">
-            <Button variant="tertiary" size="sm">
-              <ArrowLeft size={14} />
-              Back to Directory
-            </Button>
-          </Link>
+      <DashboardPage>
+        <DashboardPageHeader backLink={backLink} title={detailQuery.isError ? 'Character unavailable' : 'Character not found'} />
+        {detailQuery.isError ? (
+          <QueryStatePanel kind="error" title="Could not load character" description="Try again to open the public profile." onRetry={detailQuery.refetch} />
         ) : (
-          <Link to="/dashboard/search" className="self-start">
-            <Button variant="tertiary" size="sm">
-              <ArrowLeft size={14} />
-              Back to Directory
-            </Button>
-          </Link>
+          <p className="text-default-500 text-sm">This profile may have been removed or made private.</p>
         )}
-        <p className="text-default-400 text-sm">Public character not found.</p>
-      </div>
+      </DashboardPage>
     )
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          {isPreview ? (
-            <Link to="/preview/search" className="self-start">
-              <Button variant="tertiary" size="sm" className="-ml-2">
-                <ArrowLeft size={14} />
-                Back to Directory
-              </Button>
-            </Link>
-          ) : (
-            <Link to="/dashboard/search" className="self-start">
-              <Button variant="tertiary" size="sm" className="-ml-2">
-                <ArrowLeft size={14} />
-                Back to Directory
-              </Button>
-            </Link>
-          )}
-          <h1 className="text-foreground mt-3 text-2xl font-semibold">{detail.character_name}</h1>
-          <p className="text-default-400 mt-1 text-sm">
-            Public character shared by {detail.owner_name} from {detail.group_name}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {isPreview ? (
-            <Link to="/preview/search/groups/$groupId" params={{ groupId: detail.group_id }}>
-              <Button size="md">View {detail.group_name}</Button>
-            </Link>
-          ) : (
-            <Link to="/dashboard/search/groups/$groupId" params={{ groupId: detail.group_id }}>
-              <Button size="md">View {detail.group_name}</Button>
-            </Link>
-          )}
-          <Chip size="sm" color="accent" variant="soft">
-            Current profile
-          </Chip>
-          {displayGame ? (
-            <Chip size="sm" variant="soft">
-              {getPoeGameShortLabel(displayGame)}
-            </Chip>
-          ) : null}
-          {detail.league ? (
-            <Chip size="sm" variant="soft">
-              {detail.league}
-            </Chip>
-          ) : null}
-        </div>
-      </div>
+    <DashboardPage className="wrap-anywhere">
+      <DashboardPageHeader
+        backLink={backLink}
+        title={detail.character_name}
+        description={`Shared by ${detail.owner_name} · ${detail.group_name}`}
+        actions={
+          <Link
+            to={isPreview ? '/preview/search/groups/$groupId' : '/dashboard/search/groups/$groupId'}
+            params={{ groupId: detail.group_id }}
+            className="button button--sm button--tertiary"
+          >
+            View group
+          </Link>
+        }
+        metadata={
+          <>
+            {displayGame ? (
+              <Chip size="sm" variant="soft">
+                {getPoeGameShortLabel(displayGame)}
+              </Chip>
+            ) : null}
+            {detail.league ? (
+              <Chip size="sm" variant="soft">
+                {detail.league}
+              </Chip>
+            ) : null}
+          </>
+        }
+      />
 
       <Card>
         <Card.Content className="gap-4 p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-foreground text-sm font-medium">Daily snapshots</p>
+              <h2 className="text-foreground text-sm font-medium">Profile history</h2>
               <p className="text-default-500 mt-1 text-sm">
-                Latest public snapshot stored for each UTC day, capped at the last 14 days.
+                One public snapshot per UTC day for the last 14 days.
               </p>
             </div>
             {dailySummaries.length > 0 ? (
               <SelectField
-                aria-label="Select daily snapshot"
                 label="Snapshot day"
-                selectedKey={selectedDailySnapshotId ?? undefined}
+                selectedKey={snapshotId ?? latestProfileKey}
                 onSelectionChange={(value) => {
-                  setSelectedDailySnapshotId(typeof value === 'string' ? value : null)
+                  setSelectedDailySnapshotId(
+                    typeof value === 'string' && value !== latestProfileKey ? value : null,
+                  )
                 }}
-                className="min-w-[15rem]"
+                className="w-full sm:w-60"
               >
+                <ListBox.Item id={latestProfileKey}>Latest profile</ListBox.Item>
                 {dailySummaries.map((entry) => (
                   <ListBox.Item
                     key={entry.id}
@@ -201,11 +166,11 @@ export function PublicCharacterDetailView({
                   </ListBox.Item>
                 ))}
               </SelectField>
-            ) : (
+            ) : !summariesQuery.isError ? (
               <Chip size="sm" variant="soft">
-                {summariesLoading ? 'Loading history...' : 'Latest profile only'}
+                {summariesQuery.isLoading ? 'Loading history…' : 'Latest profile only'}
               </Chip>
-            )}
+            ) : null}
           </div>
 
           {selectedSummary ? (
@@ -213,7 +178,7 @@ export function PublicCharacterDetailView({
               <Chip size="sm" variant="soft">
                 Viewing {formatSnapshotDateUtc(selectedSummary.snapshot_date)}
               </Chip>
-              <Chip size="sm" color="accent" variant="soft">
+              <Chip size="sm" variant="soft">
                 Synced {formatRelativeTimestamp(selectedSummary.last_synced_at)}
               </Chip>
               {selectedSummary.class ? (
@@ -227,18 +192,43 @@ export function PublicCharacterDetailView({
         </Card.Content>
       </Card>
 
-      <MemberCharacterDetails
-        profile={profileIsLoading ? null : (selectedProfile ?? null)}
-        isPending={profileIsLoading}
-        isMe={false}
-        canSync={false}
-        selectionTitle={selectedSummary ? 'Selected daily snapshot' : 'Current public snapshot'}
-        selectionSubtitle={
-          selectedSummary
-            ? `Latest public snapshot captured on ${formatSnapshotDateUtc(selectedSummary.snapshot_date)}`
-            : 'Latest stored public profile for this character'
-        }
-      />
-    </div>
+      {summariesQuery.isError && dailySummaries.length === 0 ? (
+        <QueryStatePanel
+          kind="error"
+          title="Could not load history"
+          description="Try again to see saved snapshots."
+          onRetry={summariesQuery.refetch}
+        />
+      ) : null}
+
+      {snapshotId && dailyQuery.isError && !selectedProfile ? (
+        <QueryStatePanel
+          kind="error"
+          title="Could not load snapshot"
+          description="Try again or choose a different day."
+          onRetry={dailyQuery.refetch}
+        />
+      ) : snapshotId && dailyQuery.isSuccess && !selectedProfile ? (
+        <QueryStatePanel
+          kind="empty"
+          title="Snapshot unavailable"
+          description="Choose a different day or view the latest profile."
+        />
+      ) : (
+        <MemberCharacterDetails
+          profile={profileIsLoading ? null : (selectedProfile ?? null)}
+          isPending={profileIsLoading}
+          isMe={false}
+          canSync={false}
+          selectionTitle={selectedSummary ? 'Selected daily snapshot' : 'Current public snapshot'}
+          selectionSubtitle={
+            selectedSummary
+              ? `Latest public snapshot captured on ${formatSnapshotDateUtc(selectedSummary.snapshot_date)}`
+              : 'Latest stored public profile for this character'
+          }
+        />
+      )}
+    </DashboardPage>
   )
 }
+import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'

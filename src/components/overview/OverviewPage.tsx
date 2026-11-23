@@ -1,21 +1,16 @@
 import { comparablePricing } from '../../lib/snapshot-pricing'
 import { useMemo, useState } from 'react'
-import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
+import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
 import { Skeleton } from '@heroui/react/skeleton'
 import { useNinjaPrices } from '../../hooks/useNinjaPrices'
 import {
-  TrendingUp,
-  Users,
-  Target,
+  ArrowRight,
   ArrowUpRight,
   ArrowDownRight,
-  Star,
   Coins,
   Sword,
-  Clock,
-  Info,
   Minus,
 } from 'lucide-react'
 import {
@@ -41,33 +36,40 @@ import { useStrategies } from '../../hooks/useStrategies'
 import { useGroupWealthHistory } from '../../hooks/useGroupWealthHistory'
 import type { GroupWealthDataPoint } from '../../hooks/useGroupWealthHistory'
 import { useStrategyHourlyEstimates } from '../../hooks/useStrategyEconomy'
-import { useCurrentUser } from '../../hooks/useCurrentUser'
-import { CarouselSkeleton } from '../layout/Skeletons'
+import { useCurrentUser, useMyProfile } from '../../hooks/useCurrentUser'
+import { useStashSnapshotFlow } from '../../hooks/useStashSnapshotFlow'
+import { useSnapshotStore } from '../../store/snapshot-store'
 import {
   calculateChaosPerHour,
   calculateTrendStats,
   formatCurrencyAmount,
   snapshotAge,
 } from '../../lib/utils'
-import { filterHistoryByRange, type WealthHistoryRange } from '../../lib/wealth-history'
+import { filterHistoryByRange, formatWealthAxisTick, type WealthHistoryRange } from '../../lib/wealth-history'
 import { useCurrencyStore } from '../../store/currency-store'
 import { STATUS_COLOR, DIFFICULTY_CHIP, IMPORTANCE_CHIP } from '../../lib/constants'
-import { getAvatarColor } from '../../lib/utils'
 import { WealthHistoryRangeSelector } from '../economy/WealthHistoryRangeSelector'
-import { IconTooltip, UserAvatar } from '../ui/heroui-native'
 import { DashboardPage, DashboardPageHeader } from '../ui/dashboard'
+import { QueryStatePanel } from '../ui/QueryStatePanel'
+import { RunOverviewData, RunSummary } from './RunSummary'
+
 export function OverviewPage() {
   const activeGroupId = useGroupStore((s) => s.activeGroupId)
   const isSolo = useIsSoloGroup(activeGroupId)
   const { game, league: activeLeague, capabilities } = useActiveGroupContext()
   const { data: members } = useGroupMembers(activeGroupId)
   const { data: snapshots, isLoading: snapsLoading } = useLatestSnapshots(activeGroupId)
-  const { data: economy } = useGroupEconomy(activeGroupId)
-  const { data: groupHistory } = useGroupWealthHistory(activeGroupId)
+  const { data: economy, isLoading: economyLoading, isError: economyError } = useGroupEconomy(activeGroupId)
+  const { data: groupHistory, isPending: historyPending, isError: historyError } = useGroupWealthHistory(activeGroupId)
   const { data: gear, isLoading: gearLoading } = useGearSuggestions(activeGroupId)
-  const { data: strategyList, isLoading: strategiesLoading } = useStrategies(activeGroupId)
+  const { data: strategyList, isLoading: strategiesLoading, isError: strategiesError, refetch: retryStrategies } = useStrategies(activeGroupId)
   const { data: strategyEconomy } = useStrategyHourlyEstimates(activeGroupId)
   const { data: currentUser } = useCurrentUser()
+  const { data: profile, isPending: profilePending, isError: profileError } = useMyProfile()
+  const { triggerSnapshot, isBusy: openingSnapshot, modal: snapshotModal } = useStashSnapshotFlow()
+  const snapshotRunning = useSnapshotStore(({ progress }) =>
+    progress.phase === 'characters' || progress.phase === 'stash' || progress.phase === 'pricing',
+  )
   const currentStrategyId = useCurrentStrategyId(activeGroupId)
   const [groupHistoryRange, setGroupHistoryRange] = useState<WealthHistoryRange>('7d')
 
@@ -75,6 +77,7 @@ export function OverviewPage() {
   const divinePrice = ninjaData?.divinePrice ?? null
   const display = useCurrencyStore((s) => s.display)
   const isMarketOnly = !capabilities?.supportsGroupEconomy
+  const supportsSnapshots = !!capabilities?.supportsStashSnapshots
 
   const fmt = (chaos: number): string => {
     return formatCurrencyAmount(chaos, display === 'divine' && divinePrice ? 'divine' : 'chaos', divinePrice ?? 1)
@@ -180,461 +183,427 @@ export function OverviewPage() {
     })
   }, [gear, currentUser?.id])
 
-  const sortedStrategies = useMemo(() => {
-    if (!strategyList) return []
-    return [...strategyList].sort((a, b) => {
-      if (a.id === currentStrategyId) return -1
-      if (b.id === currentStrategyId) return 1
-      return 0
-    })
-  }, [strategyList, currentStrategyId])
+  const activeStrategy = strategyList?.find((strategy) => strategy.id === currentStrategyId)
+  const libraryStrategies = strategyList?.filter((strategy) => strategy.id !== currentStrategyId) ?? []
+  const latestResult = supportsSnapshots && activeStrategy
+    ? groupHistory?.reduce<GroupWealthDataPoint | undefined>(
+        (latest, point) => point.strategy_id === activeStrategy.id ? point : latest,
+        undefined,
+      )
+    : undefined
+  const resultPricing = latestResult?.pricing_summary
+  const resultDivinePrice = resultPricing?.divine_price
+  const resultValue = latestResult && formatCurrencyAmount(
+    latestResult.total_wealth_chaos,
+    display === 'divine' && resultDivinePrice ? 'divine' : 'chaos',
+    resultDivinePrice ?? 1,
+  )
+  const canCapture = Boolean(
+    supportsSnapshots && activeGroupId && activeLeague && profile?.poe_token_expires_at,
+  )
+  const resultDate = latestResult && new Date(latestResult.created_at).toLocaleString(undefined, {
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  })
+  const wealthValue = valuationUnavailable
+    ? 'Pricing unavailable'
+    : economy?.length
+      ? fmt(totalChaos)
+      : economyError ? 'Could not load value' : 'No valuation yet'
+  const wealthLabel = valuationPartial && !valuationUnavailable ? 'Priced subtotal' : isSolo ? 'Stash value' : 'Group value'
+
+  let captureMessage = 'The next stash snapshot will be linked to this strategy.'
+  if (historyPending || profilePending) captureMessage = 'Checking linked snapshots…'
+  else if (historyError) captureMessage = 'Could not load linked snapshots.'
+  else if (profileError) captureMessage = 'Could not check account access for snapshots.'
+  else if (!profile?.poe_token_expires_at) captureMessage = 'Connect your PoE account in Economy to capture a linked snapshot.'
+  else if (!activeLeague) captureMessage = 'An active league is required to capture a linked snapshot.'
+
+  let resultTitle = 'Latest result'
+  if (latestResult) {
+    resultTitle = resultPricing?.status === 'partial' ? 'Latest linked priced subtotal' : 'Latest linked snapshot'
+  }
+  let emptyResultMessage = captureMessage
+  if (!supportsSnapshots) emptyResultMessage = 'Linked stash snapshots are available in PoE1.'
+  else if (strategiesLoading) emptyResultMessage = 'Checking for a linked snapshot…'
+  else if (!activeStrategy) emptyResultMessage = 'Snapshots are linked to the active strategy.'
 
   return (
-    <DashboardPage>
-      <DashboardPageHeader
-        title="Overview"
-        eyebrow={isSolo ? 'Solo workspace' : 'Group workspace'}
-        tone="accent"
-        description={
-          isSolo
-            ? 'Your current character, wealth, strategy, and upgrade queue at a glance.'
-            : 'Group situational awareness across wealth, strategy, members, and upgrades.'
-        }
+    <DashboardPage className="@container">
+      <DashboardPageHeader title="Today" />
+      {snapshotModal}
+      <RunSummary
+        strategy={strategiesLoading ? (
+          <p className="text-default-500 text-sm" role="status">Loading strategies…</p>
+        ) : activeStrategy ? (
+          <Link
+            to="/dashboard/strategies/$strategyId"
+            params={{ strategyId: activeStrategy.id }}
+            className="run-summary__strategy-name"
+          >
+            {activeStrategy.name}
+          </Link>
+        ) : (
+          <p className="text-default-500 text-sm">
+            {strategiesError ? 'Could not load the active strategy.' : 'Choose a strategy to use for your next run.'}
+          </p>
+        )}
+        resultTitle={resultTitle}
+        result={latestResult ? (
+          <>
+            {resultPricing?.status === 'unavailable' ? (
+              <p className="text-foreground text-xl font-semibold">Pricing unavailable</p>
+            ) : (
+              <p className="run-summary__amount">{resultValue}</p>
+            )}
+            <div className="text-default-500 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+              <time dateTime={latestResult.created_at}>{resultDate}</time>
+              {resultPricing?.status === 'partial' && (
+                <span>{resultPricing.unpriced_item_count.toLocaleString()} unpriced items</span>
+              )}
+            </div>
+          </>
+        ) : <p className="text-default-500 text-sm">{emptyResultMessage}</p>}
+        action={strategiesLoading ? <Skeleton className="h-11 w-36 max-w-full rounded-lg" /> : activeStrategy ? (
+          supportsSnapshots && !latestResult && canCapture && !historyPending && !historyError ? (
+            <Button
+              className="min-h-11"
+              isPending={openingSnapshot}
+              isDisabled={snapshotRunning}
+              onPress={() => {
+                if (activeGroupId && activeLeague) void triggerSnapshot(activeGroupId, activeLeague)
+              }}
+            >
+              {openingSnapshot || snapshotRunning ? 'Taking snapshot…' : 'Snapshot stash'}
+            </Button>
+          ) : (
+            <Link
+              to="/dashboard/strategies/$strategyId"
+              params={{ strategyId: activeStrategy.id }}
+              hash={latestResult ? 'strategy-results' : undefined}
+              className="button button--primary min-h-11"
+            >
+              {latestResult ? 'View strategy results' : 'Open strategy'}
+              <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          )
+        ) : (
+          <Link to="/dashboard/strategies" className="button button--primary min-h-11">
+            Browse strategies <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+        )}
       />
 
       {!isMarketOnly && valuationPartial && (
-        <p role="status" className="text-warning text-sm">Partial pricing: this subtotal excludes items without available price estimates.</p>
+        <p role="status" className="text-warning text-sm">Partial pricing: some items have no price estimate.</p>
       )}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Link to="/dashboard/economy" className="block h-30">
-          <Card className="hover:bg-default-50 h-full cursor-pointer transition-colors">
-            <Card.Content className="flex h-full flex-row items-center gap-3 p-4 md:gap-4 md:p-5">
-              <div className="bg-success/15 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg">
-                <TrendingUp size={26} className="text-success" />
-              </div>
-              <div>
-                <p className="text-default-400 text-xs tracking-wider uppercase">
-                  {isMarketOnly ? 'Market Overview' : valuationPartial ? 'Priced subtotal' : isSolo ? 'Your Wealth' : 'Group Value'}
-                </p>
-                {snapsLoading ? (
-                  <Skeleton className="mt-1 h-7 w-24 rounded-md" />
+      <RunOverviewData
+        metrics={(
+          <>
+            <div className="min-w-0">
+              <dt className="text-default-500 text-sm">{isMarketOnly ? 'Market' : wealthLabel}</dt>
+              <dd className="mt-1">
+                {isMarketOnly ? (
+                  <Link to="/dashboard/economy" className="text-foreground hover:text-brand-readable text-base font-semibold">
+                    Market overview
+                  </Link>
+                ) : snapsLoading || economyLoading ? (
+                  <Skeleton className="h-6 w-24 rounded-md" />
                 ) : (
-                  <p className="text-foreground text-2xl font-bold">
-                    {isMarketOnly ? 'Live' : valuationUnavailable ? 'Pricing unavailable' : fmt(totalChaos)}
-                  </p>
+                  <Link
+                    to="/dashboard/economy"
+                    className="text-foreground hover:text-brand-readable text-base font-semibold wrap-anywhere tabular-nums"
+                  >
+                    {wealthValue}
+                  </Link>
                 )}
-              </div>
-            </Card.Content>
-          </Card>
-        </Link>
+              </dd>
+            </div>
 
-        {!isSolo && (
-          <Card className="h-30">
-            <Card.Content className="flex h-full flex-row items-center gap-3 p-4 md:gap-4 md:p-5">
-              <div className="bg-primary/15 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg">
-                <Users size={26} className="text-primary" />
-              </div>
-              <div>
-                <p className="text-default-400 text-xs tracking-wider uppercase">Synced Members</p>
-                {snapsLoading ? (
-                  <Skeleton className="mt-1 h-7 w-16 rounded-md" />
-                ) : (
-                  <p className="text-foreground text-2xl font-bold">
-                    {syncedCount}
-                    <span className="text-default-400 text-base font-normal">
-                      /{members?.length ?? '…'}
-                    </span>
-                  </p>
-                )}
-              </div>
-            </Card.Content>
-          </Card>
-        )}
-
-        <Link to="/dashboard/gear" className="block h-30">
-          <Card className="hover:bg-default-50 h-full cursor-pointer transition-colors">
-            <Card.Content className="flex h-full flex-row items-center gap-3 p-4 md:gap-4 md:p-5">
-              <div className="bg-warning/15 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg">
-                <Sword size={26} className="text-warning" />
-              </div>
-              <div>
-                <p className="text-default-400 text-xs tracking-wider uppercase">Gear For Me</p>
-                <p className="text-foreground text-2xl font-bold">{myGearCount}</p>
-              </div>
-            </Card.Content>
-          </Card>
-        </Link>
-
-        {!isSolo && (
-          <Card className="h-30">
-            <Card.Content className="flex h-full flex-row items-center gap-3 p-4 md:gap-4 md:p-5">
-              <div
-                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${
-                  stalestMember?.age.color === 'success'
-                    ? 'bg-success/15'
-                    : stalestMember?.age.color === 'warning'
-                      ? 'bg-warning/15'
-                      : stalestMember?.age.color === 'danger'
-                        ? 'bg-danger/15'
-                        : 'bg-default/15'
-                }`}
-              >
-                <Clock
-                  size={26}
-                  className={
-                    stalestMember?.age.color === 'success'
-                      ? 'text-success'
-                      : stalestMember?.age.color === 'warning'
-                        ? 'text-warning'
-                        : stalestMember?.age.color === 'danger'
-                          ? 'text-danger'
-                          : 'text-default-400'
-                  }
-                />
-              </div>
+            {!isSolo && (
               <div className="min-w-0">
-                <p className="text-default-400 flex items-center gap-1 text-xs tracking-wider uppercase">
-                  Stalest Snapshot
-                  <IconTooltip content="The group member who has gone the longest without taking a snapshot">
-                    <Info size={12} className="text-default-300 shrink-0 cursor-help" />
-                  </IconTooltip>
-                </p>
-                {snapsLoading ? (
-                  <Skeleton className="mt-1 h-7 w-20 rounded-md" />
-                ) : stalestMember ? (
-                  <>
-                    <p className="text-foreground truncate text-sm font-bold">
-                      {stalestMember.name}
-                    </p>
-                    <p className="text-default-400 text-xs">{stalestMember.age.label}</p>
-                  </>
-                ) : (
-                  <p className="text-default-400 text-sm">—</p>
-                )}
+                <dt className="text-default-500 text-sm">{isMarketOnly ? 'Party members' : 'Synced members'}</dt>
+                <dd className="text-foreground mt-1 text-base font-semibold tabular-nums">
+                  {!isMarketOnly && snapsLoading ? (
+                    <Skeleton className="h-6 w-16 rounded-md" />
+                  ) : (
+                    isMarketOnly ? (members?.length ?? '—') : syncedCount + ' / ' + (members?.length ?? '—')
+                  )}
+                </dd>
               </div>
-            </Card.Content>
-          </Card>
-        )}
-      </div>
+            )}
 
-      {/* Group Wealth History */}
-      {groupHistory && groupHistory.length > 0 && (
-        <Card>
-          <Card.Header className="px-4 pt-4 pb-0">
-            <div className="grid w-full grid-cols-[1fr_auto_1fr] items-start gap-4">
-              <div className="flex items-center gap-3">
-                <h2 className="text-foreground text-sm font-semibold">
-                  {isSolo ? 'Wealth History' : 'Group Wealth History'}
-                </h2>
-                <WealthHistoryRangeSelector
-                  value={groupHistoryRange}
-                  onChange={setGroupHistoryRange}
-                />
+            <div className="min-w-0">
+              <dt className="text-default-500 text-sm">Gear for me</dt>
+              <dd className="mt-1">
+                {gearLoading ? (
+                  <Skeleton className="h-6 w-14 rounded-md" />
+                ) : (
+                  <Link to="/dashboard/gear" className="text-foreground hover:text-brand-readable text-base font-semibold tabular-nums">
+                    {myGearCount}
+                  </Link>
+                )}
+              </dd>
+            </div>
+
+            {!isSolo && !isMarketOnly && (
+              <div className="min-w-0">
+                <dt className="text-default-500 text-sm" title="The member who has gone the longest without taking a snapshot">Oldest snapshot</dt>
+                <dd className="mt-1">
+                  {snapsLoading ? (
+                    <Skeleton className="h-6 w-20 rounded-md" />
+                  ) : stalestMember ? (
+                    <>
+                      <p className="text-foreground text-base font-semibold">{stalestMember.age.label}</p>
+                      <p className="text-default-500 text-xs wrap-anywhere">{stalestMember.name}</p>
+                    </>
+                  ) : (
+                    <p className="text-default-500 text-sm">No snapshots</p>
+                  )}
+                </dd>
               </div>
-              <div className="flex items-center justify-center gap-3">
-                <p className={`text-base font-semibold ${groupRateColor}`}>
-                  {groupChaosPerHour == null ? 'No data' : fmtRate(groupChaosPerHour)}
-                </p>
-                <div
-                  className={`border-divider/60 flex items-center gap-1.5 border-l pl-3 text-xs ${groupTrendColor}`}
-                >
-                  <GroupTrendIcon size={13} />
-                  <span>{groupTrendLabel}</span>
+            )}
+          </>
+        )}
+
+        history={!isMarketOnly && groupHistory && groupHistory.length > 0 && (
+          <Card className="min-w-0 p-0">
+            <Card.Header className="px-4 pt-4 pb-0">
+              <div className="flex w-full flex-wrap items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <h2 className="text-foreground text-sm font-semibold">
+                    {isSolo ? 'Wealth history' : 'Group wealth history'}
+                  </h2>
+                  <WealthHistoryRangeSelector
+                    value={groupHistoryRange}
+                    onChange={setGroupHistoryRange}
+                  />
+                </div>
+                <div className="flex items-center justify-center gap-3">
+                  <p className={`text-base font-semibold ${groupRateColor}`}>
+                    {groupChaosPerHour == null ? 'Rate unavailable' : fmtRate(groupChaosPerHour)}
+                  </p>
+                  <div
+                    className={`border-divider/60 flex items-center gap-1.5 border-l pl-3 text-xs ${groupTrendColor}`}
+                  >
+                    <GroupTrendIcon size={13} aria-hidden="true" />
+                    <span>{groupTrendLabel}</span>
+                  </div>
                 </div>
               </div>
-              <div />
-            </div>
-          </Card.Header>
-          <Card.Content className="px-2 pt-2 pb-3">
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart
-                data={visibleGroupHistory}
-                margin={{ top: 4, right: 12, left: 0, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="overviewWealthGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#17c964" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#17c964" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis
-                  dataKey="created_at"
-                  tickFormatter={(v: string) => {
-                    const d = new Date(v)
-                    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                  }}
-                  tick={{ fontSize: 10, fill: '#888' }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tickFormatter={(v: number) =>
-                    v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))
-                  }
-                  tick={{ fontSize: 10, fill: '#888' }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={44}
-                />
-                <RechartsTooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null
-                    const point = payload[0].payload as GroupWealthDataPoint
-                    const label = new Date(point.created_at).toLocaleString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })
-                    return (
-                      <div className="bg-content1 border-divider rounded-lg border px-3 py-2 text-xs shadow-lg">
-                        <p className="text-default-400 mb-1">{label}</p>
-                        <p className="text-foreground font-semibold">
-                          {fmt(point.total_wealth_chaos)}
-                        </p>
-                        {!isSolo && (
-                          <>
-                            <p className="text-default-400 mt-0.5">
-                              {point.member_count} member{point.member_count !== 1 ? 's' : ''}
-                            </p>
-                            {point.member_wealth_breakdown.map((m) => (
-                              <p key={m.user_id} className="text-default-500 text-xs">
-                                {m.display_name}: {fmt(m.total_chaos)}
-                              </p>
-                            ))}
-                          </>
-                        )}
-                      </div>
-                    )
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="total_wealth_chaos"
-                  stroke="#17c964"
-                  fill="url(#overviewWealthGrad)"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: '#17c964' }}
-                  activeDot={{ r: 6, fill: '#17c964', stroke: 'white', strokeWidth: 2 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Card.Content>
-        </Card>
-      )}
-
-      {/* Strategies Carousel */}
-      {strategiesLoading ? (
-        <div>
-          <h2 className="text-foreground mb-3 text-sm font-semibold">Strategies</h2>
-          <CarouselSkeleton cards={3} width="w-60" />
-        </div>
-      ) : sortedStrategies.length > 0 ? (
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-foreground text-sm font-semibold">Strategies</h2>
-            <Link to="/dashboard/strategies">
-              <Button size="sm" variant="tertiary">
-                View All
-              </Button>
-            </Link>
-          </div>
-          <div
-            className="-mx-0.5 flex items-stretch gap-3 overflow-x-auto px-0.5 pt-0.5 pb-2"
-            style={{ scrollSnapType: 'x mandatory' }}
-          >
-            {sortedStrategies.map((strategy) => {
-              const isCurrent = strategy.id === currentStrategyId
-              const diff = DIFFICULTY_CHIP[strategy.difficulty] ?? DIFFICULTY_CHIP.normal
-              const strategyScope = strategy.source_strategy_id
-                ? 'Subscribed'
-                : strategy.visibility === 'public'
-                  ? 'Public'
-                  : 'Private'
-              const rateEstimate = strategyEconomy[strategy.id]
-              const rateColor = !rateEstimate
-                ? 'default'
-                : rateEstimate.chaosPerHour > 0
-                  ? 'success'
-                  : rateEstimate.chaosPerHour < 0
-                    ? 'danger'
-                    : 'default'
-
-              return (
-                <Link
-                  key={strategy.id}
-                  to="/dashboard/strategies/$strategyId"
-                  params={{ strategyId: strategy.id }}
-                  className="block h-full shrink-0"
-                  style={{ scrollSnapAlign: 'start' }}
+            </Card.Header>
+            <Card.Content className="px-2 pt-2 pb-3">
+              <p className="text-default-500 px-2 text-xs">Stash value (chaos)</p>
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart
+                  title="Stash value in Chaos Orbs"
+                  desc="Use the left and right arrow keys to read snapshot values."
+                  data={visibleGroupHistory}
+                  margin={{ top: 4, right: 12, left: 0, bottom: 0 }}
                 >
-                  <Card
-                    className={`hover:bg-default-50 h-full w-60 cursor-pointer transition-colors ${
-                      isCurrent ? 'ring-primary ring-2' : ''
-                    }`}
-                  >
-                    <Card.Content className="gap-1.5 p-4">
-                      <div className="flex items-center gap-2">
-                        {isCurrent && (
-                          <Star size={14} className="fill-primary text-primary shrink-0" />
-                        )}
-                        <p className="text-foreground flex-1 truncate text-sm font-medium">
-                          {strategy.name}
-                        </p>
-                        <Chip size="sm" variant="soft" color={diff.color}>
-                          {diff.label}
-                        </Chip>
-                      </div>
-                      <div className="mt-1 flex items-center justify-between">
-                        {strategy.map_cost != null && strategy.map_cost > 0 ? (
-                          <span className="text-default-400 flex items-center gap-1 text-xs">
-                            <Coins size={10} /> ~{fmt(strategy.map_cost)}/map
-                          </span>
-                        ) : (
-                          <span />
-                        )}
-                        <span className="text-default-400 text-xs">{strategyScope}</span>
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <Chip size="sm" variant="soft" color={rateColor}>
-                          {rateEstimate ? `${fmt(rateEstimate.chaosPerHour)}/hr` : 'No data'}
-                        </Chip>
-                        <Chip
-                          size="sm"
-                          variant="soft"
-                          color="accent"
-                          className={isCurrent ? '' : 'invisible'}
-                        >
-                          Active
-                        </Chip>
-                      </div>
-                    </Card.Content>
-                  </Card>
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-      ) : (
-        <div>
-          <h2 className="text-foreground mb-3 text-sm font-semibold">Strategies</h2>
-          <Card>
-            <Card.Content className="flex flex-col items-center gap-3 p-8 text-center">
-              <Target size={24} className="text-default-300" />
-              <p className="text-default-400 text-sm">No strategies yet.</p>
-              <Link to="/dashboard/strategies">
-                <Button size="sm" variant="tertiary">
-                  Create Strategy
-                </Button>
-              </Link>
+                  <defs>
+                    <linearGradient id="overviewWealthGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--wealth-series)" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="var(--wealth-series)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
+                  <XAxis
+                    dataKey="created_at"
+                    tickFormatter={(v: string) => {
+                      const d = new Date(v)
+                      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                    }}
+                    tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={formatWealthAxisTick}
+                    tick={{ fontSize: 11, fill: 'var(--muted-text)' }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={44}
+                  />
+                  <RechartsTooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null
+                      const point = payload[0].payload as GroupWealthDataPoint
+                      const label = new Date(point.created_at).toLocaleString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                      return (
+                        <div role="status" className="bg-overlay border-divider rounded-lg border px-3 py-2 text-xs shadow-lg">
+                          <p className="text-default-400 mb-1">{label}</p>
+                          <p className="text-foreground font-semibold">
+                            {point.pricing_summary?.status === 'unavailable'
+                              ? 'Pricing unavailable'
+                              : point.pricing_summary?.status === 'partial'
+                                ? `Priced subtotal: ${fmt(point.total_wealth_chaos)}`
+                                : fmt(point.total_wealth_chaos)}
+                          </p>
+                          {!isSolo && (
+                            <>
+                              <p className="text-default-400 mt-0.5">
+                                {point.member_count} member{point.member_count !== 1 ? 's' : ''}
+                              </p>
+                              {point.member_wealth_breakdown.map((m) => (
+                                <p key={m.user_id} className="text-default-500 text-xs">
+                                  {m.display_name}: {fmt(m.total_chaos)}
+                                </p>
+                              ))}
+                            </>
+                          )}
+                        </div>
+                      )
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    isAnimationActive={false}
+                    dataKey="total_wealth_chaos"
+                    name="Stash value"
+                    stroke="var(--wealth-series)"
+                    fill="url(#overviewWealthGrad)"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: 'var(--wealth-series)' }}
+                    activeDot={{ r: 6, fill: 'var(--wealth-series)', stroke: 'var(--foreground)', strokeWidth: 2 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </Card.Content>
           </Card>
-        </div>
-      )}
+        )}
+      />
 
-      {/* Gear Suggestions Carousel */}
-      {gearLoading ? (
-        <div>
-          <h2 className="text-foreground mb-3 text-sm font-semibold">Gear Suggestions</h2>
-          <CarouselSkeleton cards={4} width="w-56" />
-        </div>
-      ) : sortedGear.length > 0 ? (
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-foreground text-sm font-semibold">Gear Suggestions</h2>
-            <Link to="/dashboard/gear">
-              <Button size="sm" variant="tertiary">
-                View All
-              </Button>
-            </Link>
-          </div>
-          <div
-            className="-mx-1 flex items-stretch gap-3 overflow-x-auto px-1 pt-0.5 pb-2"
-            style={{ scrollSnapType: 'x mandatory' }}
-          >
-            {sortedGear.slice(0, 10).map((s) => {
-              const importance = IMPORTANCE_CHIP[s.importance] ?? IMPORTANCE_CHIP.medium
-              return (
-                <Card
-                  key={s.id}
-                  className="hover:bg-default-50 h-full w-72 shrink-0 transition-colors"
-                  style={{ scrollSnapAlign: 'start' }}
-                >
-                  <Card.Content className="gap-1.5 p-4">
-                    <div className="flex items-center gap-2">
-                      {s.item_data?.icon_url ? (
-                        <img
-                          src={s.item_data.icon_url}
-                          alt=""
-                          className="h-8 w-8 bg-transparent object-contain"
-                        />
-                      ) : (
-                        <Sword size={14} className="text-default-400 shrink-0" />
-                      )}
-                      <p className="text-foreground flex-1 truncate text-sm font-medium">
-                        {s.item_name ?? 'Unnamed item'}
-                      </p>
-                      <Chip size="sm" variant="soft" color={importance.color}>
-                        {importance.label}
-                      </Chip>
-                    </div>
-                    <div className="text-default-400 flex items-center gap-1.5 truncate text-xs">
-                      <UserAvatar
-                        src={s.target_user.avatar_url ?? undefined}
-                        name={(s.target_user.display_name ?? s.target_user.poe_account_name)
-                          .slice(0, 1)
-                          .toUpperCase()}
-                        size="sm"
-                        className="h-5 w-5 shrink-0"
-                        style={{
-                          backgroundColor: getAvatarColor(
-                            s.target_user.id,
-                            s.target_user.avatar_color,
-                          ),
-                        }}
-                        fallbackClassName="text-[10px] font-semibold text-white"
-                      />
-                      <span className="truncate">
-                        For {s.target_user.display_name ?? s.target_user.poe_account_name}
-                      </span>
-                    </div>
-                    <div className="mt-auto flex items-center justify-between pt-2">
-                      <p className="text-default-400 truncate text-xs">
-                        by {s.suggester.display_name ?? s.suggester.poe_account_name}
-                      </p>
-                      <Chip
-                        size="sm"
-                        color={STATUS_COLOR[s.status]}
-                        variant="soft"
-                        className="capitalize"
+      <div className="@container">
+        <div className="grid items-start gap-4 @min-[52rem]:grid-cols-2">
+          <Card className="min-w-0 gap-0 p-0">
+            <Card.Header className="border-divider flex-row flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+              <h2 className="text-foreground text-sm font-semibold">Strategy library</h2>
+              <Link to="/dashboard/strategies" className="button button--sm button--tertiary">
+                View strategies
+              </Link>
+            </Card.Header>
+            {strategiesLoading ? (
+              <div className="space-y-3 p-4" role="status" aria-label="Loading strategies">
+                <Skeleton className="h-8 w-full rounded-md" />
+                <Skeleton className="h-8 w-full rounded-md" />
+              </div>
+            ) : strategiesError && !strategyList ? (
+              <QueryStatePanel kind="error" title="Couldn’t load strategies" description="Try again to view your strategies." onRetry={retryStrategies} />
+            ) : libraryStrategies.length > 0 ? (
+              <ul className="divide-divider divide-y">
+                {libraryStrategies.map((strategy) => {
+                  const diff = DIFFICULTY_CHIP[strategy.difficulty] ?? DIFFICULTY_CHIP.normal
+                  const strategyScope = strategy.source_strategy_id
+                    ? 'Subscribed'
+                    : strategy.visibility === 'public'
+                      ? 'Public'
+                      : 'Private'
+                  const rateEstimate = strategyEconomy[strategy.id]
+                  const rateColor = !rateEstimate
+                    ? 'text-default-500'
+                    : rateEstimate.chaosPerHour > 0
+                      ? 'text-success'
+                      : rateEstimate.chaosPerHour < 0
+                        ? 'text-danger'
+                        : 'text-default-500'
+
+                  return (
+                    <li key={strategy.id}>
+                      <Link
+                        to="/dashboard/strategies/$strategyId"
+                        params={{ strategyId: strategy.id }}
+                        className="hover:bg-default-100/50 focus-visible:outline-primary flex min-w-0 items-center gap-3 px-4 py-3 transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2"
                       >
-                        {s.status}
-                      </Chip>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 pt-2">
-                      {s.item_trade_link ? (
-                        <a href={s.item_trade_link} target="_blank" rel="noopener noreferrer">
-                          <Button size="sm" variant="tertiary" type="button">
-                            Trade link
-                          </Button>
-                        </a>
-                      ) : (
-                        <span />
-                      )}
-                      <Link to="/dashboard/gear/$suggestionId" params={{ suggestionId: s.id }}>
-                        <Button size="sm" variant="tertiary">
-                          Open
-                        </Button>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start gap-2">
+                            <p className="text-foreground text-sm font-medium wrap-anywhere">{strategy.name}</p>
+                          </div>
+                          <div className="text-default-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                            <span>{strategyScope}</span>
+                            <Chip size="sm" variant="soft">{diff.label}</Chip>
+                            {strategy.map_cost != null && strategy.map_cost > 0 && (
+                              <span className="inline-flex items-center gap-1 tabular-nums">
+                                <Coins size={11} aria-hidden="true" /> ~{fmt(strategy.map_cost)}/map
+                              </span>
+                            )}
+                            <span className={rateColor}>{rateEstimate ? fmtRate(rateEstimate.chaosPerHour) : 'No estimate'}</span>
+                          </div>
+                        </div>
+                        <ArrowRight size={16} className="text-default-400 shrink-0" aria-hidden="true" />
                       </Link>
-                    </div>
-                  </Card.Content>
-                </Card>
-              )
-            })}
-          </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <p className="text-default-500 px-4 py-3 text-sm">{activeStrategy ? 'No other strategies yet.' : 'No strategies yet.'}</p>
+            )}
+          </Card>
+
+          <Card className="min-w-0 gap-0 p-0">
+            <Card.Header className="border-divider flex-row flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+              <h2 className="text-foreground text-sm font-semibold">Gear suggestions</h2>
+              <Link to="/dashboard/gear" className="button button--sm button--tertiary">
+                View suggestions
+              </Link>
+            </Card.Header>
+            {gearLoading ? (
+              <div className="space-y-3 p-4" role="status" aria-label="Loading gear suggestions">
+                <Skeleton className="h-8 w-full rounded-md" />
+                <Skeleton className="h-8 w-full rounded-md" />
+              </div>
+            ) : sortedGear.length > 0 ? (
+              <ul className="divide-divider divide-y">
+                {sortedGear.slice(0, 10).map((suggestion) => {
+                  const importance = IMPORTANCE_CHIP[suggestion.importance] ?? IMPORTANCE_CHIP.medium
+
+                  return (
+                    <li key={suggestion.id} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3">
+                      {suggestion.item_data?.icon_url ? (
+                        <img src={suggestion.item_data.icon_url} alt="" className="size-8 shrink-0 object-contain" />
+                      ) : (
+                        <Sword size={16} className="text-default-400 shrink-0" aria-hidden="true" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          to="/dashboard/gear/$suggestionId"
+                          params={{ suggestionId: suggestion.id }}
+                          className="text-foreground focus-visible:outline-primary hover:text-brand-readable rounded-sm text-sm font-medium wrap-anywhere hover:underline focus-visible:outline-2"
+                        >
+                          {suggestion.item_name ?? 'Unnamed item'}
+                        </Link>
+                        <p className="text-default-500 mt-0.5 text-xs wrap-anywhere">
+                          For {suggestion.target_user.display_name ?? suggestion.target_user.poe_account_name}
+                          {' · By '}
+                          {suggestion.suggester.display_name ?? suggestion.suggester.poe_account_name}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Chip size="sm" variant="soft">{importance.label}</Chip>
+                        <Chip size="sm" variant="soft" color={STATUS_COLOR[suggestion.status]} className="capitalize">
+                          {suggestion.status}
+                        </Chip>
+                        {suggestion.item_trade_link && (
+                          <a href={suggestion.item_trade_link} target="_blank" rel="noopener noreferrer" className="button button--sm button--tertiary">
+                            Trade link
+                          </a>
+                        )}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <p className="text-default-500 px-4 py-3 text-sm">No gear suggestions yet.</p>
+            )}
+          </Card>
         </div>
-      ) : null}
+      </div>
     </DashboardPage>
   )
 }

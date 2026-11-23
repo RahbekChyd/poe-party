@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
-import { Sidebar } from './Sidebar'
+import { useRouterState } from '@tanstack/react-router'
+import { DashboardSidebar } from './DashboardSidebar'
 import { Navbar } from './Navbar'
 import { Footer } from './Footer'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -9,16 +10,21 @@ import { CharacterProfileSyncRunner } from './CharacterProfileSyncRunner'
 import { EarlyAccessNoticeModal } from './EarlyAccessNoticeModal'
 import { useEarlyAccessNoticeStore } from '../../store/early-access-notice-store'
 import { useCurrentUser, useMyProfile } from '../../hooks/useCurrentUser'
+import { useActiveGroupContext } from '../../hooks/useGroups'
+import { resolveLeagueTheme } from '../../lib/league-theme'
 import { MobileBottomNav } from './MobileBottomNav'
+import { WorkspaceFrame } from './WorkspaceFrame'
 interface AppShellProps {
   children: ReactNode
 }
 
 export function AppShell({ children }: AppShellProps) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
   const open = useEarlyAccessNoticeStore((s) => s.open)
   const close = useEarlyAccessNoticeStore((s) => s.close)
   const { data: user, isLoading: userLoading } = useCurrentUser()
   const { data: profile, isLoading: profileLoading } = useMyProfile()
+  const { game, league } = useActiveGroupContext()
 
   useEffect(() => {
     if (userLoading) return
@@ -27,33 +33,29 @@ export function AppShell({ children }: AppShellProps) {
       return
     }
     if (profileLoading) return
-    if (profile?.has_seen_early_access_notice) {
+    if (!profile || profile.has_seen_early_access_notice) {
       close()
       return
     }
     open()
-  }, [close, open, profile?.has_seen_early_access_notice, profileLoading, user?.id, userLoading])
+  }, [close, open, profile, profileLoading, user?.id, userLoading])
 
   return (
     <GroupGate>
-      <div className="bg-background/85 flex h-screen overflow-hidden">
-          <Sidebar />
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <Navbar />
-            <main id="main-content" className="flex flex-1 flex-col overflow-y-auto">
-              <EarlyAccessNoticeModal />
-              <div className="flex-1 p-4 md:p-6">
-                <ErrorBoundary>
-                  <SnapshotIntervalRunner />
-                  <CharacterProfileSyncRunner />
-                  {children}
-                </ErrorBoundary>
-              </div>
-              <Footer />
-            </main>
-            <MobileBottomNav />
-          </div>
-      </div>
+      <WorkspaceFrame
+        leagueTheme={resolveLeagueTheme(game, league)}
+        sidebar={<DashboardSidebar />}
+        masthead={<Navbar />}
+        dock={<MobileBottomNav />}
+        footer={<Footer variant="workspace" />}
+      >
+        <EarlyAccessNoticeModal />
+        <ErrorBoundary resetKey={pathname}>
+          <SnapshotIntervalRunner />
+          <CharacterProfileSyncRunner />
+          {children}
+        </ErrorBoundary>
+      </WorkspaceFrame>
     </GroupGate>
   )
 }

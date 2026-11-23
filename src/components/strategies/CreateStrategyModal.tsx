@@ -16,7 +16,7 @@ const DIFFICULTY_OPTIONS = [
 ] as const
 
 const schema = z.object({
-  name: z.string().min(1, 'Name is required').max(64),
+  name: z.string().trim().min(1, 'Enter a strategy name').max(64),
   description: z.string().max(1000).optional(),
   difficulty: z.enum(['easy', 'normal', 'hard']),
 })

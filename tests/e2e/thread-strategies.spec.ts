@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, groupId, seedSignedIn, test, user, userId } from './fixture'
 
 const strategyId = '33000000-0000-0000-0000-000000000001'
 
@@ -13,7 +13,7 @@ test('public 3.30 setup shows Threads and preserves the legacy reference', async
   }))
   await page.goto(`/preview/strategies/${strategyId}`)
   await expect(page.getByRole('heading', { name: 'Thread farming setup', exact: true })).toBeVisible()
-  await expect(page.getByText('Breach Thread x3', { exact: true })).toBeVisible()
+  await expect(page.getByText(/Breach Thread\s*×3/)).toBeVisible()
   await expect(page.getByText('Atlas Drops 80%', { exact: true })).toBeVisible()
   await page.getByText('Legacy Scarab reference (removed in 3.30)', { exact: true }).click()
   await expect(page.getByText(/2 × Ambush Scarab/)).toBeVisible()
@@ -28,17 +28,10 @@ test('new editorial pages are current and old strategy URLs remain archived', as
 })
 
 test('editor saves Threads while keeping legacy setup fields and enforcing spent limit', async ({ page }, testInfo) => {
-  const userId = '10000000-0000-0000-0000-000000000001'
-  const groupId = '20000000-0000-0000-0000-000000000001'
-  const user = { id: userId, aud: 'authenticated', role: 'authenticated', email: 'fixture@example.invalid', app_metadata: {}, user_metadata: {}, created_at: '2026-11-18T00:00:00Z' }
   let strategy = { id: strategyId, group_id: groupId, name: 'Legacy setup', description: 'Keep my notes', colour: '#f5a524', difficulty: 'normal', is_active: true, visibility: 'group_only', created_by: userId, created_at: '2026-11-18T00:00:00Z', scarabs: [{ name: 'Ambush Scarab', quantity: 2, required: true, alternatives: [] }], threads: [] as unknown[], atlas_tree_url: null, map_trade_link: null, map_requirements: { more_scarabs: 25, item_quantity: 80 }, map_cost: 5, admin_locked: false, source_strategy_id: null, subscription_state: null }
   const saves: Record<string, unknown>[] = []
-  await page.addInitScript(({ user, groupId }) => {
-    sessionStorage.setItem('sb-127-auth-token', JSON.stringify({ access_token: 'fixture-access', refresh_token: 'fixture-refresh', expires_at: Math.floor(Date.now() / 1000) + 3600, expires_in: 3600, token_type: 'bearer', user }))
-    localStorage.setItem('poe-group-tool:active-group', JSON.stringify({ state: { activeGroupId: groupId }, version: 0 }))
-  }, { user, groupId })
+  await seedSignedIn(page)
   await page.route('**/api/ninja/**', (route) => route.fulfill({ status: 503, body: '{}' }))
-  await page.route('**/auth/v1/**', (route) => route.fulfill({ json: user }))
   await page.route('**/rest/v1/**', async (route) => {
     const url = new URL(route.request().url())
     const table = url.pathname.split('/').at(-1)
@@ -58,6 +51,7 @@ test('editor saves Threads while keeping legacy setup fields and enforcing spent
   await page.goto(`/dashboard/strategies/${strategyId}`)
   await expect(page.getByRole('heading', { name: 'Legacy Scarab reference' })).toBeVisible()
   await expect(page.getByText('2 × Ambush Scarab', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Edit setup', exact: true }).click()
   await page.getByRole('button', { name: 'Add thread', exact: true }).click()
   await expect(page.getByPlaceholder('Thread name', { exact: true })).toHaveCount(1)
   await page.getByPlaceholder('Thread name', { exact: true }).fill('Breach Thread')

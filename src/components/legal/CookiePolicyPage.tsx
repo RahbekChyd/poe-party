@@ -25,10 +25,6 @@ export function CookiePolicyPage() {
           browser session storage and are cleared when that browser session ends or you sign out.
         </li>
         <li>
-          <strong>Theme preference:</strong> Your light/dark mode preference is stored in local
-          storage to persist across sessions.
-        </li>
-        <li>
           <strong>Currency preference:</strong> Your preferred display currency (Chaos Orbs or
           Divine Orbs) is stored in local storage.
         </li>

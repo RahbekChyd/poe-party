@@ -1,16 +1,15 @@
 import { useMemo, useState } from 'react'
 import { Card } from '@heroui/react/card'
 import { ListBox } from '@heroui/react/list-box'
-import { ToggleButton } from '@heroui/react/toggle-button'
-import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
 import { Handshake, Search } from 'lucide-react'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useGuestPublicServices } from '../../hooks/useGuestServices'
 import { usePoeGameAccess } from '../../hooks/usePoeGameAccess'
 import { usePreviewLeague } from '../../hooks/usePreviewLeague'
-import { PreviewNotice, PreviewPageIntro } from './PreviewShared'
+import { PreviewPageIntro } from './PreviewShared'
+import { DiscoveryScope, FilterDisclosure } from './DiscoveryFilters'
 import {
-  SERVICE_TYPE_OPTIONS,
+  SERVICE_TYPE_FILTER_OPTIONS,
   REGION_OPTIONS,
   regionFromSelection,
   type ServiceType,
@@ -19,6 +18,7 @@ import { ServiceCard } from '../services/ServiceCard'
 import { getPoeGameShortLabel } from '../../lib/poe-game'
 import { FieldInput, SelectField } from '../ui/heroui-native'
 import { QueryFreshnessNotice, QueryStatePanel } from '../ui/QueryStatePanel'
+import { ResponsiveFilter } from '../ui/ResponsiveFilter'
 type TypeFilter = ServiceType | 'all'
 
 export function GuestServicesPage() {
@@ -68,108 +68,62 @@ export function GuestServicesPage() {
   }, [services, debouncedSearch, region])
 
   return (
-    <div className="flex flex-col gap-6">
+    <DashboardPage>
       <PreviewPageIntro
-        mode="public"
         title="Services"
-        description="Live boss carries, map carries, 5-way hosts, and gold rotas from real providers. Copy a whisper in one click and hit them up in-game."
-        aside={
-          <PreviewNotice
-            mode="public"
-            title="Live public listings"
-            description="These are real providers advertising real services in the selected league. Posting and management stay inside private workspaces."
-          />
-        }
+        description="Find carries, 5-way runs, and gold rotas. Copy a whisper to contact the provider in-game."
       />
 
-      <Card>
-        <Card.Content className="gap-4 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-foreground text-sm font-medium">Filter live services</p>
-              <p className="text-default-500 mt-1 text-sm">
-                Pick the service type, region, and league. Search by title, IGN, or boss name.
-              </p>
-            </div>
-            <ToggleButtonGroup
-              size="sm"
-              selectionMode="single"
-              disallowEmptySelection
-              selectedKeys={new Set([typeFilter])}
-              onSelectionChange={(keys) => {
-                const [value] = Array.from(keys)
-                if (typeof value === 'string') setTypeFilter(value as TypeFilter)
-              }}
-            >
-              <ToggleButton id="all">All</ToggleButton>
-              {SERVICE_TYPE_OPTIONS.map((opt) => (
-                <ToggleButton key={opt.id} id={opt.id}>
-                  <ToggleButtonGroup.Separator />
-                  {opt.shortLabel}
-                </ToggleButton>
-              ))}
-            </ToggleButtonGroup>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-[1fr_180px_180px_160px]">
-            <FieldInput
-              aria-label="Search services"
-              placeholder="Search title, IGN, or boss..."
-              startContent={<Search size={18} className="text-default-400" />}
-              value={search}
-              onValueChange={setSearch}
-              isClearable
-              onClear={() => setSearch('')}
+      <Card className="@container p-3 sm:p-4">
+        <Card.Content className="gap-3">
+          <FieldInput
+            label="Search services"
+            placeholder="Title, character, or boss"
+            startContent={<Search size={18} className="text-default-400" aria-hidden="true" />}
+            value={search}
+            onValueChange={setSearch}
+            isClearable
+            onClear={() => setSearch('')}
+          />
+          <ResponsiveFilter
+            label="Service type"
+            options={SERVICE_TYPE_FILTER_OPTIONS}
+            value={typeFilter}
+            onChange={setTypeFilter}
+          />
+          <div className="grid grid-cols-2 items-start gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,0.45fr)] sm:gap-3">
+            <DiscoveryScope
+              game={selectedGame}
+              league={selectedLeague}
+              games={availableGames}
+              leagues={leagues}
+              onGameChange={setSelectedGame}
+              onLeagueChange={setSelectedLeague}
             />
-            <SelectField
-              aria-label="Game"
-              selectedKey={selectedGame}
-              onSelectionChange={(value) => {
-                if (value === 'poe1' || value === 'poe2') setSelectedGame(value)
-              }}
-            >
-              {availableGames.map((g) => (
-                <ListBox.Item key={g.id} id={g.id} textValue={g.label}>
-                  {g.label}
-                </ListBox.Item>
-              ))}
-            </SelectField>
-            <SelectField
-              aria-label="League"
-              selectedKey={selectedLeague}
-              onSelectionChange={(value) =>
-                setSelectedLeague(typeof value === 'string' ? value : null)
-              }
-              isDisabled={leagueLoading}
-            >
-              {leagues.map((league) => (
-                <ListBox.Item key={league.id} id={league.id} textValue={league.label}>
-                  {league.label}
-                </ListBox.Item>
-              ))}
-            </SelectField>
-            <SelectField
-              aria-label="Region"
-              selectedKey={region}
-              onSelectionChange={(value) =>
-                setRegion(regionFromSelection(new Set([value ?? 'Any'])))
-              }
-            >
-              {REGION_OPTIONS.map((r) => (
-                <ListBox.Item key={r} id={r} textValue={r}>
-                  {r}
-                </ListBox.Item>
-              ))}
-            </SelectField>
+            <FilterDisclosure label="Filters" value={region === 'Any' ? 'All regions' : region}>
+              <SelectField
+                label="Region"
+                selectedKey={region}
+                onSelectionChange={(value) =>
+                  setRegion(regionFromSelection(new Set([value ?? 'Any'])))
+                }
+              >
+                {REGION_OPTIONS.map((r) => (
+                  <ListBox.Item key={r} id={r} textValue={r}>
+                    {r}
+                  </ListBox.Item>
+                ))}
+              </SelectField>
+            </FilterDisclosure>
           </div>
         </Card.Content>
       </Card>
 
-      {leagueError && leagues.length === 0 ? (
+      {!selectedLeague && leagueError ? (
         <QueryStatePanel
           kind="error"
           title="Leagues are unavailable"
-          description="We could not load the current league list. This is a connection problem, not an empty league."
+          description="Try again to load the league list."
           onRetry={refetchLeagues}
         />
       ) : null}
@@ -183,11 +137,17 @@ export function GuestServicesPage() {
         }}
       />
 
-      {isError && services.length === 0 ? (
+      {!selectedLeague ? (
+        leagueLoading ? (
+          <QueryStatePanel kind="loading" title="Loading leagues" description="Getting leagues for the selected game." />
+        ) : !leagueError ? (
+          <QueryStatePanel kind="empty" title="No leagues available" description="Choose another game to browse its services." />
+        ) : null
+      ) : isError && services.length === 0 ? (
         <QueryStatePanel
           kind="error"
           title="Services could not be loaded"
-          description="The public service directory did not respond. Try again instead of changing filters."
+          description="Try again to reload listings with your current filters."
           onRetry={refetch}
         />
       ) : isLoading ? (
@@ -214,6 +174,7 @@ export function GuestServicesPage() {
           ))}
         </div>
       )}
-    </div>
+    </DashboardPage>
   )
 }
+import { DashboardPage } from '../ui/dashboard'

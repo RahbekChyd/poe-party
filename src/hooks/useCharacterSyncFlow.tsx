@@ -50,7 +50,7 @@ export function useCharacterSyncFlow(groupId?: string | null) {
       })
 
       if (error) throw error
-      queryClient.invalidateQueries({ queryKey: [...queryKeys.characters.mine(nextGroupId)] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.characters.mineGroup(nextGroupId) })
       queryClient.invalidateQueries({ queryKey: [...queryKeys.characters.active(nextGroupId)] })
       trackProductEvent('activation_character_sync_completed', {
         game: targetGame,

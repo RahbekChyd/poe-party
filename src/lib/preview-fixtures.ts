@@ -146,7 +146,13 @@ export const previewMembers: PreviewMember[] = [
   },
 ]
 
+export const previewLinkedSnapshot: PreviewHistoryPoint = {
+  created_at: '2026-03-11T20:00:00Z',
+  total_wealth_chaos: 1960,
+}
+
 export const previewHistory: PreviewHistoryPoint[] = [
+  previewLinkedSnapshot,
   { created_at: '2026-03-12T18:00:00Z', total_wealth_chaos: 10420 },
   { created_at: '2026-03-13T12:00:00Z', total_wealth_chaos: 11860 },
   { created_at: '2026-03-14T09:00:00Z', total_wealth_chaos: 13425 },
@@ -211,6 +217,9 @@ export const previewGearSuggestions: PreviewGearSuggestion[] = [
 
 export const previewWorkspace = {
   label: 'Example party workspace',
+  game: 'poe1' as const,
+  league: 'Covens',
+  leagueLabel: 'Covens of Umbra',
   total_wealth_chaos: previewMembers.reduce((sum, member) => sum + member.wealth_chaos, 0),
   synced_members: previewMembers.length,
   open_gear_items: previewGearSuggestions.filter((suggestion) => suggestion.status !== 'implemented')

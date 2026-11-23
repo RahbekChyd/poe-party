@@ -1,16 +1,6 @@
 import { Button } from '@heroui/react/button'
-import { Card } from '@heroui/react/card'
-import { Chip } from '@heroui/react/chip'
 import { Spinner } from '@heroui/react/spinner'
-import {
-  AlertCircle,
-  ArrowLeft,
-  Coins,
-  Github,
-  Shield,
-  Sparkles,
-  Swords,
-} from 'lucide-react'
+import { AlertCircle, ArrowLeft, Github, Shield } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import logo from '../../assets/poe-party-logo.png'
@@ -18,26 +8,13 @@ import { storePostLoginTarget } from '../../lib/auth-redirect'
 import { usePoeOAuthUrl } from '../../hooks/usePoeOAuthUrl'
 import { GITHUB_URL } from '../../lib/seo'
 import { trackPublicEvent } from '../../lib/analytics'
+import { featuredLeagueTheme, useLeagueTheme } from '../../lib/league-theme'
+import { EntryScene } from '../shared/EntryScene'
 
-const teaserItems = [
-  {
-    icon: Coins,
-    title: 'Measure the outcome',
-    description: 'Track PoE1 stash snapshots and wealth movement across a run.',
-  },
-  {
-    icon: Swords,
-    title: 'Keep the plan together',
-    description: 'Carry strategies, characters, and party context into the next decision.',
-  },
-  {
-    icon: Sparkles,
-    title: 'Choose the next upgrade',
-    description: 'Turn build analysis into recommendations your workspace can revisit.',
-  },
-] as const
+const trustLinkClass = 'hover:text-brand-readable inline-flex min-h-11 min-w-11 items-center justify-center gap-1'
 
 export function LoginPage() {
+  useLeagueTheme(featuredLeagueTheme)
   const { getOAuthUrl } = usePoeOAuthUrl()
   const getRequestedTarget = () => new URLSearchParams(window.location.search).get('next')
 
@@ -57,53 +34,45 @@ export function LoginPage() {
   }
 
   return (
-    <div className="from-background via-background to-warning/5 min-h-screen bg-gradient-to-br px-4 py-5 md:py-10">
-      <main className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="" className="h-12 w-12 rounded-2xl shadow-sm md:h-14 md:w-14" />
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-foreground text-2xl font-bold tracking-tight md:text-4xl">
-                  Connect to PoE Party
-                </h1>
-                <Chip size="sm" color="warning" variant="soft" className="hidden sm:inline-flex">
-                  Early access
-                </Chip>
-              </div>
-              <p className="text-default-500 mt-1 text-sm md:text-base">
-                Plan, play, snapshot, and learn in one league workspace.
-              </p>
-            </div>
-          </div>
+    <div className="entry-login bg-background min-h-dvh">
+      <header className="entry-login-header entry-ink">
+        <div className="entry-wrap flex min-h-16 flex-wrap items-center justify-between gap-x-4">
+          <span className="entry-wordmark flex items-center gap-2.5">
+            <img src={logo} alt="" width={34} height={34} className="rounded-md" />
+            PoE Party
+          </span>
           <Link
             to="/"
             activeOptions={{ exact: true }}
-            className="button button--sm button--tertiary"
+            className="entry-nav-link inline-flex min-h-11 items-center gap-2 text-sm font-medium"
           >
-            <ArrowLeft size={16} aria-hidden="true" /> Back to explore
+            <ArrowLeft size={16} aria-hidden="true" /> Back to home
           </Link>
         </div>
+      </header>
 
-        <Card className="border-warning/20 bg-content1/90 w-full border">
-          <Card.Content className="gap-4 p-5 sm:p-6">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-foreground text-xl font-semibold">Connect your PoE account</h2>
-              <p className="text-default-500 text-sm">
-                Continue through Path of Exile OAuth. PoE Party never asks for your game password.
+      <main className="entry-login-main">
+        <div className="entry-login-art" aria-hidden="true">
+          <EntryScene crop="close" />
+        </div>
+
+        <div className="entry-login-column">
+          <section className="entry-login-panel" aria-labelledby="login-title">
+            <div>
+              <h1 id="login-title" className="entry-display entry-login-title">Connect to PoE Party</h1>
+              <p className="text-default-500 mt-3 text-sm leading-relaxed sm:text-base">
+                Sign in on the Path of Exile website to manage your characters and league workspaces.
               </p>
             </div>
 
-            <div className="bg-warning/8 rounded-2xl border border-warning/20 px-4 py-3">
-              <div className="flex items-start gap-3">
-                <Shield size={17} className="text-warning mt-0.5 shrink-0" aria-hidden="true" />
-                <div>
-                  <p className="text-foreground text-sm font-medium">Read-only game access</p>
-                  <p className="text-default-500 mt-1 text-sm leading-relaxed">
-                    OAuth is exchanged server-side and is limited to account, character, league,
-                    and PoE1 stash data used by the app.
-                  </p>
-                </div>
+            <div className="entry-login-access flex items-start gap-3">
+              <Shield size={19} className="text-brand-readable mt-0.5 shrink-0" aria-hidden="true" />
+              <div>
+                <p className="text-foreground text-sm font-medium">Read-only game access</p>
+                <p className="text-default-500 mt-1 text-sm leading-relaxed">
+                  PoE Party reads account, character, league, and PoE1 stash data. Your game
+                  password stays with Path of Exile.
+                </p>
               </div>
             </div>
 
@@ -123,51 +92,30 @@ export function LoginPage() {
             </Button>
 
             {oauthStatus === 'error' ? (
-              <div role="alert" className="text-danger flex items-center justify-center gap-2 text-sm">
-                <AlertCircle size={15} aria-hidden="true" />
-                Could not start OAuth. Open the configured preview domain or check this
-                deployment&apos;s configuration.
-              </div>
+              <p role="alert" className="text-danger flex items-center gap-2 text-sm">
+                <AlertCircle size={17} className="shrink-0" aria-hidden="true" />
+                Could not open Path of Exile sign-in. Try again.
+              </p>
             ) : null}
 
-            <p className="text-default-400 text-center text-xs">
-              You will return to the page or workspace you were trying to open.
+            <p className="text-default-500 text-center text-xs">
+              After signing in, you’ll return to the page you were opening.
             </p>
+          </section>
 
-          </Card.Content>
-        </Card>
+          <nav aria-label="Login help and trust" className="text-default-400 flex flex-wrap justify-center gap-x-3 text-xs">
+            <Link to="/legal/privacy" activeOptions={{ exact: true }} className={trustLinkClass}>Privacy</Link>
+            <Link to="/legal/security" activeOptions={{ exact: true }} className={trustLinkClass}>Security &amp; Trust</Link>
+            <Link to="/legal/terms" activeOptions={{ exact: true }} className={trustLinkClass}>Terms</Link>
+            <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className={trustLinkClass}>
+              <Github size={12} aria-hidden="true" /> GitHub
+            </a>
+          </nav>
 
-        <section aria-labelledby="why-connect-title">
-          <h2 id="why-connect-title" className="sr-only">What a connected workspace adds</h2>
-          <div className="grid gap-3 md:grid-cols-3">
-            {teaserItems.map(({ icon: Icon, title, description }) => (
-              <Card key={title} className="border-divider/70 bg-content1/80 border">
-                <Card.Content className="gap-3 p-5">
-                  <div className="bg-warning/12 flex h-10 w-10 items-center justify-center rounded-xl">
-                    <Icon size={18} className="text-warning" aria-hidden="true" />
-                  </div>
-                  <div>
-                    <h3 className="text-foreground text-sm font-semibold">{title}</h3>
-                    <p className="text-default-500 mt-1 text-sm leading-relaxed">{description}</p>
-                  </div>
-                </Card.Content>
-              </Card>
-            ))}
-          </div>
-        </section>
-
-        <nav aria-label="Login help and trust" className="text-default-400 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs">
-          <Link to="/legal/privacy" activeOptions={{ exact: true }} className="hover:text-foreground">Privacy</Link>
-          <Link to="/legal/security" activeOptions={{ exact: true }} className="hover:text-foreground">Security &amp; Trust</Link>
-          <Link to="/legal/terms" activeOptions={{ exact: true }} className="hover:text-foreground">Terms</Link>
-          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="hover:text-foreground inline-flex items-center gap-1">
-            <Github size={12} aria-hidden="true" /> GitHub
-          </a>
-        </nav>
-
-        <p className="text-default-400 text-center text-xs">
-          PoE Party is independent and is not affiliated with or endorsed by Grinding Gear Games.
-        </p>
+          <p className="text-default-400 text-center text-xs leading-relaxed">
+            PoE Party is independent and is not affiliated with or endorsed by Grinding Gear Games.
+          </p>
+        </div>
       </main>
     </div>
   )

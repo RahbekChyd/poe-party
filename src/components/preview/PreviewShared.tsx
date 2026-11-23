@@ -6,54 +6,34 @@ import { Modal } from '@heroui/react/modal'
 import { Lock } from 'lucide-react'
 import { useGuestGateStore } from '../../store/guest-gate-store'
 import { getLoginHref } from '../../lib/auth-redirect'
+import { DashboardPageHeader } from '../ui/dashboard'
 export type PreviewMode = 'teaser' | 'public'
 
-const MODE_STYLES: Record<PreviewMode, { label: string; color: 'warning' | 'accent' }> = {
-  teaser: { label: 'Sample Workspace', color: 'warning' },
-  public: { label: 'Public', color: 'accent' },
-}
-
 export function PreviewModeChip({ mode }: { mode: PreviewMode }) {
-  const config = MODE_STYLES[mode]
-
   return (
-    <Chip size="sm" color={config.color} variant="soft">
-      {config.label}
+    <Chip size="sm" variant="soft">
+      {mode === 'teaser' ? 'Sample workspace' : 'Public'}
     </Chip>
   )
 }
 
 export function PreviewPageIntro({
-  mode,
   title,
   description,
   aside,
   asideClassName = 'w-full max-w-sm',
 }: {
-  mode: PreviewMode
   title: string
   description: string
   aside?: ReactNode
   asideClassName?: string
 }) {
-  const railColor = mode === 'teaser' ? 'var(--warning)' : 'var(--arcane)'
-
   return (
-    <div className="border-divider/70 flex flex-col gap-4 border-b pb-5 md:flex-row md:items-end md:justify-between">
-      <div className="max-w-3xl">
-        <div className="mb-2 flex items-center gap-2">
-          <span
-            className="h-5 w-1 rounded-full"
-            style={{ backgroundColor: railColor }}
-            aria-hidden="true"
-          />
-          <PreviewModeChip mode={mode} />
-        </div>
-        <h1 className="text-foreground text-2xl leading-8 font-semibold">{title}</h1>
-        <p className="text-default-500 mt-1 max-w-2xl text-sm leading-5">{description}</p>
-      </div>
-      {aside ? <div className={asideClassName}>{aside}</div> : null}
-    </div>
+    <DashboardPageHeader
+      title={title}
+      description={description}
+      actions={aside ? <div className={asideClassName}>{aside}</div> : null}
+    />
   )
 }
 
@@ -67,7 +47,7 @@ export function PreviewNotice({
   description: string
 }) {
   return (
-    <Card className="border-divider/70 bg-content1/90 border">
+    <Card className="border-divider/70 bg-content1/90 border p-0">
       <Card.Content className="gap-2 p-3.5">
         <div className="flex flex-wrap items-center gap-2">
           <PreviewModeChip mode={mode} />
@@ -86,7 +66,7 @@ export function UnlockCard({
   presentation = 'card',
   buttonLabel = 'Private workspace options',
   badgeLabel = 'Private workspace',
-  actionLabel = 'Connect Account',
+  actionLabel = 'Connect account',
   signInPrompt = {
     title: 'Connect your private workspace',
     description:
@@ -114,17 +94,11 @@ export function UnlockCard({
   }
 
   const pointsList = (
-    <div className="space-y-2">
+    <ul className="text-default-600 list-disc space-y-1.5 pl-5 text-sm">
       {points.map((point) => (
-        <div
-          key={point}
-          className="rounded-large border-divider/70 bg-default-50/50 text-default-600 flex items-start gap-3 border px-4 py-3 text-sm"
-        >
-          <span className="bg-warning mt-1 h-1.5 w-1.5 shrink-0 rounded-full" />
-          <span>{point}</span>
-        </div>
+        <li key={point} className="wrap-anywhere">{point}</li>
       ))}
-    </div>
+    </ul>
   )
 
   if (presentation === 'dialog-button') {
@@ -141,20 +115,20 @@ export function UnlockCard({
 
         <Modal.Backdrop isOpen={detailsOpen} onOpenChange={setDetailsOpen}>
           <Modal.Container>
-            <Modal.Dialog>
+            <Modal.Dialog className="max-h-[calc(100dvh-2rem)]">
               <Modal.Header>
                 <div className="flex flex-col gap-2">
-                  <Chip size="sm" color="warning" variant="soft" className="self-start">
+                  <Chip size="sm" variant="soft" className="self-start">
                     {badgeLabel}
                   </Chip>
-                  <Modal.Heading>{title}</Modal.Heading>
+                  <Modal.Heading className="wrap-anywhere">{title}</Modal.Heading>
                 </div>
               </Modal.Header>
-              <Modal.Body className="gap-4">
+              <Modal.Body className="min-h-0 gap-4 overflow-y-auto">
                 <p className="text-default-500 text-sm leading-relaxed">{description}</p>
                 {pointsList}
               </Modal.Body>
-              <Modal.Footer>
+              <Modal.Footer className="flex-wrap">
                 <Button variant="tertiary" onPress={() => setDetailsOpen(false)}>
                   Close
                 </Button>
@@ -168,10 +142,10 @@ export function UnlockCard({
   }
 
   return (
-    <Card className="border-divider/70 bg-content1 border">
+    <Card className="border-divider/70 bg-content1 border p-0">
       <Card.Content className="gap-4 p-5">
         <div className="flex flex-wrap items-center gap-2">
-          <Chip size="sm" color="warning" variant="soft">
+          <Chip size="sm" variant="soft">
             {badgeLabel}
           </Chip>
           <p className="text-foreground text-sm font-medium">{title}</p>
@@ -200,7 +174,7 @@ export function LockedPanel({
   const openGuestGate = useGuestGateStore((state) => state.open)
 
   return (
-    <Card className="border-divider/70 overflow-hidden border">
+    <Card className="border-divider/70 overflow-hidden border p-0">
       <Card.Content className="relative gap-4 p-5">
         <div className="pointer-events-none blur-[3px] select-none">
           <div className="flex flex-wrap gap-2">
@@ -217,8 +191,8 @@ export function LockedPanel({
 
         <div className="bg-content1/72 absolute inset-0 flex items-center justify-center backdrop-blur-sm">
           <div className="mx-5 max-w-md text-center">
-            <div className="bg-warning/15 mx-auto flex h-12 w-12 items-center justify-center rounded-full">
-              <Lock size={18} className="text-warning" />
+            <div className="bg-info-soft mx-auto flex h-12 w-12 items-center justify-center rounded-full">
+              <Lock size={18} className="text-info" aria-hidden="true" />
             </div>
             <p className="text-foreground mt-4 text-base font-semibold">{title}</p>
             <p className="text-default-500 mt-2 text-sm leading-relaxed">{description}</p>
@@ -232,7 +206,7 @@ export function LockedPanel({
                 })
               }
             >
-              Connect Account
+              Connect account
             </Button>
           </div>
         </div>
@@ -259,26 +233,22 @@ export function GuestGateModal() {
         }}
       >
         <Modal.Container>
-          <Modal.Dialog>
+          <Modal.Dialog className="max-h-[calc(100dvh-2rem)]">
             <Modal.Header>
-              <Modal.Heading>{title}</Modal.Heading>
+              <Modal.Heading className="wrap-anywhere">{title}</Modal.Heading>
             </Modal.Header>
-            <Modal.Body className="gap-3">
-              <p className="text-default-500 text-sm leading-relaxed">{description}</p>
-              <div className="rounded-large border-divider bg-default-50/60 text-default-500 border px-4 py-3 text-sm">
-                After connecting, you can inspect full details, set up solo or group play, build
-                your own strategies, and work with real stash and character data.
-              </div>
-              <p className="text-default-400 text-xs">
-                After connecting, you&apos;ll return to this page.
+            <Modal.Body className="min-h-0 gap-3 overflow-y-auto">
+              <p className="text-default-500 wrap-anywhere text-sm leading-relaxed">{description}</p>
+              <p className="text-default-500 text-xs">
+                You&apos;ll return here after signing in.
               </p>
             </Modal.Body>
-            <Modal.Footer>
+            <Modal.Footer className="flex-wrap">
               <Button variant="tertiary" onPress={close}>
-                Keep Browsing
+                Keep browsing
               </Button>
-              <a href={getLoginHref(nextTarget)} className="button">
-                Connect Account
+              <a href={getLoginHref(nextTarget)} className="button button--primary">
+                Sign in
               </a>
             </Modal.Footer>
           </Modal.Dialog>

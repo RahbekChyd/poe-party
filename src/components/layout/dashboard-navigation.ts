@@ -25,7 +25,6 @@ export interface DashboardNavItem {
   label: string
   to: DashboardRoute
   icon: LucideIcon
-  match: readonly string[]
 }
 
 export interface DashboardNavSection {
@@ -43,7 +42,6 @@ export const dashboardNavigation: readonly DashboardNavSection[] = [
         label: 'Today',
         to: '/dashboard',
         icon: LayoutDashboard,
-        match: ['/dashboard'],
       },
     ],
   },
@@ -55,13 +53,11 @@ export const dashboardNavigation: readonly DashboardNavSection[] = [
         label: 'Strategies',
         to: '/dashboard/strategies',
         icon: Target,
-        match: ['/dashboard/strategies'],
       },
       {
         label: 'Economy',
         to: '/dashboard/economy',
         icon: TrendingUp,
-        match: ['/dashboard/economy'],
       },
     ],
   },
@@ -73,13 +69,11 @@ export const dashboardNavigation: readonly DashboardNavSection[] = [
         label: 'Analysis',
         to: '/dashboard/analysis',
         icon: Sparkles,
-        match: ['/dashboard/analysis'],
       },
       {
         label: 'Gear Planning',
         to: '/dashboard/gear',
         icon: Sword,
-        match: ['/dashboard/gear'],
       },
     ],
   },
@@ -91,7 +85,6 @@ export const dashboardNavigation: readonly DashboardNavSection[] = [
         label: 'Members',
         to: '/dashboard/members',
         icon: Users,
-        match: ['/dashboard/members'],
       },
     ],
   },
@@ -103,13 +96,11 @@ export const dashboardNavigation: readonly DashboardNavSection[] = [
         label: 'Directory',
         to: '/dashboard/search',
         icon: Search,
-        match: ['/dashboard/search'],
       },
       {
         label: 'Services',
         to: '/dashboard/services',
         icon: Handshake,
-        match: ['/dashboard/services'],
       },
     ],
   },
@@ -117,7 +108,7 @@ export const dashboardNavigation: readonly DashboardNavSection[] = [
 
 export function isDashboardNavItemActive(pathname: string, item: DashboardNavItem) {
   if (item.to === '/dashboard') return pathname === '/dashboard' || pathname === '/dashboard/'
-  return item.match.some((prefix) => pathname.startsWith(prefix))
+  return pathname === item.to || pathname.startsWith(`${item.to}/`)
 }
 
 export function isDashboardSectionActive(pathname: string, section: DashboardNavSection) {

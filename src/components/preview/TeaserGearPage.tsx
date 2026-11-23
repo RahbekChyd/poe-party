@@ -1,43 +1,40 @@
-import { Avatar } from '@heroui/react/avatar'
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
 import { IMPORTANCE_CHIP, STATUS_COLOR } from '../../lib/constants'
 import { previewGearSuggestions, previewMembers } from '../../lib/preview-fixtures'
 import { getPreviewItemImage } from '../../lib/preview-item-images'
+import { UserAvatar } from '../ui/heroui-native'
 import { PreviewPageIntro, UnlockCard } from './PreviewShared'
+import { DashboardPage } from '../ui/dashboard'
 import { useGuestGateStore } from '../../store/guest-gate-store'
 export function TeaserGearPage() {
   const openGuestGate = useGuestGateStore((state) => state.open)
 
   return (
-    <div className="flex flex-col gap-6">
+    <DashboardPage>
       <PreviewPageIntro
-        mode="teaser"
         title="Gear"
-        description="A lighter sample of the upgrade planning queue. The entries here are illustrative, but the layout mirrors how real suggestions are surfaced after sign-in."
+        description="Explore a sample queue of gear suggestions, priorities, and upgrade statuses."
       />
 
-      <Card>
+      <Card className="p-0">
         <Card.Header className="px-4 pb-0 pt-4">
           <div className="flex w-full flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-foreground">Illustrative suggestion queue</p>
-              <p className="mt-1 text-sm text-default-500">
-                Keep ownership, status, and trade intent visible without turning the preview into a full fake workspace.
-              </p>
+              <p className="text-sm font-semibold text-foreground">Sample upgrade queue</p>
             </div>
             <Button
-              variant="tertiary"
+              size="sm"
               onPress={() =>
                 openGuestGate({
-                  title: 'Sign in to add real upgrade suggestions',
+                  title: 'Sign in to suggest an upgrade',
                   description:
                     'Gear planning is only available inside your signed-in workspace.',
                 })
               }
             >
-              Suggest Upgrade
+              Suggest upgrade
             </Button>
           </div>
         </Card.Header>
@@ -56,21 +53,18 @@ export function TeaserGearPage() {
                 {itemImage ? (
                   <img src={itemImage} alt="" className="h-8 w-8 bg-transparent object-contain" />
                 ) : (
-                  <Avatar
+                  <UserAvatar
                     size="sm"
-                    style={{ backgroundColor: targetUser?.avatar_color ?? '#f5a524' }}
-                  >
-                    <Avatar.Fallback className="font-semibold text-white">
-                      {(targetUser?.display_name ?? 'Member').slice(0, 2).toUpperCase()}
-                    </Avatar.Fallback>
-                  </Avatar>
+                    name={targetUser?.display_name ?? 'Member'}
+                    style={targetUser ? { backgroundColor: targetUser.avatar_color } : undefined}
+                  />
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-medium text-foreground">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-medium wrap-anywhere text-foreground">
                       {suggestion.item_name}
                     </p>
-                    <Chip size="sm" variant="soft" color={importance.color}>
+                    <Chip size="sm" variant="soft">
                       {importance.label}
                     </Chip>
                   </div>
@@ -80,7 +74,7 @@ export function TeaserGearPage() {
                   </p>
                   <p className="mt-1 text-sm text-default-500">{suggestion.notes}</p>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
                   <Chip
                     size="sm"
                     color={STATUS_COLOR[suggestion.status]}
@@ -94,13 +88,12 @@ export function TeaserGearPage() {
                     variant="tertiary"
                     onPress={() =>
                       openGuestGate({
-                        title: 'Sign in to inspect upgrade details',
-                        description:
-                          'Detailed gear planning lives inside your signed-in workspace, where you can track status, ownership, and real item links.',
+                        title: 'Sign in to view upgrade details',
+                        description: 'Connect a PoE account to manage upgrade suggestions in your workspace.',
                       })
                     }
                   >
-                    Open
+                    View details
                   </Button>
                 </div>
               </div>
@@ -110,14 +103,14 @@ export function TeaserGearPage() {
       </Card>
 
       <UnlockCard
-        title="What gear planning unlocks after sign-in"
-        description="The real gear page becomes a working queue for your upgrades and handoffs."
+        title="Plan your upgrades"
+        description="Sign in to share and track gear suggestions in your workspace."
         points={[
-          'Create and manage real upgrade suggestions.',
-          'Open full suggestion details, status notes, and item links.',
-          'Track which upgrades are still open and which ones are already handled.',
+          'Suggest upgrades for yourself or a party member.',
+          'Keep item links and notes with each suggestion.',
+          'Track open and completed upgrades.',
         ]}
       />
-    </div>
+    </DashboardPage>
   )
 }

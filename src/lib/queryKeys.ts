@@ -21,6 +21,7 @@ export const queryKeys = {
 
   characters: {
     active: (groupId: string | null) => ['characters', 'active', groupId] as const,
+    mineGroup: (groupId: string | null) => ['my-characters', groupId] as const,
     mine: (groupId: string | null, league?: string | null) =>
       ['my-characters', groupId, league] as const,
   },
@@ -147,8 +148,8 @@ export const queryKeys = {
     leagues: (game: PoeGame, source: 'account' | 'public') => ['poe-leagues', game, source] as const,
   },
 
-  poeWiki: {
-    inventoryIcon: (baseType: string | null) => ['poe-wiki', 'inventory-icon', baseType] as const,
+  poedb: {
+    inventoryIcon: (baseType: string | null) => ['poedb', 'inventory-icon', baseType] as const,
   },
 
   ninjaItems: (game: PoeGame | null) => ['ninja-items', game] as const,

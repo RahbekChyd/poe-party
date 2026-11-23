@@ -7,7 +7,6 @@ import {
   useState,
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import { Accordion } from '@heroui/react/accordion'
 import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
@@ -17,7 +16,7 @@ import { Modal } from '@heroui/react/modal'
 import { Spinner } from '@heroui/react/spinner'
 import { ToggleButton } from '@heroui/react/toggle-button'
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
-import { ArrowRight, ChevronDown, Info, Trash2 } from 'lucide-react'
+import { ArrowRight, Check, ChevronDown, Circle, Info, Trash2 } from 'lucide-react'
 import { useGroupStore } from '../../store/group-store'
 import { useCurrentUser } from '../../hooks/useCurrentUser'
 import { useGroupMembers, useMyGroupRole, useMyGroups } from '../../hooks/useGroups'
@@ -73,7 +72,6 @@ import {
 import {
   getRetiredAnalysisEngineMessage,
   getUpgradeAnalysisEmptyPlansCopy,
-  getUpgradeAnalysisFailureCopy,
   usesRetiredAnalysisEngine,
 } from '../../lib/upgrade-analysis-run-state'
 import {
@@ -100,6 +98,7 @@ import type {
 import { CardListSkeleton } from '../layout/Skeletons'
 import { RecommendationItemRow } from './RecommendationItemRow'
 import { RecommendationsInsightsRail } from '../analysis/RecommendationsInsightsRail'
+import '../analysis/analysis-run.css'
 import {
   FieldInput,
   FieldTextArea,
@@ -108,6 +107,7 @@ import {
   SelectField,
 } from '../ui/heroui-native'
 import { HoverTooltip, type HoverTooltipPlacement } from '../ui/hover-tooltip'
+import { QueryFreshnessNotice, QueryStatePanel } from '../ui/QueryStatePanel'
 const FIXED_PRIMARY_METRIC = 'totalDps'
 
 type TooltipPlacement = HoverTooltipPlacement
@@ -182,12 +182,12 @@ function AccordionPanelItem({
 
 const RUN_STATUS_COLORS: Record<
   'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'stale',
-  'default' | 'warning' | 'success' | 'danger' | 'accent'
+  'default' | 'warning' | 'success' | 'danger'
 > = {
   queued: 'default',
-  running: 'warning',
+  running: 'default',
   completed: 'success',
-  partial: 'accent',
+  partial: 'warning',
   failed: 'danger',
   stale: 'warning',
 }
@@ -508,10 +508,6 @@ function formatCountdown(ms: number): string {
   if (minutes <= 0) return `${seconds}s`
   if (seconds === 0) return `${minutes}m`
   return `${minutes}m ${seconds}s`
-}
-
-function getPreferredRun(runs: UpgradeAnalysisRun[]): UpgradeAnalysisRun | null {
-  return runs.find((run) => run.status !== 'stale') ?? runs[0] ?? null
 }
 
 function getLatestLiveRun(runs: UpgradeAnalysisRun[]): UpgradeAnalysisRun | null {
@@ -848,7 +844,7 @@ function getSocketTextColorClass(socketColor: string | null): string {
     case 'RED':
     case 'R':
     case 'STRENGTH':
-      return 'text-[#d20000]'
+      return 'text-[#e06a6a]'
     case 'GREEN':
     case 'G':
     case 'DEXTERITY':
@@ -1334,7 +1330,7 @@ function getDisplayedPartialReason(
   run: UpgradeAnalysisRun | null | undefined,
   nowMs: number = Date.now(),
 ): string | null {
-  if (!run) return null
+  if (!run || run.status === 'failed') return null
   if (getTradeRateLimitWaitInfo(run, nowMs)) return null
   if (usesRetiredAnalysisEngine(run)) {
     return getRetiredAnalysisEngineMessage()
@@ -1536,7 +1532,7 @@ function RareSearchItemEditor({
                 key={`${option.slot}-${key}`}
                 size="sm"
                 variant="soft"
-                color={isDisabled ? 'default' : isAdjusted ? 'warning' : 'accent'}
+                className={isAdjusted ? 'bg-info-soft text-info' : undefined}
               >
                 {RARE_SEARCH_TARGET_LABELS[key] ?? key} {formatRareSearchTargetValue(currentValue)}
               </Chip>
@@ -1545,39 +1541,39 @@ function RareSearchItemEditor({
         </div>
       ) : null}
 
-      <div className="rounded-large border border-amber-300/35 bg-[#11100d]/95 px-3 py-2 text-[#d9c7a2] shadow-2xl">
-        <div className="border-b border-amber-300/20 pb-2 text-center">
-          <p className="text-sm font-semibold tracking-[0.18em] text-[#e1c47a] uppercase">
+      <div className="rounded-large border-divider bg-content1 text-foreground wrap-anywhere border px-3 py-2">
+        <div className="border-divider border-b pb-2 text-center">
+          <p className="text-sm font-semibold text-[color:var(--foreground-strong)]">
             {option.title}
           </p>
           {option.subtitle ? (
-            <p className="mt-1 text-xs tracking-[0.15em] text-[#f2ebd0] uppercase">
+            <p className="text-default-500 mt-1 text-xs">
               {option.subtitle}
             </p>
           ) : null}
         </div>
 
         {option.properties.length > 0 ? (
-          <div className="border-b border-amber-300/15 py-2 text-center">
+          <div className="border-divider border-b py-2 text-center">
             {option.properties.map((property, index) => (
               <p
                 key={`${option.slot}-property-${property.name}-${index}`}
-                className="text-xs leading-5 text-[#d7d7d7]"
+                className="text-xs leading-5 tabular-nums"
               >
-                <span className="text-[#b4b4b4]">{property.name}:</span>{' '}
-                <span className="text-white">{property.values.join(', ')}</span>
+                <span className="text-default-500">{property.name}:</span>{' '}
+                <span className="text-[color:var(--foreground-strong)]">{property.values.join(', ')}</span>
               </p>
             ))}
           </div>
         ) : null}
 
         {option.requirements.length > 0 ? (
-          <div className="border-b border-amber-300/15 py-2 text-center">
-            <p className="text-[11px] tracking-[0.14em] text-[#8f8f8f] uppercase">Requires</p>
+          <div className="border-divider border-b py-2 text-center">
+            <p className="text-default-500 text-xs">Requires</p>
             {option.requirements.map((requirement, index) => (
               <p
                 key={`${option.slot}-requirement-${requirement.name}-${index}`}
-                className="text-xs leading-5 text-[#d7d7d7]"
+                className="text-xs leading-5 tabular-nums"
               >
                 {requirement.name} {requirement.values.join(', ')}
               </p>
@@ -1586,14 +1582,14 @@ function RareSearchItemEditor({
         ) : null}
 
         {option.sections.length > 0 ? (
-          <div className="border-b border-amber-300/15">
+          <div className="border-divider border-b">
             {option.sections.map((section, sectionIndex) => (
               <div
                 key={`${option.slot}-${section.key}`}
-                className={`${sectionIndex > 0 ? 'border-t border-amber-300/10' : ''} py-2`}
+                className={`${sectionIndex > 0 ? 'border-divider border-t' : ''} py-2`}
               >
                 {section.title ? (
-                  <p className="mb-2 text-center text-[10px] tracking-[0.14em] text-[#8f8f8f] uppercase">
+                  <p className="text-default-500 mb-2 text-center text-xs">
                     {section.title}
                   </p>
                 ) : null}
@@ -1603,7 +1599,7 @@ function RareSearchItemEditor({
                       return (
                         <p
                           key={`${option.slot}-${line.id}`}
-                          className={`text-center text-xs leading-5 ${line.lineClassName}`}
+                          className={`text-center text-xs leading-5 tabular-nums ${line.lineClassName}`}
                         >
                           {line.text}
                         </p>
@@ -1617,8 +1613,8 @@ function RareSearchItemEditor({
                         key={`${option.slot}-${line.id}`}
                         className={`rounded-large border px-2 py-2 ${
                           isDisabled
-                            ? 'border-amber-300/8 bg-black/25 opacity-75'
-                            : 'border-amber-300/12 bg-black/10'
+                            ? 'border-divider bg-content1'
+                            : 'border-divider bg-content2'
                         }`}
                       >
                         <div className="flex items-start gap-2">
@@ -1635,8 +1631,8 @@ function RareSearchItemEditor({
                             </span>
                           </NativeCheckbox>
                           <div className="min-w-0 flex-1 text-center">
-                            <p className={`text-xs leading-5 ${line.lineClassName}`}>{line.text}</p>
-                            <p className="mt-1 text-[10px] tracking-[0.08em] text-[#b39a67] uppercase">
+                            <p className={`text-xs leading-5 tabular-nums ${line.lineClassName}`}>{line.text}</p>
+                            <p className="text-default-500 mt-1 text-xs">
                               {lineTarget.label}
                               {lineTarget.supportsValueOverride ? ' target' : ' filter'}
                               {lineTarget.targetMultiplier > 1 && lineTarget.summaryTargetKey
@@ -1644,7 +1640,7 @@ function RareSearchItemEditor({
                                 : ''}
                             </p>
                             {!lineTarget.supportsValueOverride ? (
-                              <p className="mt-1 text-[10px] text-[#c7b08a]">
+                              <p className="text-default-500 mt-1 text-xs">
                                 Toggle this exact search filter on or off.
                               </p>
                             ) : null}
@@ -1688,11 +1684,11 @@ function RareSearchItemEditor({
             ))}
           </div>
         ) : (
-          <div className="py-3 text-center text-xs text-[#d7d7d7]">No item details available.</div>
+          <div className="text-default-500 py-3 text-center text-xs">No item details available.</div>
         )}
 
         {option.footerLines.length > 0 ? (
-          <div className="pt-2 text-center text-[11px] text-[#a89467]">
+          <div className="text-default-500 pt-2 text-center text-xs tabular-nums">
             {option.footerLines.map((line) => (
               <p key={`${option.slot}-${line.text}`} className={line.className ?? undefined}>
                 {line.text}
@@ -1736,7 +1732,6 @@ function RunActivityStrip({
   estimatedLabel,
   onCancel,
   cancelLoading,
-  phase = 'running',
   timeline,
   elapsedLabel,
 }: {
@@ -1746,44 +1741,34 @@ function RunActivityStrip({
   estimatedLabel?: string | null
   onCancel?: () => void
   cancelLoading?: boolean
-  phase?: 'submitting' | 'queued' | 'running'
   timeline?: Array<{ id: string; label: string; status: 'done' | 'active' | 'pending' }>
   elapsedLabel?: string | null
 }) {
-  const isWarm = phase !== 'submitting'
   return (
-    <div
-      className={`rounded-large border p-4 transition-colors duration-300 ${
-        isWarm ? 'border-warning/30 bg-warning/10' : 'border-default-200/60 bg-default-50/60'
-      }`}
-    >
+    <div className="analysis-run-progress">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div
-            className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-300 ${
-              isWarm ? 'bg-warning/15' : 'bg-default-100'
-            }`}
-          >
-            <Spinner size="sm" color={isWarm ? 'warning' : 'current'} />
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="mt-0.5 shrink-0" aria-hidden="true">
+            <Spinner size="sm" color={waitLabel ? 'warning' : 'current'} className={waitLabel ? 'text-warning' : 'text-info'} />
           </div>
-          <div>
-            <p className="text-foreground text-sm font-semibold">{title}</p>
+          <div className="min-w-0 wrap-anywhere">
+            <p role="status" className="text-foreground text-sm font-semibold">{title}</p>
             <p className="text-default-500 mt-1 text-sm">{detail}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {elapsedLabel ? (
-            <Chip size="sm" variant="soft" color={isWarm ? 'warning' : 'default'}>
+            <Chip size="sm" variant="soft">
               Elapsed {elapsedLabel}
             </Chip>
           ) : null}
           {estimatedLabel ? (
-            <Chip size="sm" variant="soft" color={isWarm ? 'warning' : 'default'}>
+            <Chip size="sm" variant="soft">
               {estimatedLabel}
             </Chip>
           ) : null}
           {waitLabel ? (
-            <Chip size="sm" variant="soft" color={isWarm ? 'warning' : 'default'}>
+            <Chip size="sm" variant="soft" color="warning">
               {waitLabel}
             </Chip>
           ) : null}
@@ -1797,52 +1782,36 @@ function RunActivityStrip({
         </div>
       </div>
       {timeline && timeline.length > 0 ? (
-        <ol className="mt-4 flex flex-col gap-1.5">
-          {timeline.map((step) => {
-            const dotClass =
-              step.status === 'done'
-                ? 'bg-success'
-                : step.status === 'active'
-                  ? isWarm
-                    ? 'bg-warning animate-pulse'
-                    : 'bg-default-500 animate-pulse'
-                  : 'bg-default-300'
-            const textClass =
-              step.status === 'active'
-                ? 'text-foreground font-semibold'
-                : step.status === 'done'
-                  ? 'text-default-600'
-                  : 'text-default-400'
-            return (
-              <li key={step.id} className="flex items-center gap-2 text-xs">
-                <span className={`inline-flex h-2 w-2 shrink-0 rounded-full ${dotClass}`} />
-                <span className={textClass}>{step.label}</span>
-              </li>
-            )
-          })}
-        </ol>
-      ) : (
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          <div
-            className={`h-1 animate-pulse rounded-full [animation-delay:0ms] ${isWarm ? 'bg-warning/30' : 'bg-default-200'}`}
-          />
-          <div
-            className={`h-1 animate-pulse rounded-full [animation-delay:200ms] ${isWarm ? 'bg-warning/45' : 'bg-default-200'}`}
-          />
-          <div
-            className={`h-1 animate-pulse rounded-full [animation-delay:400ms] ${isWarm ? 'bg-warning/60' : 'bg-default-200'}`}
-          />
-        </div>
-      )}
+        <details className="mt-3">
+          <summary className="cursor-pointer text-sm font-medium">Run progress</summary>
+          <ol className="mt-2 grid gap-x-4 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-3">
+            {timeline.map((step) => {
+              const active = step.status === 'active'
+              const StepIcon = step.status === 'done' ? Check : active ? ArrowRight : Circle
+              const iconClass = step.status === 'done' ? 'text-success' : active ? 'text-info' : 'text-default-400'
+              return (
+                <li key={step.id} aria-current={active ? 'step' : undefined} className="flex items-center gap-2 text-xs">
+                  <StepIcon size={12} className={`shrink-0 ${iconClass}`} aria-hidden="true" />
+                  <span className={active ? 'text-foreground font-semibold' : 'text-default-500'}>
+                    <span className="sr-only">{active ? 'In progress' : step.status === 'done' ? 'Completed' : 'Pending'}: </span>
+                    {step.label}
+                  </span>
+                </li>
+              )
+            })}
+          </ol>
+        </details>
+      ) : null}
     </div>
   )
 }
 
 function LiveRecommendationsSkeleton() {
   return (
-    <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading recommendations">
+    <div className="flex flex-col gap-3">
+      <p role="status" className="text-default-500 text-sm">Loading recommendations…</p>
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="rounded-large border-divider overflow-hidden border">
+        <div key={i} aria-hidden="true" className="rounded-large border-divider overflow-hidden border">
           <div className="flex items-center gap-3 p-4">
             <div
               className="bg-default-100 h-11 w-11 shrink-0 animate-pulse rounded-lg"
@@ -1899,7 +1868,7 @@ export function StageSummaryCard({
       type="button"
       className={`rounded-large w-full border p-3 text-left transition-colors ${
         isSelected
-          ? 'border-warning/60 bg-warning/10'
+          ? 'border-highlight bg-selected'
           : 'border-divider bg-content1 hover:bg-default-50'
       }`}
       onClick={onSelect}
@@ -1911,7 +1880,7 @@ export function StageSummaryCard({
               {stage.order_index}. {stage.label}
             </p>
             {isDefault ? (
-              <Chip size="sm" color="warning" variant="soft">
+              <Chip size="sm" variant="soft">
                 Default
               </Chip>
             ) : null}
@@ -1929,7 +1898,7 @@ export function StageSummaryCard({
       {visibleRequirements.length ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {visibleRequirements.slice(0, 4).map((requirement) => (
-            <Chip key={`${stage.id}-${requirement.label}`} size="sm" variant="soft" color="accent">
+            <Chip key={`${stage.id}-${requirement.label}`} size="sm" variant="soft">
               {requirement.label}
             </Chip>
           ))}
@@ -1944,10 +1913,19 @@ export function StageSummaryCard({
   )
 }
 
-export function GearRecommendationsPanel() {
+export function GearRecommendationsPanel({
+  requestedRunId,
+  requestedBuildTargetId,
+  onRunRequestHandled,
+}: {
+  requestedRunId?: string
+  requestedBuildTargetId?: string
+  onRunRequestHandled: () => void
+}) {
   const activeGroupId = useGroupStore((state) => state.activeGroupId)
   const { data: currentUser } = useCurrentUser()
-  const { data: members, isLoading: membersLoading } = useGroupMembers(activeGroupId)
+  const membersQuery = useGroupMembers(activeGroupId)
+  const { data: members, isLoading: membersLoading } = membersQuery
   const { data: myGroups } = useMyGroups()
   const myRole = useMyGroupRole(activeGroupId)
   const { mutateAsync: createBuildTarget, isPending: importingTarget } = useCreateBuildTarget()
@@ -1970,6 +1948,8 @@ export function GearRecommendationsPanel() {
   const [hasManuallySelectedCharacter, setHasManuallySelectedCharacter] = useState(false)
   const [selectedBuildTargetId, setSelectedBuildTargetId] = useState<string | null>(null)
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null)
+  const [setupExpanded, setSetupExpanded] = useState(false)
+  const [historyExpanded, setHistoryExpanded] = useState(false)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [pendingSelectedRunId, setPendingSelectedRunId] = useState<string | null>(null)
   const [pendingRunPreview, setPendingRunPreview] = useState<UpgradeAnalysisRun | null>(null)
@@ -2006,6 +1986,7 @@ export function GearRecommendationsPanel() {
   const [analysisSubmitFlowPending, setAnalysisSubmitFlowPending] = useState(false)
   const submitFlowSequenceRef = useRef(0)
   const activeSubmitFlowIdRef = useRef<number | null>(null)
+  const refreshedRunRequestRef = useRef<string | null>(null)
 
   const activeLeague =
     myGroups?.find((membership) => membership.group.id === activeGroupId)?.group.league ?? null
@@ -2020,10 +2001,8 @@ export function GearRecommendationsPanel() {
   const targetUserId = currentUser?.id ?? null
   const currentMember = members?.find((member) => member.user.id === targetUserId) ?? null
   const { data: activeCharacters = [] } = useActiveCharacters(activeGroupId)
-  const { data: myCharacters = [], isLoading: myCharactersLoading } = useMyCharacters(
-    activeGroupId,
-    activeLeague,
-  )
+  const charactersQuery = useMyCharacters(activeGroupId, activeLeague)
+  const { data: myCharacters = [], isLoading: myCharactersLoading } = charactersQuery
   const { data: characterProfiles = [] } = useCharacterProfiles(activeGroupId)
   const membersPageSelectedCharacterId =
     activeCharacters.find((character) => character.user_id === targetUserId)?.id ?? null
@@ -2128,10 +2107,8 @@ export function GearRecommendationsPanel() {
     () => buildGemVisualLookup(selectedCharacterProfile, ninjaGemIcons ?? []),
     [ninjaGemIcons, selectedCharacterProfile],
   )
-  const { data: buildTargets = [], isLoading: buildTargetsLoading } = useBuildTargets(
-    activeGroupId,
-    targetUserId,
-  )
+  const buildTargetsQuery = useBuildTargets(activeGroupId, targetUserId)
+  const { data: buildTargets = [], isLoading: buildTargetsLoading } = buildTargetsQuery
 
   useEffect(() => {
     if (
@@ -2280,7 +2257,13 @@ export function GearRecommendationsPanel() {
     )
   }, [buildTargetStages, selectedBuildTarget, selectedStageId])
 
-  const { data: analysisRuns = [], isLoading: runsLoading } = useUpgradeAnalysisRuns(
+  const {
+    data: analysisRuns = [],
+    isLoading: runsLoading,
+    isFetching: runsFetching,
+    isError: runsFailed,
+    refetch: retryRuns,
+  } = useUpgradeAnalysisRuns(
     activeGroupId,
     targetUserId,
     selectedBuildTarget?.id ?? null,
@@ -2315,10 +2298,7 @@ export function GearRecommendationsPanel() {
     () => getLatestLiveRun(displayedAnalysisRuns),
     [displayedAnalysisRuns],
   )
-  const latestFreshRun = useMemo(
-    () => getPreferredRun(displayedAnalysisRuns),
-    [displayedAnalysisRuns],
-  )
+  const latestCompletedRun = displayedAnalysisRuns.find((run) => run.status === 'completed')
 
   useEffect(() => {
     if (!displayedAnalysisRuns.length) {
@@ -2341,16 +2321,6 @@ export function GearRecommendationsPanel() {
       setPendingRunPreview(null)
     }
 
-    if (latestLiveRun) {
-      if (selectedRunId !== latestLiveRun.id) {
-        setSelectedRunId(latestLiveRun.id)
-      }
-      if (pendingSelectedRunId === latestLiveRun.id) {
-        setPendingSelectedRunId(null)
-      }
-      return
-    }
-
     if (selectedRunId && displayedAnalysisRuns.some((run) => run.id === selectedRunId)) {
       if (pendingSelectedRunId === selectedRunId) {
         setPendingSelectedRunId(null)
@@ -2362,35 +2332,87 @@ export function GearRecommendationsPanel() {
       return
     }
 
-    setSelectedRunId(latestFreshRun?.id ?? null)
+    setSelectedRunId(null)
   }, [
     analysisRuns,
     contextualPendingRunPreview,
     displayedAnalysisRuns,
-    latestLiveRun,
-    latestFreshRun,
     pendingSelectedRunId,
     selectedRunId,
   ])
 
-  const selectedRun =
-    displayedAnalysisRuns.find((run) => run.id === selectedRunId) ??
-    (contextualPendingRunPreview &&
-    (selectedRunId === contextualPendingRunPreview.id ||
-      pendingSelectedRunId === contextualPendingRunPreview.id ||
-      contextualPendingRunPreview.status === 'queued' ||
-      contextualPendingRunPreview.status === 'running')
-      ? contextualPendingRunPreview
-      : null) ??
-    latestLiveRun ??
-    latestFreshRun
+  useEffect(() => {
+    if (!requestedRunId) {
+      refreshedRunRequestRef.current = null
+      return
+    }
+    if (
+      !activeGroupId || !targetUserId || myCharactersLoading || buildTargetsLoading ||
+      selectedCharacterStorageHydratedKey !== selectedCharacterStorageKey
+    ) return
+
+    const requestedTarget = buildTargets.find((target) => target.id === requestedBuildTargetId)
+    const requestedCharacter = myCharacters.find((character) => character.id === requestedTarget?.character_id)
+    if (requestedTarget && requestedCharacter) {
+      if (selectedCharacterId !== requestedCharacter.id || selectedBuildTargetId !== requestedTarget.id) {
+        setHasManuallySelectedCharacter(true)
+        setSelectedCharacterId(requestedCharacter.id)
+        setSelectedBuildTargetId(requestedTarget.id)
+        return
+      }
+
+      if (runsFetching) return
+      if (analysisRuns.some((run) => run.id === requestedRunId)) {
+        setSelectedRunId(requestedRunId)
+        setSetupExpanded(false)
+        setHistoryExpanded(false)
+        setActionMessage(null)
+        onRunRequestHandled()
+        return
+      }
+
+      // The top bar and history use separate queries, so history may have an older cache entry.
+      if (!runsFailed && refreshedRunRequestRef.current !== requestedRunId) {
+        refreshedRunRequestRef.current = requestedRunId
+        void retryRuns()
+        return
+      }
+    }
+
+    setSelectedRunId(null)
+    setActionMessage('Could not open this analysis run.')
+    onRunRequestHandled()
+  }, [
+    activeGroupId,
+    analysisRuns,
+    buildTargets,
+    buildTargetsLoading,
+    myCharacters,
+    myCharactersLoading,
+    onRunRequestHandled,
+    requestedBuildTargetId,
+    requestedRunId,
+    retryRuns,
+    runsFailed,
+    runsFetching,
+    selectedBuildTargetId,
+    selectedCharacterId,
+    selectedCharacterStorageHydratedKey,
+    selectedCharacterStorageKey,
+    targetUserId,
+  ])
+
+  const selectedRun = displayedAnalysisRuns.find((run) => run.id === selectedRunId) ?? null
   const reservationAuditAnchorId = selectedRun ? `reservation-audit-${selectedRun.id}` : undefined
   const selectedRunIsLive = selectedRun?.status === 'queued' || selectedRun?.status === 'running'
-  const runtimeEstimateMode = selectedRunIsLive
-    ? (selectedRun?.analysis_mode ?? analysisMode)
-    : analysisMode
+  const runtimeEstimateMode = latestLiveRun?.analysis_mode ?? analysisMode
   const { data: runtimeEstimate } = useAnalysisRuntimeEstimate(runtimeEstimateMode)
-  const { data: recommendationPlans = [], isLoading: recommendationsLoading } =
+  const {
+    data: recommendationPlans = [],
+    isLoading: recommendationsLoading,
+    isError: recommendationsFailed,
+    refetch: retryRecommendations,
+  } =
     useUpgradeRecommendationPlans(
       selectedRunIsLive ? null : (selectedRun?.id ?? null),
       selectedRunIsLive ? null : (selectedRun?.status ?? null),
@@ -2546,10 +2568,10 @@ export function GearRecommendationsPanel() {
   const recommendationStageTreeSpec = selectedRun ? selectedRunStageTreeSpec : inspectedTreeSpec
   const recommendationStageSkillSet = selectedRun ? selectedRunStageSkillSet : inspectedSkillSet
   const recommendationStageIsDraft = !selectedRun && isDraftStageTree
-  const selectedRunWaitInfo = getTradeRateLimitWaitInfo(selectedRun, nowMs)
+  const liveRunWaitInfo = getTradeRateLimitWaitInfo(latestLiveRun, nowMs)
   const runtimeEstimateSummary = formatRuntimeEstimateSummary(runtimeEstimate)
   const runtimeEstimateChipLabel =
-    selectedRun?.analysis_mode === 'thorough'
+    latestLiveRun?.analysis_mode === 'thorough'
       ? formatRuntimeEstimateChipLabel(runtimeEstimate)
       : null
   const selectedRunPlanCount = getSummaryNumber(selectedRun?.summary, 'generated_plan_count')
@@ -2584,10 +2606,6 @@ export function GearRecommendationsPanel() {
   }, [selectedRunComparePowerReport])
   const selectedRunHasConfigurationInsightButton =
     !!selectedRunConfigurationInsights || !!selectedRunConfigSetTitle
-  const selectedRunFailureCopy = useMemo(
-    () => getUpgradeAnalysisFailureCopy(selectedRun),
-    [selectedRun],
-  )
   const selectedRunEmptyPlansCopy = useMemo(
     () => getUpgradeAnalysisEmptyPlansCopy(selectedRun),
     [selectedRun],
@@ -2608,8 +2626,6 @@ export function GearRecommendationsPanel() {
     }
     return details
   }, [currencyDisplay, divinePrice, selectedRun, selectedRunStageLabel])
-  const staleRunCount = displayedAnalysisRuns.filter((run) => run.status === 'stale').length
-  const freshRunCount = displayedAnalysisRuns.length - staleRunCount
   const analysisActionPending = analysisSubmitFlowPending
   const draftCraftedLineState = useMemo(() => {
     let total = 0
@@ -2761,8 +2777,8 @@ export function GearRecommendationsPanel() {
     }
   }, [allowTemplateRareFallbackInPrimary, recommendationSections])
 
-  const canQueueRun = myRole !== 'viewer'
-  const canPromote = myRole !== 'viewer'
+  const canQueueRun = myRole === 'admin' || myRole === 'editor'
+  const canPromote = canQueueRun
 
   function startAnalysisSubmitFlow() {
     const flowId = submitFlowSequenceRef.current + 1
@@ -2936,7 +2952,7 @@ export function GearRecommendationsPanel() {
           <Dropdown>
             <Dropdown.Trigger
               aria-label="Select budget currency"
-              className="text-default-400 hover:text-foreground focus-visible:ring-primary/40 rounded-small inline-flex cursor-pointer items-center gap-1 px-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+              className="text-default-400 hover:text-foreground rounded-small inline-flex cursor-pointer items-center gap-1 px-1 text-xs font-medium transition-colors"
             >
               {budgetCurrency}
               <ChevronDown size={12} />
@@ -3112,7 +3128,7 @@ export function GearRecommendationsPanel() {
         {draftSearchConstraintChips.length ? (
           <div className="flex flex-wrap gap-2">
             {draftSearchConstraintChips.map((chip) => (
-              <Chip key={chip} size="sm" variant="soft" color="accent">
+              <Chip key={chip} size="sm" variant="soft">
                 {chip}
               </Chip>
             ))}
@@ -3155,7 +3171,7 @@ export function GearRecommendationsPanel() {
     analysisModeOverride?: UpgradeAnalysisMode
     attemptIncrementalRerun?: boolean
   }) {
-    if (!activeGroupId || !selectedBuildTarget) return
+    if (!activeGroupId || !selectedBuildTarget || !canQueueRun || latestLiveRun || activeSubmitFlowIdRef.current !== null) return
     const submitFlowId = startAnalysisSubmitFlow()
     const effectiveAnalysisMode = options?.analysisModeOverride ?? analysisMode
     const effectiveBudgetChaos = effectiveAnalysisMode === 'thorough' ? normalizedBudgetChaos : 0
@@ -3187,6 +3203,7 @@ export function GearRecommendationsPanel() {
     })
     setPendingRunPreview(prelimDraft)
     setSelectedRunId(prelimDraft.id)
+    let submittedDraftId = prelimDraft.id
 
     try {
       const syncCharacterId = selectedCharacter?.id ?? selectedBuildTarget.character_id ?? null
@@ -3212,7 +3229,8 @@ export function GearRecommendationsPanel() {
 
       setPendingSelectedRunId(draftRun.id)
       setPendingRunPreview(draftRun)
-      setSelectedRunId(draftRun.id)
+      setSelectedRunId((current) => current === prelimDraft.id ? draftRun.id : current)
+      submittedDraftId = draftRun.id
 
       const incrementalChangedSlots =
         options?.attemptIncrementalRerun && selectedRun
@@ -3269,7 +3287,7 @@ export function GearRecommendationsPanel() {
 
       setPendingSelectedRunId(result.run.id)
       setPendingRunPreview(result.run)
-      setSelectedRunId(result.run.id)
+      setSelectedRunId((current) => current === draftRun.id ? result.run.id : current)
       setActionMessage(
         result.reused
           ? `Reused the latest cached ${getAnalysisModeLabel(result.run.analysis_mode).toLowerCase()} for these exact inputs.`
@@ -3282,7 +3300,7 @@ export function GearRecommendationsPanel() {
       setRunTransitionLoading(false)
       setPendingSelectedRunId(null)
       setPendingRunPreview(null)
-      setSelectedRunId(previousRunId)
+      setSelectedRunId((current) => current === submittedDraftId ? previousRunId : current)
       setActionMessage(error instanceof Error ? error.message : 'Failed to queue analysis run.')
     } finally {
       finishAnalysisSubmitFlow(submitFlowId)
@@ -3293,20 +3311,20 @@ export function GearRecommendationsPanel() {
     setActionMessage(null)
 
     // Still in the submit flow (pre-persistence) — abort and restore previous state
-    if (analysisActionPending || selectedRun?.summary?.queue_submission_pending === true) {
+    if (analysisActionPending || latestLiveRun?.summary?.queue_submission_pending === true) {
       cancelAnalysisSubmitFlow()
       setPendingRunPreview(null)
       setPendingSelectedRunId(null)
       setRunTransitionLoading(false)
-      setSelectedRunId(preRunSelectedRunId)
+      setSelectedRunId((current) => current === latestLiveRun?.id ? preRunSelectedRunId : current)
       return
     }
 
-    if (!selectedRun || !activeGroupId || !selectedBuildTarget) return
+    if (!latestLiveRun || !activeGroupId || !selectedBuildTarget || !canQueueRun) return
 
     try {
       await cancelUpgradeAnalysis({
-        run_id: selectedRun.id,
+        run_id: latestLiveRun.id,
         group_id: activeGroupId,
         target_user_id: targetUserId ?? selectedBuildTarget.user_id,
         build_target_id: selectedBuildTarget.id,
@@ -3314,7 +3332,7 @@ export function GearRecommendationsPanel() {
       setPendingRunPreview(null)
       setPendingSelectedRunId(null)
       setRunTransitionLoading(false)
-      setSelectedRunId(preRunSelectedRunId)
+      setSelectedRunId((current) => current === latestLiveRun.id ? preRunSelectedRunId : current)
     } catch (error) {
       setActionMessage(error instanceof Error ? error.message : 'Failed to cancel the run.')
     }
@@ -3517,30 +3535,187 @@ export function GearRecommendationsPanel() {
     }
   }
 
+  const failedInputQuery = [membersQuery, charactersQuery].find(
+    (query) => query.isError && query.data === undefined,
+  )
+  if (failedInputQuery) {
+    return (
+      <QueryStatePanel
+        kind="error"
+        title="Could not load analysis setup"
+        description="Try loading your workspace and characters again."
+        onRetry={failedInputQuery.refetch}
+      />
+    )
+  }
   if (membersLoading || myCharactersLoading) {
     return <CardListSkeleton rows={4} />
   }
 
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-foreground text-lg font-semibold">Optimizer Recommendations</h2>
-          <p className="text-default-500 mt-1 text-sm">
-            Import a target PoB, choose the tree, item set, and skill set you want to compare
-            against, then run cached analysis against your current character and stash pool.
-          </p>
-        </div>
-      </div>
+  const showSetup = setupExpanded || !selectedRun
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-6">
-          <Card>
+  return (
+    <div className="@container flex min-w-0 flex-col gap-5">
+      {displayedAnalysisRuns.length > 0 || runsLoading || runsFailed ? (
+        <section aria-labelledby="analysis-run-title" className="analysis-run-summary">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 id="analysis-run-title" className="text-foreground text-base font-semibold">Analysis run</h2>
+              <p className="text-default-500 mt-1 text-sm wrap-anywhere">
+                Setup: {[selectedCharacter?.name, selectedBuildTarget?.name, getAnalysisModeLabel(analysisMode),
+                  analysisMode === 'thorough'
+                    ? getRunBudgetLabel({ analysis_mode: analysisMode, budget_chaos: normalizedBudgetChaos }, currencyDisplay, divinePrice)
+                    : null,
+                ].filter(Boolean).join(' · ')}
+              </p>
+              {selectedRun ? (
+                <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  {latestLiveRun?.id !== selectedRun.id ? (
+                    <Chip size="sm" color={RUN_STATUS_COLORS[selectedRun.status]} variant="soft" className="capitalize">
+                      {selectedRun.status}
+                    </Chip>
+                  ) : null}
+                  <p className="text-default-600 min-w-0 text-sm wrap-anywhere">
+                    {latestLiveRun && latestLiveRun.id !== selectedRun.id ? 'Viewing previous run · ' : ''}
+                    {getAnalysisModeLabel(selectedRun.analysis_mode)}
+                    {selectedRun.completed_at ? ' · ' + formatRelativeTimestamp(selectedRun.completed_at) : ''}
+                    {selectedRunContextDetails.length ? ' · ' + selectedRunContextDetails.join(' · ') : ''}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="tertiary"
+                aria-controls="analysis-run-history"
+                aria-expanded={historyExpanded}
+                onPress={() => setHistoryExpanded((current) => !current)}
+              >
+                Run history
+                <ChevronDown size={14} aria-hidden="true" className={historyExpanded ? 'rotate-180' : undefined} />
+              </Button>
+              {selectedRun ? (
+                <Button
+                  size="sm"
+                  variant="tertiary"
+                  aria-controls="analysis-setup"
+                  aria-expanded={showSetup}
+                  onPress={() => setSetupExpanded((current) => !current)}
+                >
+                  {showSetup ? 'Hide setup' : latestLiveRun ? 'View setup' : 'Edit setup'}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          {latestLiveRun ? (
+            <RunActivityStrip
+              title={
+                latestLiveRun.summary?.queue_submission_pending === true
+                  ? 'Preparing your analysis'
+                  : liveRunWaitInfo
+                    ? 'Waiting for trade cooldown'
+                    : latestLiveRun.status === 'queued'
+                      ? 'Analysis queued'
+                      : 'Analysis running'
+              }
+              detail={getRunStatusCopy(latestLiveRun, nowMs)}
+              waitLabel={liveRunWaitInfo ? 'Resumes in ' + formatCountdown(liveRunWaitInfo.remainingMs) : null}
+              timeline={
+                latestLiveRun.status === 'running'
+                  ? getRunPhaseTimeline(latestLiveRun, getCurrentRunPhaseId(latestLiveRun)?.id ?? null)
+                  : undefined
+              }
+              elapsedLabel={latestLiveRun.status === 'running' && !liveRunWaitInfo ? formatElapsedSince(latestLiveRun.started_at, nowMs) : null}
+              estimatedLabel={runtimeEstimateChipLabel}
+              onCancel={canQueueRun ? () => void handleCancelRun() : undefined}
+              cancelLoading={cancellingAnalysis}
+            />
+          ) : null}
+          <div id="analysis-run-history" hidden={!historyExpanded} className="analysis-run-progress">
+            {runsFailed ? (
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <p role="status" className="text-danger text-sm">Could not refresh run history.</p>
+                <Button size="sm" variant="tertiary" onPress={() => void retryRuns()}>Try again</Button>
+              </div>
+            ) : null}
+            {runsLoading ? (
+              <p className="text-default-500 text-sm">Loading runs...</p>
+            ) : displayedAnalysisRuns.length === 0 ? (
+              runsFailed ? null : <p className="text-default-500 text-sm">No runs queued yet.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {displayedAnalysisRuns.map((run) => (
+                  <button
+                    key={run.id}
+                    type="button"
+                    aria-pressed={run.id === selectedRun?.id}
+                    className={`rounded-large border p-3 text-left transition-colors ${
+                      run.id === selectedRun?.id
+                        ? 'border-highlight bg-selected'
+                        : 'border-control bg-content1 hover:bg-content2'
+                    }`}
+                    onClick={() => setSelectedRunId(run.id)}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Chip
+                          size="sm"
+                          color={RUN_STATUS_COLORS[run.status]}
+                          variant="soft"
+                          className={run.status === 'running' ? 'bg-info-soft text-info' : undefined}
+                        >
+                          {run.status}
+                        </Chip>
+                        {latestCompletedRun?.id === run.id ? (
+                          <Chip size="sm" variant="soft" color="success">
+                            Latest completed
+                          </Chip>
+                        ) : null}
+                        <Chip
+                          size="sm"
+                          variant="soft"
+                        >
+                          {run.analysis_mode === 'thorough' ? 'Live' : 'Quick'}
+                        </Chip>
+                      </div>
+                      <span className="text-default-400 flex items-center gap-2 text-xs">
+                        {formatRelativeTimestamp(run.created_at)}
+                        {run.id === selectedRun?.id && <Check size={14} className="text-highlight" aria-hidden="true" />}
+                      </span>
+                    </div>
+                    <p className="text-foreground mt-2 text-sm font-medium">
+                      {getRunBudgetLabel(run, currencyDisplay, divinePrice)}
+                    </p>
+                    <p className="text-default-500 mt-1 text-xs">
+                      {getRunStatusCopy(run, nowMs)}
+                    </p>
+                    {getDisplayedPartialReason(run, nowMs) ? (
+                      <p className="text-default-500 mt-1 text-xs">
+                        {getDisplayedPartialReason(run, nowMs)}
+                      </p>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      ) : null}
+      {actionMessage ? <p role="status" className="text-default-600 text-sm wrap-anywhere">{actionMessage}</p> : null}
+      <div
+        id="analysis-setup"
+        className={showSetup
+          ? 'grid min-w-0 grid-cols-1 gap-5 @min-[48rem]:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]'
+          : 'hidden'}
+      >
+        <div className="flex min-w-0 flex-col gap-6">
+          <Card className="gap-0 p-0">
             <Card.Header className="px-4 pt-4 pb-0">
               <div>
-                <p className="text-foreground text-sm font-semibold">Import target PoB</p>
+                <h2 className="text-foreground text-sm font-semibold">Import target PoB</h2>
                 <p className="text-default-500 mt-1 text-sm">
-                  Imports become reusable build targets for the selected character.
+                  Save a Path of Building target for this character.
                 </p>
               </div>
             </Card.Header>
@@ -3554,7 +3729,7 @@ export function GearRecommendationsPanel() {
               <FieldTextArea
                 label="PoB share code or XML"
                 minRows={6}
-                placeholder="Paste a PoB share code or the full exported XML"
+                placeholder="Paste a share code or exported XML"
                 value={importPayload}
                 onValueChange={setImportPayload}
               />
@@ -3601,25 +3776,35 @@ export function GearRecommendationsPanel() {
             </Card.Content>
           </Card>
 
-          <Card>
+          <Card className="gap-0 p-0">
             <Card.Header className="px-4 pt-4 pb-0">
               <div>
-                <p className="text-foreground text-sm font-semibold">Imported targets</p>
-                <p className="text-default-500 mt-1 text-sm">
-                  Choose a target for this character. The setup on the right controls what the next
-                  analysis run compares against.
-                </p>
+                <h2 className="text-foreground text-sm font-semibold">Imported targets</h2>
               </div>
             </Card.Header>
             <Card.Content className="gap-3 px-4 pt-3 pb-4">
-              {buildTargetsLoading ? (
+              {buildTargetsQuery.isError && buildTargetsQuery.data ? (
+                <QueryFreshnessNotice
+                  refreshFailed
+                  isRefreshing={buildTargetsQuery.isFetching}
+                  onRetry={buildTargetsQuery.refetch}
+                />
+              ) : null}
+              {buildTargetsQuery.isError && !buildTargetsQuery.data ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <p role="alert" className="text-danger text-sm">Could not load build targets.</p>
+                  <Button size="sm" variant="tertiary" onPress={() => void buildTargetsQuery.refetch()}>
+                    Try again
+                  </Button>
+                </div>
+              ) : buildTargetsLoading ? (
                 <p className="text-default-500 text-sm">Loading build targets...</p>
               ) : !selectedCharacter ? (
                 <p className="text-default-500 text-sm">
                   Select one of your characters to load build targets.
                 </p>
               ) : visibleBuildTargets.length === 0 ? (
-                <p className="text-default-500 text-sm">
+                <p className="text-default-500 wrap-anywhere text-sm">
                   No build targets imported for {selectedCharacter.name} yet.
                 </p>
               ) : (
@@ -3627,15 +3812,15 @@ export function GearRecommendationsPanel() {
                   <div
                     key={target.id}
                     className={`rounded-large border p-3 ${
-                      target.is_selected ? 'border-warning/60 bg-warning/10' : 'border-divider'
+                      target.is_selected ? 'border-highlight bg-selected' : 'border-divider bg-content1'
                     }`}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-foreground text-sm font-semibold">{target.name}</p>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-foreground wrap-anywhere text-sm font-semibold">{target.name}</p>
                           {target.is_selected ? (
-                            <Chip size="sm" color="warning" variant="soft">
+                            <Chip size="sm" variant="soft" className="text-highlight">
                               Selected
                             </Chip>
                           ) : null}
@@ -3655,7 +3840,7 @@ export function GearRecommendationsPanel() {
                       </Chip>
                     </div>
                     {target.compatibility_notes ? (
-                      <p className="text-default-600 mt-2 text-sm">{target.compatibility_notes}</p>
+                      <p className="text-default-600 wrap-anywhere mt-2 text-sm">{target.compatibility_notes}</p>
                     ) : null}
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Chip size="sm" variant="soft">
@@ -3691,7 +3876,7 @@ export function GearRecommendationsPanel() {
                         >
                           {({ isPending }) => (
                             <PendingButtonContent isPending={isPending}>
-                              Make selected
+                              Use target
                             </PendingButtonContent>
                           )}
                         </Button>
@@ -3717,37 +3902,28 @@ export function GearRecommendationsPanel() {
           </Card>
         </div>
 
-        <div className="flex flex-col gap-6">
-          <Card>
+        <div className="flex min-w-0 flex-col gap-6">
+          <Card className="gap-0 p-0">
             <Card.Header className="px-4 pt-4 pb-0">
               <div className="flex flex-1 flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-foreground text-sm font-semibold">Analysis setup</p>
+                  <h2 className="text-foreground text-sm font-semibold">Analysis setup</h2>
                   <p className="text-default-500 mt-1 text-sm">
-                    Choose which imported PoB layouts define the target for the next run.
+                    Choose the PoB layouts to compare.
                   </p>
                 </div>
                 {selectedBuildTarget ? (
-                  <Chip size="sm" variant="soft">
-                    {inspectedStageLabel}
+                  <Chip size="sm" variant="soft" className="h-auto max-w-full whitespace-normal">
+                    <span className="wrap-anywhere">{inspectedStageLabel}</span>
                   </Chip>
                 ) : null}
               </div>
             </Card.Header>
             <Card.Content className="gap-4 px-4 pt-3 pb-4">
-              {selectedRunIsLive ? (
-                <div className="rounded-large border-warning/40 bg-warning/10 flex items-center gap-2 border p-3">
-                  <Spinner size="sm" color="warning" />
-                  <p className="text-warning text-sm font-semibold">
-                    {selectedRun?.summary?.queue_submission_pending === true
-                      ? 'Preparing analysis — configuration locked'
-                      : 'Analysis running — configuration locked until complete'}
-                  </p>
-                </div>
+              {latestLiveRun ? (
+                <p className="text-default-600 text-sm">Settings are locked during the active run.</p>
               ) : null}
-              <div
-                className={`transition-opacity duration-200 ${selectedRunIsLive ? 'pointer-events-none opacity-50' : ''}`}
-              >
+              <div inert={!!latestLiveRun} className={latestLiveRun ? 'opacity-60' : undefined}>
                 <div className="flex flex-col gap-4">
                   <div className="grid gap-3 md:grid-cols-2">
                     <SelectField
@@ -3886,28 +4062,25 @@ export function GearRecommendationsPanel() {
                             setAnalysisMode(value)
                           }
                         }}
-                        className="grid w-full gap-3 md:grid-cols-2"
+                        aria-label="Analysis mode"
+                        className="!grid w-full min-w-0 grid-cols-1 gap-3 @min-[63rem]:grid-cols-2"
                       >
                         {ANALYSIS_MODE_OPTIONS.map((option) => (
                           <ToggleButton
                             key={option.key}
                             id={option.key}
-                            className="rounded-large border-divider bg-content1 data-[selected=true]:border-warning/60 data-[selected=true]:bg-warning/10 h-auto min-h-24 w-full justify-start border p-3 text-left"
+                            className="rounded-large border-control data-[selected=true]:border-highlight h-auto min-w-0 w-full justify-start border p-3 text-left whitespace-normal [--toggle-button-bg:var(--surface)] [--toggle-button-bg-hover:var(--surface-secondary)]"
                           >
                             <span className="flex w-full min-w-0 flex-col gap-2">
                               <span className="flex flex-wrap items-center justify-between gap-2">
                                 <span className="text-foreground text-sm font-semibold">
                                   {option.label}
                                 </span>
-                                <Chip
-                                  size="sm"
-                                  variant="soft"
-                                  color={option.key === 'thorough' ? 'accent' : 'default'}
-                                >
+                                <Chip size="sm" variant="soft">
                                   {option.key === 'thorough' ? 'Minutes' : 'Fast'}
                                 </Chip>
                               </span>
-                              <span className="text-default-500 text-sm">{option.description}</span>
+                              <span className="text-default-500 text-sm wrap-anywhere">{option.description}</span>
                             </span>
                           </ToggleButton>
                         ))}
@@ -4095,20 +4268,7 @@ export function GearRecommendationsPanel() {
               {selectedBuildTarget ? (
                 <div className="flex flex-col items-end gap-2">
                   <div className="flex w-full justify-end">
-                    {selectedRunIsLive ? (
-                      <Button
-                        variant="danger-soft"
-                        className="w-full md:w-auto"
-                        isPending={cancellingAnalysis}
-                        onPress={() => void handleCancelRun()}
-                      >
-                        {({ isPending }) => (
-                          <PendingButtonContent isPending={isPending}>
-                            Cancel run
-                          </PendingButtonContent>
-                        )}
-                      </Button>
-                    ) : (
+                    {!latestLiveRun ? (
                       <Button
                         className="w-full md:w-auto"
                         isDisabled={!canQueueRun}
@@ -4121,16 +4281,11 @@ export function GearRecommendationsPanel() {
                           </PendingButtonContent>
                         )}
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                   {!selectedRunIsLive && runtimeEstimateSummary ? (
                     <p className="text-default-400 text-right text-xs leading-snug">
                       {runtimeEstimateSummary}
-                    </p>
-                  ) : null}
-                  {actionMessage ? (
-                    <p className="text-default-400 text-right text-xs leading-snug">
-                      {actionMessage}
                     </p>
                   ) : null}
                 </div>
@@ -4142,525 +4297,315 @@ export function GearRecommendationsPanel() {
               ) : null}
             </Card.Content>
           </Card>
-
-          <Card>
-            <Card.Header className="px-4 pt-4 pb-0">
+        </div>
+      </div>
+        <Card role="region" aria-labelledby="analysis-recommendations" className="min-w-0 gap-0 p-0">
+          <Card.Header className="px-4 pt-4 pb-0">
+            <div className="flex flex-1 flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-foreground text-sm font-semibold">Analysis run</p>
+                <h2 id="analysis-recommendations" tabIndex={-1} className="text-foreground text-base font-semibold">
+                  Recommendations
+                </h2>
                 <p className="text-default-500 mt-1 text-sm">
-                  Manual cached runs stay cheap and explicit. Stale runs are marked automatically
-                  when core inputs change.
+                  Review upgrades and send useful picks to Gear Planning.
                 </p>
               </div>
-            </Card.Header>
-            <Card.Content className="gap-4 px-4 pt-3 pb-4">
-              {selectedRun?.status === 'stale' ? (
-                <div className="rounded-large border-warning/40 bg-warning/10 border p-3">
-                  <p className="text-foreground text-sm font-semibold">Selected run is stale</p>
-                  <p className="text-default-600 mt-1 text-sm">
-                    {formatStaleReason(selectedRun.stale_reason)} Run analysis again from the setup
-                    box to refresh the recommendations.
-                  </p>
-                </div>
-              ) : null}
-              <div className="flex flex-col gap-3">
-                <div className="rounded-large border-divider border p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-foreground text-sm font-semibold">Current run</p>
-                      <p className="text-default-500 mt-1 text-sm">
-                        This is the run the page is actively following.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {freshRunCount > 0 ? (
-                        <Chip size="sm" variant="soft" color="success">
-                          {freshRunCount} fresh
-                        </Chip>
-                      ) : null}
-                      {staleRunCount > 0 ? (
-                        <Chip size="sm" variant="soft" color="warning">
-                          {staleRunCount} stale
-                        </Chip>
-                      ) : null}
-                    </div>
-                  </div>
-                  {!selectedRun ? (
-                    <p className="text-default-500 mt-4 text-sm">
-                      Choose a run to inspect recommendations.
-                    </p>
-                  ) : (
-                    <div className="mt-4 flex flex-col gap-4">
-                      {selectedRun.status === 'queued' || selectedRun.status === 'running' ? (
-                        <RunActivityStrip
-                          phase={
-                            selectedRun.summary?.queue_submission_pending === true
-                              ? 'submitting'
-                              : selectedRun.status === 'running'
-                                ? 'running'
-                                : 'queued'
-                          }
-                          title={
-                            selectedRun.summary?.queue_submission_pending === true
-                              ? 'Preparing your analysis'
-                              : selectedRunWaitInfo
-                                ? 'Waiting for trade cooldown'
-                                : selectedRun.status === 'queued'
-                                  ? 'Analysis queued'
-                                  : 'Analysis running'
-                          }
-                          detail={getRunStatusCopy(selectedRun, nowMs)}
-                          waitLabel={
-                            selectedRun.summary?.queue_submission_pending === true
-                              ? null
-                              : selectedRunWaitInfo
-                                ? `Resumes in ${formatCountdown(selectedRunWaitInfo.remainingMs)}`
-                                : selectedRun.status === 'queued'
-                                  ? 'Queued'
-                                  : null
-                          }
-                          timeline={
-                            selectedRun.status === 'running'
-                              ? getRunPhaseTimeline(
-                                  selectedRun,
-                                  getCurrentRunPhaseId(selectedRun)?.id ?? null,
-                                )
-                              : undefined
-                          }
-                          elapsedLabel={
-                            selectedRun.status === 'running' && !selectedRunWaitInfo
-                              ? formatElapsedSince(selectedRun.started_at, nowMs)
-                              : null
-                          }
-                          estimatedLabel={runtimeEstimateChipLabel}
-                          onCancel={canQueueRun ? () => void handleCancelRun() : undefined}
-                          cancelLoading={cancellingAnalysis}
-                        />
-                      ) : null}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div
-                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${
-                            selectedRun.analysis_mode === 'thorough'
-                              ? 'border-accent/40 bg-accent/10 text-accent'
-                              : 'border-default-300 bg-default-100/80 text-default-700'
-                          }`}
-                        >
-                          <span
-                            className={`h-2 w-2 rounded-full ${
-                              selectedRun.analysis_mode === 'thorough'
-                                ? 'bg-accent'
-                                : 'bg-default-400'
-                            }`}
-                          />
-                          <span>{getAnalysisModeLabel(selectedRun.analysis_mode)}</span>
-                        </div>
-                        {selectedRunMainSkillName ? (
-                          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
-                            <span className="text-default-400 text-[11px] font-medium tracking-[0.14em] uppercase">
-                              Main skill
-                            </span>
-                            {selectedRunMainSkillVisual?.icon ? (
-                              <img
-                                src={selectedRunMainSkillVisual.icon}
-                                alt=""
-                                className="h-4 w-4 rounded-full object-contain"
-                              />
-                            ) : (
-                              <span className="bg-default-400/40 h-3 w-3 shrink-0 rounded-full" />
-                            )}
-                            <span
-                              className={`text-xs font-medium ${getSocketTextColorClass(selectedRunMainSkillVisual?.socketColor ?? null)}`}
-                            >
-                              {selectedRunMainSkillName}
-                            </span>
-                          </div>
-                        ) : null}
-                        {selectedRun.completed_at ? (
-                          <Chip size="sm" variant="soft">
-                            Completed {formatRelativeTimestamp(selectedRun.completed_at)}
-                          </Chip>
-                        ) : null}
-                      </div>
-                      {selectedRunContextDetails.length > 0 ? (
-                        <p className="text-default-400 text-sm">
-                          {selectedRunContextDetails.join(' · ')}
-                        </p>
-                      ) : null}
-                      {(selectedRun.party_config.length > 0 &&
-                        selectedRunAppliedPartyCount !== null) ||
-                      selectedRunHasConfigurationInsightButton ? (
-                        <div className="flex flex-wrap gap-2">
-                          {selectedRun.party_config.length > 0 &&
-                          selectedRunAppliedPartyCount !== null ? (
-                            <Button
-                              size="sm"
-                              variant="tertiary"
-                              onPress={() => setPartyBuffDetailOpen(true)}
-                            >
-                              {selectedRunAppliedPartyCount > 0
-                                ? `Party buffs ${selectedRunAppliedPartyCount}/${selectedRun.party_config.length}`
-                                : 'Party buffs: none applied'}
-                            </Button>
-                          ) : null}
-                          {selectedRunHasConfigurationInsightButton ? (
-                            <Button
-                              size="sm"
-                              variant="tertiary"
-                              onPress={() => setConfigInsightDetailOpen(true)}
-                            >
-                              PoB configuration insights
-                            </Button>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      {selectedRun.status !== 'queued' && selectedRun.status !== 'running' ? (
-                        <p className="text-default-500 text-sm">
-                          {getRunStatusCopy(selectedRun, nowMs)}
-                        </p>
-                      ) : null}
-                      <div className="flex flex-wrap gap-2">
-                        {selectedRunPlanCount != null ? (
-                          <Chip size="sm" variant="soft">
-                            {selectedRunPlanCount} plans
-                          </Chip>
-                        ) : null}
-                        {selectedRunBlockers.length ? (
-                          <Chip size="sm" variant="soft" color="warning">
-                            {selectedRunBlockers.length} blockers
-                          </Chip>
-                        ) : null}
-                      </div>
-                      {selectedRunBlockers.length ? (
-                        <div className="rounded-large border-divider/70 bg-default-50/70 border p-3">
-                          <p className="text-default-500 text-xs font-semibold tracking-wide uppercase">
-                            Progress blockers
-                          </p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {selectedRunBlockers.slice(0, 4).map((blocker) => (
-                              <Chip key={blocker} size="sm" variant="soft" color="warning">
-                                {blocker}
-                              </Chip>
-                            ))}
-                            {selectedRunBlockers.length > 4 ? (
-                              <Chip size="sm" variant="soft">
-                                +{selectedRunBlockers.length - 4} more
-                              </Chip>
-                            ) : null}
-                          </div>
-                        </div>
-                      ) : null}
-                      {getDisplayedPartialReason(selectedRun, nowMs) ? (
-                        <p className="text-warning text-sm">
-                          {(getSummaryNumber(selectedRun.summary, 'exact_plan_count') ?? 0) > 0
-                            ? `Current scope: ${getDisplayedPartialReason(selectedRun, nowMs)}`
-                            : `Partial confidence: ${getDisplayedPartialReason(selectedRun, nowMs)}`}
-                        </p>
-                      ) : null}
-                      {selectedRun.error_detail ? (
-                        <p className="text-danger text-sm">{selectedRun.error_detail}</p>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-                <Accordion variant="surface">
-                  <AccordionPanelItem
-                    id="run-history"
-                    title="Run history"
-                    subtitle="Older and alternate runs live here when you need them."
+              <div className="flex min-w-0 flex-wrap gap-2">
+                {canQueueRun && selectedRun && selectedRun.analysis_mode === 'thorough' ? (
+                  <Button
+                    size="sm"
+                    isDisabled={!selectedBuildTarget || !!latestLiveRun}
+                    isPending={analysisActionPending}
+                    onPress={handleOpenManualTuningDialog}
                   >
-                    {runsLoading ? (
-                      <p className="text-default-500 text-sm">Loading runs...</p>
-                    ) : displayedAnalysisRuns.length === 0 ? (
-                      <p className="text-default-500 text-sm">No runs queued yet.</p>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {displayedAnalysisRuns.map((run) => (
-                          <button
-                            key={run.id}
-                            type="button"
-                            className={`rounded-large border p-3 text-left transition-colors ${
-                              run.id === selectedRun?.id
-                                ? 'border-warning/60 bg-warning/10'
-                                : 'border-divider'
-                            }`}
-                            onClick={() => setSelectedRunId(run.id)}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Chip
-                                  size="sm"
-                                  color={RUN_STATUS_COLORS[run.status]}
-                                  variant="soft"
-                                >
-                                  {run.status}
-                                </Chip>
-                                {latestFreshRun?.id === run.id && run.status !== 'stale' ? (
-                                  <Chip size="sm" variant="soft" color="success">
-                                    Latest fresh
-                                  </Chip>
-                                ) : null}
-                                <Chip
-                                  size="sm"
-                                  variant="soft"
-                                  color={run.analysis_mode === 'thorough' ? 'accent' : 'default'}
-                                >
-                                  {run.analysis_mode === 'thorough' ? 'Live' : 'Quick'}
-                                </Chip>
-                              </div>
-                              <span className="text-default-400 text-xs">
-                                {formatRelativeTimestamp(run.created_at)}
-                              </span>
-                            </div>
-                            <p className="text-foreground mt-2 text-sm font-medium">
-                              {getRunBudgetLabel(run, currencyDisplay, divinePrice)}
-                            </p>
-                            <p className="text-default-500 mt-1 text-xs">
-                              {getRunStatusCopy(run, nowMs)}
-                            </p>
-                            {getDisplayedPartialReason(run, nowMs) ? (
-                              <p className="text-default-500 mt-1 text-xs">
-                                {getDisplayedPartialReason(run, nowMs)}
-                              </p>
-                            ) : null}
-                            {run.error_detail ? (
-                              <p className="text-danger mt-1 text-xs">{run.error_detail}</p>
-                            ) : null}
-                          </button>
-                        ))}
-                      </div>
+                    {({ isPending }) => (
+                      <PendingButtonContent isPending={isPending}>
+                        Rerun with adjustments
+                      </PendingButtonContent>
                     )}
-                  </AccordionPanelItem>
-                </Accordion>
+                  </Button>
+                ) : null}
               </div>
-            </Card.Content>
-          </Card>
-
-          <Card>
-            <Card.Header className="px-4 pt-4 pb-0">
-              <div className="flex flex-1 flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-foreground text-sm font-semibold">Recommendations</p>
-                  <p className="text-default-500 mt-1 text-sm">
-                    Results are grouped into best singles and target uniques, with setup notes
-                    called out separately when they matter. Accepted picks can be added back into
-                    Gear Planning.
-                  </p>
-                </div>
-                <div className="flex shrink-0 flex-wrap gap-2">
-                  {canQueueRun && selectedRun && selectedRun.analysis_mode === 'thorough' ? (
-                    <Button
-                      size="sm"
-                      isDisabled={!selectedBuildTarget || selectedRunIsLive}
-                      isPending={analysisActionPending}
-                      onPress={handleOpenManualTuningDialog}
-                    >
-                      {({ isPending }) => (
-                        <PendingButtonContent isPending={isPending}>
-                          Rerun with manual tunings
-                        </PendingButtonContent>
+            </div>
+          </Card.Header>
+          <Card.Content className="@container/recommendations px-4 pt-3 pb-4">
+            {selectedRun && selectedRun.status !== 'failed' ? (
+              <details className="border-divider mb-4 border-b pb-3">
+                <summary className="cursor-pointer text-sm font-medium">Run details</summary>
+                <div className="mt-4 flex flex-col gap-4">
+                  {selectedRunMainSkillName ? (
+                    <div className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+                      <span className="text-default-400 text-[11px] font-medium tracking-[0.14em] uppercase">
+                        Main skill
+                      </span>
+                      {selectedRunMainSkillVisual?.icon ? (
+                        <img
+                          src={selectedRunMainSkillVisual.icon}
+                          alt=""
+                          className="h-4 w-4 rounded-full object-contain"
+                        />
+                      ) : (
+                        <span className="bg-default-400/40 h-3 w-3 shrink-0 rounded-full" />
                       )}
-                    </Button>
-                  ) : null}
-                  <Link to="/dashboard/gear" className="shrink-0">
-                    <Button size="sm" variant="tertiary">
-                      Open Gear Planning
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </Card.Header>
-            <Card.Content className="px-4 pt-3 pb-4">
-              <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(19rem,22rem)] xl:items-start">
-                <div className="order-2 flex flex-col gap-5 xl:order-1">
-                  {!selectedRun ? (
-                    <p className="text-default-500 text-sm">Queue or select a run first.</p>
-                  ) : selectedRunIsLive ? (
-                    <LiveRecommendationsSkeleton />
-                  ) : recommendationsLoading ? (
-                    <LiveRecommendationsSkeleton />
-                  ) : selectedRun.status === 'failed' ? (
-                    <div className="rounded-large border-danger/40 bg-danger/10 border p-4">
-                      <p className="text-foreground text-sm font-semibold">
-                        {selectedRunFailureCopy.title}
-                      </p>
-                      <p className="text-default-600 mt-1 text-sm">
-                        {selectedRunFailureCopy.description}
-                      </p>
-                      {selectedRunFailureCopy.technicalDetail ? (
-                        <p className="text-default-500 mt-2 text-xs">
-                          Worker detail: {selectedRunFailureCopy.technicalDetail}
-                        </p>
-                      ) : null}
-                      {canQueueRun ? (
-                        <div className="mt-3">
-                          <Button
-                            size="sm"
-                            isPending={analysisActionPending}
-                            onPress={() => void handleQueueAnalysis()}
-                          >
-                            {({ isPending }) => (
-                              <PendingButtonContent isPending={isPending}>
-                                Run analysis
-                              </PendingButtonContent>
-                            )}
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : recommendationPlans.length === 0 ? (
-                    <div className="rounded-large border-divider bg-default-50/60 border p-4">
-                      <p className="text-foreground text-sm font-semibold">
-                        {selectedRun.status === 'stale'
-                          ? 'Only stale results exist right now'
-                          : selectedRunEmptyPlansCopy.title}
-                      </p>
-                      <p className="text-default-600 mt-1 text-sm">
-                        {selectedRun.status === 'stale'
-                          ? `${formatStaleReason(selectedRun.stale_reason)} Run analysis again to generate updated recommendations.`
-                          : selectedRunEmptyPlansCopy.description}
-                      </p>
-                      {selectedRun.status !== 'stale' && selectedRunEmptyPlansCopy.warning ? (
-                        <p className="text-default-500 mt-2 text-xs">
-                          Run warning: {selectedRunEmptyPlansCopy.warning}
-                        </p>
-                      ) : null}
-                      {canQueueRun ? (
-                        <div className="mt-3">
-                          <Button
-                            size="sm"
-                            isPending={analysisActionPending}
-                            onPress={() => void handleQueueAnalysis()}
-                          >
-                            {({ isPending }) => (
-                              <PendingButtonContent isPending={isPending}>
-                                Run analysis
-                              </PendingButtonContent>
-                            )}
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <>
-                      {selectedRun.status === 'stale' ? (
-                        <div className="rounded-large border-warning/40 bg-warning/10 border p-4">
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                              <p className="text-foreground text-sm font-semibold">
-                                You are inspecting stale recommendations
-                              </p>
-                              <p className="text-default-600 mt-1 text-sm">
-                                {formatStaleReason(selectedRun.stale_reason)} The plans below are
-                                still visible for reference.
-                              </p>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {latestFreshRun && latestFreshRun.id !== selectedRun.id ? (
-                                <Button
-                                  size="sm"
-                                  variant="tertiary"
-                                  onPress={() => setSelectedRunId(latestFreshRun.id)}
-                                >
-                                  View latest fresh
-                                </Button>
-                              ) : null}
-                              {canQueueRun ? (
-                                <Button
-                                  size="sm"
-                                  isPending={analysisActionPending}
-                                  onPress={() => void handleQueueAnalysis()}
-                                >
-                                  {({ isPending }) => (
-                                    <PendingButtonContent isPending={isPending}>
-                                      Run analysis
-                                    </PendingButtonContent>
-                                  )}
-                                </Button>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-                      ) : null}
-                      {recommendationSections.length > 0 ? (
-                        <div className="rounded-large border-divider/70 bg-default-50 border p-4">
-                          <p className="text-foreground text-sm font-semibold">How to read score</p>
-                          <p className="text-default-600 mt-1 text-sm">
-                            Optimizer rank keeps the default order for shopping sections. DPS shows
-                            offensive value per price, EHP shows defensive value per price, and
-                            Reservation shows how strongly the item helps a mana-blocked stage fit
-                            its target skill package. These signals are relative within the same
-                            section of this run, not universal item grades. A negative optimizer
-                            score can still describe a defensive, reservation, or utility-focused
-                            item, so check the sub-scores and guardrail notes before ruling it out.
-                          </p>
-                        </div>
-                      ) : null}
-                      <div
-                        className={`${
-                          selectedRun.status === 'stale' ? 'opacity-80' : ''
-                        } flex flex-col gap-5 sm:gap-6`}
+                      <span
+                        className={`wrap-anywhere text-xs font-medium ${getSocketTextColorClass(selectedRunMainSkillVisual?.socketColor ?? null)}`}
                       >
-                        {setupNotePlans.length > 0 ? (
-                          <div className="rounded-large border-accent/40 bg-accent/10 border p-4">
-                            <p className="text-foreground text-sm font-semibold">Setup notes</p>
-                            <p className="text-default-600 mt-1 text-sm">
-                              These are broader setup prerequisites, bundles, or support fixes, not
-                              the main item-by-item shopping lane.
-                            </p>
-                            <div className="mt-3 flex flex-col gap-3">
-                              {setupNotePlans.map((plan) => (
-                                <div
-                                  key={plan.id}
-                                  className="rounded-large border-divider/70 bg-content1/70 border p-3"
-                                >
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <Chip size="sm" variant="soft" color="accent">
-                                      {plan.kind === 'bundle' ? 'Bundle' : 'Setup'}
-                                    </Chip>
-                                    {plan.breaks_requirements ? (
-                                      <Chip size="sm" variant="soft" color="danger">
-                                        breaks requirements
-                                      </Chip>
-                                    ) : null}
-                                  </div>
-                                  <p className="text-foreground mt-2 text-sm font-semibold">
-                                    {plan.title}
-                                  </p>
-                                  {plan.summary ? (
-                                    <p className="text-default-600 mt-1 text-sm">{plan.summary}</p>
-                                  ) : null}
-                                  {plan.explanation ? (
-                                    <p className="text-default-500 mt-1 text-sm">
-                                      {plan.explanation}
-                                    </p>
-                                  ) : null}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
+                        {selectedRunMainSkillName}
+                      </span>
+                    </div>
+                  ) : null}
+                  {(selectedRun.party_config.length > 0 &&
+                    selectedRunAppliedPartyCount !== null) ||
+                  selectedRunHasConfigurationInsightButton ? (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedRun.party_config.length > 0 &&
+                      selectedRunAppliedPartyCount !== null ? (
+                        <Button
+                          size="sm"
+                          variant="tertiary"
+                          onPress={() => setPartyBuffDetailOpen(true)}
+                        >
+                          {selectedRunAppliedPartyCount > 0
+                            ? `Party buffs ${selectedRunAppliedPartyCount}/${selectedRun.party_config.length}`
+                            : 'Party buffs: none applied'}
+                        </Button>
+                      ) : null}
+                      {selectedRunHasConfigurationInsightButton ? (
+                        <Button
+                          size="sm"
+                          variant="tertiary"
+                          onPress={() => setConfigInsightDetailOpen(true)}
+                        >
+                          PoB configuration insights
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {selectedRun.status !== 'queued' && selectedRun.status !== 'running' ? (
+                    <p className="text-default-500 text-sm">
+                      {getRunStatusCopy(selectedRun, nowMs)}
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    {selectedRunPlanCount != null ? (
+                      <Chip size="sm" variant="soft">
+                        {selectedRunPlanCount} plans
+                      </Chip>
+                    ) : null}
+                    {selectedRunBlockers.length ? (
+                      <Chip size="sm" variant="soft" color="warning">
+                        {selectedRunBlockers.length} blockers
+                      </Chip>
+                    ) : null}
+                  </div>
+                  {selectedRunBlockers.length ? (
+                    <div className="rounded-large border-divider/70 bg-default-50/70 border p-3">
+                      <p className="text-default-500 text-xs font-semibold tracking-wide uppercase">
+                        Progress blockers
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {selectedRunBlockers.slice(0, 4).map((blocker) => (
+                          <Chip key={blocker} size="sm" variant="soft" color="warning">
+                            {blocker}
+                          </Chip>
+                        ))}
+                        {selectedRunBlockers.length > 4 ? (
+                          <Chip size="sm" variant="soft">
+                            +{selectedRunBlockers.length - 4} more
+                          </Chip>
                         ) : null}
-                        {recommendationSections.map((section) => {
-                          const plans = section.plans
-
-                          return (
-                            <div key={section.key} className="flex flex-col gap-3">
-                              {section.key === 'overview' ? (
-                                <div className="border-divider mt-2 border-t pt-4">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <p className="text-foreground text-sm font-semibold">
-                                      {section.label}
-                                    </p>
-                                    <Chip size="sm" variant="soft">
-                                      {plans.reduce((count, plan) => count + plan.items.length, 0)}
+                      </div>
+                    </div>
+                  ) : null}
+                  {getDisplayedPartialReason(selectedRun, nowMs) ? (
+                    <p className="text-warning text-sm">
+                      {(getSummaryNumber(selectedRun.summary, 'exact_plan_count') ?? 0) > 0
+                        ? `Current scope: ${getDisplayedPartialReason(selectedRun, nowMs)}`
+                        : `Partial confidence: ${getDisplayedPartialReason(selectedRun, nowMs)}`}
+                    </p>
+                  ) : null}
+                </div>
+              </details>
+            ) : null}
+            <div className="grid grid-cols-1 items-start gap-5 @min-[52rem]/recommendations:grid-cols-[minmax(0,1fr)_19rem]">
+              <div className="flex min-w-0 flex-col gap-5">
+                {!selectedRun ? (
+                  <p className="text-default-500 text-sm">Run analysis or choose a run from history.</p>
+                ) : selectedRunIsLive ? (
+                  <LiveRecommendationsSkeleton />
+                ) : recommendationsLoading && selectedRun.status !== 'failed' ? (
+                  <LiveRecommendationsSkeleton />
+                ) : selectedRun.status === 'failed' ? (
+                  <div className="rounded-large border-danger/40 bg-danger-soft border p-4">
+                    <div role="alert">
+                      <p className="text-danger text-sm font-semibold">Exact analysis failed</p>
+                      <p className="text-default-600 mt-1 text-sm">
+                        Recommendations could not be generated. Try running the analysis again.
+                      </p>
+                    </div>
+                    {canQueueRun ? (
+                      <div className="mt-3">
+                        <Button
+                          size="sm"
+                          isDisabled={!selectedBuildTarget || !!latestLiveRun}
+                          isPending={analysisActionPending}
+                          onPress={() => void handleQueueAnalysis()}
+                        >
+                          {({ isPending }) => (
+                            <PendingButtonContent isPending={isPending}>
+                              Run analysis
+                            </PendingButtonContent>
+                          )}
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : recommendationsFailed && recommendationPlans.length === 0 ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p role="alert" className="text-danger text-sm">Could not load recommendations.</p>
+                    <Button size="sm" variant="tertiary" onPress={() => void retryRecommendations()}>
+                      Try again
+                    </Button>
+                  </div>
+                ) : recommendationPlans.length === 0 ? (
+                  <div className="rounded-large border-divider bg-default-50/60 border p-4">
+                    <p className="text-foreground text-sm font-semibold">
+                      {selectedRun.status === 'stale'
+                        ? 'Only stale results exist right now'
+                        : selectedRunEmptyPlansCopy.title}
+                    </p>
+                    <p className="text-default-600 mt-1 text-sm">
+                      {selectedRun.status === 'stale'
+                        ? `${formatStaleReason(selectedRun.stale_reason)} Run analysis again to generate updated recommendations.`
+                        : selectedRunEmptyPlansCopy.description}
+                    </p>
+                    {selectedRun.status !== 'stale' && selectedRunEmptyPlansCopy.warning ? (
+                      <p className="text-default-500 mt-2 text-xs">
+                        Run warning: {selectedRunEmptyPlansCopy.warning}
+                      </p>
+                    ) : null}
+                    {canQueueRun ? (
+                      <div className="mt-3">
+                        <Button
+                          size="sm"
+                          isPending={analysisActionPending}
+                          onPress={() => void handleQueueAnalysis()}
+                        >
+                          {({ isPending }) => (
+                            <PendingButtonContent isPending={isPending}>
+                              Run analysis
+                            </PendingButtonContent>
+                          )}
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <>
+                    <QueryFreshnessNotice
+                      refreshFailed={recommendationsFailed}
+                      isRefreshing={false}
+                      onRetry={retryRecommendations}
+                    />
+                    {selectedRun.status === 'stale' ? (
+                      <div className="rounded-large border-warning/40 bg-warning/10 border p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-foreground text-sm font-semibold">
+                              You are inspecting stale recommendations
+                            </p>
+                            <p className="text-default-600 mt-1 text-sm">
+                              {formatStaleReason(selectedRun.stale_reason)} The plans below are
+                              still visible for reference.
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {latestCompletedRun && latestCompletedRun.id !== selectedRun.id ? (
+                              <Button
+                                size="sm"
+                                variant="tertiary"
+                                onPress={() => setSelectedRunId(latestCompletedRun.id)}
+                              >
+                                View latest completed run
+                              </Button>
+                            ) : null}
+                            {canQueueRun ? (
+                              <Button
+                                size="sm"
+                                isPending={analysisActionPending}
+                                onPress={() => void handleQueueAnalysis()}
+                              >
+                                {({ isPending }) => (
+                                  <PendingButtonContent isPending={isPending}>
+                                    Run analysis
+                                  </PendingButtonContent>
+                                )}
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                    {recommendationSections.length > 0 ? (
+                      <details className="border-divider/70 rounded-lg border px-3 py-2">
+                        <summary className="text-foreground cursor-pointer text-sm font-medium">
+                          Scoring details
+                        </summary>
+                        <p className="text-default-600 mt-2 max-w-prose text-sm">
+                          Compare scores within this run’s section. DPS and effective hit pool
+                          show damage and defense per cost. Reservation shows how much an upgrade
+                          helps fit the target skills. Check the individual scores and notes for
+                          defensive or utility upgrades.
+                        </p>
+                      </details>
+                    ) : null}
+                    <div className="flex flex-col gap-5 sm:gap-6">
+                      {setupNotePlans.length > 0 ? (
+                        <div className="rounded-large border-info/40 bg-info-soft border p-4">
+                          <p className="text-foreground text-sm font-semibold">Setup notes</p>
+                          <p className="text-default-600 mt-1 text-sm">
+                            These are broader setup prerequisites, bundles, or support fixes, not
+                            the main item-by-item shopping lane.
+                          </p>
+                          <div className="mt-3 flex flex-col gap-3">
+                            {setupNotePlans.map((plan) => (
+                              <div
+                                key={plan.id}
+                                className="rounded-large border-divider/70 bg-content1/70 border p-3"
+                              >
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Chip size="sm" variant="soft">
+                                    {plan.kind === 'bundle' ? 'Bundle' : 'Setup'}
+                                  </Chip>
+                                  {plan.breaks_requirements ? (
+                                    <Chip size="sm" variant="soft" color="danger">
+                                      breaks requirements
                                     </Chip>
-                                  </div>
-                                  <p className="text-default-500 mt-1 text-xs">
-                                    Every rare target item from the selected PoB is exact-scored
-                                    here in slot order. No relaxation has been applied to items in
-                                    this section.
-                                  </p>
+                                  ) : null}
                                 </div>
-                              ) : (
+                                <p className="text-foreground mt-2 text-sm font-semibold">
+                                  {plan.title}
+                                </p>
+                                {plan.summary ? (
+                                  <p className="text-default-600 mt-1 text-sm">{plan.summary}</p>
+                                ) : null}
+                                {plan.explanation ? (
+                                  <p className="text-default-500 mt-1 text-sm">
+                                    {plan.explanation}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                      {recommendationSections.map((section) => {
+                        const plans = section.plans
+
+                        return (
+                          <div key={section.key} className="flex flex-col gap-3">
+                            {section.key === 'overview' ? (
+                              <div className="border-divider mt-2 border-t pt-4">
                                 <div className="flex items-center justify-between gap-3">
                                   <p className="text-foreground text-sm font-semibold">
                                     {section.label}
@@ -4669,199 +4614,215 @@ export function GearRecommendationsPanel() {
                                     {plans.reduce((count, plan) => count + plan.items.length, 0)}
                                   </Chip>
                                 </div>
-                              )}
-                              {section.key === 'best_single' &&
-                              bestSingleTemplateFallbackSummary ? (
-                                <p className="text-default-500 text-xs">
-                                  {bestSingleTemplateFallbackSummary.liveCount > 0
-                                    ? `Only ${bestSingleTemplateFallbackSummary.liveCount} live rare ${bestSingleTemplateFallbackSummary.liveCount === 1 ? 'listing survived' : 'listings survived'} the current constrained search, so the remaining ${bestSingleTemplateFallbackSummary.templateCount} ${bestSingleTemplateFallbackSummary.templateCount === 1 ? 'slot uses' : 'slots use'} top positive template swaps scored against your configured relaxation baseline. Use rerun to relax further.`
-                                    : 'No live rare listings survived the current constrained search, so this section falls back to the top positive template swaps scored against your configured relaxation baseline. Use rerun to relax further.'}
+                                <p className="text-default-500 mt-1 text-xs">
+                                  Every rare target item from the selected PoB is exact-scored
+                                  here in slot order. No relaxation has been applied to items in
+                                  this section.
                                 </p>
-                              ) : null}
-                              {section.key === 'best_single' && plans.length === 0 ? (
-                                <div className="rounded-large border-divider bg-default-50/60 border p-4">
-                                  <p className="text-default-500 text-sm">
-                                    No rare upgrades found for this run. The search constraints may
-                                    be too narrow, or no listings on trade matched the target slots.
-                                    Try relaxing filters or rerunning analysis with a higher budget.
-                                  </p>
-                                </div>
-                              ) : null}
-                              <div className="grid grid-cols-1 justify-start gap-3 sm:grid-cols-[repeat(auto-fill,minmax(14.375rem,14.375rem))]">
-                                {plans.map((plan, index) => {
-                                  const needsMarketSearch = planNeedsMarketSearch(plan)
-                                  const scoreBreakdown = getRecommendationScoreBreakdown(plan)
-                                  const overallRank =
-                                    section.scoreRanks.overall.get(plan.id) ?? index + 1
-                                  const dpsRank = section.scoreRanks.dps.get(plan.id) ?? null
-                                  const ehpRank = section.scoreRanks.ehp.get(plan.id) ?? null
-                                  const reservationRank = shouldShowRecommendationScore(
-                                    'reservation',
-                                    scoreBreakdown.reservation,
-                                  )
-                                    ? (section.scoreRanks.reservation.get(plan.id) ?? null)
-                                    : null
-                                  const visibleReservationScore = shouldShowRecommendationScore(
-                                    'reservation',
-                                    scoreBreakdown.reservation,
-                                  )
-                                    ? scoreBreakdown.reservation
-                                    : null
-                                  const planPriceLabel = needsMarketSearch
-                                    ? 'Needs market search'
-                                    : formatCurrencyAmount(
-                                        plan.effective_cost_chaos,
-                                        currencyDisplay,
-                                        divinePrice,
-                                      )
-
-                                  return (
-                                    <div key={plan.id} className="contents">
-                                      <div className="hidden">
-                                        <div>
-                                          <div className="flex items-center gap-2">
-                                            <p className="text-foreground text-sm font-semibold">
-                                              {plan.title}
-                                            </p>
-                                            <Chip
-                                              size="sm"
-                                              variant="soft"
-                                              color={plan.kind === 'bundle' ? 'accent' : 'default'}
-                                            >
-                                              {plan.kind}
-                                            </Chip>
-                                            {needsMarketSearch ? (
-                                              <Chip size="sm" variant="soft" color="warning">
-                                                template rare
-                                              </Chip>
-                                            ) : null}
-                                            {plan.breaks_requirements ? (
-                                              <Chip size="sm" variant="soft" color="danger">
-                                                breaks requirements
-                                              </Chip>
-                                            ) : null}
-                                          </div>
-                                          {plan.summary ? (
-                                            <p className="text-default-600 mt-1 text-sm">
-                                              {plan.summary}
-                                            </p>
-                                          ) : null}
-                                          {plan.explanation ? (
-                                            <p className="text-default-500 mt-2 text-sm">
-                                              {plan.explanation}
-                                            </p>
-                                          ) : null}
-                                        </div>
-                                        <div className="text-right">
-                                          <p className="text-foreground text-sm font-semibold">
-                                            {planPriceLabel}
-                                          </p>
-                                          <p className="text-default-500 text-xs">
-                                            optimizer {plan.score.toFixed(2)}
-                                            {scoreBreakdown.dps != null
-                                              ? ` | dps ${scoreBreakdown.dps.toFixed(2)}`
-                                              : ''}
-                                            {scoreBreakdown.ehp != null
-                                              ? ` | ehp ${scoreBreakdown.ehp.toFixed(2)}`
-                                              : ''}
-                                            {visibleReservationScore != null
-                                              ? ` | reservation ${visibleReservationScore.toFixed(2)}`
-                                              : ''}
-                                          </p>
-                                          <p className="text-default-400 text-xs">
-                                            optimizer rank {overallRank} of {plans.length}
-                                            {dpsRank != null ? ` | dps ${dpsRank}` : ''}
-                                            {ehpRank != null ? ` | ehp ${ehpRank}` : ''}
-                                            {reservationRank != null
-                                              ? ` | reservation ${reservationRank}`
-                                              : ''}
-                                          </p>
-                                          <p className="text-default-400 text-xs">
-                                            stage {plan.stage_progress_score.toFixed(2)}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <div className="hidden">
-                                        <RecommendationMetricStrip plan={plan} />
-                                      </div>
-                                      <div className="contents">
-                                        {plan.items.map((item) => (
-                                          <RecommendationItemRow
-                                            key={item.id}
-                                            item={item}
-                                            plan={plan}
-                                            scoreContext={{
-                                              overallRank,
-                                              dpsRank,
-                                              ehpRank,
-                                              reservationRank,
-                                              total: plans.length,
-                                              sectionLabel: section.label,
-                                            }}
-                                            divinePrice={divinePrice}
-                                            analysisMode={selectedRun.analysis_mode}
-                                            runIsStale={selectedRun.status === 'stale'}
-                                            comparePowerRow={
-                                              comparePowerItemRowsBySlot.get(
-                                                getRecommendationItemCompareSlot(item) ?? '',
-                                              ) ?? null
-                                            }
-                                            reservationAuditAnchorId={reservationAuditAnchorId}
-                                            showRankBadge={section.key !== 'overview'}
-                                            canPromote={canPromote}
-                                            promotingRecommendation={promotingRecommendation}
-                                            onPromote={() => void handlePromote(plan.id)}
-                                          />
-                                        ))}
-                                      </div>
-                                      {canPromote ? (
-                                        <div className="hidden">
-                                          {canPromote ? (
-                                            <Button
-                                              size="sm"
-                                              isPending={promotingRecommendation}
-                                              onPress={() => void handlePromote(plan.id)}
-                                            >
-                                              {({ isPending }) => (
-                                                <PendingButtonContent isPending={isPending}>
-                                                  Add to gear queue
-                                                </PendingButtonContent>
-                                              )}
-                                            </Button>
-                                          ) : null}
-                                        </div>
-                                      ) : null}
-                                    </div>
-                                  )
-                                })}
                               </div>
+                            ) : (
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-foreground text-sm font-semibold">
+                                  {section.label}
+                                </p>
+                                <Chip size="sm" variant="soft">
+                                  {plans.reduce((count, plan) => count + plan.items.length, 0)}
+                                </Chip>
+                              </div>
+                            )}
+                            {section.key === 'best_single' &&
+                            bestSingleTemplateFallbackSummary ? (
+                              <p className="text-default-500 text-xs">
+                                {bestSingleTemplateFallbackSummary.liveCount > 0
+                                  ? `Only ${bestSingleTemplateFallbackSummary.liveCount} live rare ${bestSingleTemplateFallbackSummary.liveCount === 1 ? 'listing survived' : 'listings survived'} the current constrained search, so the remaining ${bestSingleTemplateFallbackSummary.templateCount} ${bestSingleTemplateFallbackSummary.templateCount === 1 ? 'slot uses' : 'slots use'} top positive template swaps scored against your configured relaxation baseline. Use rerun to relax further.`
+                                  : 'No live rare listings survived the current constrained search, so this section falls back to the top positive template swaps scored against your configured relaxation baseline. Use rerun to relax further.'}
+                              </p>
+                            ) : null}
+                            {section.key === 'best_single' && plans.length === 0 ? (
+                              <div className="rounded-large border-divider bg-default-50/60 border p-4">
+                                <p className="text-default-500 text-sm">
+                                  No rare upgrades found for this run. The search constraints may
+                                  be too narrow, or no listings on trade matched the target slots.
+                                  Try relaxing filters or rerunning analysis with a higher budget.
+                                </p>
+                              </div>
+                            ) : null}
+                            <div
+                              role="group"
+                              aria-label={section.label}
+                              className="grid min-w-0 grid-cols-[repeat(auto-fill,minmax(min(100%,14rem),1fr))] gap-3"
+                            >
+                              {plans.map((plan, index) => {
+                                const needsMarketSearch = planNeedsMarketSearch(plan)
+                                const scoreBreakdown = getRecommendationScoreBreakdown(plan)
+                                const overallRank =
+                                  section.scoreRanks.overall.get(plan.id) ?? index + 1
+                                const dpsRank = section.scoreRanks.dps.get(plan.id) ?? null
+                                const ehpRank = section.scoreRanks.ehp.get(plan.id) ?? null
+                                const reservationRank = shouldShowRecommendationScore(
+                                  'reservation',
+                                  scoreBreakdown.reservation,
+                                )
+                                  ? (section.scoreRanks.reservation.get(plan.id) ?? null)
+                                  : null
+                                const visibleReservationScore = shouldShowRecommendationScore(
+                                  'reservation',
+                                  scoreBreakdown.reservation,
+                                )
+                                  ? scoreBreakdown.reservation
+                                  : null
+                                const planPriceLabel = needsMarketSearch
+                                  ? 'Needs market search'
+                                  : formatCurrencyAmount(
+                                      plan.effective_cost_chaos,
+                                      currencyDisplay,
+                                      divinePrice,
+                                    )
+
+                                return (
+                                  <div key={plan.id} className="contents">
+                                    <div className="hidden">
+                                      <div>
+                                        <div className="flex items-center gap-2">
+                                          <p className="text-foreground text-sm font-semibold">
+                                            {plan.title}
+                                          </p>
+                                          <Chip
+                                            size="sm"
+                                            variant="soft"
+                                          >
+                                            {plan.kind}
+                                          </Chip>
+                                          {needsMarketSearch ? (
+                                            <Chip size="sm" variant="soft" color="warning">
+                                              template rare
+                                            </Chip>
+                                          ) : null}
+                                          {plan.breaks_requirements ? (
+                                            <Chip size="sm" variant="soft" color="danger">
+                                              breaks requirements
+                                            </Chip>
+                                          ) : null}
+                                        </div>
+                                        {plan.summary ? (
+                                          <p className="text-default-600 mt-1 text-sm">
+                                            {plan.summary}
+                                          </p>
+                                        ) : null}
+                                        {plan.explanation ? (
+                                          <p className="text-default-500 mt-2 text-sm">
+                                            {plan.explanation}
+                                          </p>
+                                        ) : null}
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-foreground text-sm font-semibold">
+                                          {planPriceLabel}
+                                        </p>
+                                        <p className="text-default-500 text-xs">
+                                          optimizer {plan.score.toFixed(2)}
+                                          {scoreBreakdown.dps != null
+                                            ? ` | dps ${scoreBreakdown.dps.toFixed(2)}`
+                                            : ''}
+                                          {scoreBreakdown.ehp != null
+                                            ? ` | ehp ${scoreBreakdown.ehp.toFixed(2)}`
+                                            : ''}
+                                          {visibleReservationScore != null
+                                            ? ` | reservation ${visibleReservationScore.toFixed(2)}`
+                                            : ''}
+                                        </p>
+                                        <p className="text-default-400 text-xs">
+                                          optimizer rank {overallRank} of {plans.length}
+                                          {dpsRank != null ? ` | dps ${dpsRank}` : ''}
+                                          {ehpRank != null ? ` | ehp ${ehpRank}` : ''}
+                                          {reservationRank != null
+                                            ? ` | reservation ${reservationRank}`
+                                            : ''}
+                                        </p>
+                                        <p className="text-default-400 text-xs">
+                                          stage {plan.stage_progress_score.toFixed(2)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="hidden">
+                                      <RecommendationMetricStrip plan={plan} />
+                                    </div>
+                                    <div className="contents">
+                                      {plan.items.map((item) => (
+                                        <RecommendationItemRow
+                                          key={item.id}
+                                          item={item}
+                                          plan={plan}
+                                          scoreContext={{
+                                            overallRank,
+                                            dpsRank,
+                                            ehpRank,
+                                            reservationRank,
+                                            total: plans.length,
+                                            sectionLabel: section.label,
+                                          }}
+                                          divinePrice={divinePrice}
+                                          analysisMode={selectedRun.analysis_mode}
+                                          runIsStale={selectedRun.status === 'stale'}
+                                          comparePowerRow={
+                                            comparePowerItemRowsBySlot.get(
+                                              getRecommendationItemCompareSlot(item) ?? '',
+                                            ) ?? null
+                                          }
+                                          reservationAuditAnchorId={reservationAuditAnchorId}
+                                          showRankBadge={section.key !== 'overview'}
+                                          canPromote={canPromote}
+                                          promotingRecommendation={promotingRecommendation}
+                                          onPromote={() => void handlePromote(plan.id)}
+                                        />
+                                      ))}
+                                    </div>
+                                    {canPromote ? (
+                                      <div className="hidden">
+                                        {canPromote ? (
+                                          <Button
+                                            size="sm"
+                                            isPending={promotingRecommendation}
+                                            onPress={() => void handlePromote(plan.id)}
+                                          >
+                                            {({ isPending }) => (
+                                              <PendingButtonContent isPending={isPending}>
+                                                Add to gear queue
+                                              </PendingButtonContent>
+                                            )}
+                                          </Button>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                )
+                              })}
                             </div>
-                          )
-                        })}
-                      </div>
-                    </>
-                  )}
-                </div>
-                <div className="order-1 xl:order-2">
-                  <RecommendationsInsightsRail
-                    selectedCharacter={selectedCharacter}
-                    selectedProfile={selectedCharacterProfile}
-                    stageLabel={recommendationStageLabel}
-                    stageTreeSpec={recommendationStageTreeSpec}
-                    stageSkillSet={recommendationStageSkillSet}
-                    isDraftStage={recommendationStageIsDraft}
-                    selectedRun={selectedRun}
-                    selectedRunIsLive={selectedRunIsLive}
-                    passiveTreeRefreshToken={passiveTreeRefreshToken}
-                    runTransitionLoading={runTransitionLoading}
-                    reservationAuditAnchorId={reservationAuditAnchorId}
-                  />
-                </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
-            </Card.Content>
-          </Card>
-        </div>
-      </div>
+              <aside aria-label="Build insights" className="min-w-0">
+                <RecommendationsInsightsRail
+                  selectedCharacter={selectedCharacter}
+                  selectedProfile={selectedCharacterProfile}
+                  stageLabel={recommendationStageLabel}
+                  stageTreeSpec={recommendationStageTreeSpec}
+                  stageSkillSet={recommendationStageSkillSet}
+                  isDraftStage={recommendationStageIsDraft}
+                  selectedRun={selectedRun}
+                  selectedRunIsLive={selectedRunIsLive}
+                  passiveTreeRefreshToken={passiveTreeRefreshToken}
+                  runTransitionLoading={runTransitionLoading}
+                  reservationAuditAnchorId={reservationAuditAnchorId}
+                />
+              </aside>
+            </div>
+          </Card.Content>
+        </Card>
 
       {selectedRun ? (
         <>
@@ -4873,11 +4834,11 @@ export function GearRecommendationsPanel() {
               }}
             >
               <Modal.Container>
-                <Modal.Dialog>
+                <Modal.Dialog className="max-h-[calc(100dvh-2rem)]">
                   <Modal.Header>
                     <Modal.Heading>Party buffs applied</Modal.Heading>
                   </Modal.Header>
-                  <Modal.Body className="pb-5">
+                  <Modal.Body className="min-h-0 overflow-y-auto pb-5">
                     {(() => {
                       const effects = selectedRun.summary?.party_effects as
                         | {
@@ -4957,12 +4918,12 @@ export function GearRecommendationsPanel() {
                 if (!open) setConfigInsightDetailOpen(false)
               }}
             >
-              <Modal.Container className="max-h-[85vh] overflow-hidden">
-                <Modal.Dialog>
+              <Modal.Container>
+                <Modal.Dialog className="max-h-[calc(100dvh-2rem)]">
                   <Modal.Header>
                     <Modal.Heading>PoB configuration insights</Modal.Heading>
                   </Modal.Header>
-                  <Modal.Body className="overflow-y-auto pb-5">
+                  <Modal.Body className="min-h-0 overflow-y-auto pb-5">
                     {(() => {
                       const configInsights = getPobConfigurationInsights(selectedRun.summary)
                       const configSetTitle =
@@ -5053,15 +5014,15 @@ export function GearRecommendationsPanel() {
                 if (!open) setManualTuningDialogOpen(false)
               }}
             >
-              <Modal.Container className="max-h-[85vh] overflow-hidden">
-                <Modal.Dialog>
+              <Modal.Container>
+                <Modal.Dialog className="max-h-[calc(100dvh-2rem)]">
                   <Modal.Header className="flex flex-col gap-1">
                     <Modal.Heading>Rerun analysis with manual tunings</Modal.Heading>
                     <span className="text-default-500 text-sm font-normal">
                       This launches a fresh live-market pass for {selectedRunStageLabel}.
                     </span>
                   </Modal.Header>
-                  <Modal.Body className="overflow-y-auto pb-2">
+                  <Modal.Body className="min-h-0 overflow-y-auto pb-2">
                     {renderManualTuningEditor()}
                   </Modal.Body>
                   <Modal.Footer>

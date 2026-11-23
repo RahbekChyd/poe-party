@@ -114,10 +114,10 @@ export function useOwnedService(serviceId: string | null) {
         .from('services')
         .select('*')
         .eq('id', serviceId!)
-        .single()
+        .maybeSingle()
 
       if (error) throw error
-      return normalizeOwned(data as Record<string, unknown>)
+      return data ? normalizeOwned(data as Record<string, unknown>) : null
     },
   })
 }

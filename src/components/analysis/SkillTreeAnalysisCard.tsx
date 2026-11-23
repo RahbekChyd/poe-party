@@ -575,12 +575,7 @@ export function SkillTreeSummaryPanel({
 
   if (!stageTreeSpec) {
     return (
-      <div className="rounded-large border-divider/70 bg-default-50/60 border p-4">
-        <p className="text-foreground text-sm font-semibold">Setup has no tree spec yet</p>
-        <p className="text-default-600 mt-1 text-sm">
-          Add a target tree to this setup before checking alignment.
-        </p>
-      </div>
+      <p className="text-default-600 text-sm">Choose a target tree to compare allocated nodes.</p>
     )
   }
 
@@ -606,7 +601,7 @@ export function SkillTreeSummaryPanel({
             {selectedCharacter.name}
           </Chip>
           {showStageDisplayChip ? (
-            <Chip size="sm" variant="soft" color={isDraftStage ? 'accent' : 'default'}>
+            <Chip size="sm" variant="soft">
               {isDraftStage ? 'Unsaved setup' : 'Saved setup'} {stageDisplayLabel}
             </Chip>
           ) : null}
@@ -644,10 +639,10 @@ export function SkillTreeSummaryPanel({
           <Chip size="sm" variant="soft" color="danger">
             {diffViewModel?.counts.remove ?? 0} refund
           </Chip>
-          <Chip size="sm" variant="soft" color="accent">
+          <Chip size="sm" variant="soft">
             {diffViewModel?.counts.masteryChange ?? 0} mastery changes
           </Chip>
-          <Chip size="sm" variant="soft" color="warning">
+          <Chip size="sm" variant="soft" color={diffViewModel?.counts.clusterReview ? 'warning' : 'default'}>
             {diffViewModel?.counts.clusterReview ?? 0} cluster review
           </Chip>
           {comparisonSummary?.classMatches === false ? (
@@ -894,12 +889,12 @@ export function SkillTreeAnalysisPanel({
               </Chip>
             ) : null}
             {showStageDisplayChip ? (
-              <Chip size="sm" variant="soft" color={isDraftStage ? 'accent' : 'default'}>
+              <Chip size="sm" variant="soft">
                 {isDraftStage ? 'Unsaved setup' : 'Saved setup'} {stageDisplayLabel}
               </Chip>
             ) : null}
             {manualTreeState.decoded ? (
-              <Chip size="sm" variant="soft" color="accent">
+              <Chip size="sm" variant="soft" className="bg-info-soft text-info">
                 Manual tree active
               </Chip>
             ) : (
@@ -908,7 +903,7 @@ export function SkillTreeAnalysisPanel({
               </Chip>
             )}
             {clusterJewelCount > 0 ? (
-              <Chip size="sm" variant="soft" color="accent">
+              <Chip size="sm" variant="soft">
                 {clusterJewelCount} cluster jewel{clusterJewelCount === 1 ? '' : 's'}
               </Chip>
             ) : null}
@@ -1043,10 +1038,10 @@ export function SkillTreeAnalysisPanel({
                 <Chip size="sm" variant="soft" color="danger">
                   {diffViewModel?.counts.remove ?? 0} refund
                 </Chip>
-                <Chip size="sm" variant="soft" color="accent">
+                <Chip size="sm" variant="soft">
                   {diffViewModel?.counts.masteryChange ?? 0} mastery
                 </Chip>
-                <Chip size="sm" variant="soft" color="warning">
+                <Chip size="sm" variant="soft" color={diffViewModel?.counts.clusterReview ? 'warning' : 'default'}>
                   {diffViewModel?.counts.clusterReview ?? 0} cluster review
                 </Chip>
                 {comparisonSummary?.classMatches === false ? (

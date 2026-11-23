@@ -1,6 +1,4 @@
 import {
-  type KeyboardEvent,
-  type MouseEvent,
   type ReactNode,
   useEffect,
   useMemo,
@@ -27,7 +25,7 @@ import {
   getRecommendationDependencies,
   type RecommendationDependency,
 } from '../../lib/recommendation-dependencies'
-import { usePoeWikiInventoryIcon } from '../../hooks/usePoeWikiInventoryIcon'
+import { usePoedbInventoryIcon } from '../../hooks/usePoedbInventoryIcon'
 import {
   getRecommendationScoreBreakdown,
   shouldShowRecommendationScore,
@@ -148,7 +146,11 @@ function getPayload(item: UpgradeRecommendationItem): Record<string, unknown> {
 
 function getItemIconUrl(item: UpgradeRecommendationItem): string | null {
   const payload = getPayload(item)
-  return readString(payload.icon_url) ?? readString(payload.icon)
+  const url = (readString(payload.icon_url) ?? readString(payload.icon))?.trim()
+  if (url?.startsWith('/gen/image/') || url?.startsWith('/image/Art/')) {
+    return `https://web.poecdn.com${url}`
+  }
+  return url ?? null
 }
 
 function getItemRawText(item: UpgradeRecommendationItem): string | null {
@@ -448,7 +450,7 @@ function getEvaluationSummary(
 
 function getEvaluationReasonChip(summary: EvaluationSummary | null): {
   label: string
-  color: 'default' | 'accent' | 'warning' | 'danger'
+  color: 'default' | 'warning' | 'danger'
 } | null {
   if (!summary) return null
 
@@ -476,10 +478,10 @@ function getEvaluationReasonChip(summary: EvaluationSummary | null): {
     case 'not_meaningful':
       return { label: 'Low local impact', color: 'default' }
     case 'score_negative':
-      return { label: 'Negative optimizer score', color: 'accent' }
+      return { label: 'Negative optimizer score', color: 'warning' }
     default:
       if (summary.status === 'retained_for_incremental_rerun') {
-        return { label: 'Rerun focus', color: 'accent' }
+        return { label: 'Rerun focus', color: 'default' }
       }
       return null
   }
@@ -487,13 +489,13 @@ function getEvaluationReasonChip(summary: EvaluationSummary | null): {
 
 function getNegativeOverallChip(summary: EvaluationSummary | null): {
   label: string
-  color: 'accent'
+  color: 'default' | 'warning'
 } | null {
   if (!summary || !summary.exactScoreNegative) return null
   if (summary.defensiveOrUtility) {
-    return { label: 'Defensive / utility', color: 'accent' }
+    return { label: 'Defensive / utility', color: 'default' }
   }
-  return { label: 'Negative optimizer score', color: 'accent' }
+  return { label: 'Negative optimizer score', color: 'warning' }
 }
 
 function getDependencyBadge(dependencies: RecommendationDependency[]): {
@@ -512,13 +514,13 @@ function getDependencyBadge(dependencies: RecommendationDependency[]): {
 
 function getDependencyStatusChip(dependency: RecommendationDependency): {
   label: string
-  color: 'success' | 'warning' | 'danger'
+  color: 'default' | 'success' | 'danger'
 } {
   switch (dependency.status) {
     case 'missing':
       return { label: 'Missing source', color: 'danger' }
     case 'paired_target':
-      return { label: 'Target source', color: 'warning' }
+      return { label: 'Target source', color: 'default' }
     default:
       return { label: 'Already covered', color: 'success' }
   }
@@ -537,15 +539,15 @@ function getPreviewRarity(item: UpgradeRecommendationItem): string {
 function getRarityColor(rarity: string): string {
   switch (rarity.toLowerCase()) {
     case 'unique':
-      return 'text-[#af6025]'
+      return 'text-[#8e421c] dark:text-[#e6aa78]'
     case 'rare':
-      return 'text-[#ffff77]'
+      return 'text-[#6f5605] dark:text-[#e8d67d]'
     case 'magic':
-      return 'text-[#8888ff]'
+      return 'text-[#4849a9] dark:text-[#aaaaff]'
     case 'gem':
-      return 'text-[#1aa29b]'
+      return 'text-[#17655c] dark:text-[#70cfc2]'
     default:
-      return 'text-[#ece3c9]'
+      return 'text-foreground'
   }
 }
 
@@ -591,7 +593,7 @@ function getTradeActionHint(item: UpgradeRecommendationItem): string | null {
 function getRecommendationMode(item: UpgradeRecommendationItem): {
   kind: 'live' | 'template' | 'name_search' | 'other'
   label: string
-  color: 'success' | 'warning' | 'accent' | 'default'
+  color: 'warning' | 'default'
 } {
   const payload = getPayload(item)
   const tradeKind = getTradeLinkKind(item)
@@ -607,30 +609,30 @@ function getRecommendationMode(item: UpgradeRecommendationItem): {
             : actionType === 'skill_gem' || actionType === 'support_gem'
               ? 'Compare gem'
               : 'Compare',
-      color: 'accent',
+      color: 'default',
     }
   }
   if (tradeKind === 'template_exact_search') {
     return { kind: 'template', label: 'Exact template', color: 'warning' }
   }
   if (tradeKind === 'exact_rare_search') {
-    return { kind: 'live', label: 'Exact market', color: 'success' }
+    return { kind: 'live', label: 'Exact market', color: 'default' }
   }
   if (tradeKind === 'pob_weighted_query') {
-    return { kind: 'live', label: 'PoB search', color: 'accent' }
+    return { kind: 'live', label: 'PoB search', color: 'default' }
   }
   if (tradeKind === 'similar_search' || payload.estimated_price === true) {
     return { kind: 'template', label: 'Template', color: 'warning' }
   }
   if (tradeKind === 'name_search') {
-    return { kind: 'name_search', label: 'Name search', color: 'accent' }
+    return { kind: 'name_search', label: 'Name search', color: 'default' }
   }
   if (
     tradeKind === 'trade_search' ||
     payload.candidate_type === 'market_rare' ||
     payload.candidate_type === 'market_unique'
   ) {
-    return { kind: 'live', label: 'Live market', color: 'success' }
+    return { kind: 'live', label: 'Live market', color: 'default' }
   }
   return { kind: 'other', label: 'Market', color: 'default' }
 }
@@ -1203,7 +1205,7 @@ function getReservationChipColor(
   if (simulation?.status === 'created_blocker' || simulation?.status === 'blocked') return 'danger'
   if ((entry?.value ?? 0) < 0) return 'danger'
   if ((entry?.value ?? 0) > 0) return 'success'
-  return 'accent'
+  return 'default'
 }
 
 function getScoreContextLabel(scoreContext: RecommendationScoreContext | undefined): string | null {
@@ -1321,17 +1323,14 @@ function getTopRankBadge(scoreContext: RecommendationScoreContext | undefined): 
     return {
       label: '#1 Top pick',
       icon: 'trophy',
-      className: 'border-warning/60 bg-warning/15 text-warning',
+      className: 'border-info/40 bg-info-soft text-info',
     }
   }
 
   return {
     label: `#${scoreContext.overallRank}`,
     icon: 'award',
-    className:
-      scoreContext.overallRank === 2
-        ? 'border-accent/50 bg-accent/10 text-accent'
-        : 'border-default-300 bg-default-100 text-default-700',
+    className: 'border-divider bg-default-100 text-default-700',
   }
 }
 
@@ -1365,39 +1364,39 @@ function RecommendationTooltipContent({
   )
 
   return (
-    <div className="rounded-large max-w-[24rem] min-w-[18rem] border border-amber-300/35 bg-[#11100d]/95 px-3 py-2 text-[#d9c7a2] shadow-2xl">
-      <div className="border-b border-amber-300/20 pb-2 text-center">
-        <p className="text-sm font-semibold tracking-[0.18em] text-[#e1c47a] uppercase">
+    <div className="rounded-large border-divider bg-overlay text-foreground w-96 max-w-[calc(100dvw-2rem)] wrap-anywhere border px-3 py-2 shadow-large">
+      <div className="border-divider border-b pb-2 text-center">
+        <p className={`text-sm font-semibold ${getRarityColor(parsed.rarity)}`}>
           {parsed.title}
         </p>
         {parsed.baseLine ? (
-          <p className="mt-1 text-xs tracking-[0.15em] text-[#f2ebd0] uppercase">
+          <p className="text-default-500 mt-1 text-xs">
             {parsed.baseLine}
           </p>
         ) : null}
       </div>
 
       {visibleProperties.length > 0 ? (
-        <div className="border-b border-amber-300/15 py-2 text-center">
+        <div className="border-divider border-b py-2 text-center">
           {visibleProperties.map((property, index) => (
             <p
               key={`${property.name}-${property.values.join('|')}-${index}`}
-              className="text-xs leading-5 text-[#d7d7d7]"
+              className="text-xs leading-5 tabular-nums"
             >
-              <span className="text-[#b4b4b4]">{property.name}:</span>{' '}
-              <span className="text-white">{property.values.join(', ')}</span>
+              <span className="text-default-500">{property.name}:</span>{' '}
+              <span className="text-[color:var(--foreground-strong)]">{property.values.join(', ')}</span>
             </p>
           ))}
         </div>
       ) : null}
 
       {visibleRequirements.length > 0 ? (
-        <div className="border-b border-amber-300/15 py-2 text-center">
-          <p className="text-[11px] tracking-[0.14em] text-[#8f8f8f] uppercase">Requires</p>
+        <div className="border-divider border-b py-2 text-center">
+          <p className="text-default-500 text-xs">Requires</p>
           {visibleRequirements.map((requirement, index) => (
             <p
               key={`${requirement.name}-${requirement.values.join('|')}-${index}`}
-              className="text-xs leading-5 text-[#d7d7d7]"
+              className="text-xs leading-5 tabular-nums"
             >
               {requirement.name} {requirement.values.join(', ')}
             </p>
@@ -1406,16 +1405,16 @@ function RecommendationTooltipContent({
       ) : null}
 
       {parsed.modifierSections.length > 0 ? (
-        <div className="border-b border-amber-300/15">
+        <div className="border-divider border-b">
           {parsed.modifierSections.map((section, index) => (
             <div
               key={`${parsed.title}-section-${index}`}
-              className={`${index > 0 ? 'border-t border-amber-300/10' : ''} py-2`}
+              className={`${index > 0 ? 'border-divider border-t' : ''} py-2`}
             >
               {section.lines.map((line) => (
                 <p
                   key={`${parsed.title}-${index}-${line}`}
-                  className={`text-center text-xs leading-5 ${section.lineClassName}`}
+                  className={`text-center text-xs leading-5 tabular-nums ${section.lineClassName}`}
                 >
                   {line}
                 </p>
@@ -1424,17 +1423,17 @@ function RecommendationTooltipContent({
           ))}
         </div>
       ) : (
-        <div className="py-3 text-center text-xs text-[#d7d7d7]">No item details available.</div>
+        <div className="text-default-500 py-3 text-center text-xs">No item details available.</div>
       )}
 
       {parsed.footerLines.length > 0 ? (
-        <div className="pt-2 text-center text-[11px] text-[#a89467]">
+        <div className="text-default-500 pt-2 text-center text-xs tabular-nums">
           {parsed.footerLines.map((line) => (
             <p
               key={`${parsed.title}-footer-${line}`}
               className={
                 line === 'Corrupted'
-                  ? 'text-[#d14b4b]'
+                  ? 'text-[#e06a6a]'
                   : line.includes('Synthesised')
                     ? 'text-[#8ee8ff]'
                     : line.includes('Fractured')
@@ -1451,17 +1450,17 @@ function RecommendationTooltipContent({
       ) : null}
 
       {analysisNotes.length > 0 ? (
-        <div className="mt-2 border-t border-amber-300/15 pt-2 text-left">
-          <p className="text-[11px] tracking-[0.14em] text-[#a89467] uppercase">
+        <div className="border-divider mt-2 border-t pt-2 text-left">
+          <p className="text-default-500 text-xs">
             Analysis notes
           </p>
           <div className="mt-1 flex flex-col gap-2">
             {analysisNotes.map((note) => (
               <div key={note.key}>
-                <p className="text-[11px] font-semibold tracking-[0.12em] text-[#e1c47a] uppercase">
+                <p className="text-foreground text-xs font-semibold">
                   {note.label}
                 </p>
-                <div className="text-xs leading-5 text-[#d7d7d7]">{note.content}</div>
+                <div className="text-default-500 text-xs leading-5">{note.content}</div>
               </div>
             ))}
           </div>
@@ -1499,14 +1498,20 @@ export function RecommendationItemRow({
   showRankBadge?: boolean
 }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [failedIconUrls, setFailedIconUrls] = useState<string[]>([])
   const [copiedFullItemText, setCopiedFullItemText] = useState(false)
   const copyResetTimeoutRef = useRef<number | null>(null)
   const currencyDisplay = useCurrencyStore((s) => s.display)
   const payload = getPayload(item)
-  const baseType = getItemBaseType(item)
-  const payloadIconUrl = getItemIconUrl(item)
-  const { data: fallbackIconUrl } = usePoeWikiInventoryIcon(baseType, !payloadIconUrl)
-  const iconUrl = payloadIconUrl ?? fallbackIconUrl ?? null
+  const iconBaseType = getItemBaseType(item) ?? readString(payload.type_line)
+  const storedIconUrl = getItemIconUrl(item)
+  const payloadIconUrl = storedIconUrl && !failedIconUrls.includes(storedIconUrl) ? storedIconUrl : null
+  const { data: poedbIconUrl } = usePoedbInventoryIcon(iconBaseType, !payloadIconUrl)
+  const fallbackIconUrl = poedbIconUrl && !failedIconUrls.includes(poedbIconUrl) ? poedbIconUrl : null
+  const iconUrl = payloadIconUrl ?? fallbackIconUrl
+  function handleIconError(url: string) {
+    setFailedIconUrls((failed) => failed.includes(url) ? failed : [...failed, url])
+  }
   const tradeActionLabel = getTradeActionLabel(item)
   const tradeActionHint = getTradeActionHint(item)
   const tradeLinksDisabledForStaleRun = runIsStale
@@ -1723,8 +1728,7 @@ export function RecommendationItemRow({
     setIsOpen(true)
   }
 
-  function handleReservationBadgeClick(event: MouseEvent<HTMLButtonElement>) {
-    event.stopPropagation()
+  function handleReservationBadgeClick() {
     if (!reservationAuditAnchorId) {
       openDetails()
       return
@@ -1756,24 +1760,19 @@ export function RecommendationItemRow({
     })
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      openDetails()
-    }
-  }
-
   const card = (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={openDetails}
-      onKeyDown={handleKeyDown}
-      className={`rounded-large border-divider/70 bg-content1 hover:border-warning/40 hover:bg-warning/5 focus-visible:border-warning/50 relative flex h-full w-full cursor-pointer flex-col border p-3 transition-colors focus-visible:outline-none sm:w-[14.375rem] ${topRankBadge ? 'pt-9' : ''}`}
+      className={`rounded-large border-divider/70 bg-content1 hover:border-control hover:bg-content2 relative flex h-full w-full min-w-0 flex-col border p-3 transition-colors ${topRankBadge ? 'pt-9' : ''}`}
     >
+      <button
+        type="button"
+        aria-label={`View ${preview.title}`}
+        className="rounded-large focus-visible:outline-primary absolute inset-0 z-10 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+        onClick={openDetails}
+      />
       {topRankBadge ? (
         <div
-          className={`absolute top-2 left-2 z-10 inline-flex max-w-[8.5rem] items-center gap-1 rounded-full border px-2 py-1 text-[11px] leading-4 font-semibold shadow-sm backdrop-blur ${topRankBadge.className}`}
+          className={`pointer-events-none absolute top-2 left-2 inline-flex max-w-[8.5rem] items-center gap-1 rounded-full border px-2 py-1 text-[11px] leading-4 font-semibold shadow-sm backdrop-blur ${topRankBadge.className}`}
         >
           {topRankBadge.icon === 'trophy' ? <Trophy size={13} /> : <Award size={13} />}
           <span className="truncate">{topRankBadge.label}</span>
@@ -1787,6 +1786,7 @@ export function RecommendationItemRow({
               alt={preview.title}
               className="h-14 w-14 object-contain"
               loading="lazy"
+              onError={() => handleIconError(iconUrl)}
             />
           ) : (
             <span className="text-default-400 text-xs font-semibold tracking-[0.14em] uppercase">
@@ -1795,11 +1795,11 @@ export function RecommendationItemRow({
           )}
         </div>
         <div className="min-w-0 text-center">
-          <p className={`truncate text-sm font-semibold ${getRarityColor(preview.rarity)}`}>
+          <p className={`wrap-anywhere text-sm font-semibold ${getRarityColor(preview.rarity)}`}>
             {preview.title}
           </p>
           {preview.subtitle ? (
-            <p className="text-default-500 mt-1 truncate text-[11px] tracking-[0.14em] uppercase">
+            <p className="text-default-500 wrap-anywhere mt-1 text-[11px] tracking-[0.14em] uppercase">
               {preview.subtitle}
             </p>
           ) : null}
@@ -1810,7 +1810,7 @@ export function RecommendationItemRow({
               </Chip>
             ) : null}
             {item.source === 'compare' ? (
-              <Chip size="sm" variant="soft" color="accent">
+              <Chip size="sm" variant="soft">
                 Compare
               </Chip>
             ) : null}
@@ -1820,7 +1820,7 @@ export function RecommendationItemRow({
               </Chip>
             ) : null}
             {linkedSocketCount ? (
-              <Chip size="sm" variant="soft" color="accent">
+              <Chip size="sm" variant="soft">
                 {linkedSocketCount}-link
               </Chip>
             ) : null}
@@ -1846,7 +1846,7 @@ export function RecommendationItemRow({
               </Chip>
             ) : null}
             {flexibleResistanceSuggestion ? (
-              <Chip size="sm" variant="soft" color="accent">
+              <Chip size="sm" variant="soft" className="bg-info-soft text-info">
                 Suggested action
               </Chip>
             ) : null}
@@ -1863,10 +1863,9 @@ export function RecommendationItemRow({
             {reservationScoreEntry ? (
               <button
                 type="button"
-                className="focus-visible:ring-accent/60 inline-flex cursor-pointer rounded-full focus-visible:ring-2 focus-visible:outline-none"
+                className="relative z-20 inline-flex cursor-pointer rounded-full"
                 aria-label="Open reservation audit"
                 onClick={handleReservationBadgeClick}
-                onKeyDown={(event) => event.stopPropagation()}
               >
                 <Chip size="sm" variant="soft" color={reservationChipColor}>
                   Reservation {reservationScoreLabel}
@@ -1874,7 +1873,7 @@ export function RecommendationItemRow({
               </button>
             ) : null}
             {plan?.kind === 'bundle' ? (
-              <Chip size="sm" variant="soft" color="accent">
+              <Chip size="sm" variant="soft">
                 Bundle
               </Chip>
             ) : null}
@@ -1885,7 +1884,7 @@ export function RecommendationItemRow({
       <div className="border-divider/70 mt-3 flex items-center justify-between gap-2 border-t pt-3">
         <div className="min-w-0">
           {priceLabel ? (
-            <p className="text-foreground truncate text-sm font-semibold">{priceLabel}</p>
+            <p className="text-foreground wrap-anywhere text-sm font-semibold">{priceLabel}</p>
           ) : null}
           {priceContextLabel ? (
             <p className="text-default-400 mt-1 text-[11px]">{priceContextLabel}</p>
@@ -1912,19 +1911,18 @@ export function RecommendationItemRow({
         </div>
         {item.trade_link ? (
           tradeLinksDisabledForStaleRun ? (
-            <Button isIconOnly size="sm" variant="tertiary" isDisabled aria-label={tradeActionLabel}>
-              <ExternalLink size={14} />
+            <Button isIconOnly size="sm" variant="tertiary" isDisabled aria-label={tradeActionLabel} className="relative z-20 shrink-0">
+              <ExternalLink size={14} aria-hidden="true" />
             </Button>
           ) : (
             <a
               href={item.trade_link}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={(event) => event.stopPropagation()}
+              className="button button--sm button--tertiary button--icon-only relative z-20 shrink-0"
+              aria-label={tradeActionLabel}
             >
-              <Button isIconOnly size="sm" variant="tertiary" aria-label={tradeActionLabel}>
-                <ExternalLink size={14} />
-              </Button>
+              <ExternalLink size={14} aria-hidden="true" />
             </a>
           )
         ) : null}
@@ -1939,9 +1937,9 @@ export function RecommendationItemRow({
         placement="right"
         delay={150}
         closeDelay={50}
-        classNames={{ base: 'before:hidden', content: 'bg-transparent p-0 shadow-none' }}
+        classNames={{ base: 'block min-w-0 before:hidden', content: 'bg-transparent p-0 shadow-none' }}
       >
-        <div className="h-full w-full sm:w-fit">{card}</div>
+        {card}
       </Tooltip>
 
       <>
@@ -1952,12 +1950,17 @@ export function RecommendationItemRow({
           }}
         >
           <Modal.Container>
-            <Modal.Dialog className="w-[calc(100vw-2rem)] max-w-2xl max-h-[calc(100vh-2rem)] overflow-hidden sm:w-[calc(100vw-4rem)]">
+            <Modal.Dialog className="w-[calc(100vw-2rem)] max-w-2xl max-h-[calc(100dvh-2rem)] overflow-hidden sm:w-[calc(100vw-4rem)]">
               <Modal.Header className="flex flex-col gap-3">
                 <div className="flex items-start gap-4">
-                  <div className="rounded-large border-divider/70 bg-default-100 flex h-20 w-20 shrink-0 items-center justify-center border">
+                  <div className="rounded-large border-divider/70 bg-default-100 flex h-12 w-12 shrink-0 items-center justify-center border sm:h-20 sm:w-20">
                     {iconUrl ? (
-                      <img src={iconUrl} alt={preview.title} className="h-16 w-16 object-contain" />
+                      <img
+                        src={iconUrl}
+                        alt=""
+                        className="h-10 w-10 object-contain sm:h-16 sm:w-16"
+                        onError={() => handleIconError(iconUrl)}
+                      />
                     ) : (
                       <span className="text-default-400 text-xs font-semibold tracking-[0.14em] uppercase">
                         {item.slot?.slice(0, 2) ?? 'It'}
@@ -1966,12 +1969,12 @@ export function RecommendationItemRow({
                   </div>
                   <div className="min-w-0">
                     <Modal.Heading
-                      className={`text-base font-semibold ${getRarityColor(preview.rarity)}`}
+                      className={`wrap-anywhere text-base font-semibold ${getRarityColor(preview.rarity)}`}
                     >
                       {preview.title}
                     </Modal.Heading>
                     {preview.subtitle ? (
-                      <p className="text-default-500 mt-1 text-sm">{preview.subtitle}</p>
+                      <p className="text-default-500 wrap-anywhere mt-1 text-sm">{preview.subtitle}</p>
                     ) : null}
                     <div className="mt-3 flex flex-wrap gap-2">
                       {item.source === 'owned' ? (
@@ -1980,7 +1983,7 @@ export function RecommendationItemRow({
                         </Chip>
                       ) : null}
                       {item.source === 'compare' ? (
-                        <Chip size="sm" variant="soft" color="accent">
+                        <Chip size="sm" variant="soft">
                           Compare source
                         </Chip>
                       ) : null}
@@ -2001,7 +2004,7 @@ export function RecommendationItemRow({
                       ) : null}
                       {flexibleResistanceSuggestion ? (
                         <Tooltip content={flexibleResistanceTooltip ?? ''} placement="top">
-                          <Chip size="sm" variant="soft" color="accent">
+                          <Chip size="sm" variant="soft" className="bg-info-soft text-info">
                             Suggested action
                           </Chip>
                         </Tooltip>
@@ -2026,7 +2029,7 @@ export function RecommendationItemRow({
                         </Tooltip>
                       ) : null}
                       {plan?.kind === 'bundle' ? (
-                        <Chip size="sm" variant="soft" color="accent">
+                        <Chip size="sm" variant="soft">
                           Bundle
                         </Chip>
                       ) : null}
@@ -2048,12 +2051,12 @@ export function RecommendationItemRow({
                         </Chip>
                       ) : null}
                       {exactEval ? (
-                        <Chip size="sm" variant="soft" color="accent">
+                        <Chip size="sm" variant="soft">
                           Exact-scored
                         </Chip>
                       ) : null}
                       {appliedSlotEffects.length > 0 ? (
-                        <Chip size="sm" variant="soft" color="accent">
+                        <Chip size="sm" variant="soft">
                           Target anoint
                         </Chip>
                       ) : null}
@@ -2207,7 +2210,7 @@ export function RecommendationItemRow({
                                 {dependency.label}
                               </Chip>
                               {dependency.source_label ? (
-                                <Chip size="sm" variant="soft" color="accent">
+                                <Chip size="sm" variant="soft">
                                   {dependency.source_label}
                                 </Chip>
                               ) : null}
@@ -2249,21 +2252,21 @@ export function RecommendationItemRow({
                     </Tooltip>
                   </div>
                   {hasFullItemText ? (
-                    <div className="rounded-large mt-2 border border-amber-300/20 bg-[#11100d] p-3">
+                    <div className="rounded-large border-divider bg-content1 text-foreground mt-2 border p-3">
                       {preview.title ? (
-                        <p className="font-mono text-xs leading-5 text-[#d7d7d7]">
+                        <p className="font-mono text-xs leading-5">
                           {preview.title}
                         </p>
                       ) : null}
                       {preview.subtitle ? (
-                        <p className="font-mono text-xs leading-5 text-[#d7d7d7]">
+                        <p className="font-mono text-xs leading-5">
                           {preview.subtitle}
                         </p>
                       ) : null}
                       {preview.bodyLines.map((line, index) => (
                         <p
                           key={`${preview.title}-body-${index}`}
-                          className="font-mono text-xs leading-5 text-[#d7d7d7]"
+                          className="font-mono text-xs leading-5"
                         >
                           {line}
                         </p>
@@ -2299,7 +2302,6 @@ export function RecommendationItemRow({
                                 key={`${effect.kind ?? 'effect'}-${effect.label ?? effect.passiveName ?? index}`}
                                 size="sm"
                                 variant="soft"
-                                color="accent"
                               >
                                 {effect.kind === 'transferable_anoint'
                                   ? `Target anoint: ${effect.label ?? effect.passiveName ?? 'Passive'}`
@@ -2368,12 +2370,12 @@ export function RecommendationItemRow({
                             <Chip
                               size="sm"
                               variant="soft"
-                              color={reservationSimulation.resolvesBlocker ? 'success' : 'accent'}
+                              color={reservationChipColor}
                             >
                               {getReservationStatusLabel(reservationSimulation)}
                             </Chip>
                             {reservationSimulation.deltaGain != null ? (
-                              <Chip size="sm" variant="soft" color="accent">
+                              <Chip size="sm" variant="soft">
                                 {formatSignedWholeNumber(reservationSimulation.deltaGain)} mana
                               </Chip>
                             ) : null}
@@ -2416,10 +2418,8 @@ export function RecommendationItemRow({
                         {tradeActionLabel}
                       </Button>
                     ) : (
-                      <a href={item.trade_link} target="_blank" rel="noopener noreferrer">
-                        <Button size="sm" variant="tertiary">
-                          {tradeActionLabel}
-                        </Button>
+                      <a href={item.trade_link} target="_blank" rel="noopener noreferrer" className="button button--sm button--tertiary">
+                        {tradeActionLabel}
                       </a>
                     )
                   ) : null}

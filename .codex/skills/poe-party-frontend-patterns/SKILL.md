@@ -15,7 +15,8 @@ Use existing nearby patterns first. This app is a product workspace, so favor de
 - Use HeroUI components and lucide icons consistently with nearby pages.
 - Preserve dashboard privacy boundaries: authenticated dashboard routes stay client-rendered; public preview/legal routes can be SEO-oriented.
 - Run route generation if route files change and generated route output is stale.
-- Keep PoE Party brand primary at `#f5a524`. In HeroUI v3 this belongs in `src/index.css` as the `--accent` token override, not as one-off button styling; without it, HeroUI's default accent makes primary buttons blue.
+- Use the semantic roles in `src/index.css`. HeroUI `--accent` supplies the primary action, `text-brand-readable` is for links, and `bg-selected` with `text-highlight` identifies selection. Use neutral or informational badges for metadata and amber for actual cautions. Use `border-divider` for structure, `border-control` for control edges, and `--wealth-series` for wealth charts.
+- Add a league preset in `src/lib/league-theme.ts` and supply its light and dark palette values in `src/index.css`. `WorkspaceFrame` attaches the preset to the document root so HeroUI portals inherit it. Resolve the theme from the active game's league or the public sample's fixture. Keep warning, success, danger, and data colors shared across presets.
 
 ## HeroUI Trigger Styling
 

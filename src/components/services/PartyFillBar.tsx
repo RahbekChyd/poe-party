@@ -27,8 +27,8 @@ export function PartyFillBar({ rows, compact = false }: { rows: PartyRow[]; comp
               aria-label={`${row.label} ${row.slot.current} of ${row.slot.capacity}`}
               value={value}
               size="sm"
-              color={full ? 'success' : 'accent'}
-              className="max-w-full"
+              color={full ? 'success' : 'default'}
+              className={`max-w-full ${full ? '' : '[--progress-bar-fill:var(--info)]'}`}
             />
           </div>
         )

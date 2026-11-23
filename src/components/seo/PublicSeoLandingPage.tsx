@@ -1,8 +1,7 @@
-import { Button } from '@heroui/react/button'
 import { Card } from '@heroui/react/card'
 import { Chip } from '@heroui/react/chip'
 import { Link, Navigate } from '@tanstack/react-router'
-import { BarChart3, Coins, Handshake, LineChart, Search, ShieldCheck, Target, Users } from 'lucide-react'
+import { BarChart3, Coins, Handshake, LineChart, ShieldCheck, Target, Users } from 'lucide-react'
 import { findSeoRouteBySlug, strategySeoRoutes, toolSeoRoutes, type PublicSeoRoute } from '../../lib/public-seo-pages'
 import { trackPublicEvent } from '../../lib/analytics'
 import {
@@ -125,10 +124,10 @@ function RelatedLinks({
             .filter((route) => route.path !== current.path)
             .slice(0, 5)
             .map((route) => (
-              <a key={route.path} href={route.path}>
+              <a key={route.path} href={route.path} className="max-w-full rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
                 <Chip
                   variant="soft"
-                  className="cursor-pointer transition-colors hover:bg-default-200"
+                  className="h-auto max-w-full cursor-pointer py-1 wrap-anywhere whitespace-normal transition-colors hover:bg-default-200"
                 >
                   {route.title.replace(' | PoE Party', '')}
                 </Chip>
@@ -149,9 +148,9 @@ function FeatureGrid({ points }: { points: string[] }) {
         const Icon = icons[index] ?? ShieldCheck
         return (
           <Card key={point}>
-            <Card.Content className="gap-3 p-5">
-              <div className="flex h-10 w-10 items-center justify-center rounded-large bg-warning/15">
-                <Icon size={20} className="text-warning" />
+            <Card.Content className="gap-3">
+              <div className="bg-info-soft rounded-large flex h-10 w-10 items-center justify-center">
+                <Icon size={20} className="text-info" aria-hidden="true" />
               </div>
               <p className="text-sm leading-relaxed text-default-600">{point}</p>
             </Card.Content>
@@ -170,49 +169,31 @@ function ToolLandingPage({ route }: { route: PublicSeoRoute }) {
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
       <section className="rounded-large border border-divider bg-content1 p-6 md:p-8">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-          <div className="max-w-3xl">
-            <Chip color="warning" variant="soft">
+          <div className="min-w-0 max-w-3xl wrap-anywhere">
+            <Chip variant="soft">
               {content.eyebrow}
             </Chip>
-            <h1 className="mt-4 text-3xl font-semibold tracking-normal text-foreground md:text-4xl">
+            <h1 className="display-heading mt-4 text-3xl md:text-4xl">
               {content.headline}
             </h1>
             <p className="mt-4 text-base leading-relaxed text-default-500">{content.intro}</p>
           </div>
-          <Link to={content.primaryTo}>
-            <Button
-              size="lg"
-              onPress={() =>
-                trackPublicEvent('seo_cta_click', {
-                  source: route.path,
-                  target: content.primaryTo,
-                })
-              }
-            >
-              {content.primaryLabel}
-            </Button>
+          <Link
+            to={content.primaryTo}
+            className="button button--lg button--primary h-auto max-w-full shrink-0 self-start py-2 text-center whitespace-normal md:self-end"
+            onClick={() =>
+              trackPublicEvent('seo_cta_click', {
+                source: route.path,
+                target: content.primaryTo,
+              })
+            }
+          >
+            {content.primaryLabel}
           </Link>
         </div>
       </section>
 
       <FeatureGrid points={content.points} />
-
-      <Card>
-        <Card.Content className="gap-4 p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-large bg-primary/15">
-              <Search size={20} className="text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">Why this page exists</p>
-              <p className="mt-1 text-sm leading-relaxed text-default-500">
-                Players search for separate stash, wealth, strategy, service, and gear tools. PoE
-                Party connects those workflows inside one league-scoped workspace.
-              </p>
-            </div>
-          </div>
-        </Card.Content>
-      </Card>
 
       <RelatedLinks current={route} routes={toolSeoRoutes} title="Related PoE tools" />
     </div>
@@ -228,11 +209,11 @@ function StrategyLandingPage({ route }: { route: PublicSeoRoute }) {
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
       <section className="rounded-large border border-divider bg-content1 p-6 md:p-8">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-          <div className="max-w-3xl">
-            <Chip color="accent" variant="soft">
+          <div className="min-w-0 max-w-3xl wrap-anywhere">
+            <Chip variant="soft">
               Farming strategy tracker
             </Chip>
-            <h1 className="mt-4 text-3xl font-semibold tracking-normal text-foreground md:text-4xl">
+            <h1 className="display-heading mt-4 text-3xl md:text-4xl">
               {content.headline}
             </h1>
             <p className="mt-4 text-base leading-relaxed text-default-500">{content.intro}</p>
@@ -240,18 +221,17 @@ function StrategyLandingPage({ route }: { route: PublicSeoRoute }) {
               <StrategyMetadataBadges metadata={metadata} />
             </div>
           </div>
-          <Link to="/preview/strategies">
-            <Button
-              size="lg"
-              onPress={() =>
-                trackPublicEvent('seo_cta_click', {
-                  source: route.path,
-                  target: '/preview/strategies',
-                })
-              }
-            >
-              Browse Public Strategies
-            </Button>
+          <Link
+            to="/preview/strategies"
+            className="button button--lg button--primary h-auto max-w-full shrink-0 self-start py-2 text-center whitespace-normal md:self-end"
+            onClick={() =>
+              trackPublicEvent('seo_cta_click', {
+                source: route.path,
+                target: '/preview/strategies',
+              })
+            }
+          >
+            Browse public strategies
           </Link>
         </div>
       </section>
@@ -262,7 +242,7 @@ function StrategyLandingPage({ route }: { route: PublicSeoRoute }) {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <Card.Content className="gap-2 p-5">
-            <Coins size={20} className="text-warning" />
+            <Coins size={20} className="text-wealth-series" aria-hidden="true" />
             <p className="text-sm font-semibold text-foreground">Track investment</p>
             <p className="text-sm leading-relaxed text-default-500">
               Keep map costs, setup notes, and strategy assumptions near the results.

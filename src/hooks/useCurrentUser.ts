@@ -24,7 +24,7 @@ export function useMyProfile() {
       const { data, error } = await supabase
         .from('users')
         .select(
-          'display_name, poe_account_name, avatar_url, avatar_color, theme, subscription_tier, subscription_expires_at, poe_token_expires_at, has_seen_early_access_notice',
+          'display_name, poe_account_name, avatar_url, avatar_color, subscription_tier, subscription_expires_at, poe_token_expires_at, has_seen_early_access_notice',
         )
         .eq('id', user!.id)
         .single()

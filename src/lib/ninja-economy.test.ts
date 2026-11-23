@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { priceSnapshotItems } from '../../supabase/functions/_shared/ninja-economy-server'
+import { fetchNinjaMarketOverview } from './poe-ninja-client'
 import {
   parseNinjaExchangeResponse,
   parseNinjaItemResponse,
@@ -11,6 +12,34 @@ const catalog = (category: string, rows: Record<string, unknown>[]): NinjaCatalo
   items: new Map([[category, rows]]),
 })
 const stored = (raw: Record<string, unknown>) => ({ frame_type: raw.frameType ?? 0, raw_data: raw })
+
+describe('PoE2 market availability', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('reports a total feed outage as an error', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 503 })))
+
+    await expect(fetchNinjaMarketOverview('Fixture league', 'poe2')).rejects.toThrow(
+      'Market prices unavailable',
+    )
+  })
+
+  it('keeps available categories when other feeds fail', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) =>
+      url.endsWith('type=Currency')
+        ? Response.json({
+            items: [{ id: 'divine', name: 'Divine Orb' }],
+            lines: [{ id: 'divine', primaryValue: 100 }],
+          })
+        : new Response(null, { status: 503 }),
+    ))
+
+    await expect(fetchNinjaMarketOverview('Fixture league', 'poe2')).resolves.toMatchObject([
+      { type: 'Currency', entries: [{ name: 'Divine Orb', primaryValue: 100 }] },
+    ])
+  })
+})
+
 describe('snapshot economy matching', () => {
   it('validates primary currency and derives reference quotes without a fake rate', () => {
     const response = {

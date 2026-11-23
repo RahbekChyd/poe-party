@@ -41,7 +41,8 @@ for (const route of routes) {
     failures.push(`${route.path}: missing canonical ${expectedCanonical}`)
   }
 
-  if (html.includes('/dashboard') && !route.path.startsWith('/preview')) {
+  // Match the route segment without flagging hashed bundles like /assets/dashboard-ABC.js.
+  if (/\/dashboard(?=[/?#"'<>\s]|$)/.test(html) && !route.path.startsWith('/preview')) {
     failures.push(`${route.path}: unexpected dashboard reference`)
   }
 }

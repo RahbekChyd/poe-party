@@ -1,7 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
+    <meta name="color-scheme" content="dark" />
     <link rel="icon" type="image/png" href="/poe-party-logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
@@ -23,30 +24,6 @@
       content="A Path of Exile group tool for party economy tracking, stash snapshots, public strategies, service listings, gear planning, and upgrade analysis."
     />
     <meta name="twitter:image" content="https://poe-party.com/poe-party-logo.png" />
-    <script>
-      ;(function () {
-        var STORAGE_KEY = 'theme'
-        var theme = null
-
-        try {
-          var raw = window.localStorage.getItem(STORAGE_KEY)
-          if (raw) {
-            var parsed = JSON.parse(raw)
-            var storedTheme = parsed && parsed.state && parsed.state.theme
-            if (storedTheme === 'light' || storedTheme === 'dark') {
-              theme = storedTheme
-            }
-          }
-        } catch {}
-
-        if (!theme) {
-          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-        }
-
-        document.documentElement.classList.toggle('dark', theme === 'dark')
-        document.documentElement.style.colorScheme = theme
-      })()
-    </script>
     <title>PoE Party - Path of Exile group tools</title>
   </head>
   <body>

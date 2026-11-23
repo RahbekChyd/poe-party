@@ -98,17 +98,14 @@ export function StrategyLinkedSnapshotsModal({
           }
         }}
       >
-        <Modal.Container>
-          <Modal.Dialog>
-            <Modal.Header className="flex flex-col gap-1">
+        <Modal.Container scroll="inside" size="lg">
+          <Modal.Dialog className="min-w-0 max-h-full max-w-2xl gap-3 p-4 sm:p-6">
+            <Modal.Header className="min-w-0 shrink-0 gap-1">
               <Modal.Heading>Linked snapshots</Modal.Heading>
-              <span className="text-default-500 text-sm font-normal">
-                Review the snapshot history currently contributing to{' '}
-                <strong className="text-foreground">{strategyName}</strong>.
-              </span>
+              <p className="text-default-500 wrap-anywhere text-sm">{strategyName}</p>
             </Modal.Header>
 
-            <Modal.Body className="gap-5">
+            <Modal.Body className="@container mt-0 min-h-0 min-w-0 gap-5 overflow-y-auto overscroll-contain">
               {linkedSnapshots.length === 0 ? (
                 <p className="text-default-400 py-4 text-center text-sm">
                   No snapshots are currently linked to this strategy.
@@ -120,8 +117,7 @@ export function StrategyLinkedSnapshotsModal({
                   <div>
                     <p className="text-foreground text-sm font-medium">Full snapshots</p>
                     <p className="text-default-400 text-xs">
-                      Open these in a new tab to adjust the strategy link from the snapshot detail
-                      page.
+                      Open a snapshot to view the items it captured.
                     </p>
                   </div>
 
@@ -137,21 +133,24 @@ export function StrategyLinkedSnapshotsModal({
                       return (
                         <div
                           key={snapshot.id}
-                          className="rounded-large border-divider flex items-center justify-between gap-3 border px-3 py-2"
+                          className="rounded-large border-divider flex min-w-0 flex-col gap-2 border px-3 py-2 @min-[22rem]:flex-row @min-[22rem]:items-center @min-[22rem]:justify-between"
                         >
                           <div className="min-w-0">
-                            <p className="text-foreground text-sm font-medium">
+                            <p className="text-foreground wrap-anywhere text-sm font-medium">
                               {formatSnapshotLabel(snapshot.created_at)}
                             </p>
-                            <p className="text-default-400 text-xs">
+                            <p className="text-default-400 wrap-anywhere text-xs">
                               {memberName} · {fmt(snapshot.total_wealth_chaos)}
                             </p>
                           </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            <a href={snapshotHref} target="_blank" rel="noopener noreferrer">
-                              <Button size="sm" variant="tertiary">
-                                Open
-                              </Button>
+                          <div className="flex shrink-0 flex-wrap items-center gap-2">
+                            <a
+                              href={snapshotHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="button button--sm button--tertiary"
+                            >
+                              Open snapshot
                             </a>
                             <Button
                               size="sm"
@@ -178,10 +177,9 @@ export function StrategyLinkedSnapshotsModal({
               {summaryOnlySnapshots.length > 0 ? (
                 <div className="flex flex-col gap-2">
                   <div>
-                    <p className="text-foreground text-sm font-medium">Summary-only entries</p>
+                    <p className="text-foreground text-sm font-medium">Snapshot summaries</p>
                     <p className="text-default-400 text-xs">
-                      The raw snapshots for these points were removed by retention. Uncheck anything
-                      you want to remove from this strategy.
+                      Uncheck a summary to unlink it from this strategy.
                     </p>
                   </div>
 
@@ -194,14 +192,15 @@ export function StrategyLinkedSnapshotsModal({
                       return (
                         <div
                           key={snapshot.id}
-                          className="rounded-large border-divider flex items-center gap-3 border px-3 py-2"
+                          className="rounded-large border-divider flex min-w-0 flex-wrap items-center gap-2 border px-3 py-2"
                         >
                           <NativeCheckbox
                             id={`linked-summary-${snapshot.id}`}
                             isSelected={selectedSummaryIds.includes(snapshot.id)}
                             onChange={() => handleToggle(snapshot.id)}
+                            className="min-w-0"
                           >
-                            <div className="flex flex-col gap-0.5">
+                            <div className="flex min-w-0 flex-col gap-0.5 wrap-anywhere">
                               <span className="text-foreground text-sm font-medium">
                                 {formatSnapshotLabel(snapshot.created_at)}
                               </span>
@@ -213,8 +212,7 @@ export function StrategyLinkedSnapshotsModal({
                           <Chip
                             size="sm"
                             variant="soft"
-                            color="warning"
-                            className="ml-auto shrink-0"
+                            className="shrink-0 @min-[22rem]:ml-auto"
                           >
                             Summary only
                           </Chip>
@@ -226,7 +224,7 @@ export function StrategyLinkedSnapshotsModal({
               ) : null}
             </Modal.Body>
 
-            <Modal.Footer>
+            <Modal.Footer className="mt-0 shrink-0 flex-wrap">
               <Button variant="tertiary" onPress={onClose}>
                 Close
               </Button>

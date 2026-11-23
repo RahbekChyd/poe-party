@@ -3,10 +3,11 @@ import { CheckCircle2, Copy, Globe2, Sparkles, Users } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@heroui/react/button'
 import { Chip } from '@heroui/react/chip'
+import { Modal } from '@heroui/react/modal'
 import { Spinner } from '@heroui/react/spinner'
-import { Tooltip } from '@heroui/react/tooltip'
 import { ToggleButton } from '@heroui/react/toggle-button'
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
+import { Tooltip } from '@heroui/react/tooltip'
 import type {
   CharacterProfileItem,
   CharacterProfileSnapshot,
@@ -46,7 +47,7 @@ function getGemTextColorClassByName(gemName: string): string {
   const normalizedName = gemName.replace(/\s+Support\s*$/i, '').trim()
   const color = colorMap[gemName] ?? colorMap[normalizedName] ?? null
   switch (color) {
-    case 'red': return 'text-[#d20000]'
+    case 'red': return 'text-[#e06a6a]'
     case 'green': return 'text-[#46a239]'
     case 'blue': return 'text-[#8888ff]'
     default: return 'text-[#8888ff]'
@@ -176,11 +177,23 @@ function TreeSection({
   subtitle: string
   linkHint?: string | null
 }) {
+  const [copyFeedback, setCopyFeedback] = useState('')
+
+  async function copyTreeLink() {
+    if (!url) return
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopyFeedback('Tree link copied')
+    } catch {
+      setCopyFeedback('Couldn’t copy the tree link')
+    }
+  }
+
   return (
     <div className="rounded-large border border-divider bg-default-50/60 p-4">
       <SectionTitle title={title} subtitle={subtitle} />
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Chip size="sm" variant="soft">
             {hashCount} allocated
           </Chip>
@@ -195,20 +208,20 @@ function TreeSection({
               size="sm"
               variant="tertiary"
               isIconOnly
-              onPress={() => navigator.clipboard.writeText(url)}
+              aria-label={`Copy ${title.toLowerCase()} link`}
+              onPress={() => void copyTreeLink()}
             >
               <Copy size={12} />
             </Button>
-            <a href={url} target="_blank" rel="noopener noreferrer">
-              <Button size="sm" variant="tertiary">
-                Open Official Tree
-              </Button>
+            <a href={url} target="_blank" rel="noopener noreferrer" className="button button--sm button--tertiary">
+              Open official tree
             </a>
           </div>
         ) : (
           <span className="text-default-400 text-xs">No tree link available</span>
         )}
       </div>
+      <p role="status" className="text-default-600 text-xs">{copyFeedback}</p>
     </div>
   )
 }
@@ -328,7 +341,7 @@ function SocketedGemList({ item }: { item: CharacterProfileItem }) {
         return (
           <span
             key={`${gem.id ?? gem.typeLine}-${gem.level ?? 'na'}`}
-            className={`inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 py-0.5 pr-2 pl-0.5 text-[11px] leading-4 ${colorClass}`}
+            className={`border-divider bg-content1 inline-flex max-w-full items-center gap-1 rounded-full border py-0.5 pr-2 pl-0.5 text-xs leading-4 ${colorClass}`}
           >
             {gem.icon ? (
               <img
@@ -342,7 +355,7 @@ function SocketedGemList({ item }: { item: CharacterProfileItem }) {
                 style={getSocketColorStyle(socket.color)}
               />
             ) : null}
-            <span className="truncate">
+            <span className="min-w-0 wrap-anywhere">
               {gem.name || gem.typeLine}
               {gem.level != null ? ` ${gem.level}` : ''}
               {gem.quality ? ` (${gem.quality})` : ''}
@@ -354,7 +367,7 @@ function SocketedGemList({ item }: { item: CharacterProfileItem }) {
   )
 }
 
-function ItemTooltipContent({ item }: { item: CharacterProfileItem }) {
+function ItemDetailContent({ item }: { item: CharacterProfileItem }) {
   const title = getItemDisplayName(item)
   const modifierSections = getItemModifierSections(item)
   const veiledMods = normalizeModifierLines(item.veiledMods)
@@ -372,35 +385,30 @@ function ItemTooltipContent({ item }: { item: CharacterProfileItem }) {
         : null
 
   return (
-    <div className="min-w-[18rem] max-w-[24rem] rounded-large border border-amber-300/35 bg-[#11100d]/95 px-3 py-2 text-[#d9c7a2] shadow-2xl">
-      <div className="border-b border-amber-300/20 pb-2 text-center">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#e1c47a]">{title}</p>
-        {baseLine ? (
-          <p className="mt-1 text-xs uppercase tracking-[0.15em] text-[#f2ebd0]">{baseLine}</p>
-        ) : null}
-      </div>
+    <div className="text-foreground wrap-anywhere text-center">
+      {baseLine ? <p className="text-default-500 pb-2 text-sm">{baseLine}</p> : null}
 
       {visibleProperties.length > 0 && (
-        <div className="border-b border-amber-300/15 py-2 text-center">
+        <div className="border-divider border-b py-2">
           {visibleProperties.map((property, index) => (
             <p
               key={`${property.name}-${property.values.join('|')}-${index}`}
-              className="text-xs leading-5 text-[#d7d7d7]"
+              className="text-sm leading-relaxed tabular-nums"
             >
-              <span className="text-[#b4b4b4]">{property.name}:</span>{' '}
-              <span className="text-white">{property.values.join(', ')}</span>
+              <span className="text-default-500">{property.name}:</span>{' '}
+              <span className="text-[color:var(--foreground-strong)]">{property.values.join(', ')}</span>
             </p>
           ))}
         </div>
       )}
 
       {visibleRequirements.length > 0 && (
-        <div className="border-b border-amber-300/15 py-2 text-center">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-[#8f8f8f]">Requires</p>
+        <div className="border-divider border-b py-2">
+          <p className="text-default-500 text-xs">Requires</p>
           {visibleRequirements.map((requirement, index) => (
             <p
               key={`${requirement.name}-${requirement.values.join('|')}-${index}`}
-              className="text-xs leading-5 text-[#d7d7d7]"
+              className="text-sm leading-relaxed tabular-nums"
             >
               {requirement.name} {requirement.values.join(', ')}
             </p>
@@ -409,16 +417,16 @@ function ItemTooltipContent({ item }: { item: CharacterProfileItem }) {
       )}
 
       {modifierSections.length > 0 && (
-        <div className="border-b border-amber-300/15">
+        <div className="border-divider border-b">
           {modifierSections.map((section, index) => (
             <div
               key={section.key}
-              className={`${index > 0 ? 'border-t border-amber-300/10' : ''} py-2`}
+              className={`${index > 0 ? 'border-divider border-t' : ''} py-2`}
             >
               {section.lines.map((modifier) => (
                 <p
                   key={`${section.key}-${modifier}`}
-                  className={`text-center text-xs leading-5 ${section.lineClassName}`}
+                  className={`text-sm leading-relaxed tabular-nums ${section.lineClassName}`}
                 >
                   {modifier}
                 </p>
@@ -429,19 +437,19 @@ function ItemTooltipContent({ item }: { item: CharacterProfileItem }) {
       )}
 
       {item.socketedItems.length > 0 && (
-        <div className="border-b border-amber-300/15 py-2">
+        <div className="border-divider border-b py-2">
           <LinkedGemSocketRow item={item} />
           <SocketedGemList item={item} />
         </div>
       )}
 
-      <div className="pt-2 text-center text-[11px] text-[#a89467]">
+      <div className="text-default-500 pt-2 text-xs leading-relaxed tabular-nums">
         <p>{getFrameTypeLabel(item.frameType, item.rarity)}</p>
         {item.itemLevel != null ? <p>Item Level: {item.itemLevel}</p> : null}
         {item.synthesised ? <p className="text-[#8ee8ff]">Synthesised Item</p> : null}
         {item.fractured ? <p className="text-[#a29162]">Fractured Item</p> : null}
         {item.veiled && !veiledMods.length ? <p className="text-[#c7b7ff]">Veiled Item</p> : null}
-        {item.corrupted ? <p className="text-[#d14b4b]">Corrupted</p> : null}
+        {item.corrupted ? <p className="text-[#e06a6a]">Corrupted</p> : null}
         {item.influences.length > 0 ? <p>{item.influences.join(' - ')}</p> : null}
       </div>
     </div>
@@ -465,6 +473,7 @@ function VisibleItemCard({
   wideCompact?: boolean
   className?: string
 }) {
+  const [itemPreviewOpen, setItemPreviewOpen] = useState(false)
   const shellSizeClass = wideCompact
     ? 'w-48 p-2.5'
     : tiny
@@ -475,60 +484,101 @@ function VisibleItemCard({
   const artSizeClass = large ? 'min-h-44' : tiny ? 'min-h-12' : compact ? 'min-h-14' : 'min-h-28'
   const iconSizeClass = large ? 'h-32 w-32' : tiny ? 'h-7 w-7' : compact ? 'h-8 w-8' : 'h-20 w-20'
 
+  const itemName = item ? getItemDisplayName(item) : null
+  const shellClassName = `rounded-large bg-content1 min-w-0 border text-left ${shellSizeClass} ${className}`
   const content = (
-    <div
-      className={`rounded-large border border-[#6c5b36] bg-[radial-gradient(circle_at_top,#262b4d,#12131f_60%,#0b0c13)] shadow-[inset_0_0_0_1px_rgba(255,218,127,0.08)] transition-transform duration-150 hover:scale-[1.01] ${shellSizeClass} ${className}`}
-    >
-      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[#c9b47a]">
+    <>
+      <span className="text-default-500 block text-xs font-medium">
         {slotLabel}
-      </p>
-      <div
-        className={`mt-2 flex items-center justify-center rounded-large border border-[#4d4560] bg-[#17192a] ${artSizeClass}`}
+      </span>
+      <span
+        className={`border-divider bg-content2 mt-2 flex items-center justify-center rounded-medium border ${artSizeClass}`}
       >
         {item?.icon ? (
           <img
             src={item.icon}
-            alt={item ? getItemDisplayName(item) : slotLabel}
-            className={`${iconSizeClass} object-contain drop-shadow-[0_6px_14px_rgba(0,0,0,0.55)]`}
+            alt=""
+            className={`${iconSizeClass} object-contain`}
           />
         ) : (
-          <div
+          <span
             className={`${iconSizeClass} rounded-medium border border-dashed border-default-500/30`}
+            aria-hidden="true"
           />
         )}
-      </div>
+      </span>
       {item ? (
         <>
-          <p
-            className={`truncate text-center font-medium text-[#ece3c9] ${
+          <span
+            className={`text-foreground block truncate text-center font-medium ${
               tiny ? 'mt-2 text-[11px]' : compact ? 'mt-2 text-xs' : 'mt-3 text-sm'
             }`}
           >
-            {getItemDisplayName(item)}
-          </p>
-          <p
-            className={`truncate text-center text-[#a7a7b8] ${
+            {itemName}
+          </span>
+          <span
+            className={`text-default-500 block truncate text-center ${
               tiny ? 'mt-0.5 text-[10px]' : compact ? 'mt-0.5 text-[11px]' : 'mt-1 text-xs'
             }`}
           >
             {getFrameTypeLabel(item.frameType, item.rarity)}
-          </p>
+          </span>
         </>
       ) : (
-        <p className="mt-3 text-center text-xs text-default-400">Empty</p>
+        <span className="text-default-500 mt-3 block text-center text-xs">Empty</span>
       )}
-    </div>
+    </>
   )
 
-  if (!item) return content
+  if (!item) return <div className={`${shellClassName} border-divider`}>{content}</div>
 
   return (
-    <Tooltip delay={150} closeDelay={50}>
-      <Tooltip.Trigger>{content}</Tooltip.Trigger>
-      <Tooltip.Content placement="right" className="bg-transparent p-0 shadow-none">
-        <ItemTooltipContent item={item} />
-      </Tooltip.Content>
-    </Tooltip>
+    <Modal>
+      <Tooltip delay={0} isOpen={itemPreviewOpen} onOpenChange={setItemPreviewOpen}>
+        <Modal.Trigger<'button'>
+          render={(props) => <button {...props} type="button" />}
+          aria-label={`${slotLabel}: ${itemName}`}
+          className={`${shellClassName} border-control hover:bg-surface-hover block cursor-pointer transition-colors duration-150`}
+          onPointerEnter={(event) => {
+            // Pointer entry can precede React Aria's first document pointer move.
+            if (event.pointerType !== 'touch') setItemPreviewOpen(true)
+          }}
+        >
+          {content}
+        </Modal.Trigger>
+        <Tooltip.Content
+          placement="right"
+          offset={8}
+          className="w-80 max-w-[calc(100vw-2rem)] overflow-hidden p-3 wrap-anywhere break-normal [&_div_p]:text-xs"
+        >
+          <p className="border-divider text-foreground mb-2 border-b pb-2 text-center text-sm font-semibold">
+            {itemName}
+          </p>
+          <ItemDetailContent item={item} />
+        </Tooltip.Content>
+      </Tooltip>
+      <Modal.Backdrop>
+        <Modal.Container>
+          <Modal.Dialog className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-md overflow-hidden">
+            {({ close }) => (
+              <>
+                <Modal.Header className="border-divider border-b pb-3">
+                  <Modal.Heading className="wrap-anywhere text-lg font-semibold text-[color:var(--foreground-strong)]">
+                    {itemName}
+                  </Modal.Heading>
+                </Modal.Header>
+                <Modal.Body className="min-h-0 overflow-y-auto">
+                  <ItemDetailContent item={item} />
+                </Modal.Body>
+                <Modal.Footer className="border-divider border-t pt-3">
+                  <Button variant="outline" className="min-h-11" onPress={close}>Close</Button>
+                </Modal.Footer>
+              </>
+            )}
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
   )
 }
 
@@ -543,7 +593,7 @@ function EquipmentLayout({
   const PlaceholderCell = () => <div aria-hidden="true" className="hidden md:block" />
 
   return (
-    <div className="rounded-[1.75rem] border border-[#55451f] bg-[radial-gradient(circle_at_top,#2d3d3a,#1b1a18_46%,#0e0d0d)] p-4 shadow-[inset_0_0_0_1px_rgba(244,209,126,0.05)]">
+    <div className="rounded-large border-divider bg-content2 border p-4">
       <div className="flex flex-col gap-3">
         <div className="grid gap-3 md:grid-cols-3 md:items-end">
           <PlaceholderCell />
@@ -760,13 +810,12 @@ export function MemberCharacterDetails({
                     Who can discover this character?
                   </p>
                   <p className="mt-1 text-sm text-default-500">
-                    Pick a visibility option for {profile.character_name}. Changes apply immediately.
+                    Visibility changes take effect immediately.
                   </p>
                 </div>
                 <Chip
                   size="sm"
                   variant="soft"
-                  color={displayVisibility === 'public' ? 'accent' : 'default'}
                 >
                   {displayVisibility === 'public' ? 'Currently public' : 'Currently group-only'}
                 </Chip>
@@ -793,7 +842,7 @@ export function MemberCharacterDetails({
                 <ToggleButton
                   id="group_only"
                   aria-label="Set visibility to group only"
-                  className="rounded-large border-divider bg-content1 data-[selected=true]:border-primary/60 data-[selected=true]:bg-primary/10 h-auto min-h-20 w-full justify-start border p-3 text-left"
+                  className="rounded-large border-control data-[selected=true]:border-highlight h-auto min-h-20 w-full justify-start border p-3 text-left [--toggle-button-bg:var(--surface)] [--toggle-button-bg-hover:var(--surface-secondary)]"
                 >
                   <span className="flex w-full min-w-0 items-start gap-3">
                     <Users size={18} className="text-default-500 mt-0.5 shrink-0" />
@@ -801,7 +850,7 @@ export function MemberCharacterDetails({
                       <span className="flex min-w-0 items-center justify-between gap-2">
                         <span className="text-foreground text-sm font-semibold">Group only</span>
                         {displayVisibility === 'group_only' ? (
-                          <CheckCircle2 size={16} className="text-primary shrink-0" />
+                          <CheckCircle2 size={16} className="text-highlight shrink-0" aria-hidden="true" />
                         ) : null}
                       </span>
                       <span className="text-default-500 text-xs leading-relaxed">
@@ -813,17 +862,17 @@ export function MemberCharacterDetails({
                 <ToggleButton
                   id="public"
                   aria-label="Set visibility to public directory"
-                  className="rounded-large border-divider bg-content1 data-[selected=true]:border-accent/60 data-[selected=true]:bg-accent/10 h-auto min-h-20 w-full justify-start border p-3 text-left"
+                  className="rounded-large border-control data-[selected=true]:border-highlight h-auto min-h-20 w-full justify-start border p-3 text-left [--toggle-button-bg:var(--surface)] [--toggle-button-bg-hover:var(--surface-secondary)]"
                 >
                   <span className="flex w-full min-w-0 items-start gap-3">
-                    <Globe2 size={18} className="text-accent mt-0.5 shrink-0" />
+                    <Globe2 size={18} className="text-default-500 mt-0.5 shrink-0" aria-hidden="true" />
                     <span className="flex min-w-0 flex-1 flex-col gap-1">
                       <span className="flex min-w-0 items-center justify-between gap-2">
                         <span className="text-foreground text-sm font-semibold">
                           Public directory
                         </span>
                         {displayVisibility === 'public' ? (
-                          <CheckCircle2 size={16} className="text-accent shrink-0" />
+                          <CheckCircle2 size={16} className="text-highlight shrink-0" aria-hidden="true" />
                         ) : null}
                       </span>
                       <span className="text-default-500 text-xs leading-relaxed">
@@ -850,25 +899,25 @@ export function MemberCharacterDetails({
         <div className="rounded-large border border-divider bg-default-50/60 p-4">
           <SectionTitle title={selectionTitle} subtitle={selectionSubtitle} />
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Chip size="sm" color="accent" variant="soft">
-              {profile.character_name}
+            <Chip size="sm" variant="soft" className="max-w-full">
+              <span className="min-w-0 wrap-anywhere">{profile.character_name}</span>
             </Chip>
-            <Chip size="sm" color="accent" variant="soft">
+            <Chip size="sm" variant="soft">
               Last synced {formatRelativeTimestamp(profile.last_synced_at)}
             </Chip>
             {profile.class && <Chip size="sm" variant="soft">{profile.class}</Chip>}
             {ascendancy && (
-              <Chip size="sm" variant="soft" color="accent">
+              <Chip size="sm" variant="soft">
                 {ascendancy}
               </Chip>
             )}
             {alternateAscendancy && (
-              <Chip size="sm" variant="soft" color="warning">
+              <Chip size="sm" variant="soft">
                 Bloodline {alternateAscendancy}
               </Chip>
             )}
             {clusterJewelCount > 0 ? (
-              <Chip size="sm" variant="soft" color="accent">
+              <Chip size="sm" variant="soft">
                 {clusterJewelCount} cluster jewel{clusterJewelCount === 1 ? '' : 's'}
               </Chip>
             ) : null}
@@ -886,7 +935,7 @@ export function MemberCharacterDetails({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <SectionTitle
                   title="Equipped gear"
-                  subtitle="Hover an item to inspect it like a game tooltip"
+                  subtitle="Select an item to view its details."
                 />
                 <NativeCheckbox
                   id="show-weapon-swap"
@@ -930,9 +979,9 @@ export function MemberCharacterDetails({
               </div>
             )}
             {isMe && canSync && (
-              <div className="rounded-large border border-primary/25 bg-primary/5 p-4">
+              <div className="rounded-large border-divider bg-info-soft border p-4">
                 <div className="flex items-start gap-2">
-                  <Sparkles size={16} className="text-primary mt-0.5 shrink-0" />
+                  <Sparkles size={16} className="text-info mt-0.5 shrink-0" aria-hidden="true" />
                   <div>
                     <p className="text-foreground text-sm font-medium">
                       Detail snapshots refresh in the background

@@ -16,7 +16,6 @@ import { getPobTreeSpecUrl } from '../../lib/pob'
 import gemColorLookup from '../../assets/poe_gem_color_lookup.json'
 import { fetchNinjaSkillGemIcons } from '../../lib/poe-ninja-client'
 import { queryKeys } from '../../lib/queryKeys'
-import { getUpgradeAnalysisFailureCopy } from '../../lib/upgrade-analysis-run-state'
 import { getReservationAudit } from '../../lib/upgrade-analysis-summary'
 import {
   formatCompareImpact,
@@ -437,7 +436,7 @@ function formatManaDelta(value: number | null): string {
 }
 
 function getReservationTone(status: 'fit' | 'blocked' | 'excess' | 'unknown'): {
-  color: 'success' | 'warning' | 'danger' | 'default'
+  color: 'success' | 'danger' | 'default'
   label: string
   description: string
 } {
@@ -456,7 +455,7 @@ function getReservationTone(status: 'fit' | 'blocked' | 'excess' | 'unknown'): {
       }
     case 'excess':
       return {
-        color: 'warning',
+        color: 'default',
         label: 'Reservation has slack',
         description: 'There is room to spend more of the available mana budget.',
       }
@@ -469,12 +468,10 @@ function getReservationTone(status: 'fit' | 'blocked' | 'excess' | 'unknown'): {
   }
 }
 
-function getToneClasses(color: 'success' | 'warning' | 'danger' | 'default'): string {
+function getToneClasses(color: 'success' | 'danger' | 'default'): string {
   switch (color) {
     case 'success':
       return 'border-success/40 bg-success/10'
-    case 'warning':
-      return 'border-warning/40 bg-warning/10'
     case 'danger':
       return 'border-danger/40 bg-danger/10'
     default:
@@ -525,24 +522,24 @@ function getSocketTextColorClass(socketColor: string | null): string {
     case 'S':
     case 'R':
     case 'STRENGTH':
-      return 'text-[#d20000]'
+      return 'text-red-800 dark:text-red-300'
     case 'GREEN':
     case 'D':
     case 'G':
     case 'DEXTERITY':
-      return 'text-[#46a239]'
+      return 'text-green-800 dark:text-green-300'
     case 'BLUE':
     case 'I':
     case 'B':
     case 'INTELLIGENCE':
-      return 'text-[#8888ff]'
+      return 'text-blue-800 dark:text-blue-300'
     case 'W':
-      return 'text-[#f5f5f5]'
+      return 'text-foreground'
     case 'A':
     case 'ABYSS':
-      return 'text-[#fcd34d]'
+      return 'text-amber-900 dark:text-amber-200'
     default:
-      return 'text-[#8888ff]'
+      return 'text-foreground'
   }
 }
 
@@ -564,7 +561,7 @@ function GemChip({
       ? 'border-warning/40 bg-warning/10'
       : color === 'secondary'
         ? 'border-secondary/40 bg-secondary/10'
-        : 'border-white/10 bg-white/5'
+        : 'border-divider bg-content2'
 
   return (
     <span
@@ -583,12 +580,10 @@ function GemChip({
 function Section({
   id,
   title,
-  description,
   children,
 }: {
   id?: string
   title: string
-  description: string
   children: ReactNode
 }) {
   return (
@@ -596,11 +591,8 @@ function Section({
       id={id}
       className="rounded-large border-divider/70 bg-content1/70 scroll-mt-24 border p-4"
     >
-      <div>
-        <p className="text-foreground text-sm font-semibold">{title}</p>
-        <p className="text-default-500 mt-1 text-sm">{description}</p>
-      </div>
-      <div className="mt-4">{children}</div>
+      <h3 className="text-foreground text-sm font-semibold">{title}</h3>
+      <div className="mt-2.5">{children}</div>
     </section>
   )
 }
@@ -695,7 +687,6 @@ export function RecommendationsInsightsRail({
     () => buildGemIconLookup(selectedProfile, ninjaGemIcons ?? []),
     [selectedProfile, ninjaGemIcons],
   )
-  const selectedRunFailureCopy = getUpgradeAnalysisFailureCopy(selectedRun)
   const reservationAudit = getReservationAudit(selectedRun?.summary)
   const reservationTone = getReservationTone(reservationAudit?.status ?? 'unknown')
   const displayedSkillSetTitle =
@@ -734,8 +725,8 @@ export function RecommendationsInsightsRail({
   }, [passiveTreeRefreshToken])
 
   return (
-    <div className="flex flex-col gap-4 xl:sticky xl:top-6">
-      <Section title="Passive tree" description="">
+    <div className="flex min-w-0 flex-col gap-3">
+      <Section title="Passive tree">
         {runTransitionLoading ? (
           <div className="rounded-large border-divider/70 bg-default-50/60 flex flex-col gap-3 border p-4">
             <Skeleton className="h-4 w-40 rounded-md" />
@@ -772,13 +763,12 @@ export function RecommendationsInsightsRail({
           }}
         >
           <Modal.Container>
-            <Modal.Dialog className="w-[calc(100vw-2rem)] max-w-[96rem] max-h-[calc(100vh-2rem)] overflow-hidden sm:w-[calc(100vw-4rem)]">
+            <Modal.Dialog className="w-[calc(100vw-2rem)] max-w-[96rem] max-h-[calc(100dvh-2rem)] overflow-hidden sm:w-[calc(100vw-4rem)]">
               <Modal.Header className="flex flex-col gap-2">
                 <div>
                   <Modal.Heading>Passive tree details</Modal.Heading>
                   <p className="text-default-500 mt-1 text-sm">
-                    Full alignment details, links, and manual override live here so the
-                    recommendation rail stays clean.
+                    Compare allocated nodes and adjust the tree used for analysis.
                   </p>
                 </div>
               </Modal.Header>
@@ -794,17 +784,17 @@ export function RecommendationsInsightsRail({
                   passiveImpactMetricLabel={comparePowerReport?.metricLabel ?? null}
                 />
               </Modal.Body>
-              <div className="flex justify-end px-6 pb-6">
+              <Modal.Footer>
                 <Button size="sm" variant="tertiary" onPress={() => setTreeDetailsOpen(false)}>
                   Close
                 </Button>
-              </div>
+              </Modal.Footer>
             </Modal.Dialog>
           </Modal.Container>
         </Modal.Backdrop>
       </>
 
-      <Section title="Skill gems" description="">
+      <Section title="Skill gems">
         {runTransitionLoading ? (
           <div className="rounded-large border-divider/70 bg-default-50/60 flex flex-col gap-3 border p-4">
             <Skeleton className="h-4 w-36 rounded-md" />
@@ -816,18 +806,9 @@ export function RecommendationsInsightsRail({
             </div>
           </div>
         ) : !stageSkillSet ? (
-          <div className="rounded-large border-divider/70 bg-default-50/60 border p-4">
-            <p className="text-default-600 text-sm">
-              Choose a skill set in the setup above to compare current gems and links.
-            </p>
-          </div>
+          <p className="text-default-600 text-sm">Choose a skill set to compare gems and links.</p>
         ) : !selectedProfile ? (
-          <div className="rounded-large border-divider/70 bg-default-50/60 border p-4">
-            <p className="text-default-600 text-sm">
-              Sync a current character profile to compare gems and links against the selected skill
-              package.
-            </p>
-          </div>
+          <p className="text-default-600 text-sm">Sync the character to compare gems and links.</p>
         ) : missingSkillSetGems.length === 0 &&
           linkGaps.length === 0 &&
           gemLevelMismatches.length === 0 &&
@@ -842,7 +823,7 @@ export function RecommendationsInsightsRail({
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Chip size="sm" variant="soft" color={isDraftStage ? 'accent' : 'success'}>
+                <Chip size="sm" variant="soft">
                   {isDraftStage ? 'Unsaved setup' : 'Saved setup'}
                 </Chip>
               </div>
@@ -874,18 +855,18 @@ export function RecommendationsInsightsRail({
               </div>
               <div className="flex flex-wrap gap-2">
                 {gemLevelMismatches.length > 0 ? (
-                  <Chip size="sm" variant="soft" color="accent">
+                  <Chip size="sm" variant="soft">
                     {gemLevelMismatches.length} gem level
                     {gemLevelMismatches.length === 1 ? '' : 's'} differ
                   </Chip>
                 ) : null}
                 {gemQualityMismatches.length > 0 ? (
-                  <Chip size="sm" variant="soft" color="accent">
+                  <Chip size="sm" variant="soft">
                     {gemQualityMismatches.length} gem quality
                     {gemQualityMismatches.length === 1 ? '' : 'ies'} differ
                   </Chip>
                 ) : null}
-                <Chip size="sm" variant="soft" color={isDraftStage ? 'accent' : 'default'}>
+                <Chip size="sm" variant="soft">
                   {isDraftStage ? 'Unsaved setup' : 'Saved setup'}
                 </Chip>
               </div>
@@ -964,7 +945,7 @@ export function RecommendationsInsightsRail({
           }}
         >
           <Modal.Container>
-            <Modal.Dialog className="w-[calc(100vw-2rem)] max-w-3xl max-h-[calc(100vh-2rem)] overflow-hidden sm:w-[calc(100vw-4rem)]">
+            <Modal.Dialog className="w-[calc(100vw-2rem)] max-w-3xl max-h-[calc(100dvh-2rem)] overflow-hidden sm:w-[calc(100vw-4rem)]">
               <Modal.Header className="flex flex-col gap-2">
                 <div>
                   <Modal.Heading>Skill gem details</Modal.Heading>
@@ -1022,14 +1003,14 @@ export function RecommendationsInsightsRail({
                           <Chip
                             size="sm"
                             variant="soft"
-                            color={gemLevelMismatches.length > 0 ? 'accent' : 'success'}
+                            color={gemLevelMismatches.length > 0 ? 'default' : 'success'}
                           >
                             {gemLevelMismatches.length} level diffs
                           </Chip>
                           <Chip
                             size="sm"
                             variant="soft"
-                            color={gemQualityMismatches.length > 0 ? 'accent' : 'success'}
+                            color={gemQualityMismatches.length > 0 ? 'default' : 'success'}
                           >
                             {gemQualityMismatches.length} quality diffs
                           </Chip>
@@ -1043,7 +1024,7 @@ export function RecommendationsInsightsRail({
                           <p className="text-foreground text-sm font-semibold">
                             Compare gem impact
                           </p>
-                          <Chip size="sm" variant="soft" color="accent">
+                          <Chip size="sm" variant="soft">
                             {comparePowerReport.metricLabel}
                           </Chip>
                         </div>
@@ -1256,17 +1237,17 @@ export function RecommendationsInsightsRail({
                   </div>
                 )}
               </Modal.Body>
-              <div className="flex justify-end px-6 pb-6">
+              <Modal.Footer>
                 <Button size="sm" variant="tertiary" onPress={() => setSkillDetailsOpen(false)}>
                   Close
                 </Button>
-              </div>
+              </Modal.Footer>
             </Modal.Dialog>
           </Modal.Container>
         </Modal.Backdrop>
       </>
 
-      <Section id={reservationAuditAnchorId} title="Reservation audit" description="">
+      <Section id={reservationAuditAnchorId} title="Reservation audit">
         {runTransitionLoading ? (
           <div className="rounded-large border-divider/70 bg-default-50/60 flex flex-col gap-3 border p-4">
             <Skeleton className="h-4 w-40 rounded-md" />
@@ -1283,9 +1264,9 @@ export function RecommendationsInsightsRail({
             </p>
           </div>
         ) : selectedRunIsLive ? (
-          <div className="rounded-large border-warning/40 bg-warning/10 border p-4">
+          <div className="rounded-large border-divider bg-info-soft border p-4">
             <div className="flex items-start gap-3">
-              <Clock3 size={16} className="text-warning mt-0.5 shrink-0" />
+              <Clock3 size={16} className="text-info mt-0.5 shrink-0" aria-hidden="true" />
               <div>
                 <p className="text-foreground text-sm font-semibold">Waiting for run output</p>
                 <p className="text-default-600 mt-1 text-sm">
@@ -1295,25 +1276,9 @@ export function RecommendationsInsightsRail({
             </div>
           </div>
         ) : selectedRun.status === 'failed' ? (
-          <div className="rounded-large border-danger/40 bg-danger/10 border p-4">
-            <p className="text-foreground text-sm font-semibold">{selectedRunFailureCopy.title}</p>
-            <p className="text-default-600 mt-1 text-sm">{selectedRunFailureCopy.description}</p>
-            {selectedRunFailureCopy.technicalDetail ? (
-              <p className="text-default-500 mt-2 text-xs">
-                Worker detail: {selectedRunFailureCopy.technicalDetail}
-              </p>
-            ) : null}
-          </div>
+          <p className="text-default-600 text-sm">Reservation results are unavailable for this run.</p>
         ) : !reservationAudit ? (
-          <div className="rounded-large border-divider/70 bg-default-50/60 border p-4">
-            <p className="text-foreground text-sm font-semibold">
-              This run has no reservation audit
-            </p>
-            <p className="text-default-600 mt-1 text-sm">
-              This stored run predates reservation audit support. Run analysis again if you want
-              mana fit and gem-tuning output for the selected skill package.
-            </p>
-          </div>
+          <p className="text-default-600 text-sm">Run analysis again to check mana reservation.</p>
         ) : (
           <div className="flex flex-col gap-3">
             <div className={`rounded-large border p-4 ${getToneClasses(reservationTone.color)}`}>
@@ -1347,7 +1312,7 @@ export function RecommendationsInsightsRail({
             ) : null}
 
             {reservationAudit.surplus_sources.length > 0 ? (
-              <div className="rounded-large border-warning/30 bg-warning/5 border p-4">
+              <div className="rounded-large border-divider bg-content2 border p-4">
                 <p className="text-foreground text-sm font-semibold">Spare room</p>
                 <div className="text-default-600 mt-2 flex flex-col gap-2 text-sm">
                   {reservationAudit.surplus_sources.map((entry, index) => (
@@ -1369,7 +1334,7 @@ export function RecommendationsInsightsRail({
                           key={`${suggestion.gem_name}-${suggestion.suggested_level ?? 'keep'}-${suggestion.reason}-${index}`}
                         >
                           <div className="flex flex-wrap items-center gap-2">
-                            <Chip size="sm" variant="soft" color="accent">
+                            <Chip size="sm" variant="soft">
                               {suggestion.gem_name}
                             </Chip>
                             {suggestion.current_level != null ? (
