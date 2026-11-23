@@ -1,11 +1,9 @@
+import { setTimeout as delay } from 'node:timers/promises'
+
 const POE_API_BASE = 'https://api.pathofexile.com'
 const MAX_RETRIES = 3
 const DEFAULT_RETRY_DELAY_MS = 1500
 const MIN_REQUEST_GAP_MS = 500
-
-async function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
 
 let nextAvailableRequestAt = 0
 
@@ -16,11 +14,12 @@ export class PoeApiClient {
     this.accessToken = accessToken
   }
 
-  private async waitForTurn(): Promise<void> {
+  private async waitForTurn(signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted()
     const now = Date.now()
     const waitMs = Math.max(0, nextAvailableRequestAt - now)
     if (waitMs > 0) {
-      await delay(waitMs)
+      await delay(waitMs, undefined, { signal })
     }
   }
 
@@ -68,14 +67,19 @@ export class PoeApiClient {
     return url.toString()
   }
 
-  private async fetch<T>(path: string, params?: Record<string, string>): Promise<T> {
+  private async fetch<T>(
+    path: string,
+    params?: Record<string, string>,
+    signal?: AbortSignal,
+  ): Promise<T> {
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
-      await this.waitForTurn()
+      await this.waitForTurn(signal)
       const res = await fetch(this.buildUrl(path, params), {
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
           'User-Agent': 'poe-group-tool/1.0 (contact: your-email@example.com)',
         },
+        signal,
       })
 
       this.logRateLimitHeaders(path, res)
@@ -113,8 +117,8 @@ export class PoeApiClient {
     return this.fetch(`/character/${encodeURIComponent(name)}`, realm ? { realm } : undefined)
   }
 
-  async getAccountLeagues(): Promise<{ leagues: PoeLeague[] }> {
-    return this.fetch('/account/leagues')
+  async getAccountLeagues(signal?: AbortSignal): Promise<{ leagues: PoeLeague[] }> {
+    return this.fetch('/account/leagues', undefined, signal)
   }
 
   async getLeagueAccount(
@@ -218,6 +222,8 @@ export interface PoeLeagueAccount {
 export interface PoeLeague {
   id: string
   realm: string
+  category?: { id: string } | null
+  rules?: { id: string }[] | null
   startAt?: string
   endAt?: string | null
   url?: string

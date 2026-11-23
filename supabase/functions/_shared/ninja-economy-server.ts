@@ -1,5 +1,6 @@
 import {
   POE1_EXCHANGE_TYPES,
+  asRecord,
   parseNinjaExchangeResponse,
   parseNinjaItemResponse,
   requiredNinjaItemTypes,
@@ -8,24 +9,22 @@ import {
   type NinjaRecord,
   type SnapshotPricingSummary,
 } from './ninja-economy.ts'
+import type { PoeLeague } from './poe-api-client.ts'
 
 const cache = new Map<string, { value: unknown; etag: string | null; expires: number }>()
 const inflight = new Map<string, Promise<unknown>>()
 const USER_AGENT = 'PoEParty/3.30 (+https://github.com/RahbekChyd/poe-party)'
-async function getOverview(
-  league: string,
-  category: string,
-  family: 'exchange' | 'stash',
-): Promise<unknown> {
-  const key = `${league}:${family}:${category}`
-  const hit = cache.get(key)
+const PRIVATE_LEAGUE_SUFFIX = / \(PL\d+\)$/
+const LEAGUE_MODE_RULES = new Set(['Hardcore', 'NoParties', 'HardMode'])
+
+async function getEconomy(path: string): Promise<unknown> {
+  const hit = cache.get(path)
   if (hit && hit.expires > Date.now()) return hit.value
-  const pending = inflight.get(key)
+  const pending = inflight.get(path)
   if (pending) return pending
   const request = (async () => {
-    const path = family === 'exchange' ? 'exchange/current/overview' : 'stash/current/item/overview'
     const response = await fetch(
-      `https://poe.ninja/poe1/api/economy/${path}?league=${encodeURIComponent(league)}&type=${category}`,
+      `https://poe.ninja/poe1/api/economy/${path}`,
       {
         headers: {
           Accept: 'application/json',
@@ -36,14 +35,14 @@ async function getOverview(
       },
     )
     if (!response.ok && response.status !== 304)
-      throw new Error(`Economy category ${category}: HTTP ${response.status}`)
+      throw new Error(`Economy request failed: HTTP ${response.status}`)
     const value = response.status === 304 && hit ? hit.value : await response.json()
     const maxAge = response.headers
       .get('cache-control')
       ?.match(/(?:^|,)\s*(?:s-maxage|max-age)=(\d+)/)?.[1]
     const ttl = maxAge ? Number(maxAge) * 1000 : 5 * 60_000
     const noStore = /no-store|no-cache/.test(response.headers.get('cache-control') ?? '')
-    cache.set(key, {
+    cache.set(path, {
       value,
       etag: response.headers.get('etag') ?? hit?.etag ?? null,
       expires: Date.now() + (noStore ? 0 : ttl),
@@ -52,33 +51,77 @@ async function getOverview(
     if (cache.size > 128) cache.delete(cache.keys().next().value!)
     return value
   })()
-  inflight.set(key, request)
+  inflight.set(path, request)
   try {
     return await request
   } finally {
-    inflight.delete(key)
+    inflight.delete(path)
   }
 }
 
-export async function priceSnapshotItems(league: string, items: NinjaRecord[]) {
+type LoadAccountLeagues = () => Promise<{ leagues: PoeLeague[] }>
+
+function leagueMode(league: PoeLeague): string {
+  return (league.rules ?? [])
+    .map((rule) => rule.id)
+    .filter((id) => LEAGUE_MODE_RULES.has(id))
+    .sort()
+    .join(',')
+}
+
+async function resolvePricingLeague(league: string, loadAccountLeagues: LoadAccountLeagues) {
+  if (!PRIVATE_LEAGUE_SUFFIX.test(league)) return league
+
+  const { leagues } = await loadAccountLeagues()
+  const privateLeague = leagues.find((entry) => entry.id === league)
+  const category = privateLeague?.category?.id
+  if (!privateLeague || !category) return null
+
+  // A category id can differ from the price feed's league id (e.g. Coven vs Covens).
+  const mode = leagueMode(privateLeague)
+  const candidates = leagues.filter(
+    (entry) =>
+      !PRIVATE_LEAGUE_SUFFIX.test(entry.id) &&
+      entry.category?.id === category &&
+      leagueMode(entry) === mode,
+  )
+  if (candidates.length === 0) return null
+
+  const markets = await getEconomy('leagues')
+  if (!Array.isArray(markets)) return null
+  const marketIds = new Set(markets.map((market) => asRecord(market).id))
+  const matches = candidates.filter((entry) => marketIds.has(entry.id))
+  return matches.length === 1 ? matches[0].id : null
+}
+
+export async function priceSnapshotItems(
+  league: string,
+  items: NinjaRecord[],
+  loadAccountLeagues: LoadAccountLeagues,
+) {
+  const pricingLeague = await resolvePricingLeague(league, loadAccountLeagues).catch(() => null)
+  if (!pricingLeague) return unavailableSnapshotPricing(items, 'league')
+
   const catalog: NinjaCatalog = { exchange: [], items: new Map() }
   const failed: string[] = []
   const requests = [
     ...POE1_EXCHANGE_TYPES.map((category) => ({ category, family: 'exchange' as const })),
     ...requiredNinjaItemTypes(items).map((category) => ({ category, family: 'stash' as const })),
   ]
-  let next = 0,
-    successes = 0
+  let next = 0
   await Promise.all(
     Array.from({ length: 3 }, async () => {
       while (next < requests.length) {
         const { category, family } = requests[next++]
         try {
-          const raw = await getOverview(league, category, family)
+          const endpoint =
+            family === 'exchange' ? 'exchange/current/overview' : 'stash/current/item/overview'
+          const raw = await getEconomy(
+            `${endpoint}?league=${encodeURIComponent(pricingLeague)}&type=${category}`,
+          )
           if (family === 'exchange')
             catalog.exchange.push(...parseNinjaExchangeResponse(raw, category === 'Currency'))
           else catalog.items.set(category, parseNinjaItemResponse(raw))
-          successes++
         } catch {
           failed.push(category)
         }
@@ -101,9 +144,11 @@ export async function priceSnapshotItems(league: string, items: NinjaRecord[]) {
     }
   })
   const pricedCount = prices.filter((item) => item.price_chaos !== null).length
+  const hasQuotes =
+    catalog.exchange.length > 0 || [...catalog.items.values()].some((rows) => rows.length > 0)
   const summary: SnapshotPricingSummary = {
     status:
-      successes === 0 || (items.length > 0 && pricedCount === 0 && failed.length > 0)
+      !hasQuotes || (items.length > 0 && pricedCount === 0 && failed.length > 0)
         ? 'unavailable'
         : failed.length
           ? 'partial'
@@ -113,19 +158,20 @@ export async function priceSnapshotItems(league: string, items: NinjaRecord[]) {
     failed_categories: [...new Set(failed)].sort(),
     divine_price: divinePrice,
     source: 'poe.ninja',
+    pricing_league: pricingLeague,
     version: 1,
     priced_at: new Date().toISOString(),
   }
   return { prices, summary }
 }
-export function unavailableSnapshotPricing(items: NinjaRecord[]) {
+export function unavailableSnapshotPricing(items: NinjaRecord[], failure = 'pricing') {
   return {
     prices: items.map((item) => ({ id: String(item.id), price_chaos: null, price_divine: null })),
     summary: {
       status: 'unavailable',
       priced_item_count: 0,
       unpriced_item_count: items.length,
-      failed_categories: ['pricing'],
+      failed_categories: [failure],
       divine_price: null,
       source: 'poe.ninja',
       version: 1,

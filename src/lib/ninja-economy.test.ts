@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { priceSnapshotItems } from '../../supabase/functions/_shared/ninja-economy-server'
 import { fetchNinjaMarketOverview } from './poe-ninja-client'
+import { storedSnapshotPrice } from './snapshot-pricing'
 import {
   parseNinjaExchangeResponse,
   parseNinjaItemResponse,
@@ -206,6 +207,7 @@ describe('snapshot economy matching', () => {
 
 describe('snapshot provider availability', () => {
   afterEach(() => vi.unstubAllGlobals())
+  const loadAccountLeagues = vi.fn(async () => ({ leagues: [] }))
   const exchangeResponse = (lines: Record<string, unknown>[] = []) => ({
     core: { primary: 'chaos', items: [{ id: 'chaos', name: 'Chaos Orb' }] },
     lines,
@@ -218,9 +220,11 @@ describe('snapshot provider availability', () => {
         throw new Error('offline')
       }),
     )
-    const result = await priceSnapshotItems('Outage fixture', [
-      { id: '1', stack_size: 3, type_line: 'Breach Thread', frame_type: 5 },
-    ])
+    const result = await priceSnapshotItems(
+      'Outage fixture',
+      [{ id: '1', stack_size: 3, type_line: 'Breach Thread', frame_type: 5 }],
+      loadAccountLeagues,
+    )
     expect(result.summary.status).toBe('unavailable')
     expect(result.summary.divine_price).toBeNull()
     expect(result.prices[0].price_chaos).toBeNull()
@@ -246,14 +250,115 @@ describe('snapshot provider availability', () => {
     })
     vi.stubGlobal('fetch', fetcher)
     const items = [{ id: '1', stack_size: 3, type_line: 'Breach Thread', frame_type: 5 }]
-    const result = await priceSnapshotItems('Partial fixture', items)
+    const result = await priceSnapshotItems('Partial fixture', items, loadAccountLeagues)
     expect(result.summary.status).toBe('partial')
     expect(result.summary.failed_categories).toEqual(['Fossil'])
     expect(result.prices[0].price_chaos).toBe(12)
     expect(result.prices[0].price_divine).toBeNull()
     expect(peak).toBeLessThanOrEqual(3)
     const requests = fetcher.mock.calls.length
-    await priceSnapshotItems('Partial fixture', items)
+    await priceSnapshotItems('Partial fixture', items, loadAccountLeagues)
     expect(fetcher.mock.calls.length).toBe(requests + 1) // Only the failed category is retried.
+    expect(loadAccountLeagues).not.toHaveBeenCalled()
+  })
+
+  it('marks successful but empty economy feeds unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      core: { primary: 'chaos', rates: {}, items: [] },
+      items: [],
+      lines: [],
+    })))
+    const result = await priceSnapshotItems(
+      'Empty market fixture',
+      [{ id: '1', stack_size: 3, type_line: 'Breach Thread', frame_type: 5 }],
+      loadAccountLeagues,
+    )
+    expect(result.summary.status).toBe('unavailable')
+    expect(result.prices[0].price_chaos).toBeNull()
+  })
+})
+
+describe('private league snapshot pricing', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  const privateLeague = 'Private snapshot fixture (PL12345)'
+  const items = [{ id: '1', stack_size: 3, type_line: 'Breach Thread', frame_type: 5 }]
+  const accountLeague = (id: string, category: string, rules: string[] = []) => ({
+    id,
+    realm: 'pc',
+    category: { id: category },
+    rules: rules.map((id) => ({ id })),
+  })
+  const publicLeagues = [
+    accountLeague('Standard', 'Standard'),
+    accountLeague('Hardcore', 'Standard', ['Hardcore']),
+    accountLeague('Covens', 'Coven'),
+    accountLeague('Hardcore Covens', 'Coven', ['Hardcore']),
+    accountLeague('SSF Covens', 'Coven', ['NoParties']),
+    accountLeague('Ruthless Covens', 'Coven', ['HardMode']),
+  ]
+  const advertisedMarkets = publicLeagues.slice(0, 4).map(({ id }) => ({ id }))
+
+  it.each([
+    { category: 'Coven', rules: ['AdditionalMonsterDamage'], market: 'Covens' },
+    { category: 'Coven', rules: ['Hardcore'], market: 'Hardcore Covens' },
+    { category: 'Standard', rules: [], market: 'Standard' },
+  ])('prices $category with rules $rules in $market', async ({ category, rules, market }) => {
+    const requests: URL[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const request = new URL(url)
+      requests.push(request)
+      if (request.pathname.endsWith('/leagues')) {
+        return Response.json(advertisedMarkets)
+      }
+      // poe.ninja also responds successfully to unsupported IDs, with empty quotes.
+      const hasQuotes = request.searchParams.get('league') === market
+      const type = request.searchParams.get('type')
+      return Response.json({
+        core: { primary: 'chaos', items: [], rates: {} },
+        items: hasQuotes && type === 'Thread' ? [{ id: 'thread', name: 'Breach Thread' }] : [],
+        lines: hasQuotes && type === 'Thread' ? [{ id: 'thread', primaryValue: 4 }] : [],
+      })
+    }))
+    const { prices, summary } = await priceSnapshotItems(privateLeague, items, async () => ({
+      leagues: [...publicLeagues, accountLeague(privateLeague, category, rules)],
+    }))
+
+    expect(summary).toMatchObject({ status: 'complete', pricing_league: market, priced_item_count: 1 })
+    expect(storedSnapshotPrice({ ...prices[0], stack_size: 3 })).toEqual({
+      has_price: true,
+      unit_price: 4,
+      price_chaos: 12,
+    })
+    expect(new Set(requests.flatMap((url) => url.searchParams.get('league') ?? []))).toEqual(new Set([market]))
+  })
+
+  it.each([
+    { category: 'PastSeason', rules: [] },
+    { category: 'Coven', rules: ['NoParties'] },
+    { category: 'Coven', rules: ['HardMode'] },
+  ])('leaves private pricing unavailable without a matching market for $category $rules', async ({ category, rules }) => {
+    const fetcher = vi.fn<(url: string) => Promise<Response>>(async () =>
+      Response.json(advertisedMarkets),
+    )
+    vi.stubGlobal('fetch', fetcher)
+    const result = await priceSnapshotItems(privateLeague, items, async () => ({
+      leagues: [...publicLeagues, accountLeague(privateLeague, category, rules)],
+    }))
+
+    expect(result.summary).toMatchObject({ status: 'unavailable', failed_categories: ['league'] })
+    expect(result.prices[0].price_chaos).toBeNull()
+    expect(fetcher.mock.calls.every(([url]) => new URL(url).pathname.endsWith('/leagues'))).toBe(true)
+  })
+
+  it('returns null prices when the account league lookup times out', async () => {
+    const fetcher = vi.fn()
+    vi.stubGlobal('fetch', fetcher)
+    const result = await priceSnapshotItems(privateLeague, items, async () => {
+      throw new DOMException('Timed out', 'TimeoutError')
+    })
+
+    expect(result.summary.status).toBe('unavailable')
+    expect(result.prices).toEqual([{ id: '1', price_chaos: null, price_divine: null }])
+    expect(fetcher).not.toHaveBeenCalled()
   })
 })

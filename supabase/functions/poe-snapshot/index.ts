@@ -318,7 +318,9 @@ Deno.serve(async (req) => {
       }
       let valuation
       try {
-        valuation = await priceSnapshotItems(league, items)
+        valuation = await priceSnapshotItems(league, items, () =>
+          poeClient.getAccountLeagues(AbortSignal.timeout(5_000)),
+        )
       } catch {
         valuation = unavailableSnapshotPricing(items)
       }

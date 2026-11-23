@@ -10,9 +10,14 @@ Hosted changes still require the normal reviewed operations release process.
 
 The supported public poe.ninja economy API supplies exchange and stash estimates:
 https://poe.ninja/docs/api. Browser and Edge code share category definitions and
-exchange validation. Requests use the exact group league, bounded concurrency,
-timeouts, conditional HTTP caching and a descriptive server User-Agent. There is
-no Standard fallback for valuation and no fallback Divine exchange rate.
+exchange validation. Public snapshots use the exact group league for pricing.
+Private snapshots use the public market whose PoE league category and game mode
+match the account's private league, provided poe.ninja lists that market. This
+preserves the Hardcore, Solo Self-Found, and Ruthless distinctions. The private
+league still identifies the stash and workspace. When the account metadata or matching
+market is unavailable, capture still completes and prices remain unknown.
+Requests use bounded concurrency, timeouts, conditional HTTP caching and a
+descriptive server User-Agent. Divine conversion uses a quoted exchange rate.
 
 Exchange identities are exact names. Equipment is never priced by that lookup.
 Supported stash matchers require the available variant identity: unique base and
@@ -31,6 +36,8 @@ The server reads item rows in stable 500-row pages before finalization.
 `pricing_summary.status` is feed availability (`complete`, `partial`, `unavailable`),
 not a claim that every item can be valued. The summary separately records priced
 and unpriced counts, failed categories, source/version/time and nullable Divine rate.
+New valuations also record `pricing_league` when a market was resolved. An
+entirely empty market feed is unavailable even if its requests succeeded.
 An unavailable feed still permits raw capture completion but publishes no valued
 history point. A group history update is suppressed when any member's latest raw
 snapshot has unavailable valuation, preventing that member from disappearing from

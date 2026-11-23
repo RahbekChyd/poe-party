@@ -52,6 +52,7 @@ export interface SnapshotPricingSummary {
   failed_categories: string[]
   divine_price: number | null
   source: 'poe.ninja'
+  pricing_league?: string
   version: 1
   priced_at: string
 }
