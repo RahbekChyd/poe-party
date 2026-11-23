@@ -42,6 +42,8 @@ interface PassiveTreeArtNode {
 interface PassiveTreeArtBackdrop {
   x: number
   y: number
+  groupId: number
+  ascendancyId?: string
   sprite: PassiveTreeArtSprite
   mirrorY?: boolean
 }
@@ -238,6 +240,7 @@ export function buildPassiveTreeArtwork(
     backdrops.push({
       x: group.x + getOffset(background?.offsetX),
       y: group.y + getOffset(background?.offsetY),
+      groupId: group.groupId,
       sprite: crop,
       mirrorY: background?.isHalfImage === true,
     })
@@ -249,7 +252,7 @@ export function buildPassiveTreeArtwork(
     if (node.classStartIndex != null) {
       const className = CLASS_ART[node.classStartIndex]
       const crop = className ? sprite('startNode', `center${className}`) : undefined
-      if (crop) backdrops.push({ x: node.x, y: node.y, sprite: crop })
+      if (crop) backdrops.push({ x: node.x, y: node.y, groupId: node.groupId, sprite: crop })
       continue
     }
 
@@ -257,7 +260,15 @@ export function buildPassiveTreeArtwork(
     if (node.isAscendancyStart && node.ascendancyName) {
       const crop = sprite(ascendancySheet, `Classes${node.ascendancyName}`)
       const center = groups[node.groupId]
-      if (crop && center) backdrops.push({ x: center.x, y: center.y, sprite: crop })
+      if (crop && center) {
+        backdrops.push({
+          x: center.x,
+          y: center.y,
+          groupId: node.groupId,
+          ascendancyId: node.ascendancyName,
+          sprite: crop,
+        })
+      }
     }
 
     const rawNode = rawNodes[node.nodeId]

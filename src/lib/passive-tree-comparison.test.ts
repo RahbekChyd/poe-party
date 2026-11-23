@@ -98,7 +98,7 @@ describe('passive tree comparison', () => {
     expect(diff.unknownNodeIds).toEqual([49999])
     expect(pair.current.tree.hashesEx).toEqual([79999])
     expect(pair.current.modifiedNodeIds).toEqual([13])
-    expect(pair.current.clusterSockets).toEqual([{ label: 'Node 13', name: 'Cluster fixture' }])
+    expect(pair.current.clusterSockets).toEqual([{ label: 'Node 13', name: 'Cluster fixture', nodeId: 13 }])
     expect(pair.current.unresolvedClusterCount).toBe(2)
     expect(pair.current.unresolvedClusterIds).toEqual([80000])
     expect(readPassiveTreeRunSnapshot({ passive_tree_comparison: { version: 1, current: snapshotSide } })).toBeNull()

@@ -1,23 +1,20 @@
 import { Button } from '@heroui/react/button'
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   readManualPassiveTree,
   type PassiveTreeSource,
 } from '../../lib/passive-tree-comparison'
-import {
-  buildPassiveTreeDiffViewModel,
-  type PassiveTreeDiffViewModel,
-} from '../../lib/passive-tree-diff'
+import { buildPassiveTreeDiffViewModel } from '../../lib/passive-tree-diff'
+import { getPassiveTreeComparisonGeometry } from '../../lib/passive-tree-layout'
 import {
   loadPassiveTreeRenderData,
   PASSIVE_TREE_GEOMETRY_SOURCE_URL,
   resolvePassiveTreeRenderResolution,
-  type PassiveTreeRenderData,
 } from '../../lib/passive-tree-render-data'
-import { sortUniqueNumbers } from '../../lib/parse-helpers'
 import { FieldInput } from '../ui/heroui-native'
 import { PassiveTreeDiffWorkspace } from './PassiveTreeDiffWorkspace'
+import { PassiveTreeReview } from './PassiveTreeReview'
 
 type PassiveTreeSources = { current: PassiveTreeSource | null; target: PassiveTreeSource | null }
 
@@ -60,112 +57,14 @@ export function SkillTreeSummaryPanel({ current, target }: PassiveTreeSources) {
   )
 }
 
-function ClusterReviewSide({ label, source }: { label: string; source: PassiveTreeSource | null }) {
-  if (!source) return null
-  const allocations = source.tree.hashesEx.length
-  const unresolved = source.unresolvedClusterCount ?? 0
-  const sockets = source.clusterSockets
-  return (
-    <div>
-      <p className="text-foreground text-xs font-medium">{label}</p>
-      <p className="text-default-500 mt-0.5 text-xs">
-        {sockets.length} {sockets.length === 1 ? 'socket' : 'sockets'} · {allocations} recorded {allocations === 1 ? 'allocation' : 'allocations'}
-        {unresolved ? ` · ${unresolved} unresolved` : ''}
-      </p>
-      {sockets.length ? (
-        <ul className="text-default-500 mt-1 space-y-0.5 text-xs">
-          {sockets.map(({ label, name }, index) => <li key={`${label}-${index}`}>{name ? `${label} · ${name}` : label}</li>)}
-        </ul>
-      ) : null}
-      {source.unresolvedClusterIds?.length ? (
-        <p className="text-default-500 mt-1 text-xs tabular-nums">{source.unresolvedClusterIds.join(', ')}</p>
-      ) : null}
-    </div>
-  )
-}
-
-function TreeReview({
-  current,
-  target,
-  diff,
-  data,
-  geometryReview,
-}: PassiveTreeSources & {
-  diff: PassiveTreeDiffViewModel | null
-  data: PassiveTreeRenderData | null
-  geometryReview: string | null
-}) {
-  const hasClusters = [current, target].some((source) =>
-    source && (source.clusterSockets.length || source.tree.hashesEx.length || source.unresolvedClusterCount),
-  )
-  const modified = sortUniqueNumbers([...(current?.modifiedNodeIds ?? []), ...(target?.modifiedNodeIds ?? [])])
-  const unknown = diff?.unknownNodeIds ?? sortUniqueNumbers([
-    ...(current?.unresolvedNodeIds ?? []),
-    ...(target?.unresolvedNodeIds ?? []),
-  ])
-  const unknownMasteries = diff?.unknownMasteryNodeIds ?? []
-  if (!geometryReview && !hasClusters && !modified.length && !unknown.length && !unknownMasteries.length &&
-    !diff?.classMismatch && !diff?.ascendancyMismatch) return null
-
-  return (
-    <section aria-label="Needs review" className="border-divider space-y-3 border-t pt-4">
-      <h3 className="text-foreground text-sm font-semibold">Needs review</h3>
-      {geometryReview ? <p className="text-warning-700 text-sm">{geometryReview}</p> : null}
-      {diff?.classMismatch || diff?.ascendancyMismatch ? (
-        <p className="text-default-500 text-sm">
-          The trees use different {diff.classMismatch ? 'base classes' : 'ascendancies'}.
-        </p>
-      ) : null}
-      {hasClusters ? (
-        <div>
-          <h4 className="text-foreground text-sm font-medium">Cluster jewels</h4>
-          <p className="text-default-500 mt-0.5 text-sm">
-            Verify cluster allocations and socketed jewels in the source trees.
-          </p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <ClusterReviewSide label="Current" source={current} />
-            <ClusterReviewSide label="Target" source={target} />
-          </div>
-        </div>
-      ) : null}
-      {modified.length ? (
-        <div>
-          <h4 className="text-foreground text-sm font-medium">Modified nodes</h4>
-          <p className="text-default-500 mt-0.5 text-sm">
-            Review the modified stats in PoB or on the character profile.
-          </p>
-          <ul className="text-default-500 mt-1 space-y-0.5 text-xs">
-            {modified.map((id) => {
-              const node = data?.nodes[id]
-              const currentModified = current?.modifiedNodeIds.includes(id)
-              const targetModified = target?.modifiedNodeIds.includes(id)
-              const sides = currentModified && targetModified ? 'Current and target' : currentModified ? 'Current' : 'Target'
-              return <li key={id}>{node ? `${node.label} · Node ${id}` : `Node ${id}`} · {sides}</li>
-            })}
-          </ul>
-        </div>
-      ) : null}
-      {unknown.length ? (
-        <div>
-          <h4 className="text-foreground text-sm font-medium">Unknown node IDs</h4>
-          <p className="text-default-500 mt-0.5 text-sm">Check these allocations in the source trees.</p>
-          <p className="text-default-500 mt-1 text-xs tabular-nums">{unknown.join(', ')}</p>
-        </div>
-      ) : null}
-      {unknownMasteries.length ? (
-        <div>
-          <h4 className="text-foreground text-sm font-medium">Unresolved mastery effects</h4>
-          <p className="text-default-500 mt-0.5 text-xs tabular-nums">{unknownMasteries.join(', ')}</p>
-        </div>
-      ) : null}
-    </section>
-  )
-}
-
 export function SkillTreeAnalysisPanel({ current: originalCurrent, target }: PassiveTreeSources) {
   const [manualInput, setManualInput] = useState('')
   const [manualSource, setManualSource] = useState<PassiveTreeSource | null>(null)
   const [manualError, setManualError] = useState<string | null>(null)
+  const [reviewFocus, setReviewFocus] = useState<{ nodeId: number; requestId: number }>()
+  const reviewRequestId = useRef(0)
+  const manualDetails = useRef<HTMLDetailsElement>(null)
+  const manualField = useRef<HTMLInputElement>(null)
   const current = manualSource ?? originalCurrent
   const resolution = current && target ? resolvePassiveTreeRenderResolution(current, target) : null
   const branch = resolution?.branch ?? null
@@ -179,11 +78,27 @@ export function SkillTreeAnalysisPanel({ current: originalCurrent, target }: Pas
     retry: false,
     staleTime: Infinity,
   })
-  const data = geometry.data ?? null
+  const rawGeometry = geometry.data
+  const data = useMemo(
+    () => current && target && rawGeometry ? getPassiveTreeComparisonGeometry(rawGeometry, current, target) : null,
+    [current, target, rawGeometry],
+  )
   const diff = useMemo(
     () => current && target && data ? buildPassiveTreeDiffViewModel(current, target, data) : null,
     [current, target, data],
   )
+  const canPasteMatchingCurrent = resolution?.supported === false && target &&
+    resolvePassiveTreeRenderResolution(target, target).supported
+
+  function openManualInput() {
+    if (manualDetails.current) manualDetails.current.open = true
+    manualField.current?.focus()
+  }
+
+  function locateReviewNode(nodeId: number) {
+    reviewRequestId.current += 1
+    setReviewFocus({ nodeId, requestId: reviewRequestId.current })
+  }
 
   return (
     <div className="space-y-4">
@@ -194,6 +109,7 @@ export function SkillTreeAnalysisPanel({ current: originalCurrent, target }: Pas
           data={data}
           currentSource={current}
           targetSource={target}
+          reviewFocus={reviewFocus}
         />
       ) : (
         <section aria-label="Tree map" className="border-divider bg-content1 rounded-large border p-4">
@@ -223,12 +139,14 @@ export function SkillTreeAnalysisPanel({ current: originalCurrent, target }: Pas
         </section>
       )}
 
-      <TreeReview
+      <PassiveTreeReview
         current={current}
         target={target}
         diff={diff}
         data={data}
         geometryReview={resolution?.supported === false ? resolution.detail : null}
+        onPasteCurrent={canPasteMatchingCurrent ? openManualInput : undefined}
+        onLocate={locateReviewNode}
       />
 
       <section aria-label="Tree sources" className="border-divider border-t pt-4">
@@ -242,7 +160,7 @@ export function SkillTreeAnalysisPanel({ current: originalCurrent, target }: Pas
         </dl>
       </section>
 
-      <details className="border-divider border-t pt-3">
+      <details ref={manualDetails} className="border-divider border-t pt-3">
         <summary className="text-brand-readable w-fit cursor-pointer rounded-small px-1 py-1 text-sm font-medium focus-visible:outline-2 focus-visible:outline-highlight">
           Compare another tree
         </summary>
@@ -253,12 +171,14 @@ export function SkillTreeAnalysisPanel({ current: originalCurrent, target }: Pas
             try {
               setManualSource(readManualPassiveTree(manualInput.trim()))
               setManualError(null)
+              setReviewFocus(undefined)
             } catch (error) {
               setManualError(error instanceof Error ? error.message : 'Enter an official passive tree link.')
             }
           }}
         >
           <FieldInput
+            ref={manualField}
             label="Current tree link"
             value={manualInput}
             onChange={(event) => setManualInput(event.target.value)}
@@ -275,6 +195,7 @@ export function SkillTreeAnalysisPanel({ current: originalCurrent, target }: Pas
                 setManualSource(null)
                 setManualInput('')
                 setManualError(null)
+                setReviewFocus(undefined)
               }}>
                 Use original tree
               </Button>

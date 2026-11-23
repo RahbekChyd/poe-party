@@ -14,13 +14,15 @@ import { getPassiveTreeRenderBranch, type PassiveTreeRenderRequest } from './pas
 import { getPobTreeSpecComparable, getPobTreeSpecUrl } from './pob'
 import type { PobTreeSpecLayout } from '../types/app'
 
-type ClusterSocket = { label: string; name: string | null }
+type ClusterSocket = { label: string; name: string | null; nodeId?: number }
 
 export type PassiveTreeSource = PassiveTreeRenderRequest & {
   title: string
   detail: string | null
   syncedAt?: string
   tree: PassiveTreeComparable
+  secondaryAscendancyId?: number | null
+  alternateAscendancy?: string | null
   link: string | null
   clusterSockets: ClusterSocket[]
   modifiedNodeIds: number[]
@@ -81,7 +83,7 @@ function snapshotSide(value: unknown, title: string): PassiveTreeSource | null {
     ? entry.cluster_sockets.flatMap((value) => {
         const socket = asRecord(value)
         const nodeId = parseId(socket.node_id)
-        return nodeId === null ? [] : [{ label: `Node ${nodeId}`, name: readString(socket.name) }]
+        return nodeId === null ? [] : [{ label: `Node ${nodeId}`, name: readString(socket.name), nodeId }]
       })
     : []
   // The official URL serializes the base and secondary ascendancy in one byte.
@@ -95,6 +97,7 @@ function snapshotSide(value: unknown, title: string): PassiveTreeSource | null {
     gameVersion,
     branch,
     tree,
+    secondaryAscendancyId: secondaryId,
     link: buildPassiveTreeUrl({ ...tree, gameVersion: gameVersion.replace(/_/g, '.'), ascendancyId: ascendancyByte }),
     clusterSockets,
     modifiedNodeIds: parseIds(entry.modified_nodes),
@@ -193,6 +196,7 @@ export function getProfilePassiveTree(profile: CharacterProfileSnapshot | null):
     // GGG's alternate_ascendancy field identifies the Bloodline, not an event tree.
     branch: getPassiveTreeRenderBranch(gameVersion, ruthless),
     tree,
+    alternateAscendancy,
     link: addPassiveTreeProfileContext(storedLink?.url ?? generatedLink, {
       accountName: profile.poe_account_name,
       characterName: profile.character_name,
@@ -226,10 +230,12 @@ export function getTargetPassiveTree(
     gameVersion,
     branch: getPassiveTreeRenderBranch(gameVersion),
     tree,
+    secondaryAscendancyId: spec.secondaryAscendancyId,
     link,
     clusterSockets: (spec.clusterJewels ?? []).map((jewel) => ({
       label: `Node ${jewel.socketNodeId}`,
       name: jewel.name ?? jewel.typeLine,
+      nodeId: jewel.socketNodeId,
     })),
     modifiedNodeIds: spec.modifiedNodeIds ?? [],
     unresolvedNodeIds: [],

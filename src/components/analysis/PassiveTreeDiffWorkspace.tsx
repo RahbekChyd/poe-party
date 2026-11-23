@@ -1,6 +1,7 @@
 import { Button } from '@heroui/react/button'
-import { ArrowDown, ArrowRight, Check, Circle, LocateFixed } from 'lucide-react'
-import { useId, useRef, useState } from 'react'
+import { Dropdown } from '@heroui/react/dropdown'
+import { ArrowDown, ArrowRight, Check, ChevronDown, Circle, LocateFixed } from 'lucide-react'
+import { useEffect, useId, useRef, useState } from 'react'
 import {
   PASSIVE_TREE_DIFF_LABELS,
   TREE_CHANGE_TONES,
@@ -119,24 +120,46 @@ export function PassiveTreeDiffWorkspace({
   data,
   currentSource,
   targetSource,
+  reviewFocus,
 }: {
   diff: PassiveTreeDiffViewModel
   data: PassiveTreeRenderData
   currentSource: PassiveTreeSource
   targetSource: PassiveTreeSource
+  reviewFocus?: { nodeId: number; requestId: number } | null
 }) {
   const [filter, setFilter] = useState<ChangeFilter>('all')
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [dismissedReview, setDismissedReview] = useState<number | null>(null)
   const entriesRef = useRef(new Map<number, HTMLButtonElement>())
   const focusOnMap = useRef<((point: { x: number; y: number }) => void) | null>(null)
   const detailId = useId()
-  const countsId = useId()
+  const filterDescriptionId = useId()
   const mapId = useId()
   const entries =
     filter === 'all' ? diff.entries : diff.entries.filter((entry) => entry.kind === filter)
-  const selected = entries.find(({ node }) => node.nodeId === selectedId) ?? null
+  const reviewNode =
+    reviewFocus && reviewFocus.requestId !== dismissedReview
+      ? data.nodes[reviewFocus.nodeId]
+      : undefined
+  const selected = reviewNode
+    ? null
+    : (entries.find(({ node }) => node.nodeId === selectedId) ?? null)
+
+  useEffect(() => {
+    if (!reviewNode) return
+    focusOnMap.current?.(reviewNode)
+    const map = document.getElementById(mapId)
+    map?.focus({ preventScroll: true })
+    map?.scrollIntoView({ block: 'nearest' })
+  }, [mapId, reviewFocus, reviewNode])
+
+  function dismissReview() {
+    if (reviewFocus) setDismissedReview(reviewFocus.requestId)
+  }
 
   function selectEntry(entry: PassiveTreeDiffEntry, focusList = false) {
+    dismissReview()
     setSelectedId(entry.node.nodeId)
     focusOnMap.current?.(entry.node)
     if (focusList) {
@@ -147,126 +170,156 @@ export function PassiveTreeDiffWorkspace({
   }
 
   return (
-    <>
-      <div role="group" aria-label="Filter tree differences" className="flex flex-wrap gap-1.5">
-        {CHANGE_FILTERS.map((kind) => (
-          <Button
-            key={kind}
-            size="sm"
-            variant={kind === filter ? 'secondary' : 'outline'}
-            className="max-sm:gap-1 max-sm:px-2"
-            aria-pressed={kind === filter}
-            aria-label={kind === 'all' ? 'All changes' : PASSIVE_TREE_DIFF_LABELS[kind]}
-            aria-describedby={kind === 'all' ? undefined : `${countsId}-${kind}`}
-            onPress={() => setFilter(kind)}
-          >
-            {kind === 'all' ? (
-              'All changes'
-            ) : (
-              <>
-                <span className={`flex items-center gap-1.5 ${TREE_CHANGE_TONES[kind]}`}>
-                  <PassiveTreeChangeIcon kind={kind} size={13} className="shrink-0" />
-                  {PASSIVE_TREE_DIFF_LABELS[kind]}
-                </span>
-                <span className="text-foreground tabular-nums" id={`${countsId}-${kind}`}>
-                  {diff.counts[kind]}
-                </span>
-              </>
-            )}
-          </Button>
-        ))}
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)] lg:[--tree-map-height:clamp(240px,calc(100dvh-19.5rem),510px)]">
-        <PassiveTreeMap
-          id={mapId}
-          data={data}
-          diff={diff}
-          visibleEntries={entries}
-          selected={selected}
-          onSelect={selectEntry}
-          selectionRequest={focusOnMap}
-        />
-        <section
-          className="min-w-0 lg:flex lg:max-h-[calc(var(--tree-map-height)+2.375rem)] lg:flex-col"
-          aria-label="Tree changes"
-        >
-          <div className="mb-2 flex min-h-8 items-center justify-between gap-2 px-1">
-            <h3 className="text-foreground text-sm font-semibold">Changes</h3>
-            <p className="text-default-500 text-xs tabular-nums" aria-live="polite">
-              {entries.length} {entries.length === 1 ? 'node' : 'nodes'}
-            </p>
-          </div>
-
-          {entries.length ? (
-            <ul className="border-divider divide-divider rounded-large divide-y overflow-hidden border lg:min-h-0 lg:overflow-y-auto">
-              {entries.map((entry) => {
-                const { node, kind } = entry
-                const isSelected = selectedId === node.nodeId
-                return (
-                  <li key={node.nodeId}>
-                    <button
-                      ref={(element) => {
-                        if (element) entriesRef.current.set(node.nodeId, element)
-                        else entriesRef.current.delete(node.nodeId)
-                      }}
-                      type="button"
-                      aria-label={node.label}
-                      aria-description={PASSIVE_TREE_DIFF_LABELS[kind]}
-                      aria-pressed={isSelected}
-                      aria-expanded={isSelected}
-                      aria-controls={isSelected ? detailId : undefined}
-                      onClick={() => selectEntry(entry)}
-                      className={`group hover:bg-surface-hover focus-visible:outline-highlight flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-left text-sm outline-offset-[-2px] focus-visible:outline-2 ${isSelected ? 'bg-selected' : 'bg-content1'}`}
-                    >
-                      <span
-                        className={`border-control bg-navigation flex size-7 shrink-0 items-center justify-center rounded-full border ${TREE_CHANGE_TONES[kind]}`}
-                      >
-                        <PassiveTreeChangeIcon kind={kind} size={15} />
-                      </span>
-                      <span className="text-foreground min-w-0 flex-1 font-medium wrap-anywhere">
-                        {node.label}
-                      </span>
-                      <LocateFixed
-                        size={15}
-                        aria-hidden="true"
-                        className={
-                          isSelected
-                            ? 'text-highlight shrink-0'
-                            : 'text-default-500 group-hover:text-foreground shrink-0'
-                        }
-                      />
-                    </button>
-                    {isSelected ? (
-                      <SelectedTreeNode
-                        entry={entry}
-                        currentSource={currentSource}
-                        targetSource={targetSource}
-                        id={detailId}
-                        onShowOnMap={() => {
-                          focusOnMap.current?.(node)
-                          const map = document.getElementById(mapId)
-                          map?.focus({ preventScroll: true })
-                          map?.scrollIntoView({ block: 'nearest' })
-                        }}
-                      />
-                    ) : null}
-                  </li>
-                )
-              })}
-            </ul>
-          ) : (
-            <p
-              className="text-default-500 border-divider rounded-large border px-3 py-4 text-sm"
-              role="status"
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)] lg:[--tree-map-height:clamp(240px,calc(100dvh-17rem),510px)]">
+      <PassiveTreeMap
+        id={mapId}
+        data={data}
+        diff={diff}
+        visibleEntries={entries}
+        selected={selected}
+        onSelect={selectEntry}
+        selectionRequest={focusOnMap}
+        reviewNode={reviewNode}
+        onDismissReview={dismissReview}
+        filterControl={
+          <Dropdown>
+            <Dropdown.Trigger
+              className="select__trigger h-8 min-h-8 w-auto min-w-0 gap-1.5 px-2.5 text-xs font-medium"
+              aria-label="Filter changes"
+              aria-describedby={filterDescriptionId}
             >
-              {filter === 'all'
-                ? 'No base node or mastery differences.'
-                : 'No differences in this filter.'}
-            </p>
-          )}
-        </section>
-      </div>
-    </>
+              <span className="sm:hidden">Filter</span>
+              <span className="hidden sm:inline">Filter changes</span>
+              <ChevronDown size={13} aria-hidden="true" />
+            </Dropdown.Trigger>
+            <Dropdown.Popover placement="bottom start" className="min-w-48">
+              <Dropdown.Menu
+                aria-label="Filter changes"
+                selectionMode="single"
+                disallowEmptySelection
+                selectedKeys={[filter]}
+                onSelectionChange={(keys) => {
+                  const kind = CHANGE_FILTERS.find((option) => keys !== 'all' && keys.has(option))
+                  if (kind) setFilter(kind)
+                }}
+              >
+                {CHANGE_FILTERS.map((kind) => {
+                  const label = kind === 'all' ? 'All changes' : PASSIVE_TREE_DIFF_LABELS[kind]
+                  const count = kind === 'all' ? diff.entries.length : diff.counts[kind]
+                  return (
+                    <Dropdown.Item
+                      key={kind}
+                      id={kind}
+                      textValue={label}
+                      aria-label={label}
+                      aria-describedby={`${filterDescriptionId}-${kind}`}
+                    >
+                      <Dropdown.ItemIndicator />
+                      <span
+                        className={`flex flex-1 items-center gap-1.5 ${kind === 'all' ? '' : TREE_CHANGE_TONES[kind]}`}
+                      >
+                        {kind === 'all' ? null : <PassiveTreeChangeIcon kind={kind} size={13} />}
+                        {label}
+                      </span>
+                      <span
+                        id={`${filterDescriptionId}-${kind}`}
+                        className="text-default-500 text-xs tabular-nums"
+                      >
+                        {count}
+                        <span className="sr-only"> {count === 1 ? 'node' : 'nodes'}</span>
+                      </span>
+                    </Dropdown.Item>
+                  )
+                })}
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
+        }
+      />
+      <section
+        className="min-w-0 lg:flex lg:max-h-[calc(var(--tree-map-height)+2.375rem)] lg:flex-col"
+        aria-label="Tree changes"
+      >
+        <span id={filterDescriptionId} className="sr-only">
+          {filter === 'all' ? 'All changes' : PASSIVE_TREE_DIFF_LABELS[filter]}
+        </span>
+        <div className="mb-2 flex min-h-8 items-center justify-between gap-2 px-1">
+          <h3 className="text-foreground text-sm font-semibold">
+            {filter === 'all' ? 'Changes' : PASSIVE_TREE_DIFF_LABELS[filter]}
+          </h3>
+          <p className="text-default-500 text-xs tabular-nums" aria-live="polite">
+            {entries.length} {entries.length === 1 ? 'node' : 'nodes'}
+          </p>
+        </div>
+
+        {entries.length ? (
+          <ul className="border-divider divide-divider rounded-large divide-y overflow-hidden border lg:min-h-0 lg:overflow-y-auto">
+            {entries.map((entry) => {
+              const { node, kind } = entry
+              const isSelected = selected?.node.nodeId === node.nodeId
+              return (
+                <li key={node.nodeId}>
+                  <button
+                    ref={(element) => {
+                      if (element) entriesRef.current.set(node.nodeId, element)
+                      else entriesRef.current.delete(node.nodeId)
+                    }}
+                    type="button"
+                    aria-label={node.label}
+                    aria-description={PASSIVE_TREE_DIFF_LABELS[kind]}
+                    aria-pressed={isSelected}
+                    aria-expanded={isSelected}
+                    aria-controls={isSelected ? detailId : undefined}
+                    onClick={() => selectEntry(entry)}
+                    className={`group hover:bg-surface-hover focus-visible:outline-highlight flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-left text-sm outline-offset-[-2px] focus-visible:outline-2 ${isSelected ? 'bg-selected' : 'bg-content1'}`}
+                  >
+                    <span
+                      className={`border-control bg-navigation flex size-7 shrink-0 items-center justify-center rounded-full border ${TREE_CHANGE_TONES[kind]}`}
+                    >
+                      <PassiveTreeChangeIcon kind={kind} size={15} />
+                    </span>
+                    <span className="text-foreground min-w-0 flex-1 font-medium wrap-anywhere">
+                      {node.label}
+                    </span>
+                    <LocateFixed
+                      size={15}
+                      aria-hidden="true"
+                      className={
+                        isSelected
+                          ? 'text-highlight shrink-0'
+                          : 'text-default-500 group-hover:text-foreground shrink-0'
+                      }
+                    />
+                  </button>
+                  {isSelected ? (
+                    <SelectedTreeNode
+                      entry={entry}
+                      currentSource={currentSource}
+                      targetSource={targetSource}
+                      id={detailId}
+                      onShowOnMap={() => {
+                        focusOnMap.current?.(node)
+                        const map = document.getElementById(mapId)
+                        map?.focus({ preventScroll: true })
+                        map?.scrollIntoView({ block: 'nearest' })
+                      }}
+                    />
+                  ) : null}
+                </li>
+              )
+            })}
+          </ul>
+        ) : (
+          <p
+            className="text-default-500 border-divider rounded-large border px-3 py-4 text-sm"
+            role="status"
+          >
+            {filter === 'all'
+              ? 'No base node or mastery differences.'
+              : 'No differences in this filter.'}
+          </p>
+        )}
+      </section>
+    </div>
   )
 }

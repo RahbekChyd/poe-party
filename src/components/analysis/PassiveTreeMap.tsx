@@ -1,12 +1,17 @@
 import { Button } from '@heroui/react/button'
-import { ZoomIn, ZoomOut } from 'lucide-react'
+import { Dropdown } from '@heroui/react/dropdown'
+import { Header } from '@heroui/react/header'
+import { Tooltip } from '@heroui/react/tooltip'
+import { Check, ChevronDown, LocateFixed, Maximize, X, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   useEffect,
+  useId,
   useImperativeHandle,
   useMemo,
   useRef,
   useState,
   type PointerEvent,
+  type ReactNode,
   type Ref,
 } from 'react'
 import {
@@ -258,6 +263,9 @@ export function PassiveTreeMap({
   selected,
   onSelect,
   selectionRequest,
+  filterControl,
+  reviewNode,
+  onDismissReview,
 }: {
   id: string
   data: PassiveTreeRenderData
@@ -266,9 +274,13 @@ export function PassiveTreeMap({
   selected: PassiveTreeDiffEntry | null
   onSelect: (entry: PassiveTreeDiffEntry, focusList: boolean) => void
   selectionRequest: Ref<(point: Point) => void>
+  filterControl: ReactNode
+  reviewNode?: PassiveTreeRenderNode
+  onDismissReview: () => void
 }) {
   const [mapView, setMapView] = useState<MapView>('Overlay')
   const [appearance, setAppearance] = useState<MapAppearance>('contrast')
+  const optionsDescriptionId = useId()
   const artwork = appearance === 'game' ? data.artwork : undefined
   const gameArt = usePassiveTreeGameArt(artwork)
   const fullView = useMemo(
@@ -306,6 +318,7 @@ export function PassiveTreeMap({
     initialView,
   )
   const view = camera.view
+  const reviewRadius = Math.max(55, camera.unitsPerPixel * 13)
   const activeNodes =
     mapView === 'Current' ? sides.current : mapView === 'Target' ? sides.target : null
   const visibleNodeEntries = new Map(
@@ -351,78 +364,156 @@ export function PassiveTreeMap({
 
   return (
     <section aria-label="Tree map" className="min-w-0">
-      <div className="mb-2 flex flex-wrap justify-between gap-2">
-        <div role="group" aria-label="Tree view" className="flex flex-wrap gap-1">
-          {MAP_VIEWS.map((option) => (
-            <Button
-              key={option}
-              size="sm"
-              variant={mapView === option ? 'secondary' : 'tertiary'}
-              aria-pressed={mapView === option}
-              onPress={() => setMapView(option)}
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-1.5">
+        <div className="flex items-center gap-1.5">
+          {filterControl}
+          <Dropdown>
+            <Dropdown.Trigger
+              className="select__trigger h-8 min-h-8 w-auto min-w-0 gap-1.5 px-2.5 text-xs font-medium"
+              aria-label="Map options"
+              aria-describedby={optionsDescriptionId}
             >
-              {option}
-            </Button>
-          ))}
+              <span className="sm:hidden">Options</span>
+              <span className="hidden sm:inline">Map options</span>
+              <ChevronDown size={13} aria-hidden="true" />
+            </Dropdown.Trigger>
+            <Dropdown.Popover placement="bottom start" className="min-w-44">
+              <Dropdown.Menu aria-label="Map options">
+                <Dropdown.Section aria-label="Tree view">
+                  <Header className="text-default-500 px-2 py-1 text-xs font-medium">
+                    Tree view
+                  </Header>
+                  {MAP_VIEWS.map((option) => (
+                    <Dropdown.Item
+                      key={option}
+                      id={option}
+                      textValue={option}
+                      aria-label={option}
+                      aria-describedby={
+                        mapView === option ? `${optionsDescriptionId}-view` : undefined
+                      }
+                      onAction={() => setMapView(option)}
+                    >
+                      <span className="flex-1">{option}</span>
+                      {mapView === option ? (
+                        <>
+                          <Check size={15} aria-hidden="true" />
+                          <span id={`${optionsDescriptionId}-view`} className="sr-only">
+                            Selected view
+                          </span>
+                        </>
+                      ) : null}
+                    </Dropdown.Item>
+                  ))}
+                </Dropdown.Section>
+                {data.artwork ? (
+                  <Dropdown.Section
+                    aria-label="Tree appearance"
+                    className="border-divider mt-1 border-t pt-1"
+                  >
+                    <Header className="text-default-500 px-2 py-1 text-xs font-medium">
+                      Tree appearance
+                    </Header>
+                    {MAP_APPEARANCES.map(({ id: option, label }) => (
+                      <Dropdown.Item
+                        key={option}
+                        id={option}
+                        textValue={label}
+                        aria-label={label}
+                        aria-describedby={
+                          appearance === option ? `${optionsDescriptionId}-appearance` : undefined
+                        }
+                        onAction={() => setAppearance(option)}
+                      >
+                        <span className="flex-1">{label}</span>
+                        {appearance === option ? (
+                          <>
+                            <Check size={15} aria-hidden="true" />
+                            <span id={`${optionsDescriptionId}-appearance`} className="sr-only">
+                              Selected appearance
+                            </span>
+                          </>
+                        ) : null}
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown.Section>
+                ) : null}
+                <Dropdown.Section aria-label="Camera" className="border-divider mt-1 border-t pt-1">
+                  <Dropdown.Item
+                    id="reset"
+                    onAction={() => {
+                      onDismissReview()
+                      camera.moveTo(initialView)
+                    }}
+                  >
+                    Reset view
+                  </Dropdown.Item>
+                </Dropdown.Section>
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
         </div>
-        {data.artwork ? (
-          <div role="group" aria-label="Tree appearance" className="flex flex-wrap gap-1">
-            {MAP_APPEARANCES.map(({ id, label }) => (
-              <Button
-                key={id}
-                size="sm"
-                variant={appearance === id ? 'secondary' : 'tertiary'}
-                aria-pressed={appearance === id}
-                onPress={() => setAppearance(id)}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
-        ) : null}
-        <div role="group" aria-label="Map controls" className="flex flex-wrap gap-1">
-          <Button
-            size="sm"
-            variant="tertiary"
-            isIconOnly
-            aria-label="Zoom out"
-            onPress={() => camera.zoom(1 / 1.4)}
-          >
-            <ZoomOut size={16} aria-hidden="true" />
-          </Button>
-          <Button
-            size="sm"
-            variant="tertiary"
-            isIconOnly
-            aria-label="Zoom in"
-            onPress={() => camera.zoom(1.4)}
-          >
-            <ZoomIn size={16} aria-hidden="true" />
-          </Button>
-          <Button
-            size="sm"
-            variant="tertiary"
-            isDisabled={!visibleEntries.length}
-            onPress={() => camera.moveTo(fittedChanges)}
-          >
-            Fit changes
-          </Button>
-          <Button size="sm" variant="tertiary" onPress={() => camera.moveTo(initialView)}>
-            Reset view
-          </Button>
+        <div role="group" aria-label="Map controls" className="flex items-center">
+          <Tooltip>
+            <Button
+              size="sm"
+              variant="tertiary"
+              isIconOnly
+              aria-label="Zoom out"
+              onPress={() => camera.zoom(1 / 1.4)}
+            >
+              <ZoomOut size={16} aria-hidden="true" />
+            </Button>
+            <Tooltip.Content>Zoom out</Tooltip.Content>
+          </Tooltip>
+          <Tooltip>
+            <Button
+              size="sm"
+              variant="tertiary"
+              isIconOnly
+              aria-label="Zoom in"
+              onPress={() => camera.zoom(1.4)}
+            >
+              <ZoomIn size={16} aria-hidden="true" />
+            </Button>
+            <Tooltip.Content>Zoom in</Tooltip.Content>
+          </Tooltip>
+          <Tooltip>
+            <Button
+              size="sm"
+              variant="tertiary"
+              aria-label="Fit changes"
+              className="min-w-8 gap-1 px-2"
+              isDisabled={!visibleEntries.length}
+              onPress={() => {
+                onDismissReview()
+                camera.moveTo(fittedChanges)
+              }}
+            >
+              <Maximize size={16} aria-hidden="true" />
+              <span className="hidden sm:inline">Fit</span>
+            </Button>
+            <Tooltip.Content>Fit changes</Tooltip.Content>
+          </Tooltip>
         </div>
       </div>
 
       <div className="relative">
+        <span id={optionsDescriptionId} className="sr-only">
+          {data.artwork
+            ? `${mapView}, ${appearance === 'game' ? 'Game art' : 'High contrast'}`
+            : mapView}
+        </span>
         <svg
           id={id}
           ref={camera.svgRef}
           role="group"
           aria-label="Passive tree comparison map"
+          aria-description={reviewNode ? `Located ${reviewNode.label}` : undefined}
           data-appearance={appearance}
           tabIndex={0}
           viewBox={formatViewBox(view)}
-          className="rounded-large border-divider bg-navigation focus-visible:outline-highlight h-[clamp(240px,49dvh,340px)] w-full touch-none border outline-offset-2 focus-visible:outline-2 lg:h-(--tree-map-height)"
+          className="rounded-large border-divider bg-navigation focus-visible:outline-highlight h-[clamp(240px,49dvh,340px)] w-full touch-none scroll-mt-11 border outline-offset-2 focus-visible:outline-2 lg:h-(--tree-map-height)"
           style={{ cursor: 'grab' }}
           onPointerDown={camera.onPointerDown}
           onPointerMove={camera.onPointerMove}
@@ -495,6 +586,23 @@ export function PassiveTreeMap({
               layer="nodes"
             />
           ) : null}
+          {data.ascendancyWheels?.map(({ id, name, x, labelY }) => (
+            <text
+              key={id}
+              x={x}
+              y={labelY}
+              textAnchor="middle"
+              fontSize={Math.min(200, camera.unitsPerPixel * 12)}
+              fontWeight={600}
+              fill="var(--foreground)"
+              stroke="var(--navigation)"
+              strokeWidth={camera.unitsPerPixel * 2}
+              paintOrder="stroke"
+              pointerEvents="none"
+            >
+              {name}
+            </text>
+          ))}
           {drawnIds.map((id) => {
             const node = data.nodes[id]
             const entry = visibleNodeEntries.get(id)
@@ -597,6 +705,29 @@ export function PassiveTreeMap({
               </g>
             )
           })}
+          {reviewNode ? (
+            <g
+              data-review-node-id={reviewNode.nodeId}
+              transform={`translate(${reviewNode.x} ${reviewNode.y})`}
+              aria-hidden="true"
+              pointerEvents="none"
+              className="text-highlight"
+            >
+              <circle
+                r={reviewRadius}
+                fill="var(--navigation)"
+                fillOpacity={0.24}
+                stroke="currentColor"
+                strokeWidth={2}
+                vectorEffect="non-scaling-stroke"
+              />
+              <LocateFixed
+                x={-reviewRadius * 0.74}
+                y={-reviewRadius * 0.74}
+                size={reviewRadius * 1.48}
+              />
+            </g>
+          ) : null}
         </svg>
         {artwork && gameArt.status !== 'ready' && gameArt.status !== 'idle' ? (
           <div
@@ -615,6 +746,26 @@ export function PassiveTreeMap({
                 Retry game art
               </Button>
             ) : null}
+          </div>
+        ) : null}
+        {reviewNode ? (
+          <div className="border-control bg-navigation text-foreground absolute bottom-3 left-3 flex max-w-[calc(100%-1.5rem)] items-center gap-2 rounded-lg border py-0.5 pr-0.5 pl-2.5 text-xs font-medium">
+            <LocateFixed size={14} aria-hidden="true" className="text-highlight shrink-0" />
+            <span className="min-w-0 wrap-anywhere" role="status">
+              {reviewNode.label}
+            </span>
+            <Button
+              size="sm"
+              variant="tertiary"
+              isIconOnly
+              aria-label="Dismiss map marker"
+              onPress={() => {
+                onDismissReview()
+                camera.svgRef.current?.focus({ preventScroll: true })
+              }}
+            >
+              <X size={14} aria-hidden="true" />
+            </Button>
           </div>
         ) : null}
         {selected ? (

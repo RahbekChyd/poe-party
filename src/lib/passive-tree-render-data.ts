@@ -81,6 +81,22 @@ export interface PassiveTreeRenderConnector {
   path: string
 }
 
+export interface PassiveTreeAscendancyClass {
+  id: string
+  name: string
+  classId: number | null
+  selectionId: number
+}
+
+export interface PassiveTreeAscendancyWheel {
+  id: string
+  name: string
+  isBloodline: boolean
+  x: number
+  y: number
+  labelY: number
+}
+
 export interface PassiveTreeRenderData {
   branch: PassiveTreeRenderBranch
   branchLabel: string
@@ -95,6 +111,8 @@ export interface PassiveTreeRenderData {
   groups: Record<number, PassiveTreeRenderGroup>
   connectors: PassiveTreeRenderConnector[]
   artwork?: PassiveTreeArtwork
+  ascendancyClasses?: PassiveTreeAscendancyClass[]
+  ascendancyWheels?: PassiveTreeAscendancyWheel[]
 }
 
 export interface PassiveTreeRenderRequest {
@@ -196,7 +214,11 @@ type RawPassiveTreeData = {
   nodes?: Record<string, RawPassiveTreeNode>
   groups?: Record<string, RawPassiveTreeGroup>
   sprites?: unknown
+  classes?: Array<{ ascendancies?: RawPassiveTreeAscendancy[] }>
+  alternate_ascendancies?: RawPassiveTreeAscendancy[]
 }
+
+type RawPassiveTreeAscendancy = { id?: string; name?: string }
 
 const renderDataPromiseCache = new Map<PassiveTreeRenderBranch, Promise<PassiveTreeRenderData>>()
 
@@ -305,7 +327,7 @@ function computeNodePosition(
 }
 
 // PoB draws the shortest arc for nodes sharing an orbit and a line for other edges.
-function buildConnectorPath(from: PassiveTreeRenderNode, to: PassiveTreeRenderNode): string {
+export function buildConnectorPath(from: PassiveTreeRenderNode, to: PassiveTreeRenderNode): string {
   const start = `M ${from.x} ${from.y}`
   const end = `${to.x} ${to.y}`
   if (from.groupId !== to.groupId || from.orbit !== to.orbit || from.radius === 0) {
@@ -315,6 +337,26 @@ function buildConnectorPath(from: PassiveTreeRenderNode, to: PassiveTreeRenderNo
   const clockwiseAngle = (to.angle - from.angle + turn) % turn
   const sweep = clockwiseAngle < Math.PI || (clockwiseAngle === Math.PI && from.angle > to.angle) ? 1 : 0
   return `${start} A ${from.radius} ${from.radius} 0 0 ${sweep} ${end}`
+}
+
+function normalizeAscendancyClasses(data: RawPassiveTreeData): PassiveTreeAscendancyClass[] {
+  const classes: PassiveTreeAscendancyClass[] = []
+
+  function append(entries: RawPassiveTreeAscendancy[] | undefined, classId: number | null) {
+    if (!Array.isArray(entries)) return
+    entries.forEach((entry, index) => {
+      const id = typeof entry?.id === 'string' ? entry.id.trim() : ''
+      if (!id) return
+      const name = typeof entry.name === 'string' ? entry.name.trim() : ''
+      classes.push({ id, name: name || id, classId, selectionId: index + 1 })
+    })
+  }
+
+  if (Array.isArray(data.classes)) {
+    data.classes.forEach((entry, classId) => append(entry?.ascendancies, classId))
+  }
+  append(data.alternate_ascendancies, null)
+  return classes
 }
 
 function getNodeLabel(nodeId: number, node: RawPassiveTreeNode): string {
@@ -418,7 +460,7 @@ export function normalizePassiveTreeRenderData(
       if (!to || to.isProxy || to.nodeId === from.nodeId) continue
       const toAscendancy = to.ascendancyName !== null || to.isAscendancyStart
       // Keep each ascendancy wheel visually separate while preserving the exported adjacency.
-      if (fromAscendancy !== toAscendancy) continue
+      if (fromAscendancy !== toAscendancy || from.ascendancyName !== to.ascendancyName) continue
 
       const id = `${Math.min(from.nodeId, to.nodeId)}-${Math.max(from.nodeId, to.nodeId)}`
       if (!connectors.has(id)) {
@@ -453,6 +495,7 @@ export function normalizePassiveTreeRenderData(
   }
 
   const artwork = buildPassiveTreeArtwork(rawData.sprites, nodes, normalizedGroups, rawNodes, groups)
+  const ascendancyClasses = normalizeAscendancyClasses(rawData)
   return {
     branch,
     branchLabel: BRANCH_LABELS[branch],
@@ -467,6 +510,7 @@ export function normalizePassiveTreeRenderData(
     groups: normalizedGroups,
     connectors: [...connectors.values()],
     ...(artwork ? { artwork } : {}),
+    ...(ascendancyClasses.length ? { ascendancyClasses } : {}),
   }
 }
 
