@@ -73,8 +73,12 @@ test('large unfiltered stash pagination fits a compact viewport and reaches the 
   await page.goto('/dashboard/economy/group')
   const pager = page.getByRole('navigation', { name: 'Snapshot pages' })
   const next = pager.getByRole('button', { name: 'Next page' })
+  const status = pager.getByRole('status')
   await expect(next).toBeVisible()
-  await expect(pager.getByRole('status')).toHaveText('Page 1 of 41')
+  await expect(status).toHaveText('Page 1 of 41')
+  const nextBox = (await next.boundingBox())!
+  const statusBox = (await status.boundingBox())!
+  expect(Math.abs(nextBox.y + nextBox.height / 2 - statusBox.y - statusBox.height / 2)).toBeLessThanOrEqual(1)
   await expect.poll(() => page.getByRole('main').evaluate((main) => main.scrollWidth - main.clientWidth)).toBeLessThanOrEqual(1)
   await next.click()
   await expect(pager.getByRole('status')).toHaveText('Page 2 of 41')
@@ -83,6 +87,36 @@ test('large unfiltered stash pagination fits a compact viewport and reaches the 
   await expect(pager.getByRole('status')).toHaveText('Page 41 of 41')
   await expect(next).toBeDisabled()
   await expect(page.getByText('Unpriced keepsake', { exact: true })).toBeVisible()
+})
+
+test('wide snapshot pagination and workspace footer span their available width', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'chromium-mobile', 'Exercises the desktop sidebar and wide pager')
+  await mockCapture(page)
+  await page.setViewportSize({ width: 3440, height: 900 })
+  await page.goto(`/dashboard/economy/${userId}`)
+
+  const pager = page.getByRole('navigation', { name: 'Snapshot pages' })
+  const first = pager.getByRole('button', { name: 'Go to page 1', exact: true })
+  const last = pager.getByRole('button', { name: 'Go to page 41', exact: true })
+  const jump = page.getByRole('spinbutton', { name: 'Go to page' })
+  await expect(first).toHaveAttribute('aria-current', 'page')
+  await expect(jump).toBeVisible()
+  const firstBox = (await first.boundingBox())!
+  const jumpBox = (await jump.boundingBox())!
+  expect(Math.abs(firstBox.y + firstBox.height / 2 - jumpBox.y - jumpBox.height / 2)).toBeLessThanOrEqual(1)
+
+  await last.click()
+  await expect(last).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByText('Unpriced keepsake', { exact: true })).toBeVisible()
+
+  const footer = page.getByRole('contentinfo')
+  await footer.scrollIntoViewIfNeeded()
+  await expect(footer).toBeInViewport({ ratio: 0.99 })
+  const footerBox = (await footer.boundingBox())!
+  const sidebarBox = (await page.getByRole('navigation', { name: 'Primary dashboard' }).boundingBox())!
+  expect(footerBox.x).toBeLessThan(sidebarBox.x)
+  expect(footerBox.width).toBeGreaterThan(3400)
+  await expect(footer).toHaveCSS('border-top-width', '1px')
 })
 
 test('group KPIs and rows consistently exclude an expensive item from totals', async ({ page }, testInfo) => {

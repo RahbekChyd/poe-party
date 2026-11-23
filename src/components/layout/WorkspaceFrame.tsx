@@ -40,8 +40,8 @@ export function WorkspaceFrame({ leagueTheme, sidebar, masthead, dock, footer, c
       </a>
       {masthead}
       <div className="workspace-body">
-        {sidebar}
         <div ref={reading} className="workspace-reading">
+          <div className="workspace-sidebar-rail">{sidebar}</div>
           <main id="main-content" tabIndex={-1} className="workspace-content">
             {children}
           </main>

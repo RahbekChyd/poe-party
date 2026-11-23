@@ -530,7 +530,7 @@ export function GroupSnapshotPage() {
           </Card>
 
           {/* Table */}
-          <Card className="overflow-visible p-0">
+          <Card className="gap-0 overflow-visible p-0">
             <Card.Content className="p-0">
               <div className="economy-data" role="region" aria-label="Group stash items">
                 <table className="economy-stash" role="table">
@@ -807,15 +807,13 @@ export function GroupSnapshotPage() {
                   </tbody>
                 </table>
               </div>
-
             </Card.Content>
+            {totalPages > 1 && (
+              <Card.Footer className="border-divider border-t px-3 py-2">
+                <SimplePagination total={totalPages} page={page} onChange={setPage} />
+              </Card.Footer>
+            )}
           </Card>
-
-          {totalPages > 1 && (
-            <div className="flex justify-center">
-              <SimplePagination total={totalPages} page={page} onChange={setPage} />
-            </div>
-          )}
         </>
       )}
     </DashboardPage>
