@@ -620,7 +620,10 @@ export function PassiveTreeMap({
               ? hasPassiveTreeNodeArt(artwork, gameArt.images, id, allocatedInView)
               : false
             const iconSize = radius * 1.35
-            const tone = visibleEntry ? TREE_CHANGE_TONES[visibleEntry.kind] : 'text-default-500'
+            const showComparisonMarker = visibleEntry && appearance === 'contrast'
+            const tone = showComparisonMarker
+              ? TREE_CHANGE_TONES[visibleEntry.kind]
+              : 'text-default-500'
             const bounds = camera.visibleView
             const visible =
               node.x >= bounds.x &&
@@ -640,7 +643,7 @@ export function PassiveTreeMap({
                 aria-pressed={visibleEntry ? isSelected : undefined}
                 tabIndex={visibleEntry ? (visible ? 0 : -1) : undefined}
                 data-node-id={visibleEntry ? id : undefined}
-                className={`${tone} ${visibleEntry ? 'group cursor-pointer outline-none' : 'pointer-events-none'}`}
+                className={`${tone} ${visibleEntry ? 'group cursor-pointer' : 'pointer-events-none'} ${appearance === 'game' ? 'focus-visible:outline-highlight focus-visible:outline-2' : 'outline-none'}`}
                 onClick={visibleEntry ? () => onSelect(visibleEntry, false) : undefined}
                 onKeyDown={
                   visibleEntry
@@ -664,19 +667,24 @@ export function PassiveTreeMap({
                   />
                 ) : null}
                 {visibleEntry ? <title>{node.label}</title> : null}
-                {hasArtwork ? null : drawNode(node, radius, 'var(--navigation)', 'currentColor')}
-                {visibleEntry ? (
+                {hasArtwork
+                  ? null
+                  : drawNode(
+                      node,
+                      showComparisonMarker ? radius : nodeRadius,
+                      'var(--navigation)',
+                      'currentColor',
+                    )}
+                {showComparisonMarker ? (
                   <>
-                    {appearance === 'contrast' ? (
-                      <PassiveTreeChangeIcon
-                        kind={visibleEntry.kind}
-                        x={node.x - iconSize / 2}
-                        y={node.y - iconSize / 2}
-                        size={iconSize}
-                        strokeWidth={2.75}
-                        pointerEvents="none"
-                      />
-                    ) : null}
+                    <PassiveTreeChangeIcon
+                      kind={visibleEntry.kind}
+                      x={node.x - iconSize / 2}
+                      y={node.y - iconSize / 2}
+                      size={iconSize}
+                      strokeWidth={2.75}
+                      pointerEvents="none"
+                    />
                     <circle
                       cx={node.x}
                       cy={node.y}
@@ -685,10 +693,7 @@ export function PassiveTreeMap({
                       stroke={isSelected ? 'var(--foreground)' : 'currentColor'}
                       strokeWidth={isSelected ? 2.5 : 1.5}
                       strokeDasharray={
-                        appearance === 'contrast' &&
-                        (!allocatedInView || visibleEntry.kind === 'current')
-                          ? '3 2'
-                          : undefined
+                        !allocatedInView || visibleEntry.kind === 'current' ? '3 2' : undefined
                       }
                       vectorEffect="non-scaling-stroke"
                       className={
