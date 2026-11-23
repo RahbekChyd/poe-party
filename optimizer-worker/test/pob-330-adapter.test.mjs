@@ -3,9 +3,29 @@ import assert from 'node:assert/strict'
 import { buildCurrentImportPayload, collectOverlayImportItems, normalizeProfileSlot, collectOwnedVisceraCandidates } from '../src/lib/pob-payload.mjs'
 import { toPobTextFromProfileItem } from '../src/lib/pob-item-text.mjs'
 import { normalizeSlot } from '../src/lib/poe-trade-client.mjs'
+import { resolveTargetContext } from '../src/lib/target-context.mjs'
 
 const helm = { id: 'helm', inventoryId: 'Helm', name: '', typeLine: 'Iron Hat', frameType: 0, properties: [], explicitMods: [{ description: '+40 to maximum Life', flags: { fractured: true } }], socketedItems: [{ typeLine: 'Fireball', builtInSupport: 'Greater Multiple Projectiles' }] }
 const head = { id: 'head', inventoryId: 'VisceraHead', name: '', typeLine: 'Test Head', implicitMods: [{ description: '10% increased Damage', flags: { rareonly: true } }] }
+
+test('tree selection resolves source positions and legacy IDs before the saved title', () => {
+  const treeSpecs = [
+    { id: 'tree-spec:1', title: 'Duplicate' },
+    { id: 'tree-spec:2', title: 'Duplicate', legacyId: 'legacy-second' },
+  ]
+  const buildTarget = { import_metadata: { tree_specs: treeSpecs } }
+  for (const id of ['tree-spec:2', 'legacy-second', '2']) {
+    const context = resolveTargetContext({
+      buildTarget,
+      targetStage: { tree_spec_id: id, tree_spec_title: 'Duplicate' },
+    })
+    assert.equal(context.selectedTreeSpec?.id, 'tree-spec:2')
+  }
+  assert.equal(resolveTargetContext({
+    buildTarget,
+    targetStage: { tree_spec_id: 'tree-spec:3', tree_spec_title: 'Duplicate' },
+  }).selectedTreeSpec, null)
+})
 
 test('OAuth input preserves raw mods, passives, imbued skills and separate Wickerman slots', () => {
   const result = buildCurrentImportPayload({ raw_character: { name: 'Fixture', class: 'Witch', level: 90, equipment: [helm], wickerman: [head], guardian: [helm], passives: { hashes: [100], hashes_ex: [101], mastery_effects: { 1: 2 }, bandit_choice: 'Alira', pantheon_major: 'BrineKing', alternate_ascendancy: 1 } } })

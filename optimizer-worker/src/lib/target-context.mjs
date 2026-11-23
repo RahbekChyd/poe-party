@@ -52,6 +52,18 @@ function findById(entries, id) {
   return entries.find((entry) => String(entry?.id ?? '') === String(id)) ?? null
 }
 
+function findTreeSpec(entries, id, title) {
+  if (!id && !title) return null
+  const requestedId = String(id ?? '')
+  const position = /^tree-spec:([1-9]\d*)$/.exec(requestedId)
+  if (position) return entries[Number(position[1]) - 1] ?? null
+  return findById(entries, requestedId) ??
+    entries.find((entry) => entry?.legacyId === requestedId || entry?.title === requestedId) ??
+    (/^[1-9]\d*$/.test(requestedId) ? entries[Number(requestedId) - 1] : null) ??
+    (title ? entries.find((entry) => entry?.title === title) : null) ??
+    null
+}
+
 export function resolveTargetContext({ buildTarget, targetStage }) {
   const metadata = asRecord(buildTarget?.import_metadata)
   const treeSpecs = asArray(metadata.tree_specs)
@@ -64,7 +76,10 @@ export function resolveTargetContext({ buildTarget, targetStage }) {
   const targetMetrics = asRecord(targetStage?.target_metrics)
   const fallbackMetrics = asRecord(metadata.player_stats)
 
-  const selectedTreeSpec = findById(treeSpecs, targetStage?.tree_spec_id)
+  const treeSpec = findTreeSpec(treeSpecs, targetStage?.tree_spec_id, targetStage?.tree_spec_title)
+  const selectedTreeSpec = treeSpec
+    ? { ...treeSpec, id: `tree-spec:${treeSpecs.indexOf(treeSpec) + 1}` }
+    : null
   const selectedSkillSet = findById(skillSets, targetStage?.skill_set_id)
   const selectedConfigSet = findById(
     configSets,
