@@ -1,20 +1,11 @@
 import { ListBox } from '@heroui/react/list-box'
+import {
+  analysisPobLayoutFields,
+  type AnalysisPobSetupSelection,
+} from '../../lib/analysis-pob-setup'
+import { getPobTreeSpecLabel } from '../../lib/pob'
 import type { PobImportMetadata } from '../../types/app'
 import { SelectField } from '../ui/heroui-native'
-
-export type AnalysisPobSetupSelection = {
-  treeSpecId: string | null
-  itemSetId: string | null
-  skillSetId: string | null
-  configSetId: string | null
-}
-
-const layoutFields = [
-  { label: 'Tree', optionsKey: 'tree_specs', selectionKey: 'treeSpecId' },
-  { label: 'Item set', optionsKey: 'item_sets', selectionKey: 'itemSetId' },
-  { label: 'Skill set', optionsKey: 'skill_sets', selectionKey: 'skillSetId' },
-  { label: 'Configuration', optionsKey: 'config_sets', selectionKey: 'configSetId' },
-] as const
 
 export function AnalysisPobSetupFields({
   metadata,
@@ -28,15 +19,18 @@ export function AnalysisPobSetupFields({
   isDisabled?: boolean
 }) {
   return (
-    <div className="grid min-w-0 gap-3 min-[35rem]:grid-cols-2">
-      {layoutFields.map(({ label, optionsKey, selectionKey }) => {
+    <div className="grid min-w-0 gap-x-5 gap-y-4 min-[35rem]:grid-cols-2">
+      {analysisPobLayoutFields.map(({ label, description, optionsKey, selectionKey }) => {
         const options = metadata[optionsKey]
 
         if (options.length === 0) {
           return (
-            <div key={selectionKey} className="min-w-0 px-1 py-1 text-sm">
+            <div key={selectionKey} className="min-w-0 text-sm">
               <p className="text-foreground font-medium">{label}</p>
-              <p className="text-default-500 mt-1">No layout in this export</p>
+              <p className="border-control mt-1 rounded-lg border px-3 py-2">PoB default</p>
+              <p className="text-default-500 mt-1 text-xs">
+                {description} This export has no selectable layout.
+              </p>
             </div>
           )
         }
@@ -45,17 +39,22 @@ export function AnalysisPobSetupFields({
           <SelectField
             key={selectionKey}
             label={label}
+            description={description}
             selectedKey={selection[selectionKey]}
             isDisabled={isDisabled}
             onSelectionChange={(key) =>
               onSelectionChange(selectionKey, typeof key === 'string' ? key : null)
             }
           >
-            {options.map((option) => (
-              <ListBox.Item key={option.id} id={option.id} textValue={option.title}>
-                {option.title}
-              </ListBox.Item>
-            ))}
+            {options.map((option) => {
+              const title =
+                'hashes' in option ? getPobTreeSpecLabel(metadata.tree_specs, option) : option.title
+              return (
+                <ListBox.Item key={option.id} id={option.id} textValue={title}>
+                  {title}
+                </ListBox.Item>
+              )
+            })}
           </SelectField>
         )
       })}

@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from './fixture'
-import { analysisPobXml, mockAnalysisRuns, recommendationIconPaths } from './ui-data'
+import { activeLayoutsPobXml, mockAnalysisRuns, recommendationIconPaths } from './ui-data'
 
 async function openAnalysisFromNavigation(page: Page, isMobile: boolean) {
   const nav = page.getByRole('navigation', { name: 'Primary dashboard', exact: true })
@@ -197,22 +197,109 @@ test('the wizard opens a reused result by the returned run ID', async ({ page })
   await expect(page.getByRole('button', { name: 'View Fixture Ward', exact: true })).toBeVisible()
 })
 
-test('the signed-in wizard saves an imported target and uses its PoB layouts', async ({ page }) => {
-  await mockAnalysisRuns(page)
+test('the signed-in wizard preserves a rejected import and reviews the active exported layouts', async ({ page }) => {
+  const fixture = await mockAnalysisRuns(page, { noSavedTargets: true })
+  const malformedXml = '<PathOfBuilding><Build></PathOfBuilding>'
   await page.goto('/dashboard/analysis/new')
   const next = page.getByRole('button', { name: 'Continue', exact: true })
   await next.click()
-  await page.getByText('Import a PoB target', { exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Choose a PoB target', exact: true })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Saved PoB targets' })).toHaveCount(0)
+  const importInput = page.getByRole('textbox', { name: 'PoB import', exact: true })
+  const readPob = page.getByRole('button', { name: 'Read PoB and continue', exact: true })
   await page.getByRole('textbox', { name: 'Target name', exact: true }).fill('Fireball progression')
-  await page.getByRole('textbox', { name: 'PoB share code or XML', exact: true }).fill(analysisPobXml)
-  await page.getByRole('button', { name: 'Import build target' }).click()
-  await expect(page.getByText('Fireball progression', { exact: true })).toBeVisible()
-  await next.click()
+  await importInput.fill(malformedXml)
+  await readPob.click()
+  await expect(page.getByRole('alert')).toBeVisible()
+  await expect(importInput).toHaveValue(malformedXml)
+  expect(fixture.countTargetImports()).toBe(0)
+
+  await importInput.fill(activeLayoutsPobXml)
+  await readPob.click()
   await expect(page.getByRole('heading', { name: 'Confirm PoB setup', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Mapping tree Tree', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Fireball links Skill set', exact: true })).toBeVisible()
+  expect(fixture.countTargetImports()).toBe(1)
+  await expect(page.getByRole('button', { name: /Progression \(Tree 2\).*Tree|Tree.*Progression \(Tree 2\)/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Mapping gear.*Item set|Item set.*Mapping gear/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Fireball links.*Skill set|Skill set.*Fireball links/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Maps.*Configuration|Configuration.*Maps/ })).toBeVisible()
   await page.getByRole('button', { name: 'Back', exact: true }).click()
-  await expect(page.getByText('Fireball progression', { exact: true })).toBeVisible()
+  await expect(importInput).toHaveValue(activeLayoutsPobXml)
+  await expect(page.getByRole('textbox', { name: 'Target name', exact: true })).toHaveValue('Fireball progression')
+  await readPob.click()
+  await expect(page.getByRole('heading', { name: 'Confirm PoB setup', exact: true })).toBeVisible()
+  await next.click()
+  await next.click()
+  await expect(page.getByRole('heading', { name: 'Review analysis', exact: true })).toBeVisible()
+  for (const label of ['Progression (Tree 2)', 'Mapping gear', 'Fireball links', 'Maps']) {
+    await expect(page.getByText(label, { exact: true })).toBeVisible()
+  }
+  await expectPageContained(page)
+  await page.getByRole('button', { name: 'Start analysis', exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(`${runPath(fixture.submittedId)}/?$`))
+  expect(fixture.getSavedSetup()).toMatchObject({
+    tree_spec_id: 'tree-spec:2', item_set_id: '8', skill_set_id: '9', config_set_id: '6',
+  })
+  expect(fixture.getSubmissionBody()).toMatchObject({ target_stage_id: fixture.getSavedSetup()?.id })
+})
+
+test('a legacy saved setup takes precedence over the active export and numeric run results take precedence on rerun', async ({ page }) => {
+  const fixture = await mockAnalysisRuns(page, {
+    completedMode: 'thorough',
+    targetXml: activeLayoutsPobXml,
+    targetMetadata: {
+      class_name: 'Witch', source_kind: 'pob_xml',
+      tree_specs: [{ id: 'Progression', title: 'Progression' }, { id: 'Progression', title: 'Progression' }],
+    },
+    savedStage: { tree_spec_id: 'Progression', item_set_id: '4', skill_set_id: '3', config_set_id: '2' },
+    completedSummary: { resolved_tree_spec_id: 2, resolved_item_set_id: 8, resolved_skill_set_id: 9, resolved_config_set_id: 6 },
+  })
+  const next = page.getByRole('button', { name: 'Continue', exact: true })
+  const treeField = (position: number) => page.getByRole('button', { name: new RegExp(`Tree.*Progression \\(Tree ${position}\\)|Progression \\(Tree ${position}\\).*Tree`) })
+  const expectedLayouts = ['Progression (Tree 2)', 'Mapping gear', 'Fireball links', 'Maps']
+  await page.goto('/dashboard/analysis/new')
+  await next.click()
+  const targets = page.getByRole('group', { name: 'Saved PoB targets' })
+  await expect(targets.getByRole('radio', { name: /Fixture build/ })).toBeChecked()
+  await expect(page.getByRole('button', { name: 'Import a PoB target', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /Remove selected target/ }).click()
+  await expect(page.getByText('Removing this target also removes its saved runs.')).toBeVisible()
+  await page.getByRole('button', { name: 'Keep target', exact: true }).click()
+  await next.click()
+  await expect(treeField(1)).toBeVisible()
+  await expect(page.getByRole('button', { name: /Early gear.*Item set|Item set.*Early gear/ })).toBeVisible()
+
+  await page.goto(runPath(fixture.completedId))
+  await page.getByText('Run details', { exact: true }).click()
+  for (const label of expectedLayouts) {
+    await expect(page.getByText(label, { exact: true })).toBeVisible()
+  }
+  await page.getByRole('link', { name: 'Rerun with adjustments', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Confirm PoB setup', exact: true })).toBeVisible()
+  await expect(treeField(2)).toBeVisible()
+  await expect(page.getByRole('button', { name: /Mapping gear.*Item set|Item set.*Mapping gear/ })).toBeVisible()
+  await next.click()
+  await next.click()
+  for (const label of expectedLayouts) {
+    await expect(page.getByText(label, { exact: true })).toBeVisible()
+  }
+})
+
+test('saved main and support PoBs populate the import, and empty layout groups show PoB defaults', async ({ page }) => {
+  const supportPob = '<PathOfBuilding><Build className="Witch" level="91" /><Tree><Spec title="Support tree" /></Tree></PathOfBuilding>'
+  await mockAnalysisRuns(page, {
+    savedMemberPobs: { pob_code: activeLayoutsPobXml, pob_support_code: supportPob },
+  })
+  await page.goto('/dashboard/analysis/new')
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await page.getByRole('button', { name: 'Import a PoB target', exact: true }).click()
+  const input = page.getByRole('textbox', { name: 'PoB import', exact: true })
+  await page.getByRole('button', { name: 'Use saved main PoB', exact: true }).click()
+  await expect(input).toHaveValue(activeLayoutsPobXml)
+  await page.getByRole('button', { name: 'Use saved support PoB', exact: true }).click()
+  await expect(input).toHaveValue(supportPob)
+  await page.getByRole('button', { name: 'Read PoB and continue', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Confirm PoB setup', exact: true })).toBeVisible()
+  await expect(page.getByText('PoB default', { exact: true })).toHaveCount(3)
 })
 
 test('a failed saved run shows safe recovery without fetching recommendations', async ({ page }) => {

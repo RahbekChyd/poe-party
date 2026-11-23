@@ -37,7 +37,18 @@ import {
   useUpgradeAnalysisRuns,
   useUpgradeRecommendationPlans,
 } from '../../hooks/useGearOptimizer'
-import { deriveStageRequirementsFromSelection, parsePobImport } from '../../lib/pob'
+import {
+  deriveStageRequirementsFromSelection,
+  findPobTreeSpec,
+  findResolvedPobTreeSpec,
+  parsePobImport,
+} from '../../lib/pob'
+import {
+  findPobLayout,
+  getAnalysisPobLayoutLabels,
+  getAnalysisPobResultLayoutLabels,
+  resolveAnalysisPobSetup,
+} from '../../lib/analysis-pob-setup'
 import {
   deriveNormalizedUpgradeSearchConstraints,
   formatRareSearchTargetValue,
@@ -90,6 +101,8 @@ import { CardListSkeleton } from '../layout/Skeletons'
 import { RecommendationItemRow } from './RecommendationItemRow'
 import { RecommendationsInsightsRail } from '../analysis/RecommendationsInsightsRail'
 import { AnalysisPobSetupFields } from '../analysis/AnalysisPobSetupFields'
+import { AnalysisPobImportFields } from '../analysis/AnalysisPobImportFields'
+import { AnalysisPobResultLayouts } from '../analysis/AnalysisPobResultLayouts'
 import { AnalysisWizard } from '../analysis/AnalysisWizard'
 import { AnalysisRunProgress } from '../analysis/AnalysisRunProgress'
 import { useCharacterSyncFlow } from '../../hooks/useCharacterSyncFlow'
@@ -556,7 +569,9 @@ function buildLoadoutOptions(
     const key = normalizeLoadoutKey(entry.label)
     if (!key || seen.has(key)) continue
 
-    const existsEverywhere = activeGroups.every((group) => groupMaps[group.field].has(key))
+    const existsEverywhere = activeGroups.every(
+      (group) => group.entries.filter(({ label }) => normalizeLoadoutKey(label) === key).length === 1,
+    )
     if (!existsEverywhere) continue
 
     seen.add(key)
@@ -1586,8 +1601,7 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
   const currentMember = membersQuery.data?.find((member) => member.user.id === targetUserId)
   const { triggerSync, isBusy: syncingCharacters, canSync } = useCharacterSyncFlow(activeGroupId)
   const { mutateAsync: createBuildTarget } = useCreateBuildTarget()
-  const { mutate: setSelectedBuildTargetMutation, isPending: selectingTarget } =
-    useSetSelectedBuildTarget()
+  const { mutate: setSelectedBuildTargetMutation } = useSetSelectedBuildTarget()
   const { mutateAsync: updateBuildTarget } = useUpdateBuildTarget()
   const { mutate: deleteBuildTarget } = useDeleteBuildTarget()
   const { mutateAsync: createBuildTargetStage } = useCreateBuildTargetStage()
@@ -1604,6 +1618,8 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
   const [importName, setImportName] = useState('')
   const [importPayload, setImportPayload] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
+  const [targetPath, setTargetPath] = useState<'saved' | 'import' | null>(null)
+  const lastImport = useRef<{ id: string; payload: string; name: string } | null>(null)
   const [budgetChaos, setBudgetChaos] = useState(DEFAULT_LIVE_MARKET_BUDGET_CHAOS)
   const [budgetCurrency, setBudgetCurrency] = useState<'chaos' | 'divine'>('divine')
   const [analysisMode, setAnalysisMode] = useState<UpgradeAnalysisMode>('quick')
@@ -1850,6 +1866,8 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
         }),
     [buildTargets, selectedCharacterId],
   )
+  const isImportPath =
+    targetPath === 'import' || (!buildTargetsLoading && visibleBuildTargets.length === 0)
 
   useEffect(() => {
     if (!visibleBuildTargets.length) {
@@ -1891,52 +1909,21 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
 
     const metadata = selectedBuildTarget.import_metadata
     const rerun = sourceRun?.build_target_id === selectedBuildTarget.id ? sourceRun : null
-    const loadedStage =
-      buildTargetStages.find((stage) => stage.id === rerun?.target_stage_id) ??
+    const sourceStage = buildTargetStages.find((stage) => stage.id === rerun?.target_stage_id)
+    const savedStage =
       buildTargetStages.find((stage) => stage.id === selectedBuildTarget.selected_stage_id) ??
       buildTargetStages[0]
-    setSelectedStageId(loadedStage?.id ?? null)
-    function resolveLayoutId(layouts: readonly { id: string }[], ...candidates: unknown[]) {
-      for (const candidate of candidates) {
-        const layout = layouts.find(({ id }) => id === candidate)
-        if (layout) return layout.id
-      }
-      return layouts[0]?.id ?? null
-    }
-    setStageTreeSpecId(
-      resolveLayoutId(
-        metadata.tree_specs,
-        rerun?.summary.resolved_tree_spec_id,
-        loadedStage?.tree_spec_id,
-      ),
-    )
-    setStageItemSetId(
-      resolveLayoutId(
-        metadata.item_sets,
-        rerun?.summary.resolved_item_set_id,
-        loadedStage?.item_set_id,
-      ),
-    )
-    setStageSkillSetId(
-      resolveLayoutId(
-        metadata.skill_sets,
-        rerun?.summary.resolved_skill_set_id,
-        loadedStage?.skill_set_id,
-      ),
-    )
-    setStageConfigSetId(
-      resolveLayoutId(
-        metadata.config_sets,
-        rerun?.summary.resolved_config_set_id,
-        loadedStage?.config_set_id,
-        metadata.active_config_set_id,
-      ),
-    )
+    setSelectedStageId((sourceStage ?? savedStage)?.id ?? null)
+    const setup = resolveAnalysisPobSetup(metadata, rerun?.summary, sourceStage, savedStage)
+    setStageTreeSpecId(setup.treeSpecId)
+    setStageItemSetId(setup.itemSetId)
+    setStageSkillSetId(setup.skillSetId)
+    setStageConfigSetId(setup.configSetId)
     setDraftSearchConstraints(rerun?.search_constraints ?? DEFAULT_SEARCH_CONSTRAINTS)
     setHydratedSetupTargetId(selectedBuildTarget.id)
     if (rerun && !seededRunDefaults.current) {
       seededRunDefaults.current = true
-      setStep(3)
+      setStep(2)
     }
   }, [
     buildTargetStages,
@@ -2082,10 +2069,10 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
     }))
   }
 
-  async function handleImport(payloadOverride?: string, nameOverride?: string) {
+  async function handleImport() {
     if (!activeGroupId || !targetUserId || !selectedCharacter || importGuard.current) return
 
-    const payload = (payloadOverride ?? importPayload).trim()
+    const payload = importPayload.trim()
     if (!payload) {
       setImportError('Paste a PoB share code or XML export first.')
       return
@@ -2093,6 +2080,17 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
 
     setImportError(null)
     setActionMessage(null)
+    const name = importName.trim() || `${selectedCharacter.name} target`
+    const previous = lastImport.current
+    const existing = previous?.payload === payload && previous.name === name
+      ? visibleBuildTargets.find((target) => target.id === previous.id)
+      : null
+    if (existing) {
+      if (selectedBuildTargetId !== existing.id) chooseBuildTarget(existing)
+      setStep(2)
+      return
+    }
+
     importGuard.current = true
     setImportingTarget(true)
 
@@ -2104,11 +2102,12 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
         itemCount: parsed.metadata.item_sets.length,
         skillCount: parsed.metadata.skill_sets.length,
       })
+      if (compatibility.status === 'unsupported') throw new Error(compatibility.notes)
       const created = await createBuildTarget({
         group_id: activeGroupId,
         user_id: targetUserId,
         character_id: selectedCharacter.id,
-        name: nameOverride?.trim() || importName.trim() || `${selectedCharacter.name} target`,
+        name,
         source_kind: parsed.source_kind,
         raw_import: payload,
         raw_xml: parsed.raw_xml,
@@ -2118,12 +2117,10 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
       })
 
       if (!mounted.current) return
+      lastImport.current = { id: created.id, payload, name }
       chooseBuildTarget({ id: created.id, group_id: created.group_id, user_id: created.user_id })
-      setImportPayload('')
-      setImportName('')
-      setActionMessage(
-        'PoB target imported. Choose the tree, item set, skill set, and config, then run analysis.',
-      )
+      setTargetPath('import')
+      setStep(2)
     } catch (error) {
       setImportError(error instanceof Error ? error.message : 'Failed to decode the PoB import.')
       setActionMessage(null)
@@ -2139,7 +2136,7 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
     }
 
     const metadata = selectedBuildTarget.import_metadata
-    const treeSpec = metadata.tree_specs.find((entry) => entry.id === stageTreeSpecId) ?? null
+    const treeSpec = findPobTreeSpec(metadata.tree_specs, stageTreeSpecId)
     const itemSet = metadata.item_sets.find((entry) => entry.id === stageItemSetId) ?? null
     const skillSet = metadata.skill_sets.find((entry) => entry.id === stageSkillSetId) ?? null
     const configSet = metadata.config_sets.find((entry) => entry.id === stageConfigSetId) ?? null
@@ -2708,32 +2705,19 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
     step === 0
       ? !!selectedCharacter
       : step === 1
-        ? !!selectedBuildTarget &&
-          selectedBuildTarget.compatibility_status !== 'unsupported' &&
-          !importingTarget
+        ? isImportPath
+          ? !!selectedCharacter && !!importPayload.trim()
+          : !!selectedBuildTarget && selectedBuildTarget.compatibility_status !== 'unsupported'
         : setupReady &&
           (step < 3 ||
             analysisMode === 'quick' ||
             (budgetChaos.trim() !== '' &&
               Number.isFinite(Number(budgetChaos)) &&
               Number(budgetChaos) >= 0))
-  const layoutLabels = selectedBuildTarget
-    ? [
-        selectedBuildTarget.import_metadata.tree_specs.find((entry) => entry.id === stageTreeSpecId)
-          ?.title,
-        selectedBuildTarget.import_metadata.item_sets.find((entry) => entry.id === stageItemSetId)
-          ?.title,
-        selectedBuildTarget.import_metadata.skill_sets.find((entry) => entry.id === stageSkillSetId)
-          ?.title,
-        selectedBuildTarget.import_metadata.config_sets.find(
-          (entry) => entry.id === stageConfigSetId,
-        )?.title,
-      ].filter(Boolean)
-    : []
   const reviewRows = [
     { label: 'Character', value: selectedCharacter?.name },
     { label: 'PoB target', value: selectedBuildTarget?.name },
-    { label: 'PoB setup', value: layoutLabels.join(' · ') || 'PoB defaults' },
+    ...(selectedBuildTarget ? getAnalysisPobLayoutLabels(selectedBuildTarget.import_metadata, currentSetup) : []),
     {
       label: 'Analysis options',
       value: [
@@ -2775,9 +2759,10 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
             !mayContinue ||
             (isReview && (targetRunsQuery.isPending || targetRunsUnavailable || !!latestLiveRun))
           }
-          isPending={analysisActionPending}
+          isPending={analysisActionPending || (step === 1 && importingTarget)}
           onPress={() => {
             if (isReview) void handleQueueAnalysis()
+            else if (step === 1 && isImportPath) void handleImport()
             else {
               if (step === 0) setHasManuallySelectedCharacter(true)
               setStep(step + 1)
@@ -2786,7 +2771,7 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
         >
           {({ isPending }) => (
             <PendingButtonContent isPending={isPending}>
-              {isReview ? 'Start analysis' : 'Continue'}
+              {isReview ? 'Start analysis' : step === 1 && isImportPath ? 'Read PoB and continue' : 'Continue'}
               {!isPending && !isReview ? <ArrowRight size={16} aria-hidden="true" /> : null}
             </PendingButtonContent>
           )}
@@ -2806,6 +2791,7 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
               setImportName('')
               setImportPayload('')
               setImportError(null)
+              setTargetPath(null)
               setRemoveTargetId(null)
               setActionMessage(null)
             }}
@@ -2837,148 +2823,157 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
         )
       ) : null}
       {step === 1 ? (
-        <div className="grid gap-5">
-          {buildTargetsQuery.isError && !buildTargetsQuery.data ? (
+        <div className="grid gap-4">
+          {buildTargetsQuery.isError && !buildTargetsQuery.data && targetPath !== 'import' ? (
             <QueryStatePanel
               kind="error"
               title="Could not load saved targets"
               description="Retry to see the PoB targets for this character."
               onRetry={buildTargetsQuery.refetch}
             />
-          ) : buildTargetsLoading ? (
-            <p role="status" className="text-default-600 text-sm">
-              Loading saved targets…
-            </p>
-          ) : visibleBuildTargets.length ? (
-            <ul className="grid gap-2">
-              {visibleBuildTargets.map((target) => (
-                <li key={target.id} className="border-divider rounded-xl border px-4 py-3">
-                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-foreground text-sm font-medium wrap-anywhere">
-                        {target.name}
-                      </p>
-                      {target.compatibility_status !== 'compatible' ? (
-                        <p className="text-default-600 mt-1 text-sm wrap-anywhere">
-                          {target.compatibility_notes ?? target.compatibility_status}
-                        </p>
+          ) : null}
+          {isImportPath ? (
+            <>
+              {visibleBuildTargets.length > 0 ? (
+                <Button
+                  size="sm"
+                  variant="tertiary"
+                  className="justify-self-start"
+                  onPress={() => setTargetPath('saved')}
+                  isDisabled={importingTarget}
+                >
+                  Use a saved target
+                </Button>
+              ) : null}
+              <AnalysisPobImportFields
+                value={importPayload}
+                onValueChange={(value) => {
+                  setImportPayload(value)
+                  setImportError(null)
+                }}
+                name={importName}
+                onNameChange={setImportName}
+                isPending={importingTarget}
+                error={importError}
+                savedSources={
+                  currentMember?.user.pob_code || currentMember?.user.pob_support_code ? (
+                    <>
+                      {currentMember.user.pob_code ? (
+                        <Button
+                          size="sm"
+                          variant="tertiary"
+                          isDisabled={importingTarget}
+                          onPress={() => {
+                            setImportPayload(currentMember.user.pob_code ?? '')
+                            setImportName(`${selectedCharacter?.name ?? 'Character'} main target`)
+                            setImportError(null)
+                          }}
+                        >
+                          Use saved main PoB
+                        </Button>
                       ) : null}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant={selectedBuildTargetId === target.id ? 'secondary' : 'tertiary'}
-                        aria-pressed={selectedBuildTargetId === target.id}
-                        isPending={selectingTarget && target.id === selectedBuildTargetId}
-                        onPress={() => chooseBuildTarget(target)}
+                      {currentMember.user.pob_support_code ? (
+                        <Button
+                          size="sm"
+                          variant="tertiary"
+                          isDisabled={importingTarget}
+                          onPress={() => {
+                            setImportPayload(currentMember.user.pob_support_code ?? '')
+                            setImportName(`${selectedCharacter?.name ?? 'Character'} support target`)
+                            setImportError(null)
+                          }}
+                        >
+                          Use saved support PoB
+                        </Button>
+                      ) : null}
+                    </>
+                  ) : null
+                }
+              />
+            </>
+          ) : (
+            <>
+              {buildTargetsLoading ? (
+                <p role="status" className="text-default-600 text-sm">Loading saved targets…</p>
+              ) : null}
+              {visibleBuildTargets.length ? (
+                <>
+                  <fieldset className="grid min-w-0 gap-2">
+                    <legend className="text-foreground mb-2 text-sm font-medium">Saved PoB targets</legend>
+                    {visibleBuildTargets.map((target) => (
+                      <label
+                        key={target.id}
+                        className="border-control has-checked:bg-selected flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5"
                       >
-                        {selectedBuildTargetId === target.id ? 'Selected' : 'Use target'}
-                      </Button>
+                        <input
+                          className="mt-0.5 size-4 shrink-0 accent-accent"
+                          type="radio"
+                          name="saved-pob-target"
+                          value={target.id}
+                          checked={selectedBuildTargetId === target.id}
+                          onChange={() => {
+                            setRemoveTargetId(null)
+                            chooseBuildTarget(target)
+                          }}
+                        />
+                        <span className="min-w-0 text-sm">
+                          <span className="text-foreground block font-medium wrap-anywhere">{target.name}</span>
+                          {target.compatibility_status !== 'compatible' ? (
+                            <span className="text-default-600 mt-1 block wrap-anywhere">
+                              {target.compatibility_notes ?? target.compatibility_status}
+                            </span>
+                          ) : null}
+                        </span>
+                      </label>
+                    ))}
+                  </fieldset>
+                  {selectedBuildTargetSummary ? (
+                    removeTargetId === selectedBuildTargetSummary.id ? (
+                      <div className="border-divider flex flex-wrap items-center gap-2 rounded-lg border p-3">
+                        <p className="text-default-600 text-sm">
+                          Removing this target also removes its saved runs.
+                        </p>
+                        <Button size="sm" variant="tertiary" onPress={() => setRemoveTargetId(null)}>
+                          Keep target
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger-soft"
+                          onPress={() => {
+                            deleteBuildTarget(selectedBuildTargetSummary, {
+                              onSuccess: () => setRemoveTargetId(null),
+                              onError: () => setActionMessage('Could not remove the target. Try again.'),
+                            })
+                          }}
+                        >
+                          Remove target
+                        </Button>
+                      </div>
+                    ) : (
                       <Button
                         size="sm"
                         variant="tertiary"
-                        isIconOnly
-                        aria-label={'Remove ' + target.name}
-                        onPress={() => setRemoveTargetId(target.id)}
+                        className="justify-self-start"
+                        onPress={() => setRemoveTargetId(selectedBuildTargetSummary.id)}
                       >
-                        <Trash2 size={16} aria-hidden="true" />
+                        Remove selected target…
                       </Button>
-                    </div>
-                  </div>
-                  {removeTargetId === target.id ? (
-                    <div className="border-divider mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
-                      <p className="text-default-600 text-sm">
-                        Removing this target also removes its saved runs.
-                      </p>
-                      <Button size="sm" variant="tertiary" onPress={() => setRemoveTargetId(null)}>
-                        Keep target
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger-soft"
-                        onPress={() => {
-                          deleteBuildTarget(target, {
-                            onSuccess: () => setRemoveTargetId(null),
-                            onError: () =>
-                              setActionMessage('Could not remove the target. Try again.'),
-                          })
-                        }}
-                      >
-                        Remove target
-                      </Button>
-                    </div>
+                    )
                   ) : null}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <details
-            className="border-divider rounded-xl border px-4 py-3"
-            open={visibleBuildTargets.length === 0 || undefined}
-          >
-            <summary className="text-foreground cursor-pointer text-sm font-medium">
-              Import a PoB target
-            </summary>
-            <div className="mt-4 grid gap-3">
-              <FieldInput
-                label="Target name"
-                placeholder="e.g. Deadeye progression"
-                value={importName}
-                onValueChange={setImportName}
-              />
-              <FieldTextArea
-                label="PoB share code or XML"
-                minRows={6}
-                placeholder="Paste a share code or exported XML"
-                value={importPayload}
-                onValueChange={setImportPayload}
-              />
-              {currentMember?.user.pob_code ? (
-                <Button
-                  variant="tertiary"
-                  size="sm"
-                  onPress={() =>
-                    void handleImport(
-                      currentMember.user.pob_code ?? '',
-                      `${selectedCharacter?.name ?? 'Selected character'} main target`,
-                    )
-                  }
-                >
-                  Use saved PoB
-                </Button>
-              ) : null}
-              {currentMember?.user.pob_support_code ? (
-                <Button
-                  variant="tertiary"
-                  size="sm"
-                  onPress={() =>
-                    void handleImport(
-                      currentMember.user.pob_support_code ?? '',
-                      `${selectedCharacter?.name ?? 'Selected character'} support target`,
-                    )
-                  }
-                >
-                  Use saved support PoB
-                </Button>
-              ) : null}
-              {importError ? (
-                <p role="alert" className="text-danger text-sm">
-                  {importError}
-                </p>
+                </>
               ) : null}
               <Button
-                isPending={importingTarget}
-                isDisabled={!selectedCharacter}
-                onPress={() => void handleImport()}
+                variant="secondary"
+                className="justify-self-start"
+                onPress={() => {
+                  setRemoveTargetId(null)
+                  setTargetPath('import')
+                }}
               >
-                {({ isPending }) => (
-                  <PendingButtonContent isPending={isPending}>
-                    Import build target
-                  </PendingButtonContent>
-                )}
+                Import a PoB target
               </Button>
-            </div>
-          </details>
+            </>
+          )}
         </div>
       ) : null}
       {step === 2 ? (
@@ -2991,36 +2986,32 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
           />
         ) : selectedBuildTarget && setupReady ? (
           <div className="grid gap-4">
-            <SelectField
-              label="Loadout"
-              aria-label="Select loadout"
-              selectedKey={selectedLoadoutKey ?? null}
-              isDisabled={!selectedBuildTarget || loadoutOptions.length === 0}
-              description={
-                loadoutOptions.length > 0
-                  ? 'Selecting a loadout applies the matching tree, item set, skill set, and config.'
-                  : 'Only shared names that exist across the setup selectors appear here.'
-              }
-              onSelectionChange={(key) => {
-                const value = toStringKey(key)
-                const loadout =
-                  typeof value === 'string'
-                    ? (loadoutOptions.find((option) => option.key === value) ?? null)
-                    : null
-                if (!loadout) return
-                setStageTreeSpecId(loadout.treeSpecId)
-                setStageItemSetId(loadout.itemSetId)
-                setStageSkillSetId(loadout.skillSetId)
-                setStageConfigSetId(loadout.configSetId)
-                setActionMessage(null)
-              }}
-            >
-              {loadoutOptions.map((loadout) => (
-                <ListBox.Item id={loadout.key} key={loadout.key} textValue={loadout.label}>
-                  {loadout.label}
-                </ListBox.Item>
-              ))}
-            </SelectField>
+            <p className="text-foreground text-sm font-medium wrap-anywhere">
+              {selectedBuildTarget.name}
+            </p>
+            {loadoutOptions.length > 0 ? (
+              <SelectField
+                label="Loadout"
+                aria-label="Select loadout"
+                selectedKey={selectedLoadoutKey ?? null}
+                description="Apply the tree, item set, skill set, and configuration that share this name."
+                onSelectionChange={(key) => {
+                  const loadout = loadoutOptions.find((option) => option.key === toStringKey(key))
+                  if (!loadout) return
+                  setStageTreeSpecId(loadout.treeSpecId)
+                  setStageItemSetId(loadout.itemSetId)
+                  setStageSkillSetId(loadout.skillSetId)
+                  setStageConfigSetId(loadout.configSetId)
+                  setActionMessage(null)
+                }}
+              >
+                {loadoutOptions.map((loadout) => (
+                  <ListBox.Item id={loadout.key} key={loadout.key} textValue={loadout.label}>
+                    {loadout.label}
+                  </ListBox.Item>
+                ))}
+              </SelectField>
+            ) : null}
             <AnalysisPobSetupFields
               metadata={selectedBuildTarget.import_metadata}
               selection={currentSetup}
@@ -3664,14 +3655,26 @@ function AnalysisRunResults({
   const selectedRunStage = buildTargetStages?.find(
     (stage) => stage.id === selectedRun.target_stage_id,
   )
-  const treeSpecId =
-    getSummaryText(selectedRun.summary, 'resolved_tree_spec_id') ?? selectedRunStage?.tree_spec_id
-  const skillSetId =
-    getSummaryText(selectedRun.summary, 'resolved_skill_set_id') ?? selectedRunStage?.skill_set_id
+  const runTrees = runTarget?.import_metadata.tree_specs ?? []
+  const recordedTreeSpec = findResolvedPobTreeSpec(runTrees, selectedRun.summary.resolved_tree_spec_id)
+  const savedStage =
+    selectedRunStage ?? buildTargetStages?.find((stage) => stage.id === runTarget?.selected_stage_id)
   const recommendationStageTreeSpec =
-    runTarget?.import_metadata.tree_specs.find((spec) => spec.id === treeSpecId) ?? null
-  const recommendationStageSkillSet =
-    runTarget?.import_metadata.skill_sets.find((set) => set.id === skillSetId) ?? null
+    recordedTreeSpec ??
+    findPobTreeSpec(runTrees, savedStage?.tree_spec_id) ??
+    findPobTreeSpec(runTrees, runTarget?.import_metadata.active_tree_spec_id) ??
+    runTrees[0] ??
+    null
+  const recommendationStageSkillSet = findPobLayout(
+    runTarget?.import_metadata.skill_sets ?? [],
+    selectedRun.summary.resolved_skill_set_id,
+    selectedRunStage?.skill_set_id,
+  )
+  const layoutRows = getAnalysisPobResultLayoutLabels(
+    runTarget?.import_metadata,
+    selectedRun.summary,
+    selectedRunStage,
+  )
   const recommendationStageLabel = getSetupDisplayLabel(
     getSummaryText(selectedRun.summary, 'target_stage_label') ?? selectedRunStage?.label,
   )
@@ -3911,6 +3914,7 @@ function AnalysisRunResults({
             <details className="border-divider mb-4 border-b pb-3">
               <summary className="cursor-pointer text-sm font-medium">Run details</summary>
               <div className="mt-4 flex flex-col gap-4">
+                <AnalysisPobResultLayouts rows={layoutRows} />
                 {selectedRunMainSkillName ? (
                   <div className="inline-flex max-w-full min-w-0 flex-wrap items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
                     <span className="text-default-400 text-[11px] font-medium tracking-[0.14em] uppercase">
@@ -4300,6 +4304,7 @@ function AnalysisRunResults({
                 selectedProfile={selectedCharacterProfile}
                 stageLabel={recommendationStageLabel}
                 stageTreeSpec={recommendationStageTreeSpec}
+                stageTreeSource={recordedTreeSpec ? 'recorded' : recommendationStageTreeSpec ? 'saved' : null}
                 stageSkillSet={recommendationStageSkillSet}
                 isDraftStage={false}
                 selectedRun={selectedRun}

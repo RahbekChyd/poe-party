@@ -247,21 +247,53 @@ export async function decodePobImport(input: string): Promise<{
 
   return {
     source_kind,
-    raw_xml: await inflateBase64Payload(trimmed),
+    raw_xml: await inflateBase64Payload(trimmed).catch(() => {
+      throw new Error('The PoB share code could not be read. Check the code or paste exported XML.')
+    }),
   }
+}
+
+export function findPobTreeSpec(
+  layouts: readonly PobTreeSpecLayout[],
+  selection: unknown,
+): PobTreeSpecLayout | null {
+  if (typeof selection === 'number') return layouts[selection - 1] ?? null
+  if (typeof selection !== 'string') return null
+  const id = selection.trim()
+  const position = /^tree-spec:([1-9]\d*)$/.exec(id)
+  if (position) return layouts[Number(position[1]) - 1] ?? null
+  return (
+    layouts.find((layout) => layout.legacyId === id || layout.title === id) ??
+    (/^[1-9]\d*$/.test(id) ? layouts[Number(id) - 1] : null) ??
+    null
+  )
+}
+
+export function findResolvedPobTreeSpec(
+  layouts: readonly PobTreeSpecLayout[],
+  selection: unknown,
+): PobTreeSpecLayout | null {
+  return findPobTreeSpec(
+    layouts,
+    typeof selection === 'string' && /^[1-9]\d*$/.test(selection) ? Number(selection) : selection,
+  )
+}
+
+export function getPobTreeSpecLabel(layouts: readonly PobTreeSpecLayout[], spec: PobTreeSpecLayout) {
+  return layouts.some((layout) => layout.id !== spec.id && layout.title === spec.title)
+    ? `${spec.title} (Tree ${layouts.indexOf(spec) + 1})`
+    : spec.title
 }
 
 function parseTreeSpecs(document: Document): PobTreeSpecLayout[] {
   const itemNodes = buildPobItemSummaryLookup(document)
-  return [...document.querySelectorAll('Tree > Spec')].map((node, index) => {
+  return [...document.querySelectorAll('PathOfBuilding > Tree > Spec, PathOfBuilding > Spec')].map((node, index) => {
     const nodeIds = parseNumberList(node.getAttribute('nodes'))
     const { hashes, hashesEx } = splitTreeSpecNodeIds(nodeIds)
 
     return {
-      id:
-        node.getAttribute('title')?.trim() ||
-        node.getAttribute('specId')?.trim() ||
-        String(index + 1),
+      id: `tree-spec:${index + 1}`,
+      legacyId: node.getAttribute('specId')?.trim() || null,
       title: node.getAttribute('title')?.trim() || `Tree ${index + 1}`,
       url:
         node.querySelector('URL')?.getAttribute('link') ??
@@ -273,6 +305,9 @@ function parseTreeSpecs(document: Document): PobTreeSpecLayout[] {
       hashes,
       hashesEx,
       masteryEffects: parseTreeSpecMasteryEffects(node.getAttribute('masteryEffects')),
+      modifiedNodeIds: readTreeSpecNumberArray(
+        [...node.querySelectorAll('Overrides > Override[nodeId]')].map((entry) => entry.getAttribute('nodeId')),
+      ),
       clusterJewels: parseTreeSpecClusterJewels(node, itemNodes),
     }
   })
@@ -368,22 +403,12 @@ function parseConfigSets(document: Document): {
     title: node.getAttribute('title')?.trim() || `Config ${index + 1}`,
   }))
 
-  if (configSets.length === 0 && configNode) {
-    const fallbackId = activeConfigSetId || '1'
-    configSets.push({
-      id: fallbackId,
-      title: 'Default',
-    })
-  }
-
-  const activeConfigSetTitle =
-    configSets.find((entry) => entry.id === activeConfigSetId)?.title ??
-    (activeConfigSetId == null ? configSets[0]?.title ?? null : null)
+  const activeConfigSet = configSets.find((entry) => entry.id === activeConfigSetId)
 
   return {
     config_sets: configSets,
-    active_config_set_id: activeConfigSetId ?? (configSets[0]?.id ?? null),
-    active_config_set_title: activeConfigSetTitle,
+    active_config_set_id: activeConfigSet?.id ?? null,
+    active_config_set_title: activeConfigSet?.title ?? null,
   }
 }
 
@@ -458,8 +483,13 @@ export function parsePobXml(rawXml: string, sourceKind: PobImportMetadata['sourc
     throw new Error('The PoB payload could not be parsed as XML.')
   }
 
-  const buildNode = document.querySelector('Build')
+  const buildNode = document.querySelector('PathOfBuilding > Build')
+  if (document.doctype || document.documentElement?.localName !== 'PathOfBuilding' || !buildNode) {
+    throw new Error('This XML is missing a Path of Building build. Paste a PoE1 PoB export.')
+  }
   const configData = parseConfigSets(document)
+  const treeSpecs = parseTreeSpecs(document)
+  const activeSpec = Number(document.querySelector('Tree')?.getAttribute('activeSpec'))
 
   return {
     source_kind: sourceKind,
@@ -468,12 +498,15 @@ export function parsePobXml(rawXml: string, sourceKind: PobImportMetadata['sourc
     target_version: buildNode?.getAttribute('targetVersion')?.trim() ?? null,
     notes: readNodeText(document.querySelector('Notes')),
     player_stats: parsePlayerStats(document),
-    tree_specs: parseTreeSpecs(document),
+    tree_specs: treeSpecs,
+    active_tree_spec_id: treeSpecs[activeSpec - 1]?.id ?? null,
     skill_sets: parseSkillSets(document),
+    active_skill_set_id: document.querySelector('Skills')?.getAttribute('activeSkillSet')?.trim() || null,
     config_sets: configData.config_sets,
     active_config_set_id: configData.active_config_set_id,
     active_config_set_title: configData.active_config_set_title,
     item_sets: parseItemSets(document),
+    active_item_set_id: document.querySelector('Items')?.getAttribute('activeItemSet')?.trim() || null,
   }
 }
 
@@ -535,7 +568,8 @@ function readTreeSpecNumberArray(value: unknown): number[] {
 }
 
 function readTreeSpecNumber(value: unknown): number | null {
-  const parsed = typeof value === 'number' ? value : Number(value)
+  if (typeof value !== 'number' && (typeof value !== 'string' || !value.trim())) return null
+  const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
 }
 
@@ -560,7 +594,9 @@ export function normalizePobTreeSpec(spec: unknown, index: number): PobTreeSpecL
     spec && typeof spec === 'object' && !Array.isArray(spec) ? (spec as Record<string, unknown>) : {}
 
   return {
-    id: readTreeSpecString(record.id) ?? readTreeSpecString(record.title) ?? String(index + 1),
+    id: `tree-spec:${index + 1}`,
+    legacyId: readTreeSpecString(record.legacyId) ??
+      (String(record.id ?? '').startsWith('tree-spec:') ? null : readTreeSpecString(record.id)),
     title: readTreeSpecString(record.title) ?? `Tree ${index + 1}`,
     url: readTreeSpecString(record.url),
     treeVersion: readTreeSpecString(record.treeVersion),
@@ -570,6 +606,7 @@ export function normalizePobTreeSpec(spec: unknown, index: number): PobTreeSpecL
     hashes: readTreeSpecNumberArray(record.hashes),
     hashesEx: readTreeSpecNumberArray(record.hashesEx),
     masteryEffects: readTreeSpecNumberArray(record.masteryEffects),
+    modifiedNodeIds: readTreeSpecNumberArray(record.modifiedNodeIds),
     clusterJewels: Array.isArray(record.clusterJewels)
       ? record.clusterJewels
           .map((entry) => {

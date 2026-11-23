@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs'
+import { deflateSync } from 'node:zlib'
 import type { Page } from '@playwright/test'
 import { expect, groupId, test } from './fixture'
 import {
-  analysisPobXml,
+  activeLayoutsPobXml,
   analysisWorkerTrace,
   characterName,
   gearId,
@@ -253,7 +254,7 @@ test('a changed account must be looked up again before public analysis can queue
 
   await page.goto('/preview/analysis')
   await selectPublicAnalysisCharacter(page)
-  await expect(page.getByRole('heading', { name: 'Import a PoB target', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Choose a PoB target', exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: 'Back', exact: true }).click()
   await page.getByRole('textbox', { name: /PoE account/i }).fill('AnotherAccount#4321')
@@ -293,7 +294,7 @@ test('the public wizard validates the PoB and resumes one run through completion
   await page.route('**/functions/v1/guest-queue-upgrade-analysis', (route) => {
     expect(route.request().postDataJSON()).toMatchObject({
       account_name: 'Fixture#1234', character_name: 'FixtureWitch',
-      tree_spec_id: 'Bossing tree', item_set_id: '1', skill_set_id: '1', config_set_id: '1',
+      tree_spec_id: 'tree-spec:1', item_set_id: '8', skill_set_id: '9', config_set_id: '6',
     })
     return route.fulfill({ json: { run: { ...run, status: 'queued' }, run_token: runToken } })
   })
@@ -306,7 +307,16 @@ test('the public wizard validates the PoB and resumes one run through completion
     return route.fulfill({ json: {
       run: {
         ...run, status, completed_at: status === 'completed' ? new Date().toISOString() : null,
-        summary: { current_phase: { id: 'scoring_upgrades', started_at: createdAt } },
+        import_metadata: {
+          tree_specs: [{ id: 'tree-spec:1', title: 'Progression' }, { id: 'tree-spec:2', title: 'Progression' }],
+          item_sets: [{ id: '8', title: 'Mapping gear' }],
+          skill_sets: [{ id: '9', title: 'Fireball links' }],
+          config_sets: [{ id: '6', title: 'Maps' }],
+        },
+        summary: {
+          current_phase: { id: 'scoring_upgrades', started_at: createdAt },
+          resolved_tree_spec_id: 1, resolved_item_set_id: 8, resolved_skill_set_id: 9, resolved_config_set_id: 6,
+        },
       },
       plans: request.include_results && status === 'completed' ? [{
         id: 'fixture-public-recommendation', title: 'Fixture Ward', section: 'primary',
@@ -319,17 +329,25 @@ test('the public wizard validates the PoB and resumes one run through completion
   await selectPublicAnalysisCharacter(page)
   const targetInput = page.getByRole('textbox', { name: 'PoB import', exact: true })
   const parse = page.getByRole('button', { name: 'Read PoB and continue', exact: true })
-  await targetInput.fill('<PathOfBuilding><Build></PathOfBuilding>')
+  const malformedCode = '!not-a-share-code!'
+  await targetInput.fill(malformedCode)
   await parse.click()
   await expect(page.getByRole('alert')).toBeVisible()
-  await targetInput.fill(analysisPobXml)
+  await expect(targetInput).toHaveValue(malformedCode)
+  const shareCode = deflateSync(activeLayoutsPobXml).toString('base64url')
+  await targetInput.fill(shareCode)
   await parse.click()
-  await expect(page.getByRole('heading', { name: 'Choose PoB setup', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: /Tree.*Mapping tree|Mapping tree.*Tree/i }).click()
-  await page.getByRole('option', { name: 'Bossing tree', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Confirm PoB setup', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Back', exact: true }).click()
+  await expect(targetInput).toHaveValue(shareCode)
+  await parse.click()
+  await page.getByRole('button', { name: /Tree.*Progression \(Tree 2\)|Progression \(Tree 2\).*Tree/ }).click()
+  await page.getByRole('option', { name: 'Progression (Tree 1)', exact: true }).click()
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Review analysis', exact: true })).toBeVisible()
-  await expect(page.getByText('Bossing tree', { exact: true })).toBeVisible()
+  for (const label of ['Progression (Tree 1)', 'Mapping gear', 'Fireball links', 'Maps']) {
+    await expect(page.getByText(label, { exact: true })).toBeVisible()
+  }
   await expectContained(page)
   await page.screenshot({ path: testInfo.outputPath('public-analysis-review.png'), animations: 'disabled' })
   await page.getByRole('button', { name: 'Run Quick analysis' }).click()
@@ -350,6 +368,9 @@ test('the public wizard validates the PoB and resumes one run through completion
   status = 'completed'
   await expect(page.getByText('Recommendations', { exact: true })).toBeVisible({ timeout: 15_000 })
   expect(statusRequests.some((request) => request.include_results)).toBe(true)
+  for (const label of ['Progression (Tree 1)', 'Mapping gear', 'Fireball links', 'Maps']) {
+    await expect(current.getByText(label, { exact: true })).toBeVisible()
+  }
   await expectContained(page)
 
   status = 'expired'

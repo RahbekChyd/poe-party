@@ -10,7 +10,14 @@ The image builds a pinned modern LuaJIT (Debian's older package cannot parse cur
 
 Current-character import adapts OAuth and legacy website data to the decoded character object required by PoB 2.68. The adapter preserves raw structured modifiers, guardian, Wickerman, jewels, passives and imbued supports. Viscera Head/Body/Arm/Leg are distinct from Helmet/Body Armour. A missing current Wickerman part clears the corresponding target slot. Guest data which does not establish Wickerman completeness, or inputs carrying unverified `rareonly` modifiers, produces an explicit partial result. An import failure cannot become a successful exact comparison.
 
-`pnpm test:worker` covers the pure adapter and existing lifecycle contracts. After building the image, run `node optimizer-worker/scripts/verify-pob-330.mjs <image>` for credential-free, network-disabled real-engine fixtures covering Fireball, structured Viscera effects, missing-part clearing, owned parts and market swaps. Docker builds also compile the Lua harness to catch syntax and local-variable-limit regressions. Before release, execute the image with representative 3.30 build fixtures and compare ordinary/Wickerman/jewel/imbued-support outputs against desktop PoB 2.68.1. A successful image build or adapter test alone does not establish numerical parity.
+Tree selections use the existing `tree_spec_id` field with `tree-spec:<position>` for one-based
+export positions. The worker also accepts legacy IDs and records the resolved source position in
+`summary.resolved_tree_spec_id`. Completed signed-in runs can include
+`summary.passive_tree_comparison`, a versioned record of both tree specs captured before scoring
+changes the build. Roll out position-based selections in this order: worker, guest queue function,
+then frontend. The existing summary column stores the comparison.
+
+`pnpm test:worker` covers the pure adapter and existing lifecycle contracts. After building the image, run `node optimizer-worker/scripts/verify-pob-330.mjs <image>` for credential-free, network-disabled real-engine fixtures covering Fireball, structured Viscera effects, missing-part clearing, owned parts, market swaps, layout resolution, and tree capture. Docker builds also compile the Lua harness to catch syntax and local-variable-limit regressions. Before release, execute the image with representative 3.30 build fixtures and compare ordinary/Wickerman/jewel/imbued-support outputs against desktop PoB 2.68.1. A successful image build or adapter test alone does not establish numerical parity.
 
 ## Production Hosting
 

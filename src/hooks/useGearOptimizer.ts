@@ -21,7 +21,6 @@ import { normalizeUpgradeSearchConstraints } from '../lib/gear-optimizer-search-
 import { asRecord, readString as asString } from '../lib/parse-helpers'
 import { trackProductEvent } from '../lib/analytics'
 import {
-  hasExactPobTreeSpecData,
   normalizePobConfigSet,
   normalizePobSkillSet,
   normalizePobTreeSpec,
@@ -70,24 +69,15 @@ function normalizeImportMetadata(
     tree_specs: Array.isArray(record.tree_specs)
       ? record.tree_specs.map((spec, index) => normalizePobTreeSpec(spec, index))
       : [],
+    active_tree_spec_id: asString(record.active_tree_spec_id),
     skill_sets: asSkillSets(record.skill_sets),
+    active_skill_set_id: asString(record.active_skill_set_id),
     config_sets: asConfigSets(record.config_sets),
     active_config_set_id: asString(record.active_config_set_id),
     active_config_set_title: asString(record.active_config_set_title),
     item_sets: asItemSets(record.item_sets),
+    active_item_set_id: asString(record.active_item_set_id),
   }
-}
-
-function metadataNeedsHydration(metadata: PobImportMetadata): boolean {
-  return (
-    metadata.config_sets.length === 0 ||
-    (metadata.tree_specs.length > 0 &&
-      metadata.tree_specs.some(
-        (spec) => !hasExactPobTreeSpecData(spec) || !Array.isArray(spec.clusterJewels),
-      )) ||
-    (metadata.skill_sets.length > 0 &&
-      metadata.skill_sets.some((skillSet) => !Array.isArray(skillSet.groups)))
-  )
 }
 
 function asImportMetadata(
@@ -97,12 +87,20 @@ function asImportMetadata(
 ): PobImportMetadata {
   const normalized = normalizeImportMetadata(value, sourceKind)
 
-  if (!rawXml || !metadataNeedsHydration(normalized)) {
+  if (!rawXml || Object.prototype.hasOwnProperty.call(asRecord(value), 'active_tree_spec_id')) {
     return normalized
   }
 
   try {
-    return normalizeImportMetadata(parsePobXml(rawXml, normalized.source_kind), normalized.source_kind)
+    const parsed = parsePobXml(rawXml, normalized.source_kind)
+    // Older persisted IDs can differ from the titles or explicit IDs in the export.
+    return {
+      ...parsed,
+      tree_specs: parsed.tree_specs.map((spec, index) => ({
+        ...spec,
+        legacyId: normalized.tree_specs[index]?.legacyId ?? spec.legacyId,
+      })),
+    }
   } catch {
     return normalized
   }

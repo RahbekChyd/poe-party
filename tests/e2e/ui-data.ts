@@ -88,6 +88,7 @@ export async function mockApp(
     runMapResult?: RunMapResult
     profileTheme?: 'light' | 'dark'
     membershipRole?: 'admin' | 'viewer'
+    savedMemberPobs?: { pob_code: string; pob_support_code: string }
   },
 ) {
   if (workspace !== 'guest') {
@@ -152,7 +153,7 @@ export async function mockApp(
               ? { ...group, name: runMapWorkspaceName, current_strategy_id: strategyId }
               : group,
           }))
-        : [{ role: membershipRole, user: profile }],
+        : [{ role: membershipRole, user: { ...profile, ...options?.savedMemberPobs } }],
       gear_suggestions: query.has('id') ? gear : [gear],
       services: query.has('id') ? service : [service],
       strategies: query.has('id') ? activeStrategy : [activeStrategy],
@@ -196,6 +197,16 @@ export const analysisPobXml = `<PathOfBuilding>
   <Skills><SkillSet id="1" title="Fireball links" /></Skills>
   <Config activeConfigSet="1"><ConfigSet id="1" title="Maps" /></Config>
 </PathOfBuilding>`
+export const activeLayoutsPobXml = `<PathOfBuilding>
+  <Build className="Witch" level="91" />
+  <Tree activeSpec="2">
+    <Spec title="Progression" treeVersion="3_30" classId="3" nodes="100,101" />
+    <Spec title="Progression" treeVersion="3_30" classId="3" nodes="100,102,105" masteryEffects="{105,7}" />
+  </Tree>
+  <Items activeItemSet="8"><ItemSet id="4" title="Early gear" /><ItemSet id="8" title="Mapping gear" /></Items>
+  <Skills activeSkillSet="9"><SkillSet id="3" title="Leveling links" /><SkillSet id="9" title="Fireball links" /></Skills>
+  <Config activeConfigSet="6"><ConfigSet id="2" title="Campaign" /><ConfigSet id="6" title="Maps" /></Config>
+</PathOfBuilding>`
 export const recommendationIconPaths = {
   'Fixture Ward': '/gen/image/fixture-ward.png',
   'Fixture Band': '/image/Art/fixture-band.png',
@@ -210,8 +221,18 @@ export async function mockAnalysisRuns(page: Page, options?: {
   secondNotification?: boolean
   icons?: boolean
   membershipRole?: 'admin' | 'viewer'
+  noSavedTargets?: boolean
+  targetXml?: string
+  targetMetadata?: Record<string, unknown>
+  savedStage?: Record<string, unknown>
+  completedSummary?: Record<string, unknown>
+  completedMode?: 'quick' | 'thorough'
+  savedMemberPobs?: { pob_code: string; pob_support_code: string }
 }) {
-  await mockApp(page, 'poe1', [standardWorkspace], { membershipRole: options?.membershipRole })
+  await mockApp(page, 'poe1', [standardWorkspace], {
+    membershipRole: options?.membershipRole,
+    savedMemberPobs: options?.savedMemberPobs,
+  })
   const characterId = '70000000-0000-0000-0000-000000000001'
   const targetId = '80000000-0000-0000-0000-000000000001'
   const stageId = '80000000-0000-0000-0000-000000000002'
@@ -231,8 +252,8 @@ export async function mockAnalysisRuns(page: Page, options?: {
     id: targetId, group_id: groupId, user_id: userId, character_id: characterId,
     created_by: userId, name: 'Fixture build', source_kind: 'pob_xml',
     compatibility_status: 'compatible', is_selected: true, selected_stage_id: stageId, created_at: finished,
-    import_metadata: { class_name: 'Witch', source_kind: 'pob_xml', tree_specs: [], item_sets: [], skill_sets: [], config_sets: [] },
-    raw_import: analysisPobXml, raw_xml: analysisPobXml,
+    import_metadata: options?.targetMetadata ?? { class_name: 'Witch', source_kind: 'pob_xml', tree_specs: [], item_sets: [], skill_sets: [], config_sets: [] },
+    raw_import: options?.targetXml ?? analysisPobXml, raw_xml: options?.targetXml ?? analysisPobXml,
   }
   const character = {
     id: characterId, user_id: userId, name: 'Fixture Witch', class: 'Witch', level: 91, is_active: true,
@@ -250,8 +271,10 @@ export async function mockAnalysisRuns(page: Page, options?: {
     return route.fulfill({ json: options?.notification && !activeOnly ? [character, alternateCharacter] : [character] })
   })
   let importedTarget: (Omit<typeof target, 'selected_stage_id'> & { selected_stage_id: string | null }) | null = null
+  let importedTargetCount = 0
   await page.route('**/rest/v1/build_targets?*', (route) => {
     if (route.request().method() === 'POST') {
+      importedTargetCount += 1
       importedTarget = {
         ...target,
         ...route.request().postDataJSON(),
@@ -260,10 +283,18 @@ export async function mockAnalysisRuns(page: Page, options?: {
       }
       return route.fulfill({ json: importedTarget })
     }
+    if (route.request().method() === 'PATCH') {
+      if (importedTarget && route.request().url().includes(importedTarget.id)) {
+        importedTarget = { ...importedTarget, ...route.request().postDataJSON() }
+        return route.fulfill({ json: importedTarget })
+      }
+      Object.assign(target, route.request().postDataJSON())
+      return route.fulfill({ json: target })
+    }
     const idFilter = new URL(route.request().url()).searchParams.get('id')
     const targets = [
       ...(importedTarget ? [importedTarget] : []),
-      ...(options?.notification ? [target, alternateTarget] : [target]),
+      ...(options?.noSavedTargets ? [] : options?.notification ? [target, alternateTarget] : [target]),
     ]
     return route.fulfill({ json: idFilter ? targets.find(({ id }) => `eq.${id}` === idFilter) : targets })
   })
@@ -272,13 +303,20 @@ export async function mockAnalysisRuns(page: Page, options?: {
     if (importedTarget && importedTarget.id === id) importedTarget = { ...importedTarget, is_selected: true }
     return route.fulfill({ json: importedTarget?.id === id ? importedTarget : target })
   })
+  let savedSetup: Record<string, unknown> | null = null
   await page.route('**/rest/v1/build_target_stages?*', (route) => {
     const targetFilter = new URL(route.request().url()).searchParams.get('build_target_id')
+    if (route.request().method() === 'POST' || route.request().method() === 'PATCH') {
+      savedSetup = { id: stageId, build_target_id: targetFilter?.slice(3), ...route.request().postDataJSON() }
+      return route.fulfill({ json: savedSetup })
+    }
+    if (savedSetup && targetFilter === `eq.${savedSetup.build_target_id}`) return route.fulfill({ json: [savedSetup] })
     if (importedTarget && targetFilter === `eq.${importedTarget.id}`) return route.fulfill({ json: [] })
     const isAlternate = targetFilter === `eq.${alternateTarget.id}`
     const selected = isAlternate ? alternateTarget : target
     return route.fulfill({ json: [{
       id: selected.selected_stage_id, build_target_id: selected.id, label: 'Current setup', primary_offensive_metric: 'totalDps',
+      ...options?.savedStage,
     }] })
   })
 
@@ -318,14 +356,18 @@ export async function mockAnalysisRuns(page: Page, options?: {
   })
 
   let recommendationRequests = 0
+  let completedRunIsStale = false
   await page.route('**/rest/v1/upgrade_analysis_runs?*', (route) => {
     const query = new URL(route.request().url()).searchParams
     const targetFilter = query.get('build_target_id')
     const idFilter = query.get('id')
     const completed = {
-      ...shared, id: completedId, status: 'completed', started_at: finished,
-      completed_at: finished, created_at: finished,
-      summary: { generated_plan_count: 3, baseline_metrics: { totalDps: 500_000, totalEhp: 42_000 } },
+      ...shared, id: completedId,
+      status: completedRunIsStale ? 'stale' : 'completed',
+      stale_reason: completedRunIsStale ? 'character-profile-updated' : null,
+      started_at: finished,
+      completed_at: finished, created_at: finished, analysis_mode: options?.completedMode ?? 'quick',
+      summary: { generated_plan_count: 3, baseline_metrics: { totalDps: 500_000, totalEhp: 42_000 }, ...options?.completedSummary },
     }
     const failed = {
       ...shared, id: failedId, status: 'failed', started_at: started, completed_at: started,
@@ -360,7 +402,7 @@ export async function mockAnalysisRuns(page: Page, options?: {
       ...run,
       character: { name: run.character_id === alternateCharacter.id ? alternateCharacter.name : character.name },
       target: { name: run.build_target_id === alternateTarget.id ? alternateTarget.name : target.name },
-      ...(run.status === 'completed' || run.status === 'partial'
+      ...(run.status === 'completed' || run.status === 'partial' || (run.id === completedId && completedRunIsStale)
         ? { recommendation_count: 3, hit_dps: 500_000, effective_hit_pool: 42_000 }
         : {}),
     })).sort((left, right) =>
@@ -406,17 +448,21 @@ export async function mockAnalysisRuns(page: Page, options?: {
     }) })
   })
   return {
+    characterId,
     completedId,
     runningId,
     failedId,
     submittedId,
     alternateReadyId,
     countRecommendationRequests: () => recommendationRequests,
+    countTargetImports: () => importedTargetCount,
+    getSavedSetup: () => savedSetup,
     getSubmissionBody: () => submissionBody,
     failSubmission: (error: { status: number; error: string } | null) => { submissionError = error },
     reuseExistingRun: () => { reuseSubmission = true },
     finishAlternateRun: () => { alternateStatus = options?.notification ?? 'completed' },
     finishSecondRun: () => { secondStatus = 'partial' },
+    markCompletedRunStale: () => { completedRunIsStale = true },
     completeSubmittedRun: () => {
       if (!submittedRun) throw new Error('No fixture analysis was queued')
       submittedRun = { ...submittedRun, status: 'completed', completed_at: new Date().toISOString() }

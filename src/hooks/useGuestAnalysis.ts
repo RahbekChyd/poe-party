@@ -62,11 +62,14 @@ function asImportMetadata(value: unknown): PobImportMetadata {
     tree_specs: Array.isArray(record.tree_specs)
       ? record.tree_specs.map((spec, index) => normalizePobTreeSpec(spec, index))
       : [],
+    active_tree_spec_id: readString(record.active_tree_spec_id),
     skill_sets: asSkillSets(record.skill_sets),
+    active_skill_set_id: readString(record.active_skill_set_id),
     config_sets: asConfigSets(record.config_sets),
     active_config_set_id: readString(record.active_config_set_id),
     active_config_set_title: readString(record.active_config_set_title),
     item_sets: asItemSets(record.item_sets),
+    active_item_set_id: readString(record.active_item_set_id),
   }
 }
 

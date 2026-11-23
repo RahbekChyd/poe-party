@@ -13,6 +13,12 @@ import {
 } from '../../hooks/useGuestAnalysis'
 import { useNinjaPrices } from '../../hooks/useNinjaPrices'
 import { formatElapsedSince, getAnalysisPhaseLabel } from '../../lib/analysis-progress'
+import {
+  getAnalysisPobLayoutLabels,
+  getAnalysisPobResultLayoutLabels,
+  resolveAnalysisPobSetup,
+  type AnalysisPobSetupSelection,
+} from '../../lib/analysis-pob-setup'
 import { parsePobImport } from '../../lib/pob'
 import { rankRecommendationPlans } from '../../lib/recommendation-score'
 import type {
@@ -22,14 +28,13 @@ import type {
   PobImportMetadata,
   UpgradeRecommendationPlan,
 } from '../../types/app'
-import {
-  AnalysisPobSetupFields,
-  type AnalysisPobSetupSelection,
-} from '../analysis/AnalysisPobSetupFields'
+import { AnalysisPobSetupFields } from '../analysis/AnalysisPobSetupFields'
+import { AnalysisPobImportFields } from '../analysis/AnalysisPobImportFields'
+import { AnalysisPobResultLayouts } from '../analysis/AnalysisPobResultLayouts'
 import { AnalysisRunProgress } from '../analysis/AnalysisRunProgress'
 import { AnalysisWizard } from '../analysis/AnalysisWizard'
 import { RecommendationItemRow } from '../gear/RecommendationItemRow'
-import { FieldInput, FieldTextArea, SelectField } from '../ui/heroui-native'
+import { FieldInput, SelectField } from '../ui/heroui-native'
 import { PreviewPageIntro } from './PreviewShared'
 import { DashboardPage } from '../ui/dashboard'
 import '../analysis/analysis-run.css'
@@ -42,8 +47,8 @@ const TARGET_NAME_LIMIT = 120
 const GUEST_ANALYSIS_STEPS = ['Character', 'PoB target', 'PoB setup', 'Review'] as const
 const GUEST_ANALYSIS_STEP_TITLES = [
   'Find a character',
-  'Import a PoB target',
-  'Choose PoB setup',
+  'Choose a PoB target',
+  'Confirm PoB setup',
   'Review analysis',
 ]
 const GUEST_ANALYSIS_STEP_DESCRIPTIONS = [
@@ -488,12 +493,7 @@ export function GuestAnalysisPage() {
     try {
       const { metadata } = await parsePobImport(rawImport)
       setParsedMetadata(metadata)
-      setSetup({
-        treeSpecId: metadata.tree_specs[0]?.id ?? null,
-        itemSetId: metadata.item_sets[0]?.id ?? null,
-        skillSetId: metadata.skill_sets[0]?.id ?? null,
-        configSetId: metadata.active_config_set_id ?? metadata.config_sets[0]?.id ?? null,
-      })
+      setSetup(resolveAnalysisPobSetup(metadata))
       if (normalizedTargetName === DEFAULT_TARGET_NAME) {
         const inferredName = metadata.ascendancy_name ?? metadata.class_name ?? metadata.item_sets[0]?.title
         setTargetName(inferredName?.slice(0, TARGET_NAME_LIMIT) ?? DEFAULT_TARGET_NAME)
@@ -650,6 +650,13 @@ export function GuestAnalysisPage() {
                   {activeRun.partial_reason ?? 'Recommendations are ready with partial confidence.'}
                 </p>
               ) : null}
+              <AnalysisPobResultLayouts
+                rows={getAnalysisPobResultLayoutLabels(
+                  activeRun.import_metadata,
+                  activeRun.summary,
+                  activeRun.target_stage,
+                )}
+              />
               <GuestRecommendations run={activeRun} plans={activePlans} divinePrice={divinePrice} />
             </>
           ) : null}
@@ -780,38 +787,32 @@ export function GuestAnalysisPage() {
           </>
         ) : null}
         {step === 1 ? (
-          <>
-            <FieldTextArea
-              label="PoB import"
-              minRows={5}
-              value={rawImport}
-              isDisabled={targetAction !== null}
-              onValueChange={(value) => {
-                setRawImport(value)
-                setParsedMetadata(null)
-                setSetup(EMPTY_SETUP)
-                setParseError(null)
-                setQueueError(null)
-              }}
-              placeholder="Paste PoB code or XML"
-            />
-            <FieldInput
-              label="Target name"
-              maxLength={TARGET_NAME_LIMIT}
-              value={targetName}
-              onValueChange={setTargetName}
-              isDisabled={targetAction !== null}
-              placeholder="Mapping starter target"
-            />
-            {parseError ? <p role="alert" className="text-danger wrap-anywhere text-sm">{parseError}</p> : null}
-          </>
+          <AnalysisPobImportFields
+            value={rawImport}
+            isPending={targetAction !== null}
+            onValueChange={(value) => {
+              setRawImport(value)
+              setParsedMetadata(null)
+              setSetup(EMPTY_SETUP)
+              setParseError(null)
+              setQueueError(null)
+            }}
+            name={targetName}
+            onNameChange={setTargetName}
+            error={parseError}
+          />
         ) : null}
         {step === 2 && parsedMetadata ? (
-          <AnalysisPobSetupFields
-            metadata={parsedMetadata}
-            selection={setup}
-            onSelectionChange={(field, value) => setSetup((current) => ({ ...current, [field]: value }))}
-          />
+          <>
+            <p className="text-foreground text-sm font-medium wrap-anywhere">{normalizedTargetName}</p>
+            <AnalysisPobSetupFields
+              metadata={parsedMetadata}
+              selection={setup}
+              onSelectionChange={(field, value) =>
+                setSetup((current) => ({ ...current, [field]: value }))
+              }
+            />
+          </>
         ) : null}
         {step === 3 && selectedCharacter && parsedMetadata ? (
           <>
@@ -854,14 +855,10 @@ function GuestAnalysisReview({
   metadata: PobImportMetadata
   selection: AnalysisPobSetupSelection
 }) {
-  const { treeSpecId, itemSetId, skillSetId, configSetId } = selection
   const rows = [
     ['Character', [character.name, character.league].filter(Boolean).join(' · ')],
     ['PoB target', targetName],
-    ['Tree', metadata.tree_specs.find(({ id }) => id === treeSpecId)?.title],
-    ['Item set', metadata.item_sets.find(({ id }) => id === itemSetId)?.title],
-    ['Skill set', metadata.skill_sets.find(({ id }) => id === skillSetId)?.title],
-    ['Configuration', metadata.config_sets.find(({ id }) => id === configSetId)?.title],
+    ...getAnalysisPobLayoutLabels(metadata, selection).map(({ label, value }) => [label, value]),
     ['Analysis mode', 'Quick'],
   ]
 
