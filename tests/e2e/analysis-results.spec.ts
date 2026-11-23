@@ -242,9 +242,10 @@ test('the signed-in wizard preserves a rejected import and reviews the active ex
   expect(fixture.getSubmissionBody()).toMatchObject({ target_stage_id: fixture.getSavedSetup()?.id })
 })
 
-test('a legacy saved setup takes precedence over the active export and numeric run results take precedence on rerun', async ({ page }) => {
+test('a legacy saved setup takes precedence over the active export and numeric run results take precedence on rerun', async ({ page }, testInfo) => {
   const fixture = await mockAnalysisRuns(page, {
     completedMode: 'thorough',
+    extraSavedTarget: true,
     targetXml: activeLayoutsPobXml,
     targetMetadata: {
       class_name: 'Witch', source_kind: 'pob_xml',
@@ -261,9 +262,15 @@ test('a legacy saved setup takes precedence over the active export and numeric r
   const targets = page.getByRole('group', { name: 'Saved PoB targets' })
   await expect(targets.getByRole('radio', { name: /Fixture build/ })).toBeChecked()
   await expect(page.getByRole('button', { name: 'Import a PoB target', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: /Remove selected target/ }).click()
+  const remove = targets.getByRole('button', { name: 'Remove Fixture bossing build', exact: true })
+  await remove.press('Enter')
+  await expect(remove).toHaveAttribute('aria-expanded', 'true')
+  await expect(targets.getByRole('radio', { name: /Fixture build/ })).toBeChecked()
   await expect(page.getByText('Removing this target also removes its saved runs.')).toBeVisible()
-  await page.getByRole('button', { name: 'Keep target', exact: true }).click()
+  await page.getByRole('button', { name: 'Keep target', exact: true }).press('Enter')
+  await expect(remove).toBeFocused()
+  await expect(remove).toHaveAttribute('aria-expanded', 'false')
+  await page.screenshot({ path: testInfo.outputPath('saved-pob-targets.png'), animations: 'disabled' })
   await next.click()
   await expect(treeField(1)).toBeVisible()
   await expect(page.getByRole('button', { name: /Early gear.*Item set|Item set.*Early gear/ })).toBeVisible()

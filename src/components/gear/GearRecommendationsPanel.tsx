@@ -11,7 +11,7 @@ import { Modal } from '@heroui/react/modal'
 import { Spinner } from '@heroui/react/spinner'
 import { ToggleButton } from '@heroui/react/toggle-button'
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
-import { ArrowLeft, ArrowRight, Check, ChevronDown, Circle, Info, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Circle, Info, Trash2, X } from 'lucide-react'
 import { useCurrentUser } from '../../hooks/useCurrentUser'
 import { useActiveGroupContext, useGroupMembers, useMyGroupRole } from '../../hooks/useGroups'
 import { useMyCharacters, type MyCharacter } from '../../hooks/useCharacters'
@@ -1603,7 +1603,7 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
   const { mutateAsync: createBuildTarget } = useCreateBuildTarget()
   const { mutate: setSelectedBuildTargetMutation } = useSetSelectedBuildTarget()
   const { mutateAsync: updateBuildTarget } = useUpdateBuildTarget()
-  const { mutate: deleteBuildTarget } = useDeleteBuildTarget()
+  const { mutate: deleteBuildTarget, isPending: deletingTarget } = useDeleteBuildTarget()
   const { mutateAsync: createBuildTargetStage } = useCreateBuildTargetStage()
   const { mutateAsync: updateBuildTargetStage } = useUpdateBuildTargetStage()
   const { mutateAsync: queueUpgradeAnalysis } = useQueueUpgradeAnalysis()
@@ -1645,6 +1645,7 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
   const [submissionPhase, setSubmissionPhase] = useState<string | null>(null)
   const [submissionError, setSubmissionError] = useState<string | null>(null)
   const [removeTargetId, setRemoveTargetId] = useState<string | null>(null)
+  const removeTargetTrigger = useRef<HTMLButtonElement>(null)
   const [importingTarget, setImportingTarget] = useState(false)
   const submitGuard = useRef(false)
   const importGuard = useRef(false)
@@ -2745,7 +2746,7 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
         step > 0 ? (
           <Button
             variant="secondary"
-            isDisabled={analysisActionPending || importingTarget}
+            isDisabled={analysisActionPending || importingTarget || deletingTarget}
             onPress={() => setStep(step - 1)}
           >
             <ArrowLeft size={16} aria-hidden="true" />
@@ -2757,6 +2758,7 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
         <Button
           isDisabled={
             !mayContinue ||
+            deletingTarget ||
             (isReview && (targetRunsQuery.isPending || targetRunsUnavailable || !!latestLiveRun))
           }
           isPending={analysisActionPending || (step === 1 && importingTarget)}
@@ -2897,74 +2899,98 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
                 <p role="status" className="text-default-600 text-sm">Loading saved targets…</p>
               ) : null}
               {visibleBuildTargets.length ? (
-                <>
-                  <fieldset className="grid min-w-0 gap-2">
-                    <legend className="text-foreground mb-2 text-sm font-medium">Saved PoB targets</legend>
-                    {visibleBuildTargets.map((target) => (
-                      <label
+                <fieldset className="grid min-w-0 gap-2">
+                  <legend className="text-foreground mb-2 text-sm font-medium">Saved PoB targets</legend>
+                  {visibleBuildTargets.map((target) => {
+                    const confirmingRemoval = removeTargetId === target.id
+                    return (
+                      <div
                         key={target.id}
-                        className="border-control has-checked:bg-selected flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5"
+                        className="border-control has-checked:bg-selected min-w-0 rounded-lg border"
                       >
-                        <input
-                          className="mt-0.5 size-4 shrink-0 accent-accent"
-                          type="radio"
-                          name="saved-pob-target"
-                          value={target.id}
-                          checked={selectedBuildTargetId === target.id}
-                          onChange={() => {
-                            setRemoveTargetId(null)
-                            chooseBuildTarget(target)
-                          }}
-                        />
-                        <span className="min-w-0 text-sm">
-                          <span className="text-foreground block font-medium wrap-anywhere">{target.name}</span>
-                          {target.compatibility_status !== 'compatible' ? (
-                            <span className="text-default-600 mt-1 block wrap-anywhere">
-                              {target.compatibility_notes ?? target.compatibility_status}
+                        <div className="flex items-center gap-1 pr-1">
+                          <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 py-2.5 pr-1 pl-3">
+                            <input
+                              className="mt-0.5 size-4 shrink-0 accent-accent"
+                              type="radio"
+                              name="saved-pob-target"
+                              value={target.id}
+                              checked={selectedBuildTargetId === target.id}
+                              disabled={deletingTarget}
+                              onChange={() => {
+                                setRemoveTargetId(null)
+                                chooseBuildTarget(target)
+                              }}
+                            />
+                            <span className="min-w-0 text-sm">
+                              <span className="text-foreground block font-medium wrap-anywhere">
+                                {target.name}
+                              </span>
+                              {target.compatibility_status !== 'compatible' ? (
+                                <span className="text-default-600 mt-1 block wrap-anywhere">
+                                  {target.compatibility_notes ?? target.compatibility_status}
+                                </span>
+                              ) : null}
                             </span>
-                          ) : null}
-                        </span>
-                      </label>
-                    ))}
-                  </fieldset>
-                  {selectedBuildTargetSummary ? (
-                    removeTargetId === selectedBuildTargetSummary.id ? (
-                      <div className="border-divider flex flex-wrap items-center gap-2 rounded-lg border p-3">
-                        <p className="text-default-600 text-sm">
-                          Removing this target also removes its saved runs.
-                        </p>
-                        <Button size="sm" variant="tertiary" onPress={() => setRemoveTargetId(null)}>
-                          Keep target
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="danger-soft"
-                          onPress={() => {
-                            deleteBuildTarget(selectedBuildTargetSummary, {
-                              onSuccess: () => setRemoveTargetId(null),
-                              onError: () => setActionMessage('Could not remove the target. Try again.'),
-                            })
-                          }}
-                        >
-                          Remove target
-                        </Button>
+                          </label>
+                          <Button
+                            ref={confirmingRemoval ? removeTargetTrigger : undefined}
+                            isIconOnly
+                            variant="ghost"
+                            className="text-default-500 size-11 shrink-0"
+                            aria-label={`Remove ${target.name}`}
+                            aria-expanded={confirmingRemoval}
+                            aria-controls={confirmingRemoval ? `confirm-remove-${target.id}` : undefined}
+                            isDisabled={deletingTarget}
+                            onPress={() => setRemoveTargetId(confirmingRemoval ? null : target.id)}
+                          >
+                            <X size={16} aria-hidden="true" />
+                          </Button>
+                        </div>
+                        {confirmingRemoval ? (
+                          <div
+                            id={`confirm-remove-${target.id}`}
+                            className="border-divider flex flex-wrap items-center gap-2 border-t px-3 py-2"
+                          >
+                            <p className="text-default-600 text-sm">
+                              Removing this target also removes its saved runs.
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="tertiary"
+                              isDisabled={deletingTarget}
+                              onPress={() => {
+                                removeTargetTrigger.current?.focus()
+                                setRemoveTargetId(null)
+                              }}
+                            >
+                              Keep target
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="danger-soft"
+                              isPending={deletingTarget}
+                              onPress={() => {
+                                deleteBuildTarget(target, {
+                                  onSuccess: () => setRemoveTargetId(null),
+                                  onError: () =>
+                                    setActionMessage('Could not remove the target. Try again.'),
+                                })
+                              }}
+                            >
+                              Remove target
+                            </Button>
+                          </div>
+                        ) : null}
                       </div>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="tertiary"
-                        className="justify-self-start"
-                        onPress={() => setRemoveTargetId(selectedBuildTargetSummary.id)}
-                      >
-                        Remove selected target…
-                      </Button>
                     )
-                  ) : null}
-                </>
+                  })}
+                </fieldset>
               ) : null}
               <Button
                 variant="secondary"
                 className="justify-self-start"
+                isDisabled={deletingTarget}
                 onPress={() => {
                   setRemoveTargetId(null)
                   setTargetPath('import')

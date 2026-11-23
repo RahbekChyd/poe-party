@@ -13,7 +13,7 @@ function mapNode(skill: number, name: string, orbitIndex: number, options: Recor
 }
 
 const treeDataset = {
-  min_x: -500, min_y: -400, max_x: 500, max_y: 400,
+  min_x: -2000, min_y: -1800, max_x: 2000, max_y: 1800,
   constants: { orbitRadii: [0, 160], skillsPerOrbit: [1, 6] },
   groups: {
     1: { x: 0, y: 0, nodes: [100, 101, 102, 103, 105, 108, 109] },
@@ -196,14 +196,30 @@ test('saved passive details recover a failed dataset and keep map, keyboard, and
   const rowBox = (await targetRow.boundingBox())!
   if (isMobile) expect(mapBox.y + mapBox.height).toBeLessThanOrEqual(rowBox.y)
   else expect(mapBox.x + mapBox.width <= rowBox.x || rowBox.x + rowBox.width <= mapBox.x).toBe(true)
+  await expect(currentRow.locator('svg.lucide-minus')).toBeVisible()
+  await expect(targetRow.locator('svg.lucide-plus')).toBeVisible()
+  // A horizontal SVG line has a zero-height geometry box even when its stroke is visible.
+  await expect(button('Select Saved Attack Speed on map').locator('svg.lucide-minus')).toHaveCount(1)
+  await expect(button('Select Target Cast Speed on map').locator('svg.lucide-plus')).toHaveCount(1)
+  await expect(button('Select Target Life Mastery on map').locator('svg.lucide-gem')).toHaveCount(1)
   await dialog.screenshot({ path: testInfo.outputPath('passive-tree-overlay.png'), animations: 'disabled' })
 
+  for (let count = 0; count < 3; count++) await button('Zoom out').press('Enter')
+  const zoomedOutWidth = Number((await map.getAttribute('viewBox'))!.split(' ')[2])
   await currentRow.press('Enter')
   await expect(currentRow).toHaveAttribute('aria-pressed', 'true')
   await expect(dialog.getByText(currentStats, { exact: true })).toBeVisible()
   await expect(dialog.getByRole('link', { name: /Node 101.*Official tree export/ })).toBeVisible()
   const centeredCamera = await map.getAttribute('viewBox')
   const [viewX, viewY, viewWidth, viewHeight] = centeredCamera!.split(' ').map(Number)
+  expect(viewWidth).toBeLessThan(zoomedOutWidth)
+  await expect(dialog.getByText('Allocated', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('Unallocated', { exact: true })).toBeVisible()
+  await dialog.screenshot({ path: testInfo.outputPath('passive-tree-focused.png'), animations: 'disabled' })
+  if (isMobile) {
+    await button('Show on map').press('Enter')
+    await expect(map).toBeFocused()
+  }
   const selectedMapNode = button('Select Saved Attack Speed on map')
   await expect(selectedMapNode).toHaveAttribute('aria-pressed', 'true')
   const nodeCenter = await selectedMapNode.evaluate((node: SVGGElement) => {

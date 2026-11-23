@@ -228,6 +228,7 @@ export async function mockAnalysisRuns(page: Page, options?: {
   completedSummary?: Record<string, unknown>
   completedMode?: 'quick' | 'thorough'
   savedMemberPobs?: { pob_code: string; pob_support_code: string }
+  extraSavedTarget?: boolean
 }) {
   await mockApp(page, 'poe1', [standardWorkspace], {
     membershipRole: options?.membershipRole,
@@ -295,6 +296,9 @@ export async function mockAnalysisRuns(page: Page, options?: {
     const targets = [
       ...(importedTarget ? [importedTarget] : []),
       ...(options?.noSavedTargets ? [] : options?.notification ? [target, alternateTarget] : [target]),
+      ...(options?.extraSavedTarget
+        ? [{ ...target, id: otherTarget, name: 'Fixture bossing build', is_selected: false }]
+        : []),
     ]
     return route.fulfill({ json: idFilter ? targets.find(({ id }) => `eq.${id}` === idFilter) : targets })
   })
