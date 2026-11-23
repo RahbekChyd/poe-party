@@ -1,5 +1,5 @@
 import { Button } from '@heroui/react/button'
-import { CircleHelp, Clipboard, Diamond, ExternalLink, Gem, GitCompareArrows, LocateFixed, WandSparkles } from 'lucide-react'
+import { CircleHelp, Clipboard, Diamond, ExternalLink, GitCompareArrows, LocateFixed, WandSparkles, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { PassiveTreeSource } from '../../lib/passive-tree-comparison'
 import type { PassiveTreeDiffViewModel } from '../../lib/passive-tree-diff'
@@ -20,7 +20,7 @@ function ReviewGroup({
   description,
   children,
 }: {
-  icon: typeof Gem
+  icon: LucideIcon
   title: string
   description: string
   children: ReactNode
@@ -83,10 +83,6 @@ function ReviewNodeRow({
   )
 }
 
-function hasClusterData(source: PassiveTreeSource) {
-  return source.clusterSockets.length || source.tree.hashesEx.length || source.unresolvedClusterCount
-}
-
 function StartingPointReview({
   sources,
   data,
@@ -129,62 +125,6 @@ function StartingPointReview({
   )
 }
 
-function ClusterReview({
-  sources,
-  data,
-  onLocate,
-}: {
-  sources: TreeSourceEntry[]
-  data: PassiveTreeRenderData | null
-  onLocate: LocateNode
-}) {
-  return (
-    <ReviewGroup
-      icon={Gem}
-      title="Cluster jewels"
-      description="Check the socketed jewel and its passives in Path of Building’s Tree tab or in game."
-    >
-      <div className="border-divider bg-content2 mt-2 grid gap-3 rounded-large border p-3 lg:grid-cols-2">
-        {sources.map(({ side, source }) => {
-          const allocations = source.tree.hashesEx.length
-          const unresolved = source.unresolvedClusterCount ?? 0
-          return (
-            <div key={side} className="min-w-0">
-              <p className="text-foreground text-sm font-medium">{side}</p>
-              <p className="text-default-500 mt-1 text-xs">
-                {hasClusterData(source)
-                  ? `${allocations} recorded ${allocations === 1 ? 'allocation' : 'allocations'}${unresolved ? ` · ${unresolved} unresolved` : ''}`
-                  : 'No cluster data recorded'}
-              </p>
-              {source.clusterSockets.length ? (
-                <ul className={listClass}>
-                  {source.clusterSockets.map((socket, index) => {
-                    const node = socket.nodeId === undefined ? undefined : data?.nodes[socket.nodeId]
-                    return (
-                      <ReviewNodeRow
-                        key={`${socket.label}-${index}`}
-                        label={socket.name ?? node?.label ?? socket.label}
-                        detail={node && socket.name ? `${node.label} · ${socket.label}` : socket.label}
-                        node={node}
-                        onLocate={onLocate}
-                      />
-                    )
-                  })}
-                </ul>
-              ) : null}
-              {source.unresolvedClusterIds?.length ? (
-                <p className="text-default-500 wrap-break-word mt-2 text-xs tabular-nums">
-                  Unresolved allocations · {source.unresolvedClusterIds.join(', ')}
-                </p>
-              ) : null}
-            </div>
-          )
-        })}
-      </div>
-    </ReviewGroup>
-  )
-}
-
 export function PassiveTreeReview({
   current,
   target,
@@ -222,9 +162,8 @@ export function PassiveTreeReview({
     }
   })
   const unknownMasteries = diff?.unknownMasteryNodeIds ?? []
-  const hasClusters = sources.some(({ source }) => hasClusterData(source))
   const differentClass = diff?.classMismatch || diff?.ascendancyMismatch
-  if (!geometryReview && !hasClusters && !modifiedIds.length && !unknownIds.size && !unknownMasteries.length &&
+  if (!geometryReview && !modifiedIds.length && !unknownIds.size && !unknownMasteries.length &&
     !differentClass) return null
 
   return (
@@ -249,7 +188,6 @@ export function PassiveTreeReview({
         {differentClass && data ? (
           <StartingPointReview sources={sources} data={data} differentClasses={diff.classMismatch} onLocate={onLocate} />
         ) : null}
-        {hasClusters ? <ClusterReview sources={sources} data={data} onLocate={onLocate} /> : null}
         {modifiedIds.length ? (
           <ReviewGroup
             icon={WandSparkles}

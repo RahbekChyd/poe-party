@@ -7,6 +7,7 @@ const firstSyncTime = '2026-11-19T10:00:00Z'
 const laterSyncTime = '2026-11-22T17:30:00Z'
 const currentStats = '12% increased Attack Speed'
 const masteryStats = '8% increased maximum Life'
+const clusterNote = 'Cluster jewel passives aren’t included in this comparison.'
 
 function mapNode(skill: number, name: string, orbitIndex: number, options: Record<string, unknown> = {}) {
   return { skill, name, group: 1, orbit: 1, orbitIndex, out: [100], ...options }
@@ -282,6 +283,10 @@ test('saved passive details recover a failed dataset and keep map, keyboard, and
   const isMobile = testInfo.project.name === 'chromium-mobile'
   const currentRow = button('Saved Attack Speed')
   const targetRow = button('Target Cast Speed')
+  const changes = dialog.getByRole('region', { name: 'Tree changes', exact: true })
+  await expect(changes.getByText(clusterNote, { exact: true })).toBeVisible()
+  await expect(changes.getByText('4 nodes', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('Fixture Large Cluster Jewel', { exact: true })).toHaveCount(0)
   const mapBox = (await map.boundingBox())!
   const rowBox = (await targetRow.boundingBox())!
   if (isMobile) expect(mapBox.y + mapBox.height).toBeLessThanOrEqual(rowBox.y)
@@ -290,12 +295,13 @@ test('saved passive details recover a failed dataset and keep map, keyboard, and
   await expect(targetRow.locator('svg.lucide-plus')).toBeVisible()
   // A horizontal SVG line has a zero-height geometry box even when its stroke is visible.
   await expect(button('Select Saved Attack Speed on map').locator('svg.lucide-minus')).toHaveCount(1)
+  await expect(button('Select Saved Attack Speed on map').locator('circle[stroke-dasharray]')).toHaveCount(1)
   await expect(button('Select Target Cast Speed on map').locator('svg.lucide-plus')).toHaveCount(1)
   await expect(button('Select Target Life Mastery on map').locator('svg.lucide-gem')).toHaveCount(1)
   await dialog.screenshot({ path: testInfo.outputPath('passive-tree-overlay.png'), animations: 'disabled' })
 
   const review = dialog.getByRole('region', { name: 'Needs review' })
-  await expect(review.getByRole('heading', { name: 'Cluster jewels', exact: true })).toBeVisible()
+  await expect(review.getByRole('button', { name: /cluster socket/i })).toHaveCount(0)
   await expect(review.getByRole('heading', { name: 'Modified nodes', exact: true })).toBeVisible()
   await expect(review.getByRole('heading', { name: 'Unknown node IDs', exact: true })).toBeVisible()
   await expect(review.getByText(/49999/)).toBeVisible()
@@ -303,10 +309,6 @@ test('saved passive details recover a failed dataset and keep map, keyboard, and
   await expect(review.getByRole('link', { name: 'Open current tree', exact: true }))
     .toHaveAttribute('href', /^https:\/\/www\.pathofexile\.com\/(?:fullscreen-)?passive-skill-tree\//)
   await review.screenshot({ path: testInfo.outputPath('passive-tree-review.png'), animations: 'disabled' })
-  await review.getByRole('button', { name: 'Locate on map (Cluster Socket)', exact: true }).click()
-  await expect(map).toBeFocused()
-  await expect(map.locator('[data-review-node-id="109"]')).toBeInViewport()
-  await expect(dialog.getByRole('status').filter({ hasText: 'Cluster Socket' })).toBeVisible()
   await review.getByRole('button', { name: 'Locate on map (Modified Allocated Node)', exact: true }).press('Enter')
   await expect(map).toBeFocused()
   await expect(options.trigger).toBeInViewport({ ratio: 1 })
@@ -427,7 +429,9 @@ test('Game art lazily paints official sprites while preserving the tree camera a
   await button('Zoom in').press('Enter')
   const retainedCamera = await map.getAttribute('viewBox')
   const selectedNode = button('Select Saved Attack Speed on map')
+  const selectionRing = selectedNode.locator('circle[fill="none"]')
   await expect(selectedNode).toHaveAttribute('aria-pressed', 'true')
+  await expect(selectionRing).toHaveAttribute('stroke-dasharray', '3 2')
   await expect(art).toHaveCount(0)
   expect(sprites.requests).toEqual([])
   await dialog.screenshot({ path: testInfo.outputPath('passive-tree-high-contrast.png'), animations: 'disabled' })
@@ -445,7 +449,9 @@ test('Game art lazily paints official sprites while preserving the tree camera a
   await expect(map).toHaveAttribute('viewBox', retainedCamera!)
   await expect(currentRow).toHaveAttribute('aria-pressed', 'true')
   await expect(selectedNode).toHaveAttribute('aria-pressed', 'true')
-  await expect(selectedNode.locator('svg.lucide-minus')).toHaveCount(1)
+  await expect(selectionRing).toBeVisible()
+  await expect(selectionRing).toHaveCSS('stroke-dasharray', 'none')
+  await expect(currentRow.locator('svg.lucide-minus')).toBeVisible()
   await expect(button('Select Target Cast Speed on map')).toHaveCount(0)
   expect(sprites.requests).toContain(activeSprite)
   expect(sprites.requests).toContain(inactiveSprite)
@@ -461,6 +467,11 @@ test('Game art lazily paints official sprites while preserving the tree camera a
 
   await options.choose('Overlay')
   await expect(map).toHaveAttribute('viewBox', retainedCamera!)
+  await expect(button('Select Target Cast Speed on map')).toBeVisible()
+  await expect(button('Select Target Life Mastery on map')).toBeVisible()
+  await expect(map.locator('circle[stroke-dasharray]')).toHaveCount(0)
+  const treeMap = dialog.getByRole('region', { name: 'Tree map', exact: true })
+  await expect(treeMap.locator('svg.lucide-minus, svg.lucide-plus, svg.lucide-gem')).toHaveCount(0)
   await map.press('ArrowRight')
   await expect.poll(() => map.getAttribute('viewBox')).not.toBe(retainedCamera)
   await expectPaintedFixture(art)
@@ -473,6 +484,8 @@ test('Game art lazily paints official sprites while preserving the tree camera a
   await expect(art).toHaveCount(0)
   await expect(map).toHaveAttribute('viewBox', targetCamera!)
   await expect(button('Select Target Cast Speed on map')).toHaveAttribute('aria-pressed', 'true')
+  await expect(button('Select Target Cast Speed on map').locator('svg.lucide-plus')).toHaveCount(1)
+  await expect(selectionRing).toHaveAttribute('stroke-dasharray', '3 2')
   expect(pageErrors).toEqual([])
 })
 
@@ -488,7 +501,10 @@ test('Game art can retry failed images while the comparison stays usable', async
   await treeMenu(dialog, 'Map options').choose('Game art')
   await expect(dialog.getByText(/Game art unavailable/)).toBeVisible()
   await expect(art).toHaveCount(0)
-  await button('Select Saved Attack Speed on map').click()
+  const mapNode = button('Select Saved Attack Speed on map')
+  await expect(mapNode.locator('circle[fill="none"]')).toHaveCSS('stroke-dasharray', 'none')
+  await expect(mapNode.locator('svg')).toHaveCount(0)
+  await mapNode.click()
   await expect(button('Saved Attack Speed')).toHaveAttribute('aria-pressed', 'true')
   const retainedCamera = await map.getAttribute('viewBox')
 
@@ -524,7 +540,9 @@ test('an older analysis identifies its latest sync and compares the tree at the 
   await expect(dialog.getByText('Recorded target layout', { exact: true })).toBeVisible()
   await expect(dialog.locator(`time[datetime="${laterSyncTime}"]`)).toBeVisible()
   await expect(map).toBeVisible()
-  await expect(dialog.getByText(/Fixture legacy Cluster Jewel/)).toBeVisible()
+  const changes = dialog.getByRole('region', { name: 'Tree changes', exact: true })
+  await expect(changes.getByText(clusterNote, { exact: true })).toBeVisible()
+  await expect(dialog.getByText('Fixture legacy Cluster Jewel', { exact: true })).toHaveCount(0)
   await expect(button('Later Synced Spell Damage')).toBeVisible()
   await expect(button('Saved Attack Speed')).toHaveCount(0)
   const filter = treeMenu(dialog, 'Filter changes')
@@ -538,6 +556,7 @@ test('an older analysis identifies its latest sync and compares the tree at the 
   )
   await button('Apply tree link').click()
   await expect(dialog.getByText('Pasted tree link', { exact: true })).toBeVisible()
+  await expect(changes.getByText(clusterNote, { exact: true })).toHaveCount(0)
   await expect(dialog.getByText('Historical passive score', { exact: true })).toHaveCount(0)
   await filter.choose('All changes')
   await expect(button('Saved Attack Speed')).toBeVisible()

@@ -15,6 +15,7 @@ import {
   type Ref,
 } from 'react'
 import {
+  PASSIVE_TREE_DIFF_LABELS,
   TREE_CHANGE_TONES,
   type PassiveTreeDiffEntry,
   type PassiveTreeDiffViewModel,
@@ -618,9 +619,7 @@ export function PassiveTreeMap({
             const hasArtwork = artwork
               ? hasPassiveTreeNodeArt(artwork, gameArt.images, id, allocatedInView)
               : false
-            const iconSize = radius * (hasArtwork ? 1.15 : 1.35)
-            const iconX = hasArtwork ? node.x + radius : node.x
-            const iconY = hasArtwork ? node.y - radius : node.y
+            const iconSize = radius * 1.35
             const tone = visibleEntry ? TREE_CHANGE_TONES[visibleEntry.kind] : 'text-default-500'
             const bounds = camera.visibleView
             const visible =
@@ -635,6 +634,9 @@ export function PassiveTreeMap({
                 role={visibleEntry ? 'button' : undefined}
                 aria-hidden={!visibleEntry || undefined}
                 aria-label={visibleEntry ? `Select ${node.label} on map` : undefined}
+                aria-description={
+                  visibleEntry ? PASSIVE_TREE_DIFF_LABELS[visibleEntry.kind] : undefined
+                }
                 aria-pressed={visibleEntry ? isSelected : undefined}
                 tabIndex={visibleEntry ? (visible ? 0 : -1) : undefined}
                 data-node-id={visibleEntry ? id : undefined}
@@ -665,25 +667,16 @@ export function PassiveTreeMap({
                 {hasArtwork ? null : drawNode(node, radius, 'var(--navigation)', 'currentColor')}
                 {visibleEntry ? (
                   <>
-                    {hasArtwork ? (
-                      <circle
-                        cx={iconX}
-                        cy={iconY}
-                        r={iconSize * 0.63}
-                        fill="var(--navigation)"
-                        stroke="currentColor"
-                        strokeWidth={1.25}
-                        vectorEffect="non-scaling-stroke"
+                    {appearance === 'contrast' ? (
+                      <PassiveTreeChangeIcon
+                        kind={visibleEntry.kind}
+                        x={node.x - iconSize / 2}
+                        y={node.y - iconSize / 2}
+                        size={iconSize}
+                        strokeWidth={2.75}
+                        pointerEvents="none"
                       />
                     ) : null}
-                    <PassiveTreeChangeIcon
-                      kind={visibleEntry.kind}
-                      x={iconX - iconSize / 2}
-                      y={iconY - iconSize / 2}
-                      size={iconSize}
-                      strokeWidth={2.75}
-                      pointerEvents="none"
-                    />
                     <circle
                       cx={node.x}
                       cy={node.y}
@@ -692,7 +685,10 @@ export function PassiveTreeMap({
                       stroke={isSelected ? 'var(--foreground)' : 'currentColor'}
                       strokeWidth={isSelected ? 2.5 : 1.5}
                       strokeDasharray={
-                        allocatedInView && visibleEntry.kind !== 'current' ? undefined : '3 2'
+                        appearance === 'contrast' &&
+                        (!allocatedInView || visibleEntry.kind === 'current')
+                          ? '3 2'
+                          : undefined
                       }
                       vectorEffect="non-scaling-stroke"
                       className={
@@ -774,11 +770,13 @@ export function PassiveTreeMap({
             aria-hidden="true"
             className="border-control bg-navigation text-foreground pointer-events-none absolute bottom-3 left-3 flex max-w-[calc(100%-1.5rem)] items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium"
           >
-            <PassiveTreeChangeIcon
-              kind={selected.kind}
-              size={14}
-              className={TREE_CHANGE_TONES[selected.kind]}
-            />
+            {appearance === 'contrast' ? (
+              <PassiveTreeChangeIcon
+                kind={selected.kind}
+                size={14}
+                className={TREE_CHANGE_TONES[selected.kind]}
+              />
+            ) : null}
             <span className="min-w-0 wrap-anywhere">{selected.node.label}</span>
           </div>
         ) : null}

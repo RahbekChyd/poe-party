@@ -158,6 +158,32 @@ describe('passive tree comparison', () => {
     ).supported).toBe(false)
   })
 
+  it('excludes explicitly recorded cluster allocations even when their IDs fit the base tree', () => {
+    const pair = readPassiveTreeRunSnapshot({
+      passive_tree_comparison: {
+        version: 1,
+        current: {
+          ...snapshotSide,
+          allocation_ids: [11, 13, 14, 79999],
+          cluster_allocation_ids: [11, 14, 79999],
+          modified_nodes: [13, 14],
+        },
+        target: { tree_version: '3_30', variant: 'standard', allocation_ids: [14] },
+      },
+    })
+    if (!pair) throw new Error('Missing saved tree fixture')
+
+    expect(pair.current.tree.hashes).toEqual([13])
+    expect(pair.current.tree.hashesEx).toEqual([11, 14, 79999])
+    expect(pair.current.tree.masteryEffects).toEqual([])
+    expect(pair.current.modifiedNodeIds).toEqual([13])
+
+    const diff = buildPassiveTreeDiffViewModel(pair.current, pair.target, normalizePassiveTreeRenderData('data', rawGeometry))
+    expect(diff.currentNodeIds).toEqual([13])
+    expect(diff.entries.map(({ node, kind }) => [node.nodeId, kind])).toEqual([[14, 'target']])
+    expect(diff.unknownNodeIds).toEqual([49999])
+  })
+
   it('retries after a failed geometry fetch', async () => {
     const fetchFixture = vi.fn()
       .mockResolvedValueOnce({ ok: false, status: 503 })

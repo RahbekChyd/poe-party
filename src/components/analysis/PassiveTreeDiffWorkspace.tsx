@@ -138,6 +138,10 @@ export function PassiveTreeDiffWorkspace({
   const mapId = useId()
   const entries =
     filter === 'all' ? diff.entries : diff.entries.filter((entry) => entry.kind === filter)
+  const hasClusterPassives = [currentSource, targetSource].some(
+    (source) =>
+      source.tree.hashesEx.length || source.clusterSockets.length || source.unresolvedClusterCount,
+  )
   const reviewNode =
     reviewFocus && reviewFocus.requestId !== dismissedReview
       ? data.nodes[reviewFocus.nodeId]
@@ -251,6 +255,11 @@ export function PassiveTreeDiffWorkspace({
             {entries.length} {entries.length === 1 ? 'node' : 'nodes'}
           </p>
         </div>
+        {hasClusterPassives ? (
+          <p className="text-default-500 mb-2 px-1 text-xs">
+            Cluster jewel passives aren’t included in this comparison.
+          </p>
+        ) : null}
 
         {entries.length ? (
           <ul className="border-divider divide-divider rounded-large divide-y overflow-hidden border lg:min-h-0 lg:overflow-y-auto">

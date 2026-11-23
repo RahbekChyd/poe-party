@@ -69,15 +69,18 @@ function snapshotSide(value: unknown, title: string): PassiveTreeSource | null {
   const branch = VARIANT_BRANCHES[variant as keyof typeof VARIANT_BRANCHES]
 
   const allocationIds = parseIds(entry.allocation_ids)
+  const clusterIds = new Set(parseIds(entry.cluster_allocation_ids))
+  const clusterAllocationIds = sortUniqueNumbers([
+    ...allocationIds.filter((id) => id > 0xffff),
+    ...clusterIds,
+  ])
   const tree: PassiveTreeComparable = {
     classId: parseId(entry.class_id),
     ascendancyId: parseId(entry.ascendancy_id),
-    hashes: allocationIds.filter((id) => id <= 0xffff),
-    hashesEx: sortUniqueNumbers([
-      ...allocationIds.filter((id) => id > 0xffff),
-      ...parseIds(entry.cluster_allocation_ids),
-    ]),
-    masteryEffects: packMasteries(entry.mastery_effects),
+    // Legacy generated sockets can fit in the base tree's 16-bit ID range.
+    hashes: allocationIds.filter((id) => id <= 0xffff && !clusterIds.has(id)),
+    hashesEx: clusterAllocationIds,
+    masteryEffects: packMasteries(entry.mastery_effects).filter((effect) => !clusterIds.has(effect & 0xffff)),
   }
   const clusterSockets = Array.isArray(entry.cluster_sockets)
     ? entry.cluster_sockets.flatMap((value) => {
@@ -100,8 +103,8 @@ function snapshotSide(value: unknown, title: string): PassiveTreeSource | null {
     secondaryAscendancyId: secondaryId,
     link: buildPassiveTreeUrl({ ...tree, gameVersion: gameVersion.replace(/_/g, '.'), ascendancyId: ascendancyByte }),
     clusterSockets,
-    modifiedNodeIds: parseIds(entry.modified_nodes),
-    unresolvedNodeIds: parseIds(entry.unresolved_node_ids),
+    modifiedNodeIds: parseIds(entry.modified_nodes).filter((id) => !clusterIds.has(id)),
+    unresolvedNodeIds: parseIds(entry.unresolved_node_ids).filter((id) => !clusterIds.has(id)),
     unresolvedClusterCount: Math.max(
       parseId(entry.unresolved_cluster_count) ?? 0,
       unresolvedClusterIds.length,
