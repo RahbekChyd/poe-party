@@ -1,6 +1,4 @@
-/// <reference lib="dom" />
-/// <reference lib="dom.iterable" />
-
+import { DOMParser, onWarningStopParsing, type Element } from 'npm:@xmldom/xmldom@0.9.12'
 import { normalizePoeItemModLines, getPoeItemModLinesByFlag } from './poe-item-mods.ts'
 import { normalizeCharacterClassInfo } from './poe-character-class.ts'
 
@@ -55,6 +53,7 @@ type PobImportMetadata = {
   player_stats: Record<string, unknown>
   tree_specs: Array<{
     id: string
+    legacyId: string | null
     title: string
     url: string | null
     treeVersion: string | null
@@ -72,6 +71,7 @@ type PobImportMetadata = {
       typeLine: string | null
     }>
   }>
+  active_tree_spec_id: string | null
   skill_sets: Array<{
     id: string
     title: string
@@ -98,9 +98,11 @@ type PobImportMetadata = {
       }>
     }>
   }>
+  active_skill_set_id: string | null
   config_sets: Array<{ id: string; title: string }>
   active_config_set_id: string | null
   active_config_set_title: string | null
+  active_item_set_id: string | null
   item_sets: Array<{
     id: string
     title: string
@@ -965,9 +967,19 @@ function parsePobItemText(rawText: string | null) {
   }
 }
 
-function buildPobItemSummaryLookup(document: Document) {
+function childrenNamed(parent: Element | null | undefined, name: string): Element[] {
+  return parent ? Array.from(parent.childNodes).filter(
+    (node): node is Element => node.nodeType === 1 && node.nodeName === name,
+  ) : []
+}
+
+function childNamed(parent: Element | null | undefined, name: string): Element | null {
+  return childrenNamed(parent, name)[0] ?? null
+}
+
+function buildPobItemSummaryLookup(root: Element) {
   const itemNodes = new Map<string, ReturnType<typeof parsePobItemText>>()
-  for (const itemNode of document.querySelectorAll('Items > Item[id]')) {
+  for (const itemNode of childrenNamed(childNamed(root, 'Items'), 'Item')) {
     const itemId = itemNode.getAttribute('id')?.trim()
     if (!itemId) continue
     itemNodes.set(itemId, parsePobItemText(itemNode.textContent ?? null))
@@ -991,7 +1003,7 @@ function parseTreeSpecClusterJewels(
   specNode: Element,
   itemNodes: Map<string, ReturnType<typeof parsePobItemText>>,
 ) {
-  return [...specNode.querySelectorAll('Sockets > Socket')]
+  return childrenNamed(childNamed(specNode, 'Sockets'), 'Socket')
     .map((socketNode) => {
       const socketNodeId = parseIntegerAttribute(socketNode, 'nodeId')
       if (socketNodeId == null) return null
@@ -1010,19 +1022,18 @@ function parseTreeSpecClusterJewels(
     .filter((entry): entry is NonNullable<typeof entry> => entry != null)
 }
 
-function parseTreeSpecs(document: Document): PobImportMetadata['tree_specs'] {
-  const itemNodes = buildPobItemSummaryLookup(document)
-  return [...document.querySelectorAll('Tree > Spec')].map((node, index) => {
+function parseTreeSpecs(root: Element): PobImportMetadata['tree_specs'] {
+  const itemNodes = buildPobItemSummaryLookup(root)
+  const tree = childNamed(root, 'Tree')
+  return childrenNamed(tree ?? root, 'Spec').map((node, index) => {
     const nodeIds = parseNumberList(node.getAttribute('nodes'))
     const { hashes, hashesEx } = splitTreeSpecNodeIds(nodeIds)
     return {
-      id:
-        node.getAttribute('title')?.trim() ||
-        node.getAttribute('specId')?.trim() ||
-        String(index + 1),
+      id: `tree-spec:${index + 1}`,
+      legacyId: node.getAttribute('specId')?.trim() || null,
       title: node.getAttribute('title')?.trim() || `Tree ${index + 1}`,
       url:
-        node.querySelector('URL')?.getAttribute('link') ?? readNodeText(node.querySelector('URL')),
+        childNamed(node, 'URL')?.getAttribute('link') ?? readNodeText(childNamed(node, 'URL')),
       treeVersion: node.getAttribute('treeVersion')?.trim() || null,
       classId: parseIntegerAttribute(node, 'classId'),
       ascendancyId: parseIntegerAttribute(node, 'ascendClassId'),
@@ -1039,11 +1050,11 @@ function formatGemQuality(value: number | null): string | null {
   return value == null ? null : `${value}%`
 }
 
-function parseSkillSets(document: Document): PobImportMetadata['skill_sets'] {
-  return [...document.querySelectorAll('Skills > SkillSet')].map((node, index) => {
-    const groups = [...node.querySelectorAll('Skill')].map((skillNode, skillIndex) => {
+function parseSkillSets(root: Element): PobImportMetadata['skill_sets'] {
+  return childrenNamed(childNamed(root, 'Skills'), 'SkillSet').map((node, index) => {
+    const groups = childrenNamed(node, 'Skill').map((skillNode, skillIndex) => {
       const skillEnabled = parseBooleanAttribute(skillNode.getAttribute('enabled'))
-      const gems = [...skillNode.querySelectorAll('Gem')]
+      const gems = childrenNamed(skillNode, 'Gem')
         .map((gemNode) => {
           const nameSpec = gemNode.getAttribute('nameSpec')?.trim() || null
           const name =
@@ -1083,10 +1094,10 @@ function parseSkillSets(document: Document): PobImportMetadata['skill_sets'] {
   })
 }
 
-function parseItemSets(document: Document): PobImportMetadata['item_sets'] {
-  const itemNodes = buildPobItemSummaryLookup(document)
-  return [...document.querySelectorAll('Items > ItemSet')].map((itemSetNode, index) => {
-    const items = [...itemSetNode.querySelectorAll('Slot')].map((slotNode) => {
+function parseItemSets(root: Element): PobImportMetadata['item_sets'] {
+  const itemNodes = buildPobItemSummaryLookup(root)
+  return childrenNamed(childNamed(root, 'Items'), 'ItemSet').map((itemSetNode, index) => {
+    const items = childrenNamed(itemSetNode, 'Slot').map((slotNode) => {
       const itemId = slotNode.getAttribute('itemId')?.trim() ?? null
       const base = itemId ? itemNodes.get(itemId) : null
       return {
@@ -1109,30 +1120,24 @@ function parseItemSets(document: Document): PobImportMetadata['item_sets'] {
   })
 }
 
-function parseConfigSets(document: Document) {
-  const configNode = document.querySelector('Config')
+function parseConfigSets(root: Element) {
+  const configNode = childNamed(root, 'Config')
   const activeConfigSetId = configNode?.getAttribute('activeConfigSet')?.trim() ?? null
-  const configSets = [...document.querySelectorAll('Config > ConfigSet')].map((node, index) => ({
+  const configSets = childrenNamed(configNode, 'ConfigSet').map((node, index) => ({
     id: node.getAttribute('id')?.trim() || String(index + 1),
     title: node.getAttribute('title')?.trim() || `Config ${index + 1}`,
   }))
-  if (configSets.length === 0 && configNode) {
-    configSets.push({ id: activeConfigSetId || '1', title: 'Default' })
-  }
-  const activeConfigSetTitle =
-    configSets.find((entry) => entry.id === activeConfigSetId)?.title ??
-    (activeConfigSetId == null ? (configSets[0]?.title ?? null) : null)
+  const activeConfigSet = configSets.find((entry) => entry.id === activeConfigSetId)
   return {
     config_sets: configSets,
-    active_config_set_id: activeConfigSetId ?? configSets[0]?.id ?? null,
-    active_config_set_title: activeConfigSetTitle,
+    active_config_set_id: activeConfigSet?.id ?? null,
+    active_config_set_title: activeConfigSet?.title ?? null,
   }
 }
 
-function parsePlayerStats(document: Document): Record<string, unknown> {
-  const buildNode = document.querySelector('Build')
+function parsePlayerStats(buildNode: Element): Record<string, unknown> {
   const stats: Record<string, unknown> = {}
-  for (const node of document.querySelectorAll('Build > PlayerStat')) {
+  for (const node of childrenNamed(buildNode, 'PlayerStat')) {
     const statName = node.getAttribute('stat')
     const statValue = parseNumber(node.getAttribute('value'))
     if (!statName || statValue == null) continue
@@ -1189,26 +1194,36 @@ function parsePobXml(
   rawXml: string,
   sourceKind: PobImportMetadata['source_kind'],
 ): PobImportMetadata {
-  const document = new DOMParser().parseFromString(rawXml, 'application/xml')
-  const parserError = document.querySelector('parsererror')
-  if (parserError) {
+  let root: Element | null
+  try {
+    const document = new DOMParser({ onError: onWarningStopParsing }).parseFromString(rawXml, 'application/xml')
+    root = document.doctype ? null : document.documentElement
+  } catch {
     throw new GuestPoePublicError('The PoB payload could not be parsed as XML.', 400, 'invalid_pob')
   }
-  const buildNode = document.querySelector('Build')
-  const configData = parseConfigSets(document)
+  const buildNode = childNamed(root, 'Build')
+  if (!root || root.nodeName !== 'PathOfBuilding' || !buildNode) {
+    throw new GuestPoePublicError('This XML is missing a Path of Building build. Paste a PoE1 PoB export.', 400, 'invalid_pob')
+  }
+  const configData = parseConfigSets(root)
+  const treeSpecs = parseTreeSpecs(root)
+  const activeSpec = Number(childNamed(root, 'Tree')?.getAttribute('activeSpec'))
   return {
     source_kind: sourceKind,
     class_name: buildNode?.getAttribute('className')?.trim() ?? null,
     ascendancy_name: buildNode?.getAttribute('ascendClassName')?.trim() ?? null,
     target_version: buildNode?.getAttribute('targetVersion')?.trim() ?? null,
-    notes: readNodeText(document.querySelector('Notes')),
-    player_stats: parsePlayerStats(document),
-    tree_specs: parseTreeSpecs(document),
-    skill_sets: parseSkillSets(document),
+    notes: readNodeText(childNamed(root, 'Notes')),
+    player_stats: parsePlayerStats(buildNode),
+    tree_specs: treeSpecs,
+    active_tree_spec_id: treeSpecs[activeSpec - 1]?.id ?? null,
+    skill_sets: parseSkillSets(root),
+    active_skill_set_id: childNamed(root, 'Skills')?.getAttribute('activeSkillSet')?.trim() || null,
     config_sets: configData.config_sets,
     active_config_set_id: configData.active_config_set_id,
     active_config_set_title: configData.active_config_set_title,
-    item_sets: parseItemSets(document),
+    item_sets: parseItemSets(root),
+    active_item_set_id: childNamed(root, 'Items')?.getAttribute('activeItemSet')?.trim() || null,
   }
 }
 
@@ -1279,14 +1294,16 @@ function deriveStageRequirementsFromSelection(
   return requirements
 }
 
-function resolveSelection<T extends { id: string }>(entries: T[], preferredId: unknown): T | null {
+function resolveSelection<T extends { id: string }>(
+  entries: T[], preferredId: unknown, activeId: string | null,
+): T | null {
   const normalizedId =
     typeof preferredId === 'string' && preferredId.trim() ? preferredId.trim() : null
   if (normalizedId) {
     const matched = entries.find((entry) => entry.id === normalizedId)
     if (matched) return matched
   }
-  return entries[0] ?? null
+  return entries.find((entry) => entry.id === activeId) ?? entries[0] ?? null
 }
 
 export function buildGuestTargetStage(
@@ -1299,13 +1316,15 @@ export function buildGuestTargetStage(
     config_set_id?: unknown
   },
 ): GuestTargetStage {
-  const treeSpec = resolveSelection(metadata.tree_specs, options.tree_spec_id)
-  const itemSet = resolveSelection(metadata.item_sets, options.item_set_id)
-  const skillSet = resolveSelection(metadata.skill_sets, options.skill_set_id)
-  const configSet =
-    resolveSelection(metadata.config_sets, options.config_set_id) ??
-    metadata.config_sets.find((entry) => entry.id === metadata.active_config_set_id) ??
-    null
+  const treeId = typeof options.tree_spec_id === 'string' ? options.tree_spec_id.trim() : ''
+  const legacyTree = metadata.tree_specs.find((entry) => entry.legacyId === treeId || entry.title === treeId)
+  const requestedTree = treeId.startsWith('tree-spec:')
+    ? treeId
+    : legacyTree?.id ?? (/^[1-9]\d*$/.test(treeId) ? `tree-spec:${treeId}` : null)
+  const treeSpec = resolveSelection(metadata.tree_specs, requestedTree, metadata.active_tree_spec_id)
+  const itemSet = resolveSelection(metadata.item_sets, options.item_set_id, metadata.active_item_set_id)
+  const skillSet = resolveSelection(metadata.skill_sets, options.skill_set_id, metadata.active_skill_set_id)
+  const configSet = resolveSelection(metadata.config_sets, options.config_set_id, metadata.active_config_set_id)
   const targetName =
     typeof options.target_name === 'string' && options.target_name.trim()
       ? options.target_name.trim().slice(0, 120)
