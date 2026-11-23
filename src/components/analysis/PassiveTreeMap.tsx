@@ -20,6 +20,7 @@ import {
   type PassiveTreeDiffViewModel,
 } from '../../lib/passive-tree-diff'
 import { hasPassiveTreeNodeArt } from '../../lib/passive-tree-game-art'
+import { PASSIVE_TREE_WHEEL_LABEL_MAX_FONT_SIZE } from '../../lib/passive-tree-layout'
 import type {
   PassiveTreeRenderData,
   PassiveTreeRenderNode,
@@ -592,7 +593,7 @@ export function PassiveTreeMap({
               x={x}
               y={labelY}
               textAnchor="middle"
-              fontSize={Math.min(200, camera.unitsPerPixel * 12)}
+              fontSize={Math.min(PASSIVE_TREE_WHEEL_LABEL_MAX_FONT_SIZE, camera.unitsPerPixel * 12)}
               fontWeight={600}
               fill="var(--foreground)"
               stroke="var(--navigation)"

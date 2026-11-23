@@ -11,6 +11,7 @@ const NODE_PADDING = 120
 const WHEEL_GAP = 320
 const LABEL_GAP = 150
 const LABEL_SPACE = 220
+export const PASSIVE_TREE_WHEEL_LABEL_MAX_FONT_SIZE = 200
 
 interface Wheel {
   id: string
@@ -245,13 +246,20 @@ export function getPassiveTreeComparisonGeometry(
     const start = members?.find((node) => node.isAscendancyStart) ?? members?.[0]
     const bounds = footprints.get(id)
     if (!start || !bounds) continue
-    const group = data.groups[start.groupId]
+    const anchor = data.groups[start.groupId] ?? start
+    const name = classNames.get(id) ?? (start.isAscendancyStart ? start.label : id)
+    const labelHalfWidth = name.length * PASSIVE_TREE_WHEEL_LABEL_MAX_FONT_SIZE * 0.32
     wheels.push({
       id,
-      name: classNames.get(id) ?? (start.isAscendancyStart ? start.label : id),
+      name,
       isBloodline: start.isBloodline,
-      anchor: group ?? start,
-      bounds: { ...bounds, maxY: bounds.maxY + LABEL_SPACE },
+      anchor,
+      bounds: {
+        minX: Math.min(bounds.minX, anchor.x - labelHalfWidth),
+        maxX: Math.max(bounds.maxX, anchor.x + labelHalfWidth),
+        minY: bounds.minY,
+        maxY: bounds.maxY + LABEL_SPACE,
+      },
     })
   }
   const placements = getWheelPlacements(wheels, mainBounds)
