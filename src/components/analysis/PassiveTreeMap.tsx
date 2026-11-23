@@ -1,4 +1,5 @@
 import { Button } from '@heroui/react/button'
+import { ZoomIn, ZoomOut } from 'lucide-react'
 import {
   useEffect,
   useImperativeHandle,
@@ -13,17 +14,25 @@ import {
   type PassiveTreeDiffEntry,
   type PassiveTreeDiffViewModel,
 } from '../../lib/passive-tree-diff'
+import { hasPassiveTreeNodeArt } from '../../lib/passive-tree-game-art'
 import type {
   PassiveTreeRenderData,
   PassiveTreeRenderNode,
 } from '../../lib/passive-tree-render-data'
 import { PassiveTreeChangeIcon } from './PassiveTreeChangeIcon'
+import { PassiveTreeGameArt } from './PassiveTreeGameArt'
+import { usePassiveTreeGameArt } from './usePassiveTreeGameArt'
 
 type Point = { x: number; y: number }
 type ViewBox = Point & { width: number; height: number }
 type MapView = 'Overlay' | 'Current' | 'Target'
+type MapAppearance = 'contrast' | 'game'
 
 const MAP_VIEWS: MapView[] = ['Overlay', 'Current', 'Target']
+const MAP_APPEARANCES = [
+  { id: 'contrast', label: 'High contrast' },
+  { id: 'game', label: 'Game art' },
+] as const
 
 const VIEW_PADDING = 240
 const MIN_VIEW_SIZE = 525
@@ -171,15 +180,27 @@ function useTreeCamera(initialView: ViewBox, maxSize: number) {
     }
   }
 
+  const unitsPerPixel = Math.max(
+    view.width / (viewport.width || view.width),
+    view.height / (viewport.height || view.height),
+  )
+  // With SVG's default aspect-ratio behavior, geometry can also show in the letterbox.
+  const visibleView = centerView(
+    {
+      ...view,
+      width: Math.max(view.width, viewport.width * unitsPerPixel),
+      height: Math.max(view.height, viewport.height * unitsPerPixel),
+    },
+    viewCenter(view),
+  )
+
   return {
     svgRef,
     view,
+    visibleView,
     moveTo,
     gestureMoved,
-    unitsPerPixel: Math.max(
-      view.width / (viewport.width || view.width),
-      view.height / (viewport.height || view.height),
-    ),
+    unitsPerPixel,
     zoom(scale: number) {
       moveTo(zoomView(viewRef.current, viewCenter(viewRef.current), scale, maxSize))
     },
@@ -247,6 +268,9 @@ export function PassiveTreeMap({
   selectionRequest: Ref<(point: Point) => void>
 }) {
   const [mapView, setMapView] = useState<MapView>('Overlay')
+  const [appearance, setAppearance] = useState<MapAppearance>('contrast')
+  const artwork = appearance === 'game' ? data.artwork : undefined
+  const gameArt = usePassiveTreeGameArt(artwork)
   const fullView = useMemo(
     () => ({
       x: data.bounds.minX,
@@ -259,8 +283,8 @@ export function PassiveTreeMap({
   const sides = useMemo(() => {
     const current = new Set(diff.currentNodeIds)
     const target = new Set(diff.targetNodeIds)
-    const union = [...new Set([...current, ...target])]
-    return { current, target, union }
+    const combined = new Set([...current, ...target])
+    return { current, target, combined, union: [...combined] }
   }, [diff.currentNodeIds, diff.targetNodeIds])
   const initialView = useMemo(
     () =>
@@ -341,12 +365,39 @@ export function PassiveTreeMap({
             </Button>
           ))}
         </div>
+        {data.artwork ? (
+          <div role="group" aria-label="Tree appearance" className="flex flex-wrap gap-1">
+            {MAP_APPEARANCES.map(({ id, label }) => (
+              <Button
+                key={id}
+                size="sm"
+                variant={appearance === id ? 'secondary' : 'tertiary'}
+                aria-pressed={appearance === id}
+                onPress={() => setAppearance(id)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        ) : null}
         <div role="group" aria-label="Map controls" className="flex flex-wrap gap-1">
-          <Button size="sm" variant="tertiary" onPress={() => camera.zoom(1 / 1.4)}>
-            Zoom out
+          <Button
+            size="sm"
+            variant="tertiary"
+            isIconOnly
+            aria-label="Zoom out"
+            onPress={() => camera.zoom(1 / 1.4)}
+          >
+            <ZoomOut size={16} aria-hidden="true" />
           </Button>
-          <Button size="sm" variant="tertiary" onPress={() => camera.zoom(1.4)}>
-            Zoom in
+          <Button
+            size="sm"
+            variant="tertiary"
+            isIconOnly
+            aria-label="Zoom in"
+            onPress={() => camera.zoom(1.4)}
+          >
+            <ZoomIn size={16} aria-hidden="true" />
           </Button>
           <Button
             size="sm"
@@ -368,6 +419,7 @@ export function PassiveTreeMap({
           ref={camera.svgRef}
           role="group"
           aria-label="Passive tree comparison map"
+          data-appearance={appearance}
           tabIndex={0}
           viewBox={formatViewBox(view)}
           className="rounded-large border-divider bg-navigation focus-visible:outline-highlight h-[clamp(240px,49dvh,340px)] w-full touch-none border outline-offset-2 focus-visible:outline-2 lg:h-(--tree-map-height)"
@@ -390,6 +442,16 @@ export function PassiveTreeMap({
             }
           }}
         >
+          {artwork ? (
+            <PassiveTreeGameArt
+              artwork={artwork}
+              images={gameArt.images}
+              viewBox={camera.visibleView}
+              unitsPerPixel={camera.unitsPerPixel}
+              activeNodeIds={activeNodes ?? sides.combined}
+              layer="backdrops"
+            />
+          ) : null}
           <g aria-hidden="true" fill="none" pointerEvents="none">
             <path
               d={basePaths}
@@ -423,6 +485,16 @@ export function PassiveTreeMap({
               vectorEffect="non-scaling-stroke"
             />
           </g>
+          {artwork ? (
+            <PassiveTreeGameArt
+              artwork={artwork}
+              images={gameArt.images}
+              viewBox={camera.visibleView}
+              unitsPerPixel={camera.unitsPerPixel}
+              activeNodeIds={activeNodes ?? sides.combined}
+              layer="nodes"
+            />
+          ) : null}
           {drawnIds.map((id) => {
             const node = data.nodes[id]
             const entry = visibleNodeEntries.get(id)
@@ -434,13 +506,19 @@ export function PassiveTreeMap({
             const radius = visibleEntry
               ? Math.max(nodeRadius, camera.unitsPerPixel * 8)
               : nodeRadius
-            const iconSize = radius * 1.35
+            const hasArtwork = artwork
+              ? hasPassiveTreeNodeArt(artwork, gameArt.images, id, allocatedInView)
+              : false
+            const iconSize = radius * (hasArtwork ? 1.15 : 1.35)
+            const iconX = hasArtwork ? node.x + radius : node.x
+            const iconY = hasArtwork ? node.y - radius : node.y
             const tone = visibleEntry ? TREE_CHANGE_TONES[visibleEntry.kind] : 'text-default-500'
-            const inViewBox =
-              node.x >= view.x &&
-              node.x <= view.x + view.width &&
-              node.y >= view.y &&
-              node.y <= view.y + view.height
+            const bounds = camera.visibleView
+            const visible =
+              node.x >= bounds.x &&
+              node.x <= bounds.x + bounds.width &&
+              node.y >= bounds.y &&
+              node.y <= bounds.y + bounds.height
 
             return (
               <g
@@ -449,7 +527,7 @@ export function PassiveTreeMap({
                 aria-hidden={!visibleEntry || undefined}
                 aria-label={visibleEntry ? `Select ${node.label} on map` : undefined}
                 aria-pressed={visibleEntry ? isSelected : undefined}
-                tabIndex={visibleEntry ? (inViewBox ? 0 : -1) : undefined}
+                tabIndex={visibleEntry ? (visible ? 0 : -1) : undefined}
                 data-node-id={visibleEntry ? id : undefined}
                 className={`${tone} ${visibleEntry ? 'group cursor-pointer outline-none' : 'pointer-events-none'}`}
                 onClick={visibleEntry ? () => onSelect(visibleEntry, false) : undefined}
@@ -475,13 +553,24 @@ export function PassiveTreeMap({
                   />
                 ) : null}
                 {visibleEntry ? <title>{node.label}</title> : null}
-                {drawNode(node, radius, 'var(--navigation)', 'currentColor')}
+                {hasArtwork ? null : drawNode(node, radius, 'var(--navigation)', 'currentColor')}
                 {visibleEntry ? (
                   <>
+                    {hasArtwork ? (
+                      <circle
+                        cx={iconX}
+                        cy={iconY}
+                        r={iconSize * 0.63}
+                        fill="var(--navigation)"
+                        stroke="currentColor"
+                        strokeWidth={1.25}
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    ) : null}
                     <PassiveTreeChangeIcon
                       kind={visibleEntry.kind}
-                      x={node.x - iconSize / 2}
-                      y={node.y - iconSize / 2}
+                      x={iconX - iconSize / 2}
+                      y={iconY - iconSize / 2}
                       size={iconSize}
                       strokeWidth={2.75}
                       pointerEvents="none"
@@ -509,6 +598,25 @@ export function PassiveTreeMap({
             )
           })}
         </svg>
+        {artwork && gameArt.status !== 'ready' && gameArt.status !== 'idle' ? (
+          <div
+            role="status"
+            className="border-control bg-navigation text-foreground absolute top-3 left-3 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium"
+          >
+            <span>
+              {gameArt.status === 'loading'
+                ? 'Loading game art…'
+                : gameArt.status === 'partial'
+                  ? 'Some game art could not load'
+                  : 'Game art unavailable'}
+            </span>
+            {gameArt.status !== 'loading' ? (
+              <Button size="sm" variant="tertiary" onPress={gameArt.retry}>
+                Retry game art
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
         {selected ? (
           <div
             aria-hidden="true"

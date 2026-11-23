@@ -56,15 +56,70 @@ const savedTarget = {
   unresolved_node_ids: [],
 }
 
-async function mockPassiveMap(page: Page, failFirst = false) {
+const spriteIcon = 'Art/2DArt/SkillIcons/passives/fixture.png'
+const spritePrefix = 'https://web.poecdn.com/image/passive-skill/'
+const activeSprite = `${spritePrefix}skills-1.jpg?aabbccdd`
+const inactiveSprite = `${spritePrefix}skills-disabled-1.jpg?eeff0011`
+const spriteSheet = (filename: string) => ({
+  '0.2109': {
+    filename,
+    w: 14,
+    h: 14,
+    coords: { [spriteIcon]: { x: 0, y: 0, w: 14, h: 14 } },
+  },
+})
+const artTreeDataset = {
+  ...treeDataset,
+  imageZoomLevels: [0.2109],
+  nodes: Object.fromEntries(
+    Object.entries(treeDataset.nodes).map(([id, node]) => [id, { ...node, icon: spriteIcon }]),
+  ),
+  sprites: { normalActive: spriteSheet(activeSprite), normalInactive: spriteSheet(inactiveSprite) },
+}
+
+async function mockPassiveMap(page: Page, failFirst = false, dataset: object = treeDataset) {
   let requests = 0
-  await page.route('https://raw.githubusercontent.com/grindinggear/skilltree-export/**', (route) => {
-    requests += 1
-    return failFirst && requests === 1
-      ? route.fulfill({ status: 503, json: { message: 'Fixture dataset unavailable' } })
-      : route.fulfill({ json: treeDataset })
-  })
+  await page.route(
+    /^https:\/\/raw\.githubusercontent\.com\/grindinggear\/skilltree-export\/[^/]+\/[^/]+\.json$/,
+    (route) => {
+      requests += 1
+      return failFirst && requests === 1
+        ? route.fulfill({ status: 503, json: { message: 'Fixture dataset unavailable' } })
+        : route.fulfill({ json: dataset })
+    },
+  )
   return () => requests
+}
+
+async function mockTreeSprites(page: Page, unavailable = false) {
+  const requests: string[] = []
+  await page.route(`${spritePrefix}**`, (route) => {
+    const url = route.request().url()
+    requests.push(url)
+    if (unavailable) return route.fulfill({ status: 503, headers: { 'Access-Control-Allow-Origin': '*' } })
+    const color = url === activeSprite ? '#ff0055' : '#00aa88'
+    return route.fulfill({
+      contentType: 'image/svg+xml',
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"><circle cx="7" cy="7" r="6" fill="${color}"/></svg>`,
+    })
+  })
+  return { requests, restore: () => { unavailable = false } }
+}
+
+async function expectPaintedFixture(art: Locator) {
+  await expect(art).toBeVisible()
+  await expect.poll(() => art.evaluate((canvas: HTMLCanvasElement) => {
+    const surface = canvas.getContext('2d')
+    if (!surface || !canvas.width || !canvas.height) return false
+    const pixels = surface.getImageData(0, 0, canvas.width, canvas.height).data
+    for (let offset = 0; offset < pixels.length; offset += 4) {
+      if (pixels[offset] > 215 && pixels[offset + 1] < 35 && pixels[offset + 2] > 55 && pixels[offset + 3] > 100) {
+        return true
+      }
+    }
+    return false
+  })).toBe(true)
 }
 
 async function mockProfileSync(page: Page, characterId: string, alreadySynced = false) {
@@ -284,6 +339,105 @@ test('saved passive details recover a failed dataset and keep map, keyboard, and
   await expect(currentRow).toBeVisible()
   await expect(button('Later Synced Spell Damage')).toHaveCount(0)
   expect(pageErrors).toEqual([])
+})
+
+test('Game art lazily paints official sprites while preserving the tree camera and comparison', async ({ page }, testInfo) => {
+  const { completedId } = await mockAnalysisRuns(page, {
+    completedSummary: { passive_tree_comparison: { version: 1, current: savedCurrent, target: savedTarget } },
+  })
+  const mapRequests = await mockPassiveMap(page, false, artTreeDataset)
+  const sprites = await mockTreeSprites(page)
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+  await page.goto(`/dashboard/analysis/runs/${completedId}`)
+  const { dialog, map, button } = await openTreeDetails(page)
+  const appearance = dialog.getByRole('group', { name: 'Tree appearance', exact: true })
+  const contrast = appearance.getByRole('button', { name: 'High contrast', exact: true })
+  const gameArt = appearance.getByRole('button', { name: 'Game art', exact: true })
+  const art = map.locator('canvas[data-passive-tree-art]')
+  await expect(contrast).toHaveAttribute('aria-pressed', 'true')
+  await expect(map).toHaveAttribute('data-appearance', 'contrast')
+  await expect(gameArt).toBeInViewport({ ratio: 1 })
+  await expect(map).toBeInViewport({ ratio: 0.98 })
+
+  const currentRow = button('Saved Attack Speed')
+  await currentRow.press('Enter')
+  await button('Current').press('Enter')
+  await button('Zoom in').press('Enter')
+  const retainedCamera = await map.getAttribute('viewBox')
+  const selectedNode = button('Select Saved Attack Speed on map')
+  await expect(selectedNode).toHaveAttribute('aria-pressed', 'true')
+  await expect(art).toHaveCount(0)
+  expect(sprites.requests).toEqual([])
+  await dialog.screenshot({ path: testInfo.outputPath('passive-tree-high-contrast.png'), animations: 'disabled' })
+
+  await gameArt.press('Enter')
+  await expect(gameArt).toHaveAttribute('aria-pressed', 'true')
+  await expect(map).toHaveAttribute('data-appearance', 'game')
+  await expectPaintedFixture(art)
+  await expect.poll(() => map.evaluate((svg: SVGSVGElement) => {
+    const artBounds = svg.querySelector('foreignObject:has(canvas[data-passive-tree-art])')?.getBoundingClientRect()
+    return artBounds !== undefined &&
+      Math.abs(artBounds.width - svg.clientWidth) < 2 &&
+      Math.abs(artBounds.height - svg.clientHeight) < 2
+  })).toBe(true)
+  await expect(map).toHaveAttribute('viewBox', retainedCamera!)
+  await expect(currentRow).toHaveAttribute('aria-pressed', 'true')
+  await expect(button('Current')).toHaveAttribute('aria-pressed', 'true')
+  await expect(selectedNode).toHaveAttribute('aria-pressed', 'true')
+  await expect(selectedNode.locator('svg.lucide-minus')).toHaveCount(1)
+  await expect(button('Select Target Cast Speed on map')).toHaveCount(0)
+  expect(sprites.requests).toContain(activeSprite)
+  expect(sprites.requests).toContain(inactiveSprite)
+  expect(mapRequests()).toBe(1)
+  await expectDialogContained(dialog)
+  await dialog.screenshot({ path: testInfo.outputPath('passive-tree-game-art.png'), animations: 'disabled' })
+
+  const accessibility = await new AxeBuilder({ page })
+    .include('[role="dialog"]')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze()
+  expect(accessibility.violations.filter(({ impact }) => impact === 'serious' || impact === 'critical')).toEqual([])
+
+  await button('Overlay').press('Enter')
+  await expect(map).toHaveAttribute('viewBox', retainedCamera!)
+  await map.press('ArrowRight')
+  await expect.poll(() => map.getAttribute('viewBox')).not.toBe(retainedCamera)
+  await expectPaintedFixture(art)
+  await button('Select Target Cast Speed on map').click()
+  await expect(button('Target Cast Speed')).toHaveAttribute('aria-pressed', 'true')
+  const targetCamera = await map.getAttribute('viewBox')
+  await contrast.press('Enter')
+  await expect(contrast).toHaveAttribute('aria-pressed', 'true')
+  await expect(map).toHaveAttribute('data-appearance', 'contrast')
+  await expect(art).toHaveCount(0)
+  await expect(map).toHaveAttribute('viewBox', targetCamera!)
+  await expect(button('Select Target Cast Speed on map')).toHaveAttribute('aria-pressed', 'true')
+  expect(pageErrors).toEqual([])
+})
+
+test('Game art can retry failed images while the comparison stays usable', async ({ page }) => {
+  const { completedId } = await mockAnalysisRuns(page, {
+    completedSummary: { passive_tree_comparison: { version: 1, current: savedCurrent, target: savedTarget } },
+  })
+  await mockPassiveMap(page, false, artTreeDataset)
+  const sprites = await mockTreeSprites(page, true)
+  await page.goto(`/dashboard/analysis/runs/${completedId}`)
+  const { dialog, map, button } = await openTreeDetails(page)
+  const art = map.locator('canvas[data-passive-tree-art]')
+  await button('Game art').click()
+  await expect(dialog.getByText(/Game art unavailable/)).toBeVisible()
+  await expect(art).toHaveCount(0)
+  await button('Select Saved Attack Speed on map').click()
+  await expect(button('Saved Attack Speed')).toHaveAttribute('aria-pressed', 'true')
+  const retainedCamera = await map.getAttribute('viewBox')
+
+  sprites.restore()
+  await button('Retry game art').click()
+  await expectPaintedFixture(art)
+  await expect(button('Retry game art')).toHaveCount(0)
+  await expect(map).toHaveAttribute('viewBox', retainedCamera!)
+  await expect(button('Select Saved Attack Speed on map')).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('an older analysis identifies its latest sync and compares the tree at the recorded export position', async ({ page }) => {

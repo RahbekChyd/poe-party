@@ -1,3 +1,10 @@
+import {
+  buildPassiveTreeArtwork,
+  type PassiveTreeArtwork,
+  type PassiveTreeArtGroupSource,
+  type PassiveTreeArtNodeSource,
+} from './passive-tree-game-art'
+
 const SUPPORTED_PASSIVE_TREE_RENDER_VERSION_FAMILY = '3_30'
 
 // PoB's pinned PassiveTree:CalcOrbitAngles uses the orbit size.
@@ -87,6 +94,7 @@ export interface PassiveTreeRenderData {
   nodes: Record<number, PassiveTreeRenderNode>
   groups: Record<number, PassiveTreeRenderGroup>
   connectors: PassiveTreeRenderConnector[]
+  artwork?: PassiveTreeArtwork
 }
 
 export interface PassiveTreeRenderRequest {
@@ -143,7 +151,7 @@ export function filterComparablePassiveTreeNodeIds(
   return filtered.sort((left, right) => left - right)
 }
 
-type RawPassiveTreeNode = {
+type RawPassiveTreeNode = PassiveTreeArtNodeSource & {
   skill?: number
   name?: string
   stats?: string[]
@@ -169,7 +177,7 @@ type RawPassiveTreeNode = {
   }>
 }
 
-type RawPassiveTreeGroup = {
+type RawPassiveTreeGroup = PassiveTreeArtGroupSource & {
   x?: number
   y?: number
   isProxy?: boolean
@@ -187,6 +195,7 @@ type RawPassiveTreeData = {
   max_y?: number
   nodes?: Record<string, RawPassiveTreeNode>
   groups?: Record<string, RawPassiveTreeGroup>
+  sprites?: unknown
 }
 
 const renderDataPromiseCache = new Map<PassiveTreeRenderBranch, Promise<PassiveTreeRenderData>>()
@@ -443,6 +452,7 @@ export function normalizePassiveTreeRenderData(
     }
   }
 
+  const artwork = buildPassiveTreeArtwork(rawData.sprites, nodes, normalizedGroups, rawNodes, groups)
   return {
     branch,
     branchLabel: BRANCH_LABELS[branch],
@@ -456,6 +466,7 @@ export function normalizePassiveTreeRenderData(
     nodes,
     groups: normalizedGroups,
     connectors: [...connectors.values()],
+    ...(artwork ? { artwork } : {}),
   }
 }
 
