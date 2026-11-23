@@ -7,7 +7,8 @@ const firstSyncTime = '2026-11-19T10:00:00Z'
 const laterSyncTime = '2026-11-22T17:30:00Z'
 const currentStats = '12% increased Attack Speed'
 const masteryStats = '8% increased maximum Life'
-const clusterNote = 'Cluster jewel passives aren’t included in this comparison.'
+const clusterNote =
+  'This map and change list omit cluster jewel passives. Path of Building includes them in build calculations when it can resolve them.'
 
 function mapNode(skill: number, name: string, orbitIndex: number, options: Record<string, unknown> = {}) {
   return { skill, name, group: 1, orbit: 1, orbitIndex, out: [100], ...options }

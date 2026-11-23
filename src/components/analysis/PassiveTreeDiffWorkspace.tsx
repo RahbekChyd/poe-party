@@ -257,7 +257,8 @@ export function PassiveTreeDiffWorkspace({
         </div>
         {hasClusterPassives ? (
           <p className="text-default-500 mb-2 px-1 text-xs">
-            Cluster jewel passives aren’t included in this comparison.
+            This map and change list omit cluster jewel passives. Path of Building includes them in
+            build calculations when it can resolve them.
           </p>
         ) : null}
 
