@@ -47,11 +47,13 @@ import { Route as DashboardServicesServiceIdRouteImport } from './routes/dashboa
 import { Route as DashboardGearSuggestionIdRouteImport } from './routes/dashboard/gear/$suggestionId'
 import { Route as DashboardEconomyGroupRouteImport } from './routes/dashboard/economy/group'
 import { Route as DashboardEconomyUserIdRouteImport } from './routes/dashboard/economy/$userId'
+import { Route as DashboardAnalysisNewRouteImport } from './routes/dashboard/analysis/new'
 import { Route as PreviewSearchGroupsGroupIdRouteImport } from './routes/preview/search/groups/$groupId'
 import { Route as PreviewSearchCharactersProfileIdRouteImport } from './routes/preview/search/characters/$profileId'
 import { Route as DashboardStrategiesPublicStrategyIdRouteImport } from './routes/dashboard/strategies/public/$strategyId'
 import { Route as DashboardSearchGroupsGroupIdRouteImport } from './routes/dashboard/search/groups/$groupId'
 import { Route as DashboardSearchCharactersProfileIdRouteImport } from './routes/dashboard/search/characters/$profileId'
+import { Route as DashboardAnalysisRunsRunIdRouteImport } from './routes/dashboard/analysis/runs/$runId'
 
 const ToolsRouteRoute = ToolsRouteRouteImport.update({
   id: '/tools',
@@ -249,6 +251,11 @@ const DashboardEconomyUserIdRoute = DashboardEconomyUserIdRouteImport.update({
   path: '/economy/$userId',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardAnalysisNewRoute = DashboardAnalysisNewRouteImport.update({
+  id: '/analysis/new',
+  path: '/analysis/new',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const PreviewSearchGroupsGroupIdRoute =
   PreviewSearchGroupsGroupIdRouteImport.update({
     id: '/search/groups/$groupId',
@@ -279,6 +286,12 @@ const DashboardSearchCharactersProfileIdRoute =
     path: '/search/characters/$profileId',
     getParentRoute: () => DashboardRouteRoute,
   } as any)
+const DashboardAnalysisRunsRunIdRoute =
+  DashboardAnalysisRunsRunIdRouteImport.update({
+    id: '/analysis/runs/$runId',
+    path: '/analysis/runs/$runId',
+    getParentRoute: () => DashboardRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -303,6 +316,7 @@ export interface FileRoutesByFullPath {
   '/tools/$toolSlug': typeof ToolsToolSlugRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/preview/': typeof PreviewIndexRoute
+  '/dashboard/analysis/new': typeof DashboardAnalysisNewRoute
   '/dashboard/economy/$userId': typeof DashboardEconomyUserIdRoute
   '/dashboard/economy/group': typeof DashboardEconomyGroupRoute
   '/dashboard/gear/$suggestionId': typeof DashboardGearSuggestionIdRoute
@@ -319,6 +333,7 @@ export interface FileRoutesByFullPath {
   '/preview/search/': typeof PreviewSearchIndexRoute
   '/preview/services/': typeof PreviewServicesIndexRoute
   '/preview/strategies/': typeof PreviewStrategiesIndexRoute
+  '/dashboard/analysis/runs/$runId': typeof DashboardAnalysisRunsRunIdRoute
   '/dashboard/search/characters/$profileId': typeof DashboardSearchCharactersProfileIdRoute
   '/dashboard/search/groups/$groupId': typeof DashboardSearchGroupsGroupIdRoute
   '/dashboard/strategies/public/$strategyId': typeof DashboardStrategiesPublicStrategyIdRoute
@@ -346,6 +361,7 @@ export interface FileRoutesByTo {
   '/tools/$toolSlug': typeof ToolsToolSlugRoute
   '/dashboard': typeof DashboardIndexRoute
   '/preview': typeof PreviewIndexRoute
+  '/dashboard/analysis/new': typeof DashboardAnalysisNewRoute
   '/dashboard/economy/$userId': typeof DashboardEconomyUserIdRoute
   '/dashboard/economy/group': typeof DashboardEconomyGroupRoute
   '/dashboard/gear/$suggestionId': typeof DashboardGearSuggestionIdRoute
@@ -362,6 +378,7 @@ export interface FileRoutesByTo {
   '/preview/search': typeof PreviewSearchIndexRoute
   '/preview/services': typeof PreviewServicesIndexRoute
   '/preview/strategies': typeof PreviewStrategiesIndexRoute
+  '/dashboard/analysis/runs/$runId': typeof DashboardAnalysisRunsRunIdRoute
   '/dashboard/search/characters/$profileId': typeof DashboardSearchCharactersProfileIdRoute
   '/dashboard/search/groups/$groupId': typeof DashboardSearchGroupsGroupIdRoute
   '/dashboard/strategies/public/$strategyId': typeof DashboardStrategiesPublicStrategyIdRoute
@@ -392,6 +409,7 @@ export interface FileRoutesById {
   '/tools/$toolSlug': typeof ToolsToolSlugRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/preview/': typeof PreviewIndexRoute
+  '/dashboard/analysis/new': typeof DashboardAnalysisNewRoute
   '/dashboard/economy/$userId': typeof DashboardEconomyUserIdRoute
   '/dashboard/economy/group': typeof DashboardEconomyGroupRoute
   '/dashboard/gear/$suggestionId': typeof DashboardGearSuggestionIdRoute
@@ -408,6 +426,7 @@ export interface FileRoutesById {
   '/preview/search/': typeof PreviewSearchIndexRoute
   '/preview/services/': typeof PreviewServicesIndexRoute
   '/preview/strategies/': typeof PreviewStrategiesIndexRoute
+  '/dashboard/analysis/runs/$runId': typeof DashboardAnalysisRunsRunIdRoute
   '/dashboard/search/characters/$profileId': typeof DashboardSearchCharactersProfileIdRoute
   '/dashboard/search/groups/$groupId': typeof DashboardSearchGroupsGroupIdRoute
   '/dashboard/strategies/public/$strategyId': typeof DashboardStrategiesPublicStrategyIdRoute
@@ -439,6 +458,7 @@ export interface FileRouteTypes {
     | '/tools/$toolSlug'
     | '/dashboard/'
     | '/preview/'
+    | '/dashboard/analysis/new'
     | '/dashboard/economy/$userId'
     | '/dashboard/economy/group'
     | '/dashboard/gear/$suggestionId'
@@ -455,6 +475,7 @@ export interface FileRouteTypes {
     | '/preview/search/'
     | '/preview/services/'
     | '/preview/strategies/'
+    | '/dashboard/analysis/runs/$runId'
     | '/dashboard/search/characters/$profileId'
     | '/dashboard/search/groups/$groupId'
     | '/dashboard/strategies/public/$strategyId'
@@ -482,6 +503,7 @@ export interface FileRouteTypes {
     | '/tools/$toolSlug'
     | '/dashboard'
     | '/preview'
+    | '/dashboard/analysis/new'
     | '/dashboard/economy/$userId'
     | '/dashboard/economy/group'
     | '/dashboard/gear/$suggestionId'
@@ -498,6 +520,7 @@ export interface FileRouteTypes {
     | '/preview/search'
     | '/preview/services'
     | '/preview/strategies'
+    | '/dashboard/analysis/runs/$runId'
     | '/dashboard/search/characters/$profileId'
     | '/dashboard/search/groups/$groupId'
     | '/dashboard/strategies/public/$strategyId'
@@ -527,6 +550,7 @@ export interface FileRouteTypes {
     | '/tools/$toolSlug'
     | '/dashboard/'
     | '/preview/'
+    | '/dashboard/analysis/new'
     | '/dashboard/economy/$userId'
     | '/dashboard/economy/group'
     | '/dashboard/gear/$suggestionId'
@@ -543,6 +567,7 @@ export interface FileRouteTypes {
     | '/preview/search/'
     | '/preview/services/'
     | '/preview/strategies/'
+    | '/dashboard/analysis/runs/$runId'
     | '/dashboard/search/characters/$profileId'
     | '/dashboard/search/groups/$groupId'
     | '/dashboard/strategies/public/$strategyId'
@@ -833,6 +858,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardEconomyUserIdRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/dashboard/analysis/new': {
+      id: '/dashboard/analysis/new'
+      path: '/analysis/new'
+      fullPath: '/dashboard/analysis/new'
+      preLoaderRoute: typeof DashboardAnalysisNewRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/preview/search/groups/$groupId': {
       id: '/preview/search/groups/$groupId'
       path: '/search/groups/$groupId'
@@ -868,6 +900,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardSearchCharactersProfileIdRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/dashboard/analysis/runs/$runId': {
+      id: '/dashboard/analysis/runs/$runId'
+      path: '/analysis/runs/$runId'
+      fullPath: '/dashboard/analysis/runs/$runId'
+      preLoaderRoute: typeof DashboardAnalysisRunsRunIdRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
   }
 }
 
@@ -875,6 +914,7 @@ interface DashboardRouteRouteChildren {
   DashboardSubscriptionRoute: typeof DashboardSubscriptionRoute
   DashboardSupportRoute: typeof DashboardSupportRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
+  DashboardAnalysisNewRoute: typeof DashboardAnalysisNewRoute
   DashboardEconomyUserIdRoute: typeof DashboardEconomyUserIdRoute
   DashboardEconomyGroupRoute: typeof DashboardEconomyGroupRoute
   DashboardGearSuggestionIdRoute: typeof DashboardGearSuggestionIdRoute
@@ -887,6 +927,7 @@ interface DashboardRouteRouteChildren {
   DashboardSearchIndexRoute: typeof DashboardSearchIndexRoute
   DashboardServicesIndexRoute: typeof DashboardServicesIndexRoute
   DashboardStrategiesIndexRoute: typeof DashboardStrategiesIndexRoute
+  DashboardAnalysisRunsRunIdRoute: typeof DashboardAnalysisRunsRunIdRoute
   DashboardSearchCharactersProfileIdRoute: typeof DashboardSearchCharactersProfileIdRoute
   DashboardSearchGroupsGroupIdRoute: typeof DashboardSearchGroupsGroupIdRoute
   DashboardStrategiesPublicStrategyIdRoute: typeof DashboardStrategiesPublicStrategyIdRoute
@@ -896,6 +937,7 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardSubscriptionRoute: DashboardSubscriptionRoute,
   DashboardSupportRoute: DashboardSupportRoute,
   DashboardIndexRoute: DashboardIndexRoute,
+  DashboardAnalysisNewRoute: DashboardAnalysisNewRoute,
   DashboardEconomyUserIdRoute: DashboardEconomyUserIdRoute,
   DashboardEconomyGroupRoute: DashboardEconomyGroupRoute,
   DashboardGearSuggestionIdRoute: DashboardGearSuggestionIdRoute,
@@ -908,6 +950,7 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardSearchIndexRoute: DashboardSearchIndexRoute,
   DashboardServicesIndexRoute: DashboardServicesIndexRoute,
   DashboardStrategiesIndexRoute: DashboardStrategiesIndexRoute,
+  DashboardAnalysisRunsRunIdRoute: DashboardAnalysisRunsRunIdRoute,
   DashboardSearchCharactersProfileIdRoute:
     DashboardSearchCharactersProfileIdRoute,
   DashboardSearchGroupsGroupIdRoute: DashboardSearchGroupsGroupIdRoute,

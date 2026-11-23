@@ -125,8 +125,14 @@ export const queryKeys = {
       ['gear-optimizer', 'build-target-stages', buildTargetId] as const,
     analysisRuns: (groupId: string | null, targetUserId: string | null, buildTargetId: string | null) =>
       ['gear-optimizer', 'analysis-runs', groupId, targetUserId, buildTargetId] as const,
-    myLatestRuns: (groupId: string | null, targetUserId: string | null) =>
-      ['gear-optimizer', 'my-latest-runs', groupId, targetUserId] as const,
+    myRuns: (groupId: string | null, userId: string | null) =>
+      ['gear-optimizer', 'my-runs', groupId, userId] as const,
+    myRunHistory: (groupId: string | null, userId: string | null) =>
+      ['gear-optimizer', 'my-runs', groupId, userId, 'history'] as const,
+    myRunNotifications: (groupId: string | null, userId: string | null) =>
+      ['gear-optimizer', 'my-runs', groupId, userId, 'notifications'] as const,
+    myRunDetail: (groupId: string | null, userId: string | null, runId: string | null) =>
+      ['gear-optimizer', 'my-runs', groupId, userId, 'detail', runId] as const,
     recommendationPlans: (runId: string | null) =>
       ['gear-optimizer', 'recommendation-plans', runId] as const,
     partyBuildTargets: (groupId: string | null) =>

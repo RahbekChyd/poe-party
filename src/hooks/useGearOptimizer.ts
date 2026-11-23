@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { queryKeys } from '../lib/queryKeys'
 import type {
@@ -124,6 +124,59 @@ function isLiveAnalysisStatus(status: UpgradeAnalysisRun['status'] | null | unde
   return status === 'queued' || status === 'running'
 }
 
+const ANALYSIS_RUN_DETAIL_FIELDS =
+  'id, group_id, build_target_id, target_stage_id, target_user_id, character_id, queued_by, budget_chaos, analysis_mode, search_constraints, party_config, input_hash, status, stale_reason, partial_reason, error_detail, summary, started_at, completed_at, created_at, updated_at'
+
+const ANALYSIS_RUN_LIST_FIELDS =
+  'id, status, stale_reason, analysis_mode, created_at, completed_at, character:characters(name), target:build_targets(name)'
+
+const ANALYSIS_HISTORY_PAGE_SIZE = 20
+
+export interface AnalysisRunListEntry {
+  id: string
+  status: UpgradeAnalysisRun['status']
+  staleReason: string | null
+  mode: UpgradeAnalysisMode
+  createdAt: string
+  completedAt: string | null
+  characterName: string | null
+  targetName: string | null
+}
+
+function toAnalysisRunListEntry(row: Record<string, unknown>): AnalysisRunListEntry {
+  return {
+    id: String(row.id),
+    status: toAnalysisRunStatus(row.status),
+    staleReason: row.status === 'cancelled' ? 'user-cancelled' : asString(row.stale_reason),
+    mode: row.analysis_mode === 'thorough' ? 'thorough' : 'quick',
+    createdAt: String(row.created_at),
+    completedAt: asString(row.completed_at),
+    characterName: asString(asRecord(row.character).name),
+    targetName: asString(asRecord(row.target).name),
+  }
+}
+
+function toSummaryMetric(value: unknown): number | null {
+  if (typeof value !== 'number' && (typeof value !== 'string' || !value.trim())) return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
+function toAnalysisRunStatus(status: unknown): UpgradeAnalysisRun['status'] {
+  switch (status) {
+    case 'running':
+    case 'completed':
+    case 'partial':
+    case 'failed':
+    case 'stale':
+      return status
+    case 'cancelled':
+      return 'stale'
+    default:
+      return 'queued'
+  }
+}
+
 const LIVE_ANALYSIS_FAST_POLL_MS = 5_000
 const LIVE_ANALYSIS_MEDIUM_POLL_MS = 10_000
 const LIVE_ANALYSIS_SLOW_POLL_MS = 20_000
@@ -232,15 +285,8 @@ function toUpgradeAnalysisRun(row: Record<string, unknown>): UpgradeAnalysisRun 
     search_constraints: asSearchConstraints(row.search_constraints),
     party_config: Array.isArray(row.party_config) ? (row.party_config as PartyBuildEntry[]) : [],
     input_hash: String(row.input_hash ?? ''),
-    status:
-      row.status === 'running' ||
-      row.status === 'completed' ||
-      row.status === 'partial' ||
-      row.status === 'failed' ||
-      row.status === 'stale'
-        ? row.status
-        : 'queued',
-    stale_reason: typeof row.stale_reason === 'string' ? row.stale_reason : null,
+    status: toAnalysisRunStatus(row.status),
+    stale_reason: row.status === 'cancelled' ? 'user-cancelled' : asString(row.stale_reason),
     partial_reason: typeof row.partial_reason === 'string' ? row.partial_reason : null,
     error_detail: typeof row.error_detail === 'string' ? row.error_detail : null,
     summary:
@@ -395,9 +441,7 @@ export function useUpgradeAnalysisRuns(
     queryFn: async () => {
       const { data, error } = await supabase
         .from('upgrade_analysis_runs')
-        .select(
-          'id, group_id, build_target_id, target_stage_id, target_user_id, character_id, queued_by, budget_chaos, analysis_mode, search_constraints, party_config, input_hash, status, stale_reason, partial_reason, error_detail, summary, started_at, completed_at, created_at, updated_at',
-        )
+        .select(ANALYSIS_RUN_DETAIL_FIELDS)
         .eq('group_id', groupId!)
         .eq('target_user_id', targetUserId!)
         .eq('build_target_id', buildTargetId!)
@@ -416,36 +460,92 @@ export function useUpgradeAnalysisRuns(
   })
 }
 
-// Lightweight cross-build-target query for navbar status indicator.
-// Polls at 30s when a run is live, otherwise fetches once and goes stale.
-export function useMyLatestAnalysisRuns(groupId: string | null, targetUserId: string | null) {
+export function useMyAnalysisRun(groupId: string | null, userId: string | null, runId: string | null) {
   return useQuery({
-    queryKey: queryKeys.gearOptimizer.myLatestRuns(groupId, targetUserId),
-    enabled: !!groupId && !!targetUserId,
+    queryKey: queryKeys.gearOptimizer.myRunDetail(groupId, userId, runId),
+    enabled: !!groupId && !!userId && !!runId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('upgrade_analysis_runs')
-        .select('id, status, analysis_mode, completed_at, summary, build_target_id')
+        .select(ANALYSIS_RUN_DETAIL_FIELDS)
+        .eq('id', runId!)
         .eq('group_id', groupId!)
-        .eq('target_user_id', targetUserId!)
-        .order('created_at', { ascending: false })
-        .limit(5)
+        .eq('target_user_id', userId!)
+        .maybeSingle()
 
       if (error) throw error
-      return (data ?? []) as Array<{
-        id: string
-        status: UpgradeAnalysisRun['status']
-        analysis_mode: UpgradeAnalysisMode
-        completed_at: string | null
-        summary: Record<string, unknown> | null
-        build_target_id: string
-      }>
+      return data ? toUpgradeAnalysisRun(data as Record<string, unknown>) : null
     },
+    staleTime: 3000,
     refetchInterval: (query) => {
-      const runs = query.state.data ?? []
-      return runs.some((run) => isLiveAnalysisStatus(run.status)) ? 30000 : false
+      const run = query.state.data
+      return run && isLiveAnalysisStatus(run.status) ? getLiveAnalysisPollInterval(run) : false
     },
-    staleTime: 30000,
+  })
+}
+
+export function useMyAnalysisRunHistory(groupId: string | null, userId: string | null) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.gearOptimizer.myRunHistory(groupId, userId),
+    enabled: !!groupId && !!userId,
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      const start = pageParam * ANALYSIS_HISTORY_PAGE_SIZE
+      const { data, error } = await supabase
+        .from('upgrade_analysis_runs')
+        .select(`${ANALYSIS_RUN_LIST_FIELDS}, recommendation_count:summary->generated_plan_count, hit_dps:summary->baseline_metrics->totalDps, effective_hit_pool:summary->baseline_metrics->totalEhp`)
+        .eq('group_id', groupId!)
+        .eq('target_user_id', userId!)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(start, start + ANALYSIS_HISTORY_PAGE_SIZE)
+
+      if (error) throw error
+      const rows = data ?? []
+      return {
+        hasMore: rows.length > ANALYSIS_HISTORY_PAGE_SIZE,
+        runs: rows.slice(0, ANALYSIS_HISTORY_PAGE_SIZE).map((row) => ({
+          ...toAnalysisRunListEntry(row),
+          recommendationCount: toSummaryMetric(row.recommendation_count),
+          hitDps: toSummaryMetric(row.hit_dps),
+          effectiveHitPool: toSummaryMetric(row.effective_hit_pool),
+        })),
+      }
+    },
+    getNextPageParam: (lastPage, pages) => lastPage.hasMore ? pages.length : undefined,
+    refetchInterval: (query) =>
+      query.state.data?.pages.some((page) => page.runs.some((run) => isLiveAnalysisStatus(run.status)))
+        ? 15000
+        : false,
+  })
+}
+
+export function useMyAnalysisRunNotifications(groupId: string | null, userId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.gearOptimizer.myRunNotifications(groupId, userId),
+    enabled: !!groupId && !!userId,
+    queryFn: async () => {
+      const runs: AnalysisRunListEntry[] = []
+      const pageSize = 100
+      for (let start = 0; ; start += pageSize) {
+        const { data, error } = await supabase
+          .from('upgrade_analysis_runs')
+          .select(ANALYSIS_RUN_LIST_FIELDS)
+          .eq('group_id', groupId!)
+          .eq('target_user_id', userId!)
+          .or('status.in.(queued,running,completed,partial),and(status.eq.stale,completed_at.not.is.null)')
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(start, start + pageSize - 1)
+
+        if (error) throw error
+        runs.push(...(data ?? []).map(toAnalysisRunListEntry))
+        if ((data?.length ?? 0) < pageSize) return runs
+      }
+    },
+    refetchInterval: (query) =>
+      query.state.data?.some((run) => isLiveAnalysisStatus(run.status)) ? 30000 : false,
+    refetchOnWindowFocus: 'always',
   })
 }
 
@@ -574,11 +674,15 @@ export function useCreateBuildTarget() {
       if (error) throw error
       return toBuildTarget(data as Record<string, unknown>)
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      const targetsKey = queryKeys.gearOptimizer.buildTargets(data.group_id, data.user_id)
+      await queryClient.cancelQueries({ queryKey: targetsKey })
       queryClient.setQueryData(queryKeys.gearOptimizer.buildTarget(data.id), data)
-      queryClient.invalidateQueries({
-        queryKey: [...queryKeys.gearOptimizer.buildTargets(data.group_id, data.user_id)],
-      })
+      queryClient.setQueryData<BuildTarget[]>(targetsKey, (current) => current && [
+        { ...data, raw_import: '', raw_xml: null },
+        ...current.filter((target) => target.id !== data.id),
+      ])
+      void queryClient.invalidateQueries({ queryKey: targetsKey })
     },
   })
 }
@@ -616,6 +720,9 @@ export function useUpdateBuildTarget() {
       queryClient.invalidateQueries({
         queryKey: [...queryKeys.gearOptimizer.analysisRuns(data.group_id, data.user_id, data.id)],
       })
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.gearOptimizer.myRuns(data.group_id, data.user_id),
+      })
     },
   })
 }
@@ -641,6 +748,9 @@ export function useDeleteBuildTarget() {
       })
       queryClient.invalidateQueries({
         queryKey: [...queryKeys.gearOptimizer.analysisRuns(data.group_id, data.user_id, data.id)],
+      })
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.gearOptimizer.myRuns(data.group_id, data.user_id),
       })
     },
   })
@@ -806,30 +916,18 @@ export function useQueueUpgradeAnalysis() {
           )
         },
       )
-      queryClient.setQueryData<
-        Array<{
-          id: string
-          status: UpgradeAnalysisRun['status']
-          analysis_mode: UpgradeAnalysisMode
-          completed_at: string | null
-          summary: Record<string, unknown> | null
-          build_target_id: string
-        }>
-      >(
-        queryKeys.gearOptimizer.myLatestRuns(run.group_id, run.target_user_id),
-        (current = []) =>
-          [
-            {
-              id: run.id,
-              status: run.status,
-              analysis_mode: run.analysis_mode,
-              completed_at: run.completed_at,
-              summary: run.summary,
-              build_target_id: run.build_target_id,
-            },
-            ...current.filter((entry) => entry.id !== run.id),
-          ].slice(0, 5),
+      queryClient.setQueryData<UpgradeAnalysisRun | null>(
+        queryKeys.gearOptimizer.myRunDetail(run.group_id, run.target_user_id, run.id),
+        (current) => current && Date.parse(current.updated_at) > Date.parse(run.updated_at)
+          ? current
+          : run,
       )
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.gearOptimizer.myRunHistory(run.group_id, run.target_user_id),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.gearOptimizer.myRunNotifications(run.group_id, run.target_user_id),
+      })
 
       // Keep the freshly queued run in cache and let the live-run poll pick up the next state
       // change. An immediate refetch can briefly return the older server snapshot, which makes
@@ -843,9 +941,6 @@ export function useQueueUpgradeAnalysis() {
               run.build_target_id,
             ),
           ],
-        })
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.gearOptimizer.myLatestRuns(run.group_id, run.target_user_id),
         })
         queryClient.invalidateQueries({
           queryKey: [...queryKeys.gearOptimizer.recommendationPlans(run.id)],
@@ -893,12 +988,15 @@ export function useCancelUpgradeAnalysis() {
           ),
         ],
       })
-      // Immediately update navbar status so the chip disappears without waiting for next poll
+      queryClient.setQueryData(
+        queryKeys.gearOptimizer.myRunDetail(cancelled.group_id, cancelled.target_user_id, cancelled.id),
+        cancelled,
+      )
       queryClient.invalidateQueries({
-        queryKey: queryKeys.gearOptimizer.myLatestRuns(
-          cancelled.group_id,
-          cancelled.target_user_id,
-        ),
+        queryKey: queryKeys.gearOptimizer.myRunHistory(cancelled.group_id, cancelled.target_user_id),
+      })
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.gearOptimizer.myRunNotifications(cancelled.group_id, cancelled.target_user_id),
       })
     },
   })

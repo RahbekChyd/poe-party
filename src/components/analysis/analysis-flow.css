@@ -1,0 +1,170 @@
+@layer components {
+  .analysis-wizard {
+    display: grid;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 64rem;
+    overflow: clip;
+    border: 1px solid var(--separator);
+    border-radius: 0.875rem;
+    background: var(--surface);
+  }
+
+  .analysis-wizard-steps {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 0.25rem;
+    padding: 0.75rem;
+    border-block-end: 1px solid var(--separator);
+    background: var(--surface-secondary);
+  }
+
+  .analysis-wizard-step {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-inline-size: 0;
+    padding: 0.375rem;
+    border-radius: 0.5rem;
+    color: var(--muted);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+
+  .analysis-wizard-step-number {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    inline-size: 1.5rem;
+    block-size: 1.5rem;
+    border: 1px solid var(--separator);
+    border-radius: 50%;
+    font-size: 0.75rem;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .analysis-wizard-step[data-complete] .analysis-wizard-step-number {
+    color: var(--highlight);
+  }
+
+  .analysis-wizard-step[aria-current='step'] {
+    background: var(--selected);
+    color: var(--highlight);
+    font-weight: 650;
+  }
+
+  .analysis-wizard-step[aria-current='step'] .analysis-wizard-step-number {
+    border-color: currentColor;
+  }
+
+  .analysis-wizard-body {
+    display: flex;
+    min-inline-size: 0;
+    flex-direction: column;
+  }
+
+  .analysis-wizard-content {
+    display: grid;
+    gap: 1.25rem;
+    min-inline-size: 0;
+    flex: 1;
+    padding: 1rem;
+  }
+
+  .analysis-wizard-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    border-block-start: 1px solid var(--separator);
+  }
+
+  .analysis-progress-panel {
+    display: grid;
+    gap: 1rem;
+    min-inline-size: 0;
+    padding: clamp(1rem, 3vw, 1.5rem);
+    border: 1px solid var(--separator);
+    border-radius: 0.875rem;
+    background: var(--surface);
+  }
+
+  .analysis-progress-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+    border-radius: 0.625rem;
+    background: var(--accent-soft);
+    color: var(--highlight);
+  }
+
+  .analysis-progress-track {
+    position: relative;
+    overflow: hidden;
+    block-size: 0.1875rem;
+    border-radius: 0.125rem;
+    background: var(--accent-soft);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .analysis-progress-track::after {
+      position: absolute;
+      inset-block: 0;
+      inset-inline-start: 0;
+      inline-size: 33.333%;
+      border-radius: inherit;
+      background: var(--accent);
+      content: '';
+      animation: analysis-progress-pass 1.9s cubic-bezier(0.2, 0.75, 0.36, 1) 2 forwards;
+    }
+  }
+
+  @keyframes analysis-progress-pass {
+    from {
+      opacity: 0;
+      transform: translateX(-100%);
+    }
+
+    35% {
+      opacity: 1;
+    }
+
+    to {
+      opacity: 0;
+      transform: translateX(300%);
+    }
+  }
+
+  @media (width >= 48rem) {
+    .analysis-wizard {
+      grid-template-columns: minmax(10rem, 12.5rem) minmax(0, 1fr);
+    }
+
+    .analysis-wizard-steps {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.5rem;
+      padding: 1rem;
+      border-block-end: 0;
+      border-inline-end: 1px solid var(--separator);
+    }
+
+    .analysis-wizard-step {
+      gap: 0.625rem;
+      padding: 0.5rem;
+    }
+
+    .analysis-wizard-content {
+      padding: 1.5rem;
+    }
+
+    .analysis-wizard-actions {
+      padding-inline: 1.5rem;
+    }
+  }
+}

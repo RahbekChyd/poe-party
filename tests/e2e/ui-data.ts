@@ -84,13 +84,18 @@ export async function mockApp(
   page: Page,
   workspace: 'poe1' | 'none' | 'guest' = 'guest',
   extraGroups: typeof groups = [],
-  options?: { runMapResult?: RunMapResult; profileTheme?: 'light' | 'dark' },
+  options?: {
+    runMapResult?: RunMapResult
+    profileTheme?: 'light' | 'dark'
+    membershipRole?: 'admin' | 'viewer'
+  },
 ) {
   if (workspace !== 'guest') {
     await seedSignedIn(page, workspace === 'none' ? null : groupId)
   }
 
   const fixtureGroups = [...groups, ...extraGroups]
+  const membershipRole = options?.membershipRole ?? 'admin'
   const now = Date.now()
   const result = options?.runMapResult
   const runMapHistory = result ? [680, 1040, 1450, 1710, 1960].map((total, index, values) => {
@@ -142,12 +147,12 @@ export async function mockApp(
       },
       group_members: query.get('select')?.includes('group:groups')
         ? workspace === 'none' ? [] : fixtureGroups.map((group) => ({
-            role: 'admin',
+            role: membershipRole,
             group: result !== undefined && group.id === groupId
               ? { ...group, name: runMapWorkspaceName, current_strategy_id: strategyId }
               : group,
           }))
-        : [{ role: 'admin', user: profile }],
+        : [{ role: membershipRole, user: profile }],
       gear_suggestions: query.has('id') ? gear : [gear],
       services: query.has('id') ? service : [service],
       strategies: query.has('id') ? activeStrategy : [activeStrategy],
@@ -184,6 +189,13 @@ export async function mockApp(
 }
 
 export const analysisWorkerTrace = 'Modules/Common.lua:1029: attempt to call method gsub (a nil value)\nstack traceback:\n/app/pob/run-analysis.lua:3828'
+export const analysisPobXml = `<PathOfBuilding>
+  <Build className="Witch" level="91" />
+  <Tree><Spec title="Mapping tree" /><Spec title="Bossing tree" /></Tree>
+  <Items><ItemSet id="1" title="Mapping gear" /></Items>
+  <Skills><SkillSet id="1" title="Fireball links" /></Skills>
+  <Config activeConfigSet="1"><ConfigSet id="1" title="Maps" /></Config>
+</PathOfBuilding>`
 export const recommendationIconPaths = {
   'Fixture Ward': '/gen/image/fixture-ward.png',
   'Fixture Band': '/image/Art/fixture-band.png',
@@ -195,9 +207,11 @@ export async function mockAnalysisRuns(page: Page, options?: {
   running?: boolean
   failed?: boolean
   notification?: 'completed' | 'partial'
+  secondNotification?: boolean
   icons?: boolean
+  membershipRole?: 'admin' | 'viewer'
 }) {
-  await mockApp(page, 'poe1')
+  await mockApp(page, 'poe1', [standardWorkspace], { membershipRole: options?.membershipRole })
   const characterId = '70000000-0000-0000-0000-000000000001'
   const targetId = '80000000-0000-0000-0000-000000000001'
   const stageId = '80000000-0000-0000-0000-000000000002'
@@ -207,13 +221,18 @@ export async function mockAnalysisRuns(page: Page, options?: {
   const submittedId = '90000000-0000-0000-0000-000000000004'
   const alternateReadyId = '90000000-0000-0000-0000-000000000005'
   const alternateFailedId = '90000000-0000-0000-0000-000000000006'
+  const secondReadyId = '90000000-0000-0000-0000-000000000007'
   const now = Date.now()
   const finished = new Date(now - 60_000).toISOString()
   const started = new Date(now - 10_000).toISOString()
+  const startedEarlier = new Date(now - 20_000).toISOString()
+  const otherTarget = '80000000-0000-0000-0000-000000000005'
   const target = {
     id: targetId, group_id: groupId, user_id: userId, character_id: characterId,
     created_by: userId, name: 'Fixture build', source_kind: 'pob_xml',
     compatibility_status: 'compatible', is_selected: true, selected_stage_id: stageId, created_at: finished,
+    import_metadata: { class_name: 'Witch', source_kind: 'pob_xml', tree_specs: [], item_sets: [], skill_sets: [], config_sets: [] },
+    raw_import: analysisPobXml, raw_xml: analysisPobXml,
   }
   const character = {
     id: characterId, user_id: userId, name: 'Fixture Witch', class: 'Witch', level: 91, is_active: true,
@@ -230,13 +249,33 @@ export async function mockAnalysisRuns(page: Page, options?: {
     const activeOnly = new URL(route.request().url()).searchParams.get('is_active') === 'eq.true'
     return route.fulfill({ json: options?.notification && !activeOnly ? [character, alternateCharacter] : [character] })
   })
+  let importedTarget: (Omit<typeof target, 'selected_stage_id'> & { selected_stage_id: string | null }) | null = null
   await page.route('**/rest/v1/build_targets?*', (route) => {
+    if (route.request().method() === 'POST') {
+      importedTarget = {
+        ...target,
+        ...route.request().postDataJSON(),
+        id: '80000000-0000-0000-0000-000000000006',
+        selected_stage_id: null,
+      }
+      return route.fulfill({ json: importedTarget })
+    }
     const idFilter = new URL(route.request().url()).searchParams.get('id')
-    const targets = options?.notification ? [target, alternateTarget] : [target]
+    const targets = [
+      ...(importedTarget ? [importedTarget] : []),
+      ...(options?.notification ? [target, alternateTarget] : [target]),
+    ]
     return route.fulfill({ json: idFilter ? targets.find(({ id }) => `eq.${id}` === idFilter) : targets })
   })
+  await page.route('**/rest/v1/rpc/set_selected_build_target', (route) => {
+    const id = route.request().postDataJSON()?.p_build_target_id
+    if (importedTarget && importedTarget.id === id) importedTarget = { ...importedTarget, is_selected: true }
+    return route.fulfill({ json: importedTarget?.id === id ? importedTarget : target })
+  })
   await page.route('**/rest/v1/build_target_stages?*', (route) => {
-    const isAlternate = new URL(route.request().url()).searchParams.get('build_target_id') === `eq.${alternateTarget.id}`
+    const targetFilter = new URL(route.request().url()).searchParams.get('build_target_id')
+    if (importedTarget && targetFilter === `eq.${importedTarget.id}`) return route.fulfill({ json: [] })
+    const isAlternate = targetFilter === `eq.${alternateTarget.id}`
     const selected = isAlternate ? alternateTarget : target
     return route.fulfill({ json: [{
       id: selected.selected_stage_id, build_target_id: selected.id, label: 'Current setup', primary_offensive_metric: 'totalDps',
@@ -248,24 +287,45 @@ export async function mockAnalysisRuns(page: Page, options?: {
     target_user_id: userId, character_id: characterId, queued_by: userId,
   }
   let submittedRun: Record<string, unknown> | null = null
+  let submissionError: { status: number; error: string } | null = null
+  let submissionBody: Record<string, unknown> | null = null
+  let reuseSubmission = false
+  let alternateStatus: 'running' | 'completed' | 'partial' = options?.notification ? 'running' : 'completed'
+  let secondStatus: 'running' | 'partial' = 'running'
+  const running = {
+    ...shared, id: runningId, build_target_id: otherTarget,
+    status: 'running', stale_reason: null as string | null,
+    started_at: startedEarlier, created_at: startedEarlier,
+    summary: { current_phase: { id: 'scoring_upgrades', started_at: startedEarlier } },
+  }
+  await page.route('**/rest/v1/rpc/cancel_upgrade_analysis_run', (route) => {
+    if (route.request().postDataJSON()?.p_run_id !== runningId) {
+      return route.fulfill({ status: 404, json: { error: 'Unknown fixture run' } })
+    }
+    running.status = 'stale'
+    running.stale_reason = 'user-cancelled'
+    return route.fulfill({ json: running })
+  })
   await page.route('**/functions/v1/poe-sync-character-profile', (route) => route.fulfill({ json: {} }))
   await page.route('**/functions/v1/queue-upgrade-analysis', (route) => {
-    submittedRun = { ...shared, id: submittedId, status: 'queued', created_at: new Date().toISOString() }
-    return route.fulfill({ json: { run: submittedRun, reused: false, worker_notified: true } })
+    submissionBody = route.request().postDataJSON()
+    if (submissionError) return route.fulfill({ status: submissionError.status, json: { error: submissionError.error } })
+    submittedRun = reuseSubmission ? null : {
+      ...shared, id: submittedId, status: 'queued', created_at: new Date().toISOString(),
+    }
+    const run = submittedRun ?? { ...shared, id: completedId, status: 'completed', created_at: finished, completed_at: finished }
+    return route.fulfill({ json: { run, reused: reuseSubmission, worker_notified: !reuseSubmission } })
   })
 
-  let historyRequests = 0
+  let recommendationRequests = 0
   await page.route('**/rest/v1/upgrade_analysis_runs?*', (route) => {
     const query = new URL(route.request().url()).searchParams
     const targetFilter = query.get('build_target_id')
-    if (targetFilter) historyRequests += 1
+    const idFilter = query.get('id')
     const completed = {
       ...shared, id: completedId, status: 'completed', started_at: finished,
-      completed_at: finished, created_at: finished, summary: { generated_plan_count: 3 },
-    }
-    const running = {
-      ...shared, id: runningId, status: 'running', started_at: started, created_at: started,
-      summary: { fixture_refresh: historyRequests },
+      completed_at: finished, created_at: finished,
+      summary: { generated_plan_count: 3, baseline_metrics: { totalDps: 500_000, totalEhp: 42_000 } },
     }
     const failed = {
       ...shared, id: failedId, status: 'failed', started_at: started, completed_at: started,
@@ -274,7 +334,7 @@ export async function mockAnalysisRuns(page: Page, options?: {
     const alternateRun = {
       ...completed, id: alternateReadyId, character_id: alternateCharacter.id,
       build_target_id: alternateTarget.id, target_stage_id: alternateTarget.selected_stage_id,
-      status: options?.notification ?? 'completed', created_at: started, completed_at: started,
+      status: alternateStatus, created_at: started, completed_at: alternateStatus === 'running' ? null : new Date().toISOString(),
     }
     const runs = [
       ...(submittedRun ? [submittedRun] : []),
@@ -284,12 +344,35 @@ export async function mockAnalysisRuns(page: Page, options?: {
         { ...alternateRun, id: alternateFailedId, status: 'failed', created_at: new Date(now - 5_000).toISOString() },
         alternateRun,
       ] : []),
+      ...(options?.secondNotification ? [{
+        ...completed, id: secondReadyId, build_target_id: otherTarget,
+        status: secondStatus, created_at: startedEarlier,
+        completed_at: secondStatus === 'running' ? null : new Date().toISOString(),
+      }] : []),
       completed,
-    ].filter((run) => !targetFilter || targetFilter === `eq.${run.build_target_id}`)
-    return route.fulfill({ json: runs })
+    ].filter((run) => (
+      (!query.has('group_id') || query.get('group_id') === `eq.${groupId}`)
+      && (!query.has('target_user_id') || query.get('target_user_id') === `eq.${userId}`)
+      && (!targetFilter || targetFilter === `eq.${run.build_target_id}`)
+      && (!idFilter || idFilter === `eq.${run.id}`)
+      && (!query.has('or') || (run.status !== 'failed' && !('stale_reason' in run && run.stale_reason === 'user-cancelled')))
+    )).map((run) => ({
+      ...run,
+      character: { name: run.character_id === alternateCharacter.id ? alternateCharacter.name : character.name },
+      target: { name: run.build_target_id === alternateTarget.id ? alternateTarget.name : target.name },
+      ...(run.status === 'completed' || run.status === 'partial'
+        ? { recommendation_count: 3, hit_dps: 500_000, effective_hit_pool: 42_000 }
+        : {}),
+    })).sort((left, right) =>
+      String(right.created_at).localeCompare(String(left.created_at)) || String(right.id).localeCompare(String(left.id)),
+    )
+    const offset = Number(query.get('offset') ?? 0)
+    const limit = Number(query.get('limit') ?? runs.length)
+    return route.fulfill({ json: runs.slice(offset, offset + limit) })
   })
 
   await page.route('**/rest/v1/upgrade_recommendation_plans?*', (route) => {
+    recommendationRequests += 1
     const runId = new URL(route.request().url()).searchParams.get('run_id')?.replace(/^eq\./, '')
     const recommendations = runId === completedId
       ? [
@@ -323,8 +406,17 @@ export async function mockAnalysisRuns(page: Page, options?: {
     }) })
   })
   return {
+    completedId,
+    runningId,
+    failedId,
+    submittedId,
     alternateReadyId,
-    countHistoryRequests: () => historyRequests,
+    countRecommendationRequests: () => recommendationRequests,
+    getSubmissionBody: () => submissionBody,
+    failSubmission: (error: { status: number; error: string } | null) => { submissionError = error },
+    reuseExistingRun: () => { reuseSubmission = true },
+    finishAlternateRun: () => { alternateStatus = options?.notification ?? 'completed' },
+    finishSecondRun: () => { secondStatus = 'partial' },
     completeSubmittedRun: () => {
       if (!submittedRun) throw new Error('No fixture analysis was queued')
       submittedRun = { ...submittedRun, status: 'completed', completed_at: new Date().toISOString() }

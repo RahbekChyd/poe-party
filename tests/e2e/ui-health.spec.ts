@@ -2,11 +2,11 @@ import { readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
 import { expect, groupId, test } from './fixture'
 import {
+  analysisPobXml,
   analysisWorkerTrace,
   characterName,
   gearId,
   groupName,
-  mockAnalysisRuns,
   mockApp,
   profileId,
   serviceId,
@@ -229,118 +229,37 @@ test('mobile dashboard menus reach secondary destinations', async ({ page }, tes
   await expect(page.getByRole('heading', { name: 'Today', level: 1 })).toBeVisible()
 })
 
-test('a changed account must be looked up again before public analysis can queue', async ({ page }) => {
+async function mockPublicAnalysisCharacter(page: Page) {
   await page.route('**/functions/v1/guest-list-characters', (route) => route.fulfill({ json: {
     account_name: 'Fixture#1234',
     characters: [{ name: 'FixtureWitch', realm: 'pc', class: 'Witch', level: 91, league: 'Covens' }],
   } }))
-  let queueCalls = 0
+}
+
+async function selectPublicAnalysisCharacter(page: Page) {
+  await page.getByRole('textbox', { name: /PoE account/i }).fill('Fixture#1234')
+  await page.getByRole('button', { name: 'Find characters' }).click()
+  await expect(page.getByText('FixtureWitch', { exact: true }).first()).toBeVisible()
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+}
+
+test('a changed account must be looked up again before public analysis can queue', async ({ page }) => {
+  await mockPublicAnalysisCharacter(page)
+  const queueRequests: unknown[] = []
   await page.route('**/functions/v1/guest-queue-upgrade-analysis', (route) => {
-    queueCalls += 1
+    queueRequests.push(route.request().postDataJSON())
     return route.fulfill({ status: 400, json: { error: 'Unexpected queue request' } })
   })
 
   await page.goto('/preview/analysis')
-  const account = page.getByRole('textbox', { name: /PoE account/i })
-  const queue = page.getByRole('button', { name: 'Run Quick analysis' })
-  await account.fill('Fixture#1234')
-  await page.getByRole('button', { name: 'Find characters' }).click()
-  await expect(page.getByText('FixtureWitch', { exact: true }).first()).toBeVisible()
-  await page.getByRole('textbox', { name: 'PoB import' }).fill('<PathOfBuilding><Build className="Witch" /></PathOfBuilding>')
-  await expect(queue).toBeEnabled()
+  await selectPublicAnalysisCharacter(page)
+  await expect(page.getByRole('heading', { name: 'Import a PoB target', exact: true })).toBeVisible()
 
-  await account.fill('AnotherAccount#4321')
+  await page.getByRole('button', { name: 'Back', exact: true }).click()
+  await page.getByRole('textbox', { name: /PoE account/i }).fill('AnotherAccount#4321')
   await expect(page.getByText('FixtureWitch', { exact: true })).toHaveCount(0)
-  await expect(queue).toBeDisabled()
-  expect(queueCalls).toBe(0)
-})
-
-test('selecting a completed analysis remains active when a newer run refreshes', async ({ page }) => {
-  const { countHistoryRequests } = await mockAnalysisRuns(page, { running: true })
-
-  await page.goto('/dashboard/analysis')
-  await page.bringToFront()
-  const run = page.getByRole('region', { name: 'Analysis run', exact: true })
-  await expect(run.getByRole('status').filter({ hasText: 'Analysis running' })).toBeVisible()
-  await page.getByRole('button', { name: 'Run history', exact: true }).click()
-  const completed = page.getByRole('button', { name: /completed.*quick/i })
-  const running = page.getByRole('button', { name: /running.*quick/i })
-  await expect(running).toBeVisible()
-  await expect(running).toHaveAttribute('aria-pressed', 'false')
-  await completed.click()
-  await expect(completed).toHaveAttribute('aria-pressed', 'true')
-  await expect(running).toHaveAttribute('aria-pressed', 'false')
-  await expect(page.getByRole('region', { name: 'Recommendations', exact: true })
-    .getByRole('button', { name: 'View Fixture Ward', exact: true })).toBeVisible()
-  const initialRequests = countHistoryRequests()
-  await expect.poll(countHistoryRequests, { timeout: 15_000 }).toBeGreaterThan(initialRequests)
-  await expect(completed).toHaveAttribute('aria-pressed', 'true')
-  await expectContained(page)
-})
-
-test('Analysis opens fresh and shows safe failure copy when a saved run is selected', async ({ page }, testInfo) => {
-  const { completeSubmittedRun } = await mockAnalysisRuns(page, { failed: true })
-  const errors: string[] = []
-  page.on('pageerror', (error) => errors.push(error.message))
-
-  await page.goto('/dashboard/analysis')
-  const setup = page.getByRole('heading', { name: 'Analysis setup', exact: true })
-  const history = page.getByRole('button', { name: 'Run history', exact: true })
-  const failedRun = page.getByRole('button', { name: /failed.*quick/i })
-  const completedRun = page.getByRole('button', { name: /completed.*quick/i })
-  const failure = page.getByRole('alert').filter({ hasText: 'Exact analysis failed' })
-  const recommendation = page.getByRole('button', { name: 'View Fixture Ward', exact: true })
-  const trace = page.getByText(/Modules\/Common\.lua|stack traceback|Worker detail|\/app\/pob/)
-
-  await expect(setup).toBeVisible()
-  await expect(failure).toHaveCount(0)
-  await expect(recommendation).toHaveCount(0)
-  await history.click()
-  await expect(failedRun).toHaveAttribute('aria-pressed', 'false')
-  await expect(completedRun).toHaveAttribute('aria-pressed', 'false')
-  await expect(trace).toHaveCount(0)
-
-  await failedRun.click()
-  await expect(failedRun).toHaveAttribute('aria-pressed', 'true')
-  await expect(failure).toHaveCount(1)
-  await expect(failure).toContainText('Try running the analysis again.')
-  await expect(trace).toHaveCount(0)
-  await expectContained(page)
-  await failure.scrollIntoViewIfNeeded()
-  await page.screenshot({ path: testInfo.outputPath('analysis-failed-history.png'), animations: 'disabled' })
-
-  await completedRun.click()
-  await expect(recommendation).toBeVisible()
-  await expect(failure).toHaveCount(0)
-
-  const nav = page.getByRole('navigation', { name: 'Primary dashboard' })
-  await nav.getByRole('link', { name: 'Today', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Today', level: 1 })).toBeVisible()
-  if (testInfo.project.name === 'chromium-mobile') {
-    await nav.getByRole('button', { name: 'Builds', exact: true }).tap()
-    await page.getByRole('menuitem', { name: 'Analysis', exact: true }).tap()
-  } else {
-    await nav.getByRole('link', { name: 'Analysis', exact: true }).click()
-  }
-  await expect(setup).toBeVisible()
-  await expect(recommendation).toHaveCount(0)
-  await expect(failure).toHaveCount(0)
-  await expect(history).toHaveAttribute('aria-expanded', 'false')
-  await page.screenshot({ path: testInfo.outputPath('analysis-fresh-entry.png'), animations: 'disabled' })
-  await history.click()
-  await expect(completedRun).toHaveAttribute('aria-pressed', 'false')
-  await expect(failedRun).toBeVisible()
-  await expect(trace).toHaveCount(0)
-  await expectContained(page)
-
-  await history.click()
-  await page.getByRole('button', { name: 'Run analysis', exact: true }).click()
-  await page.bringToFront()
-  await expect(page.getByRole('status').filter({ hasText: 'Analysis queued' })).toBeVisible()
-  completeSubmittedRun()
-  await expect(page.getByRole('button', { name: 'View New Fixture Ward', exact: true })).toBeVisible({ timeout: 15_000 })
-  await expect(recommendation).toHaveCount(0)
-  expect(errors).toEqual([])
+  await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeDisabled()
+  expect(queueRequests).toEqual([])
 })
 
 test('public Analysis displays a retry message for a failed saved run', async ({ page }) => {
@@ -361,36 +280,81 @@ test('public Analysis displays a retry message for a failed saved run', async ({
   await expectContained(page)
 })
 
-test('a saved public analysis shows progress followed by results above setup', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('poe-party:guest-analysis-run-token:v1', 'fixture-run-token'))
-  const started = new Date().toISOString()
-  let completed = false
-  await page.route('**/functions/v1/guest-upgrade-analysis-status', (route) => route.fulfill({ json: {
-    run: {
-      id: 'fixture-public-run', character_name: 'FixtureWitch', target_name: 'Fixture target',
-      character_league: 'Covens', status: completed ? 'completed' : 'running',
-      created_at: started, started_at: started, completed_at: completed ? started : null,
-    },
-    plans: route.request().postDataJSON()?.include_results ? [{
-      id: 'fixture-public-recommendation', title: 'Fixture Ward', section: 'primary',
-      items: [{ id: 'fixture-public-item', item_name: 'Fixture Ward', slot: 'Body Armour', source: 'compare' }],
-    }] : [],
-  } }))
-  await page.goto('/preview/analysis')
-  await page.bringToFront()
-  const run = page.getByRole('region', { name: 'Current public run', exact: true })
-  await expect(run).toContainText('FixtureWitch compared with Fixture target')
-  await expect(run.getByText('Running', { exact: true })).toBeVisible()
-  await expect(page.getByText('Analysis in progress', { exact: true })).toBeVisible()
-  completed = true
+test('the public wizard validates the PoB and resumes one run through completion and expiry', async ({ page }, testInfo) => {
+  await mockPublicAnalysisCharacter(page)
+  const createdAt = new Date().toISOString()
+  const runToken = 'fixture-public-analysis-run-token'
+  const run = {
+    id: 'fixture-public-run', character_name: 'FixtureWitch', target_name: 'Fixture target',
+    character_league: 'Covens', created_at: createdAt, started_at: createdAt,
+  }
+  let status: 'running' | 'completed' | 'expired' = 'running'
+  const statusRequests: Array<{ include_results: boolean; run_token: string }> = []
+  await page.route('**/functions/v1/guest-queue-upgrade-analysis', (route) => {
+    expect(route.request().postDataJSON()).toMatchObject({
+      account_name: 'Fixture#1234', character_name: 'FixtureWitch',
+      tree_spec_id: 'Bossing tree', item_set_id: '1', skill_set_id: '1', config_set_id: '1',
+    })
+    return route.fulfill({ json: { run: { ...run, status: 'queued' }, run_token: runToken } })
+  })
+  await page.route('**/functions/v1/guest-upgrade-analysis-status', (route) => {
+    const request = route.request().postDataJSON()
+    statusRequests.push(request)
+    if (status === 'expired') return route.fulfill({
+      status: 404, json: { error: 'Public Analysis run not found or expired.', code: 'guest_run_not_found' },
+    })
+    return route.fulfill({ json: {
+      run: {
+        ...run, status, completed_at: status === 'completed' ? new Date().toISOString() : null,
+        summary: { current_phase: { id: 'scoring_upgrades', started_at: createdAt } },
+      },
+      plans: request.include_results && status === 'completed' ? [{
+        id: 'fixture-public-recommendation', title: 'Fixture Ward', section: 'primary',
+        items: [{ id: 'fixture-public-item', item_name: 'Fixture Ward', slot: 'Body Armour', source: 'compare' }],
+      }] : [],
+    } })
+  })
 
-  await expect(run.getByText('Completed', { exact: true })).toBeVisible({ timeout: 15_000 })
-  const results = page.getByText('Recommendations', { exact: true })
-  const setup = page.getByRole('heading', { name: 'Find a character', exact: true })
-  await expect(results).toBeVisible()
-  expect((await run.boundingBox())!.y).toBeLessThan((await results.boundingBox())!.y)
-  expect((await results.boundingBox())!.y).toBeLessThan((await setup.boundingBox())!.y)
-  await run.getByRole('link', { name: 'Analysis setup', exact: true }).press('Enter')
-  await expect(setup).toBeInViewport()
+  await page.goto('/preview/analysis')
+  await selectPublicAnalysisCharacter(page)
+  const targetInput = page.getByRole('textbox', { name: 'PoB import', exact: true })
+  const parse = page.getByRole('button', { name: 'Read PoB and continue', exact: true })
+  await targetInput.fill('<PathOfBuilding><Build></PathOfBuilding>')
+  await parse.click()
+  await expect(page.getByRole('alert')).toBeVisible()
+  await targetInput.fill(analysisPobXml)
+  await parse.click()
+  await expect(page.getByRole('heading', { name: 'Choose PoB setup', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: /Tree.*Mapping tree|Mapping tree.*Tree/i }).click()
+  await page.getByRole('option', { name: 'Bossing tree', exact: true }).click()
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Review analysis', exact: true })).toBeVisible()
+  await expect(page.getByText('Bossing tree', { exact: true })).toBeVisible()
   await expectContained(page)
+  await page.screenshot({ path: testInfo.outputPath('public-analysis-review.png'), animations: 'disabled' })
+  await page.getByRole('button', { name: 'Run Quick analysis' }).click()
+
+  const current = page.getByRole('region', { name: 'Current public run', exact: true })
+  await expect(current).toBeVisible()
+  await page.reload()
+  await page.bringToFront()
+  await expect(current).toContainText('FixtureWitch')
+  await expect(page.getByText('Analysis in progress', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Find a character' })).toHaveCount(0)
+  await expect(page.getByText('Recommendations', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Analysis ready', exact: true })).toHaveCount(0)
+  expect(statusRequests.length).toBeGreaterThan(0)
+  expect(statusRequests.every((request) => request.run_token === runToken && request.include_results === false)).toBe(true)
+  expect(page.url()).not.toContain(runToken)
+
+  status = 'completed'
+  await expect(page.getByText('Recommendations', { exact: true })).toBeVisible({ timeout: 15_000 })
+  expect(statusRequests.some((request) => request.include_results)).toBe(true)
+  await expectContained(page)
+
+  status = 'expired'
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Find a character', exact: true })).toBeVisible()
+  await expect(page.getByText(/analysis is no longer available/i)).toBeVisible()
+  await expect(current).toHaveCount(0)
 })
