@@ -1,4 +1,4 @@
-import { useLatestSnapshots } from '../../hooks/useSnapshots'
+import { useLatestSnapshots, type LatestSnapshot } from '../../hooks/useSnapshots'
 import { comparablePricing } from '../../lib/snapshot-pricing'
 import { useMemo, useState } from 'react'
 import { Button } from '@heroui/react/button'
@@ -26,6 +26,7 @@ import { useStashSnapshotFlow } from '../../hooks/useStashSnapshotFlow'
 import {
   calculateChaosPerHour,
   calculateTrendStats,
+  formatCurrencyAmount,
   getAvatarColor,
   snapshotAge,
 } from '../../lib/utils'
@@ -57,6 +58,21 @@ const SNAPSHOT_INTERVAL_OPTIONS: { value: SnapshotIntervalHours; label: string }
   { value: 3, label: 'Every 3 hours' },
   { value: 6, label: 'Every 6 hours' },
 ]
+
+function isValidDivineRate(rate: number | null | undefined): rate is number {
+  return rate != null && Number.isFinite(rate) && rate > 0
+}
+
+function latestSnapshotDivineRate(snapshots: LatestSnapshot[]): number | null {
+  let latest: { rate: number; completedAt: string } | null = null
+  for (const { completed_at, pricing_summary } of snapshots) {
+    const rate = pricing_summary?.divine_price
+    if (isValidDivineRate(rate) && completed_at && (!latest || completed_at > latest.completedAt)) {
+      latest = { rate, completedAt: completed_at }
+    }
+  }
+  return latest?.rate ?? null
+}
 
 export function EconomyPage() {
   const { game, league } = useActiveGroupContext()
@@ -92,29 +108,22 @@ function Poe1EconomyPage() {
   const isPro = hasActiveProAccess(myProfile)
   const canSnapshot = !!myProfile?.poe_token_expires_at && !!activeLeague
 
-  // Live divine price from poe.ninja — 30 min stale time
   const { data: ninjaData } = useNinjaPrices(activeLeague)
-  const divinePrice = ninjaData?.divinePrice ?? null
+  const liveDivineRate = ninjaData?.divinePrice
+  const hasLiveRate = isValidDivineRate(liveDivineRate)
+  const divinePrice = hasLiveRate ? liveDivineRate : latestSnapshotDivineRate(latestSnapshots ?? [])
+  const displayDivineRate = display === 'divine' ? divinePrice : null
 
   const handleSnapshot = () => {
     if (!activeGroupId || !activeLeague) return
     triggerSnapshot(activeGroupId, activeLeague)
   }
 
-  // Format a chaos value according to the current display mode
-  const fmt = (chaos: number): string => {
-    if (display === 'divine' && divinePrice != null && divinePrice > 0) {
-      return `${(chaos / divinePrice).toFixed(1)} div`
-    }
-    return `${Math.round(chaos).toLocaleString()}c`
-  }
+  const fmt = (chaos: number) => formatCurrencyAmount(chaos, display, divinePrice ?? Number.NaN)
 
-  const fmtRate = (chaos: number): string => {
-    if (display === 'divine' && divinePrice != null && divinePrice > 0) {
-      return `${(chaos / divinePrice).toFixed(1)} div/hr`
-    }
-    return `${Math.round(chaos).toLocaleString()} chaos/hr`
-  }
+  const fmtRate = (chaos: number) => displayDivineRate != null
+    ? `${fmt(chaos)}/hr`
+    : `${Math.round(chaos).toLocaleString()} chaos/hr`
 
   const fmtDelta = (chaos: number): string => {
     if (chaos === 0) return fmt(0)
@@ -229,7 +238,11 @@ function Poe1EconomyPage() {
                       ? 'Could not load pricing coverage'
                       : 'Pricing coverage not recorded for every capture'}
               </p>
-              <p className="text-default-600 text-xs">{divinePrice == null ? 'Divine conversion unavailable' : `1 div = ${divinePrice.toFixed(0)}c`}</p>
+              <p className="text-default-600 text-xs">
+                {divinePrice == null
+                  ? 'Divine conversion unavailable'
+                  : `1 div = ${divinePrice.toFixed(0)}c${hasLiveRate ? '' : ' · snapshot rate'}`}
+              </p>
             </>
           )}
           actions={
@@ -389,7 +402,7 @@ function Poe1EconomyPage() {
                   <ResponsiveContainer width="100%" height={200}>
                     <AreaChart
                       data={visibleGroupHistory}
-                      title="Group wealth in chaos orbs"
+                      title={displayDivineRate != null ? 'Group wealth in divine orbs' : 'Group wealth in chaos orbs'}
                       desc="Use the left and right arrow keys to read snapshot values."
                       margin={{ top: 4, right: 12, left: 0, bottom: 0 }}
                     >
@@ -412,11 +425,11 @@ function Poe1EconomyPage() {
                       />
                       <YAxis
                         tickFormatter={formatWealthAxisTick}
-                        unit="c"
+                        unit={displayDivineRate != null ? ' div' : 'c'}
                         tick={{ fontSize: 10, fill: 'var(--muted-text)' }}
                         axisLine={false}
                         tickLine={false}
-                        width={44}
+                        width={displayDivineRate != null ? 'auto' : 44}
                       />
                       <RechartsTooltip
                         content={({ active, payload }) => {
@@ -453,7 +466,7 @@ function Poe1EconomyPage() {
                       <Area
                         type="monotone"
                         isAnimationActive={false}
-                        dataKey="total_wealth_chaos"
+                        dataKey={(point: GroupWealthDataPoint) => point.total_wealth_chaos / (displayDivineRate ?? 1)}
                         stroke="var(--wealth-series)"
                         fill="url(#groupWealthGrad)"
                         strokeWidth={2}
@@ -513,7 +526,7 @@ function Poe1EconomyPage() {
                             <Link
                               to="/dashboard/economy/$userId"
                               params={{ userId: row.user_id }}
-                              className="flex min-w-0 items-center gap-2 rounded-sm hover:underline"
+                              className="flex min-w-0 items-center gap-2 rounded-sm"
                             >
                               <UserAvatar
                                 className="shrink-0"
@@ -565,7 +578,7 @@ function Poe1EconomyPage() {
                                 <span key={t.name} className="bg-default-100 text-default-600 max-w-full rounded-md px-2 py-1 text-xs wrap-anywhere">
                                   {t.name}
                                   <span className="text-default-400 ml-1 inline-block max-w-full text-xs tabular-nums">
-                                    {Math.round(t.value).toLocaleString()}c
+                                    {fmt(t.value)}
                                   </span>
                                 </span>
                               ))}

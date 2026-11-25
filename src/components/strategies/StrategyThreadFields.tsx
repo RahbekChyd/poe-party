@@ -8,9 +8,11 @@ import { Label } from '@heroui/react/label'
 import { Plus, Trash2 } from 'lucide-react'
 import { Controller, useFieldArray, useWatch } from 'react-hook-form'
 import type { ThreadEntry, ThreadMarket } from '../../hooks/useThreadData'
-import { FieldInput, ListBox, NativeCheckbox } from '../ui/heroui-native'
-import { formatChaosValue, toFieldStringValue } from './strategy-form'
+import { ListBox, NativeCheckbox, SelectField } from '../ui/heroui-native'
+import { formatChaosValue } from './strategy-form'
 import type { StrategyFieldProps } from './StrategyFormFields'
+
+const THREAD_QUANTITIES = ['1', '2', '3', '4', '5', '6', '7', '8']
 
 function ThreadIcon({ entry }: { entry: ThreadEntry | undefined }) {
   return (
@@ -256,23 +258,25 @@ export function StrategyThreadFields({
               control={control}
               name={`threads.${index}.quantity`}
               render={({ field: quantityField }) => (
-                <FieldInput
-                  ref={quantityField.ref}
+                <SelectField
                   name={quantityField.name}
-                  placeholder="Qty"
                   aria-label="Thread quantity"
-                  min={1}
-                  max={8}
-                  step={1}
-                  type="number"
-                  size="sm"
-                  className="w-20 shrink-0"
+                  className="w-20"
                   isInvalid={!!errors.threads?.[index]?.quantity}
                   errorMessage={errors.threads?.[index]?.quantity?.message}
-                  value={toFieldStringValue(quantityField.value)}
-                  onValueChange={quantityField.onChange}
+                  selectedKey={String(quantityField.value)}
+                  onSelectionChange={(key) => {
+                    if (typeof key === 'string') quantityField.onChange(Number(key))
+                  }}
                   onBlur={quantityField.onBlur}
-                />
+                >
+                  {THREAD_QUANTITIES.map((quantity) => (
+                    <ListBox.Item key={quantity} id={quantity} textValue={quantity}>
+                      {quantity}
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ))}
+                </SelectField>
               )}
             />
             <ThreadCost amount={cost} />
