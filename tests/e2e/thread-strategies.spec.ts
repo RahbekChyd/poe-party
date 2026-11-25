@@ -106,11 +106,21 @@ async function chooseThread(page: Page, input: Locator, name: string) {
   await expect(input).toHaveValue(name)
 }
 
+function threadQuantities(scope: Page | Locator) {
+  return scope.getByRole('button', { name: /\bThread quantity$/i })
+}
+
+async function chooseQuantity(page: Page, trigger: Locator, quantity: string) {
+  await trigger.click()
+  await page.getByRole('option', { name: quantity, exact: true }).click()
+  await expect(trigger).toHaveText(quantity)
+}
+
 async function addThread(page: Page, scope: Locator, name: string, quantity: string) {
   await scope.getByRole('button', { name: 'Add thread', exact: true }).click()
   const input = scope.getByPlaceholder('Thread name', { exact: true }).last()
   await chooseThread(page, input, name)
-  await scope.getByRole('spinbutton', { name: 'Thread quantity' }).last().fill(quantity)
+  await chooseQuantity(page, threadQuantities(scope).last(), quantity)
 }
 
 test('editor preserves legacy Threads and validates changed selections', async ({ page }) => {
@@ -122,7 +132,8 @@ test('editor preserves legacy Threads and validates changed selections', async (
   await page.getByRole('button', { name: 'Edit setup', exact: true }).click()
 
   const name = page.getByRole('textbox', { name: 'Name', exact: true })
-  const quantities = page.getByRole('spinbutton', { name: 'Thread quantity' })
+  const quantities = threadQuantities(page)
+  await expect(quantities).toHaveText(['2', '1', '1', '1'])
   const save = page.getByRole('button', { name: 'Save Changes', exact: true })
   await name.fill('Renamed legacy setup')
   await save.click()
@@ -131,7 +142,7 @@ test('editor preserves legacy Threads and validates changed selections', async (
   expect(updates[0]).not.toHaveProperty('scarabs')
   expect(updates[0]).not.toHaveProperty('map_requirements')
 
-  await quantities.first().fill('8')
+  await chooseQuantity(page, quantities.first(), '8')
   await save.click()
   await expect(page.getByRole('alert').filter({ hasText: /(?:3|three) Thread types/i })).toBeVisible()
   expect(updates).toHaveLength(1)
@@ -143,8 +154,8 @@ test('editor preserves legacy Threads and validates changed selections', async (
   expect(updates).toHaveLength(1)
 
   await chooseThread(page, names.nth(1), 'Legion Thread')
-  await quantities.nth(1).fill('8')
-  await quantities.nth(2).fill('8')
+  await chooseQuantity(page, quantities.nth(1), '8')
+  await chooseQuantity(page, quantities.nth(2), '8')
   await page.getByRole('spinbutton', { name: 'Atlas Drops' }).fill('60')
   await save.click()
   await expect.poll(() => updates.length).toBe(2)
@@ -210,7 +221,14 @@ test('PoE1 wizard preserves its draft and saves a full setup in one insert', asy
   await expect(option).toContainText(/4\s*c/)
   await expect(option.locator('img')).toHaveAttribute('src', /\/Threads\/BreachThread\.png$/)
   await option.click()
-  await dialog.getByRole('spinbutton', { name: 'Thread quantity' }).fill('8')
+  const quantity = threadQuantities(dialog).first()
+  await expect(quantity).toHaveText('1')
+  await quantity.press('Enter')
+  await expect(page.getByRole('option')).toHaveText(['1', '2', '3', '4', '5', '6', '7', '8'])
+  await page.keyboard.press('End')
+  await page.keyboard.press('Enter')
+  await expect(quantity).toHaveText('8')
+  await expect(dialog.getByText('~ 32c', { exact: true }).first()).toBeVisible()
   await addThread(page, dialog, 'Legion Thread', '8')
   await addThread(page, dialog, 'Abyss Thread', '8')
   expect(creates).toHaveLength(0)
@@ -222,6 +240,7 @@ test('PoE1 wizard preserves its draft and saves a full setup in one insert', asy
   await save.click()
   await expect(dialog.getByRole('alert').filter({ hasText: /could not create/i })).toBeVisible()
   await expect(picker.first()).toHaveValue('Breach Thread')
+  await expect(quantity).toHaveText('8')
   await save.click()
 
   await expect(page).toHaveURL(new RegExp(`/dashboard/strategies/${strategyId}$`))

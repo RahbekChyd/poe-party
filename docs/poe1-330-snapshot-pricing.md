@@ -18,6 +18,9 @@ league still identifies the stash and workspace. When the account metadata or ma
 market is unavailable, capture still completes and prices remain unknown.
 Requests use bounded concurrency, timeouts, conditional HTTP caching and a
 descriptive server User-Agent. Divine conversion uses a quoted exchange rate.
+The signed-in Economy overview prefers the live league rate, then the newest
+valid rate from current member snapshots. If both are unavailable, it displays
+amounts in Chaos Orbs.
 
 Exchange identities are exact names. Equipment is never priced by that lookup.
 Supported stash matchers require the available variant identity: unique base and

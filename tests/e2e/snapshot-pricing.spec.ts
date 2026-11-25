@@ -11,10 +11,10 @@ const exclusionItems = [
 
 type Item = typeof items[number]
 type PricingStatus = 'complete' | 'partial' | 'unavailable'
-async function mockCapture(page: Page, status: PricingStatus = 'complete', rows: Item[] = items) {
+async function mockCapture(page: Page, status: PricingStatus = 'complete', rows: Item[] = items, divineRate: number | null = null) {
   const captureItems = status === 'unavailable' ? rows.map((item) => ({ ...item, price_chaos: null })) : rows
   const captureSummary = {
-    ...summary, status,
+    ...summary, status, divine_price: divineRate,
     priced_item_count: captureItems.filter((item) => item.price_chaos !== null).length,
     unpriced_item_count: captureItems.filter((item) => item.price_chaos === null).length,
     failed_categories: status === 'complete' ? [] : ['Currency'],
@@ -312,6 +312,86 @@ test('Economy keeps the value intact and restores snapshot schedule focus', asyn
   await expect(dialog).toHaveCount(0)
   await expect(trigger).toBeFocused()
 })
+
+for (const source of ['live', 'snapshot', 'unavailable'] as const) {
+  test(`Economy follows the currency preference with ${source} conversion`, async ({ page }, testInfo) => {
+    await mockCapture(page, 'complete', [{ ...items[0], price_chaos: 800 }], source === 'unavailable' ? null : 200)
+    if (source === 'live') {
+      await page.route('**/api/ninja/**', (route) => {
+        const type = new URL(route.request().url()).searchParams.get('type')
+        return route.fulfill({ json: {
+          core: { primary: 'chaos', rates: { divine: 0.01 }, items: [{ id: 'divine', name: 'Divine Orb' }] },
+          lines: [],
+          items: [],
+          ...(type !== 'Currency' && { core: { primary: 'chaos' } }),
+        } })
+      })
+    }
+    await page.route('**/rest/v1/group_wealth_history?*', (route) => route.fulfill({
+      json: [400, 800].map((wealth, index) => ({
+        id: `history-${index}`,
+        created_at: index === 0 ? '2026-11-17T22:00:00Z' : '2026-11-18T00:00:00Z',
+        total_wealth_chaos: wealth,
+        member_count: 1,
+        triggered_by_user_id: userId,
+        member_wealth_breakdown: [{ user_id: userId, display_name: 'Fixture', total_chaos: wealth }],
+        pricing_summary: summary,
+      })),
+    }))
+    await page.goto('/dashboard/economy')
+
+    const mobile = testInfo.project.name === 'chromium-mobile'
+    const selectCurrency = async (unit: 'Divine' | 'Chaos') => {
+      if (mobile) {
+        await page.getByRole('button', { name: 'Account menu', exact: true }).click()
+        await page.getByRole('menuitem', { name: `Show amounts in ${unit} Orbs`, exact: true }).click()
+      } else {
+        await page.getByRole('radio', { name: unit, exact: true }).click()
+      }
+    }
+    const total = page.locator('.workspace-lead-amount')
+    const members = page.getByRole('region', { name: 'Member breakdown', exact: true })
+    const memberLink = members.getByRole('link', { name: /Fixture/ })
+    const memberValue = members.locator('[data-cell="value"]')
+    const tabValue = members.locator('[data-cell="tabs"]')
+    const rateLabel = source === 'live' ? '1 div = 100c'
+      : source === 'snapshot' ? '1 div = 200c · snapshot rate'
+        : 'Divine conversion unavailable'
+    await expect(page.getByText(rateLabel, { exact: true })).toBeVisible()
+    await expect(total).toHaveText('800c')
+
+    await selectCurrency('Divine')
+    const rate = source === 'live' ? 100 : 200
+    const converted = source !== 'unavailable'
+    const displayed = (wealth: number) => converted ? `${(wealth / rate).toFixed(1)} div` : `${wealth}c`
+    await expect(total).toHaveText(displayed(800))
+    await expect(memberValue).toContainText(displayed(800))
+    await expect(tabValue).toContainText(displayed(800))
+    await expect(page.getByText(converted ? `${(200 / rate).toFixed(1)} div/hr` : '200 chaos/hr', { exact: true })).toBeVisible()
+    await expect(page.getByText(`+${displayed(400)} · +100.0%`, { exact: true })).toBeVisible()
+
+    const chart = page.getByRole('application', { name: `Group wealth in ${converted ? 'divine' : 'chaos'} orbs` })
+    await expect(chart.locator('.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value').first()).toHaveText(converted ? / div$/ : /c$/)
+    await chart.focus()
+    const tooltip = page.locator('.recharts-tooltip-wrapper').getByRole('status')
+    await expect(tooltip).toContainText(`Fixture: ${displayed(400)}`)
+    await chart.press('ArrowRight')
+    await expect(tooltip).toContainText(`Fixture: ${displayed(800)}`)
+
+    await selectCurrency('Chaos')
+    await expect(total).toHaveText('800c')
+    await expect(memberValue).toContainText('800c')
+    await expect(tabValue).toContainText('800c')
+    await expect(page.getByRole('application', { name: 'Group wealth in chaos orbs' })).toBeVisible()
+
+    if (source === 'live' && !mobile) {
+      await memberLink.hover()
+      await expect(memberLink).toHaveCSS('text-decoration-line', 'none')
+      await memberLink.press('Enter')
+      await expect(page).toHaveURL(new RegExp(`/dashboard/economy/${userId}$`))
+    }
+  })
+}
 
 for (const route of ['/dashboard/economy', '/dashboard']) {
   for (const status of ['partial', 'unavailable'] as const) {
