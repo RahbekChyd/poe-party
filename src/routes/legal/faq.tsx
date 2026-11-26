@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { FaqPage } from '../../components/legal/FaqPage'
+import { FREE_DAILY_UPGRADE_ANALYSIS_LIMIT, PLAN_PRICE_LABELS, SNAPSHOT_LIMITS } from '../../lib/billing'
 import { createPublicSeoHead } from '../../lib/public-seo-head'
 import { GITHUB_URL } from '../../lib/seo'
 const faqJsonLd = {
@@ -72,10 +73,18 @@ const faqJsonLd = {
     },
     {
       '@type': 'Question',
+      name: 'Why does the Community plan have limits?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'PoE Party is an open-source passion project. Keeping full stash snapshots uses database storage, and running upgrade analyses uses computing time. Community limits keep those costs manageable so the app can stay free to use. The optional Supporter subscription helps cover the extra cost if you need more capacity.',
+      },
+    },
+    {
+      '@type': 'Question',
       name: 'What changes if I become a Supporter?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Supporter costs $5/month and helps fund hosting, optimizer worker capacity, public tools, and ongoing open-source development. It includes up to 15 retained raw snapshots, interval/Mix snapshot scheduling, and no app-enforced daily authenticated upgrade-analysis queue cap. Community includes 5 retained raw snapshots and 3 authenticated upgrade-analysis queues per UTC day.',
+        text: `PoE Party is an open-source passion project. The optional Supporter subscription costs ${PLAN_PRICE_LABELS.pro} and helps cover additional storage and computing costs. It includes up to ${SNAPSHOT_LIMITS.pro} retained raw snapshots, Mix mode for interval-based snapshots, and no app-enforced daily signed-in upgrade-analysis queue cap. Community includes ${SNAPSHOT_LIMITS.free} retained raw snapshots and ${FREE_DAILY_UPGRADE_ANALYSIS_LIMIT} signed-in upgrade-analysis queues per UTC day.`,
       },
     },
     {

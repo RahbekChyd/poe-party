@@ -101,7 +101,7 @@ export function SupportPage() {
     <DashboardPage className="max-w-5xl">
       <DashboardPageHeader
         title="Support PoE Party"
-        description="Supporter subscriptions help fund hosting and open-source development."
+        description="I run PoE Party as an open-source passion project. Community limits keep storage and computing costs manageable so the app can stay free to use. If you need more capacity, an optional Supporter subscription helps cover the extra cost."
         actions={
           <Chip className="px-2" variant="soft">
             Current: {isPro ? 'Supporter' : 'Community'}

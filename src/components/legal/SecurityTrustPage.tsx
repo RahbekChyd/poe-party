@@ -144,10 +144,10 @@ export function SecurityTrustPage() {
 
       <h2>10. Why Limits Exist</h2>
       <p>
-        Snapshot retention and authenticated upgrade-analysis queues have limits because they use
-        shared database storage, worker time, and hosted compute capacity. Community access keeps
-        core workspace and public/community features available, while Supporter capacity helps fund
-        the higher-retention and scheduled-workload paths.
+        PoE Party is an open-source passion project. Community limits on stash snapshot retention
+        and signed-in upgrade analyses keep database storage and computing costs manageable. The
+        optional Supporter subscription helps cover the cost of keeping more snapshots, running
+        them on a schedule, and queuing more analyses.
       </p>
       <p>
         Public Analysis is separate: it remains limited to one public quick run per PoE account per

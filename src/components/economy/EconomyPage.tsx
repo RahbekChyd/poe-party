@@ -310,7 +310,12 @@ function Poe1EconomyPage() {
                     ) : (
                       <p className="text-default-500 text-xs">
                         {isPro ? 'Mix takes snapshots on demand and at regular intervals.' : (
-                          <><Link to="/dashboard/support" className="text-brand-readable hover:underline">Supporter access</Link> enables scheduled snapshots.</>
+                          <>
+                            <Link to="/dashboard/support" className="text-brand-readable underline underline-offset-2">
+                              Optional Supporter access
+                            </Link>{' '}
+                            enables scheduled snapshots and helps cover their processing and storage costs.
+                          </>
                         )}
                       </p>
                     )}
