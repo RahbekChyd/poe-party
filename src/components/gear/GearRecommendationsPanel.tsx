@@ -12,7 +12,7 @@ import { Spinner } from '@heroui/react/spinner'
 import { ToggleButton } from '@heroui/react/toggle-button'
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group'
 import { ArrowLeft, ArrowRight, Check, ChevronDown, Circle, Info, Trash2, X } from 'lucide-react'
-import { useCurrentUser } from '../../hooks/useCurrentUser'
+import { useCurrentUser, useMyProfile } from '../../hooks/useCurrentUser'
 import { useActiveGroupContext, useGroupMembers, useMyGroupRole } from '../../hooks/useGroups'
 import { useMyCharacters, type MyCharacter } from '../../hooks/useCharacters'
 import { useActiveCharacters } from '../../hooks/useSnapshots'
@@ -37,6 +37,7 @@ import {
   useUpgradeAnalysisRuns,
   useUpgradeRecommendationPlans,
 } from '../../hooks/useGearOptimizer'
+import { FREE_DAILY_UPGRADE_ANALYSIS_LIMIT, hasActiveProAccess } from '../../lib/billing'
 import {
   deriveStageRequirementsFromSelection,
   findPobTreeSpec,
@@ -1596,6 +1597,7 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
   const activeGroupId = group?.id ?? null
   const activeLeague = group?.league ?? null
   const { data: currentUser } = useCurrentUser()
+  const { data: profile } = useMyProfile()
   const targetUserId = currentUser?.id ?? null
   const membersQuery = useGroupMembers(activeGroupId)
   const currentMember = membersQuery.data?.find((member) => member.user.id === targetUserId)
@@ -3306,6 +3308,16 @@ function SignedInAnalysisWizard({ sourceRun }: { sourceRun: UpgradeAnalysisRun |
           </dl>
           {runtimeEstimateSummary ? (
             <p className="text-default-600 text-sm">{runtimeEstimateSummary}</p>
+          ) : null}
+          {profile && !hasActiveProAccess(profile) ? (
+            <p className="text-default-600 text-sm">
+              Community includes {FREE_DAILY_UPGRADE_ANALYSIS_LIMIT} new analyses per UTC day to
+              keep computing costs manageable.{' '}
+              <Link to="/dashboard/support" className="text-brand-readable underline underline-offset-2">
+                Optional Supporter access
+              </Link>{' '}
+              helps cover the cost of additional runs.
+            </p>
           ) : null}
           {latestLiveRun ? (
             <p className="text-default-600 text-sm">

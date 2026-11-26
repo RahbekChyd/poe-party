@@ -120,13 +120,14 @@ const FAQ_ITEMS: FaqItem[] = [
   },
   {
     id: 'why-limits-exist',
-    question: 'Why are there product limits?',
+    question: 'Why does the Community plan have limits?',
     answer: (
       <>
         <p>
-          Limits exist where usage maps directly to storage, worker time, or abuse risk. Community
-          accounts keep core workspace access, public/community features, manual snapshots, and a
-          daily authenticated analysis queue allowance.
+          I run PoE Party as an open-source passion project. Keeping full stash snapshots uses
+          database storage, and running upgrade analyses uses computing time. Community limits
+          keep those costs manageable so the app can stay free to use. The optional Supporter
+          subscription helps cover the extra cost if you need more capacity.
         </p>
         <p>
           Community accounts can queue up to {FREE_DAILY_UPGRADE_ANALYSIS_LIMIT} new authenticated
@@ -231,8 +232,8 @@ const FAQ_ITEMS: FaqItem[] = [
     answer: (
       <>
         <p>
-          Supporter costs {PLAN_PRICE_LABELS.pro}. It helps pay for hosting, optimizer worker
-          capacity, public tools, and ongoing open-source development, and currently includes:
+          If you need more capacity, the optional Supporter subscription helps cover the added
+          storage and computing costs. It costs {PLAN_PRICE_LABELS.pro} and includes the following.
         </p>
         <ul>
           <li>

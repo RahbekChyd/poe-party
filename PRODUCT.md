@@ -31,6 +31,7 @@ In PoE1, a workspace can link stash snapshots to an active farming strategy and 
 - Both games support solo and shared workspaces, character sync, market overview, basic strategies, public discovery, and manual gear suggestions where workspace access is enabled. Scope game-sensitive data and listings by game and league.
 - PoE1 supports stash snapshots and wealth history, Atlas and Thread planning, and Path of Building and trade-backed upgrade analysis. Extending those workflows to PoE2 requires upstream validation. See the [capability matrix](docs/poe1-poe2-capability-matrix.md).
 - Community provides core workspace and public features. Optional hosted Supporter access increases snapshot retention and scheduling options and removes the app-enforced daily cap on newly queued authenticated upgrade analyses. Use **Community** and **Supporter** in player-facing copy.
+- PoE Party is a passion project. Explain Community capacity limits in terms of storage and computing costs, and describe Supporter as an optional way to help cover the cost of additional capacity.
 
 ## Brand Commitments
 
